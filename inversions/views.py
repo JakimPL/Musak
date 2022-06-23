@@ -5,7 +5,9 @@ from django.shortcuts import render
 
 from inversions.forms import SettingsForm
 from inversions.models import ChordInversionModel
-from inversions.services import default_settings, get_settings
+from inversions.services import default_settings, get_settings, get_chords_definitions
+
+chords_definitions = get_chords_definitions()
 
 
 def submit_inversion(request) -> JsonResponse:
@@ -13,7 +15,7 @@ def submit_inversion(request) -> JsonResponse:
         parameters = request.POST['submit']
         data = parse_qs(parameters)
 
-        chord_inversion_model = ChordInversionModel(get_settings(data))
+        chord_inversion_model = ChordInversionModel(get_settings(data, chords_definitions))
         uuid = chord_inversion_model.generate()
         return JsonResponse({'directory': uuid, 'filename': 'chord.mp3'})
     else:
@@ -22,9 +24,9 @@ def submit_inversion(request) -> JsonResponse:
 
 def index(request):
     if request.method == 'POST':
-        form = SettingsForm(request)
+        form = SettingsForm(data=request, chords_definitions=chords_definitions)
     else:
-        form = SettingsForm(default_settings(form=True))
+        form = SettingsForm(data=default_settings(form=True), chords_definitions=chords_definitions)
 
     response = {'form': form}
     return render(request, 'inversions.html', response)

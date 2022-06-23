@@ -79,6 +79,15 @@
 							<div>{{ form.highest_note }}</div>
 						</div>
 					</div>
+
+					<div class="table_row">
+						<p><label for="Chords"><strong>Chords</strong></label></p>
+						<div class="table_column_left">
+							{% for chord in form.get_chords %}
+							<div>{{ chord }}{{ chord.label }}</div>
+							{% endfor %}
+						</div>
+					</div>
 				</div>
 			</form>
 		</div>

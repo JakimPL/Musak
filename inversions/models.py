@@ -1,29 +1,21 @@
-import os
-
-import yaml
 from chordinversions.exporter import Exporter
 from chordinversions.generator import get_random_chord_inversion, generate_all_inversions
 from chordinversions.inversion import ChordInversion
 
+from inversions.services import get_chords_definitions
 from shared.directory import create_directory
 
 
 class ChordInversionModel:
     def __init__(self, settings: dict):
-        self._chords = self.get_chords_definitions()
+        chords = settings['chords']
+        self._chords = chords if chords else get_chords_definitions()
         self._inversions = generate_all_inversions(self._chords)
         self._settings = settings
         self._exporter = Exporter(
             sequential=settings['sequential'],
             tempo=settings['tempo']
         )
-
-    @staticmethod
-    def get_chords_definitions() -> dict:
-        config_path = os.path.join('config', 'inversions.yml')
-        with open(config_path, 'r') as file:
-            data = yaml.safe_load(file)
-            return data['chord_definitions']
 
     def get_random_chord_inversion(self) -> ChordInversion:
         return get_random_chord_inversion(
@@ -42,3 +34,7 @@ class ChordInversionModel:
         uuid64, directory = create_directory()
         self.export_chord_inversion(directory)
         return uuid64
+
+    @property
+    def chords(self) -> dict[str, list[int]]:
+        return self._chords
