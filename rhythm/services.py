@@ -1,9 +1,10 @@
 import re
-from typing import Any, Union
+from typing import Any, Union, Optional
 
+import abjad
 from rhygen.generator import RhythmGenerator
 from rhygen.modules.exceptions import RhygenException
-from rhygen.modules.misc import save_score
+from rhygen.modules.exporter import Exporter
 from rhygen.modules.settings import Settings
 
 from shared.dict import get_key
@@ -51,6 +52,7 @@ def default_settings(form: bool = False) -> dict[str, Any]:
     settings = {
         'groups': 1,
         'measures': 2,
+        'tempo': 120,
         'time_signature_numerator': 4,
         'time_signature_denominator': 4,
         'half_note': 'on',
@@ -81,6 +83,9 @@ def parse_custom_phrase(raw_phrase: str) -> list:
 
 
 def parse_custom_phrases(phrases_string: str) -> list:
+    if not phrases_string:
+        return []
+
     string = phrases_string.strip().replace(' ', '')
 
     count = 0
@@ -112,34 +117,30 @@ def parse_custom_phrases(phrases_string: str) -> list:
 
     if count != 0:
         raise ValueError('unbalanced square brackets')
+
     return [parse_custom_phrase(raw_phrase) for raw_phrase in elements]
 
 
 def get_settings(data: dict[str, Union[str, list]]) -> dict[str, Any]:
     settings = {
         'notes': [],
-        'phrases': []
-    }
-
-    try:
-        settings['groups'] = int(get_key(data, 'groups'))
-        settings['measures'] = int(get_key(data, 'measures'))
-        settings['time_signature'] = (
+        'phrases': [],
+        'tempo': int(get_key(data, 'tempo')),
+        'groups': int(get_key(data, 'groups')),
+        'measures': int(get_key(data, 'measures')),
+        'time_signature': (
             int(get_key(data, 'time_signature_numerator')),
             int(get_key(data, 'time_signature_denominator'))
-        )
-        options = {key: get_key(data, key) for key in data if get_key(data, key) == 'on'}
-        for key, value in options.items():
-            if '_phrase' in key:
-                settings['phrases'].append(settings_map[key])
-            else:
-                settings['notes'].append(settings_map[key])
+        )}
 
-        settings['phrases'] += parse_custom_phrases(get_key(data, 'custom_phrases'))
-    except KeyError:
-        pass
-    except TypeError:
-        pass
+    options = {key: get_key(data, key) for key in data if get_key(data, key) == 'on'}
+    for key, value in options.items():
+        if '_phrase' in key:
+            settings['phrases'].append(settings_map[key])
+        else:
+            settings['notes'].append(settings_map[key])
+
+    settings['phrases'] += parse_custom_phrases(get_key(data, 'custom_phrases'))
 
     return settings
 
@@ -147,8 +148,18 @@ def get_settings(data: dict[str, Union[str, list]]) -> dict[str, Any]:
 class RhygenService:
     def __init__(self, settings: dict):
         self.rhythm_generator = RhythmGenerator()
-
         self.time_signature_error = False
+        self.exception = None
+        self.score: Optional[abjad.Score] = None
+        self.uuid: str = ''
+        self.image: str = ''
+        self.midi: str = ''
+        self.audio: str = ''
+
+        self.create_settings(settings)
+        self.create_score()
+
+    def create_settings(self, settings: dict):
         try:
             self.settings = settings
         except ValueError:
@@ -156,20 +167,18 @@ class RhygenService:
             self.settings = settings
             self.time_signature_error = True
 
-        self.exception = None
-        self.score = None
+    def create_score(self):
         try:
-            self.image = self.generate_image()
-            self.score = self.rhythm_generator.cache
-        except RhygenException as ex:
-            self.image = ''
-            self.exception = ex
+            self.score, self.uuid, self.image, self.midi, self.audio = self.generate()
+        except RhygenException as exception:
+            self.exception = exception
 
     @staticmethod
     def default_settings(form: bool = False) -> dict[str, Any]:
         settings = {
             'groups': 1,
             'measures': 2,
+            'tempo': 120,
             'time_signature_numerator': 4,
             'time_signature_denominator': 4,
             'half_note': 'on',
@@ -185,6 +194,7 @@ class RhygenService:
 
     @settings.setter
     def settings(self, dictionary: dict):
+        tempo = dictionary['tempo']
         groups = dictionary['groups']
         measures = dictionary['measures']
         notes = dictionary['notes']
@@ -193,11 +203,18 @@ class RhygenService:
 
         self.rhythm_generator.settings.groups = groups
         self.rhythm_generator.settings.measures = measures
+
+        self.rhythm_generator.settings.tempo = tempo
         self.rhythm_generator.settings.time_signature = time_signature
 
         self.rhythm_generator.settings.default_group_settings.notes = notes
         self.rhythm_generator.settings.default_group_settings.phrases = phrases
 
-    def generate_image(self):
-        directory = create_directory()[1]
-        return save_score(self.rhythm_generator(), directory, remove_ly=True, resolution=250, flags='--png -dcrop')
+    def generate(self) -> tuple[abjad.Score, str, str, str, str]:
+        exporter = Exporter()
+
+        uuid64, directory = create_directory()
+        rhythm = self.rhythm_generator()
+
+        image, midi, audio = exporter.export(rhythm, directory)
+        return rhythm, uuid64, image, midi, audio

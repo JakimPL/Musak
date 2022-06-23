@@ -9,7 +9,10 @@ chord_inversion_model = ChordInversionModel()
 def submit_inversion(request) -> JsonResponse:
     if 'submit' in request.POST:
         uuid = chord_inversion_model.generate()
-        return JsonResponse({'directory': uuid})
+        return JsonResponse({
+            'directory': uuid,
+            'filename': 'chord.mp3'
+        })
     else:
         return JsonResponse({'error_message': 'invalid request'}, status=400)
 

@@ -1,4 +1,3 @@
-from typing import Dict
 from urllib.parse import parse_qs
 
 from django.http import JsonResponse
@@ -14,11 +13,13 @@ def generate_content(request, form: SettingsForm, rhygen: RhygenService):
     return render(request, 'rhythm.html', response)
 
 
-def get_response(rhygen: RhygenService) -> Dict[str, str]:
+def get_response(rhygen: RhygenService) -> dict[str, str]:
     response = {}
     if rhygen.score is not None:
         response['score'] = str(rhygen.score)
+        response['directory'] = f'../{rhygen.uuid}'
         response['image_source'] = f'../{rhygen.image}'
+        response['audio_source'] = f'../{rhygen.audio}'
 
     if rhygen.exception is not None:
         response['exception'] = str(rhygen.exception)

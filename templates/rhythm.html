@@ -16,6 +16,8 @@
 			crossorigin="anonymous">
 	</script>
 
+	<script src="{% static 'js/play.js' %}"></script>
+
 	<script type="text/javascript" id="ajax">
 	function ajax(event) {
 		event.preventDefault();
@@ -30,6 +32,7 @@
 				if ('image_source' in response) {
 					$('#rhythm_image').attr('src', response.image_source);
 					$('#rhythm_image').attr('alt', response.score);
+					playSound(response.directory, response.audio_source);
 				}
 
 				if ('exception' in response) {
@@ -69,7 +72,16 @@
 								<input type="submit" id="submit" value="Generate rhythm">
 							</div>
 						</div>
+					</div>
 
+					<div class="table_row">
+						<div class="table_column_center">
+							<div><p><label for="{{ form.tempo.label }}"><strong>{{ form.tempo.label }}</strong>:</label></p></div>
+							<div>{{ form.tempo }}</div>
+						</div>
+					</div>
+
+					<div class="table_row">
 						<div class="table_column_left">
 							<div><p><label for="{{ form.groups.label }}"><strong>{{ form.groups.label }}</strong>:</label></p></div>
 							<div>{{ form.groups }}</div>

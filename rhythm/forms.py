@@ -2,6 +2,7 @@ from django import forms
 
 
 class SettingsForm(forms.Form):
+    tempo = forms.IntegerField(label='Tempo', min_value=32, max_value=512, initial=120)
     time_signature_numerator = forms.IntegerField(label='Time signature', min_value=1, max_value=32, initial=4)
     time_signature_denominator = forms.IntegerField(label='Time signature', min_value=1, max_value=32, initial=4)
     groups = forms.IntegerField(label='Groups', min_value=1, max_value=4, initial=1)

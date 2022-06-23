@@ -16,13 +16,9 @@
 			crossorigin="anonymous">
 	</script>
 
-	<script type="text/javascript">
-		function playChord(uuid) {
-			var path = '../temp/' + uuid + '/chord.mp3'
-			var audio = new Audio(path);
-			audio.play();
-		}
+	<script src="{% static 'js/play.js' %}"></script>
 
+	<script type="text/javascript">
 		function ajax(event) {
 			event.preventDefault();
 			$.ajax({
@@ -34,7 +30,7 @@
 				},
 				success: function(response) {
 					if ('directory' in response) {
-						playChord(response['directory']);
+						playSound(response.directory, response.filename);
 					}
 				},
 				error: function(response){
