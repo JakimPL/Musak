@@ -1,0 +1,60 @@
+<!doctype html>
+<head>
+	{% load static %}
+	<link rel="stylesheet" href="{% static 'style.css' %}">
+
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<meta name="description" content="A simple chord inversion generator.">
+	<meta name="author" content="Jakim">
+	<title>Rhythm generator</title>
+</head>
+
+<body>
+	<script src="https://code.jquery.com/jquery-3.6.0.js"
+			integrity="sha256-H+K7U5CnXl1h5ywQfKtSj8PCmoN9aaq30gDh27Xc0jk="
+			crossorigin="anonymous">
+	</script>
+
+	<script type="text/javascript">
+		function playChord(uuid) {
+			var path = '../temp/' + uuid + '/chord.mp3'
+			var audio = new Audio(path);
+			audio.play();
+		}
+
+		function ajax(event) {
+			event.preventDefault();
+			$.ajax({
+				type: 'POST',
+				url: "{% url 'submit_inversion' %}",
+				data: {
+					submit: $('#inversion_generator').serialize(),
+					csrfmiddlewaretoken: $('input[name=csrfmiddlewaretoken]').val()
+				},
+				success: function(response) {
+					if ('directory' in response) {
+						playChord(response['directory']);
+					}
+				},
+				error: function(response){
+					alert('Bad request');
+				}
+			});
+		}
+	</script>
+
+	<p><h1>Chord Inversions Generator v0.1</h1>
+
+	<p>Generate a random chord inversion.</p>
+
+	<div class="table_row">
+		<div class="table_column_center">
+			<form method="post" id="inversion_generator" onsubmit="ajax(event)">
+				{% csrf_token %}
+				<input type="submit" id="submit" value="Generate inversion">
+			</form>
+		</div>
+	</div>
+
+</body>

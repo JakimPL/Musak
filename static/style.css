@@ -1,0 +1,102 @@
+body {
+    font-size: 10pt;
+    font-family: "Noto Mono", sans-serif;
+    color: black;
+    line-height: 12pt;
+    padding-left: 5pt;
+    padding-right: 5pt;
+    padding-top: 5pt;
+    margin: 50px 100px 100px 50px;
+}
+
+h1 {
+    font: 14pt "Noto Mono", sans-serif;
+    font-weight: bold;
+    line-height: 20pt;
+    text-align: center;
+}
+
+p.subheader {
+    font-weight: bold;
+    color: #593d87;
+}
+
+a {
+    text-decoration: none;
+}
+
+a:link, a:visited {
+    color: #8094d6;
+}
+
+a:hover, a:active {
+    color: #FF9933;
+}
+
+div.footer {
+    font-size: 9pt;
+    font-style: italic;
+    line-height: 12pt;
+    text-align: center;
+    padding-top: 30pt;
+}
+
+img {
+    max-width: 100%;
+    max-height: 100%;
+}
+
+.row:after {
+    display: table;
+    clear: both;
+}
+
+.column_left {
+    float: left;
+    width: 30%;
+    padding: 0px;
+}
+
+.column_right {
+    float: right;
+    width: 70%;
+    padding: 0px;
+}
+
+.table {
+    display: table;
+    margin: 10px 10px;
+}
+
+.table_row {
+    display: table-row;
+}
+
+.table_column_center {
+    display: table-column;
+    float: left;
+    margin: 0px 0px 10px 10px;
+}
+
+.table_column_left {
+    display: table-column;
+    float: left;
+    margin: 0px 0px 10px 10px;
+}
+
+.table_column_right {
+    display: table-column;
+    float: right;
+    margin: 0px 0px 10px 10px;
+}
+
+input[type=button], input[type=submit], input[type=reset] {
+    background-color: #248a6d;
+    font-family: "Noto Mono", sans-serif;
+    border: 1px;
+    color: white;
+    padding: 16px 32px;
+    text-decoration: none;
+    margin: 4px 2px;
+    cursor: pointer;
+}

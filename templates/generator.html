@@ -1,0 +1,164 @@
+<!doctype html>
+<head>
+	{% load static %}
+	<link rel="stylesheet" href="{% static 'style.css' %}">
+
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<meta name="description" content="A simple rhythm score generator.">
+	<meta name="author" content="Jakim">
+	<title>Rhythm generator</title>
+</head>
+
+<body>
+	<script src="https://code.jquery.com/jquery-3.6.0.js"
+			integrity="sha256-H+K7U5CnXl1h5ywQfKtSj8PCmoN9aaq30gDh27Xc0jk="
+			crossorigin="anonymous">
+	</script>
+
+	<script type="text/javascript" id="ajax">
+	function ajax(event) {
+		event.preventDefault();
+		$.ajax({
+			type: 'POST',
+			url: "{% url 'submit_rhythm' %}",
+			data: {
+				submit: $('#settings_form').serialize(),
+				csrfmiddlewaretoken: $('input[name=csrfmiddlewaretoken]').val()
+			},
+			success: function(response){
+				if ('image_source' in response) {
+					$('#rhythm_image').attr('src', response.image_source);
+					$('#rhythm_image').attr('alt', response.score);
+				}
+
+				if ('exception' in response) {
+					$('#error').text("An error during generating the image:");
+					$('#error_message').text(response.exception);
+				} else {
+					$('#error').text("");
+					$('#error_message').text("");
+				}
+
+				if ('time_signature_error' in response) {
+					$('#time_signature_error').text("the denominator has to be a power of two!");
+				} else {
+					$('#time_signature_error').text("");
+				}
+			},
+			error: function(response){
+				$('#error').text("An error during generating the image:");
+				$('#error_message').text(response.error_message);
+			}
+		});
+	}
+	</script>
+
+	<p><h1>Rhythm Generator v0.1</h1>
+
+	<p>Generate a random rhythm score.</p>
+
+	<div class="row">
+		<div class="column_left">
+			<form method="post" id="settings_form" onsubmit="ajax(event)">
+				<div class="table">
+					{% csrf_token %}
+					<div class="table_row">
+						<div class="table_row">
+							<div class="table_column_center">
+								<input type="submit" id="submit" value="Generate rhythm">
+							</div>
+						</div>
+
+						<div class="table_column_left">
+							<div><p><label for="{{ form.groups.label }}"><strong>{{ form.groups.label }}</strong>:</label></p></div>
+							<div>{{ form.groups }}</div>
+						</div>
+
+						<div class="table_column_right">
+							<div><p><label for="{{ form.measures.label }}"><strong>{{ form.measures.label }}</strong>:</label></p></div>
+							<div>{{ form.measures }}</div>
+						</div>
+					</div>
+
+					<div class="table_row">
+						<div class="table_column_center">
+							<div><p><label for="{{ form.time_signature_numerator.label }}"><strong>{{ form.time_signature_numerator.label }}:</strong></label></p></div>
+							<div>{{ form.time_signature_numerator }} / {{ form.time_signature_denominator }} <p id="time_signature_error" style="font-weight: bold">{% if time_signature_error %}<strong>the denominator has to be a power of two!</strong>{% endif %}</p></div>
+						</div>
+					</div>
+
+					<div class="table_row">
+						<p><label for="Basic"><strong>Basic elements</strong></label></p>
+						<div class="table_column_left">
+							<div><p><label for="Notes"><strong>Notes</strong>:</label></p></div>
+							<div>{{ form.whole_note }}{{ form.whole_note.label }}</div>
+							<div>{{ form.half_note }}{{ form.half_note.label }}</div>
+							<div>{{ form.quarter_note }}{{ form.quarter_note.label }}</div>
+							<div>{{ form.eighth_note }}{{ form.eighth_note.label }}</div>
+							<div>{{ form.sixteenth_note }}{{ form.sixteenth_note.label }}</div>
+							<div>{{ form.thirty_second_note }}{{ form.thirty_second_note.label }}</div>
+						</div>
+
+						<div class="table_column_right">
+							<div><p><label for="Rests"><strong>Rests</strong>:</label></p></div>
+							<div>{{ form.whole_rest }}{{ form.whole_rest.label }}</div>
+							<div>{{ form.half_rest }}{{ form.half_rest.label }}</div>
+							<div>{{ form.quarter_rest }}{{ form.quarter_rest.label }}</div>
+							<div>{{ form.eighth_rest }}{{ form.eighth_rest.label }}</div>
+							<div>{{ form.sixteenth_rest }}{{ form.sixteenth_rest.label }}</div>
+							<div>{{ form.thirty_second_rest }}{{ form.thirty_second_rest.label }}</div>
+						</div>
+					</div>
+
+					<div class="table_row">
+						<p><label for="Basic"><strong>Dotted notes</strong></label></p>
+						<div class="table_column_center">
+							<div><p><label for="Dotted notes"><strong>Dotted notes</strong>:</label></p></div>
+							<div>{{ form.dotted_half_note }}{{ form.dotted_half_note.label }}</div>
+							<div>{{ form.dotted_quarter_note }}{{ form.dotted_quarter_note.label }}</div>
+							<div>{{ form.dotted_eighth_note }}{{ form.dotted_eighth_note.label }}</div>
+							<div>{{ form.dotted_sixteenth_note }}{{ form.dotted_sixteenth_note.label }}</div>
+						</div>
+					</div>
+
+					<div class="table_row">
+						<p><label for="Phrases"><strong>Phrases</strong></label></p>
+						<div class="table_column_left">
+							<div><p><label for="Beamed notes"><strong>Beamed notes</strong>:</label></p></div>
+							<div>{{ form.two_quarter_notes_phrase }}{{ form.two_quarter_notes_phrase.label }}</div>
+							<div>{{ form.two_eighth_notes_phrase }}{{ form.two_eighth_notes_phrase.label }}</div>
+							<div>{{ form.four_eighth_notes_phrase }}{{ form.four_eighth_notes_phrase.label }}</div>
+							<div>{{ form.two_sixteenth_notes_phrase }}{{ form.two_sixteenth_notes_phrase.label }}</div>
+							<div>{{ form.four_sixteenth_notes_phrase }}{{ form.four_sixteenth_notes_phrase.label }}</div>
+							<div>{{ form.eight_sixteenth_notes_phrase }}{{ form.eight_sixteenth_notes_phrase.label }}</div>
+						</div>
+
+						<div class="table_column_right">
+							<div><p><label for="Syncope"><strong>Syncope</strong>:</label></p></div>
+							<div>{{ form.left_quarter_phrase }}{{ form.left_quarter_phrase.label }}</div>
+							<div>{{ form.right_quarter_phrase }}{{ form.right_quarter_phrase.label }}</div>
+							<div>{{ form.left_eighth_phrase }}{{ form.left_eighth_phrase.label }}</div>
+							<div>{{ form.right_eighth_phrase }}{{ form.right_eighth_phrase.label }}</div>
+							<div>{{ form.left_sixteenth_phrase }}{{ form.left_sixteenth_phrase.label }}</div>
+							<div>{{ form.right_sixteenth_phrase }}{{ form.right_sixteenth_phrase.label }}</div>
+						</div>
+					</div>
+
+					<div class="table_row">
+						<div class="table_column_center">
+							<div><p><label for="Custom phrases"><strong>Custom phrases</strong>:</label></p></div>
+							<div>{{ form.custom_phrases }}{{ form.custom_phrases.label }}</div>
+						</div>
+					</div>
+				</div>
+			</form>
+		</div>
+
+		<div class="column_right" style="text-align: center">
+			<p id="score"><img src="{{ image_source }}" alt="{{ score }}" id="rhythm_image"></p>
+			<p id="error" style="font-weight: bold"></p>
+			<p id="error_message" style="font-style: italic"></p>
+		</div>
+	</div>
+</body>
