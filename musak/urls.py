@@ -3,11 +3,11 @@ from django.contrib import admin
 from django.urls import include, path
 
 from musak import settings
-from generator.views import submit_rhythm
+from rhythm.views import submit_rhythm
 from inversions.views import submit_inversion
 
 urlpatterns = [
-    path('generator/', include('generator.urls')),
+    path('rhythm/', include('rhythm.urls')),
     path('inversions/', include('inversions.urls')),
     path('admin/', admin.site.urls),
     path('submit_inversion/', submit_inversion, name='submit_inversion'),

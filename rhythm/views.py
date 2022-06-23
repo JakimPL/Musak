@@ -6,8 +6,8 @@ from django.http import JsonResponse
 from django.shortcuts import render
 from rhygen.modules.exceptions import NoteNotSupportedError
 
-from generator.forms import SettingsForm
-from generator.services import RhygenService, settings_map
+from rhythm.forms import SettingsForm
+from rhythm.services import RhygenService, settings_map
 
 
 def get_key(data: Dict[str, Any], key: str) -> Any:
@@ -117,7 +117,7 @@ def get_settings(data: Dict[str, Union[str, list]]) -> Dict[str, Any]:
 
 def generate_content(request, form: SettingsForm, rhygen: RhygenService):
     response = {'form': form} | get_response(rhygen)
-    return render(request, 'generator.html', response)
+    return render(request, 'rhythm.html', response)
 
 
 def get_response(rhygen: RhygenService) -> Dict[str, str]:
