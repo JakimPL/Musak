@@ -5,21 +5,17 @@ from chordinversions.exporter import Exporter
 from chordinversions.generator import get_random_chord_inversion, generate_all_inversions
 from chordinversions.inversion import ChordInversion
 
-from config.defaults import TEMPO
 from shared.directory import create_directory
 
 
 class ChordInversionModel:
-    def __init__(
-            self,
-            sequential: bool = True,
-            tempo: int = TEMPO
-    ):
+    def __init__(self, settings: dict):
         self._chords = self.get_chords_definitions()
         self._inversions = generate_all_inversions(self._chords)
+        self._settings = settings
         self._exporter = Exporter(
-            sequential=sequential,
-            tempo=tempo
+            sequential=settings['sequential'],
+            tempo=settings['tempo']
         )
 
     @staticmethod
@@ -30,7 +26,11 @@ class ChordInversionModel:
             return data['chord_definitions']
 
     def get_random_chord_inversion(self) -> ChordInversion:
-        return get_random_chord_inversion(self._inversions)
+        return get_random_chord_inversion(
+            self._inversions,
+            lowest_note=self._settings['lowest_note'],
+            highest_note=self._settings['highest_note']
+        )
 
     def export_chord_inversion(self, path: str, chord_inversion: ChordInversion = None):
         if chord_inversion is None:

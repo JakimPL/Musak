@@ -67,6 +67,18 @@
 							<div>{{ form.tempo }}</div>
 						</div>
 					</div>
+
+					<div class="table_row">
+						<p><label for="Notes range"><strong>Notes range</strong></label></p>
+						<div class="table_column_left">
+							<div><p><label for="{{ form.lowest_note.label }}"><strong>{{ form.lowest_note.label }}</strong>:</label></p></div>
+							<div>{{ form.lowest_note }}</div>
+						</div>
+						<div class="table_column_right">
+							<div><p><label for="{{ form.highest_note.label }}"><strong>{{ form.highest_note.label }}</strong>:</label></p></div>
+							<div>{{ form.highest_note }}</div>
+						</div>
+					</div>
 				</div>
 			</form>
 		</div>
