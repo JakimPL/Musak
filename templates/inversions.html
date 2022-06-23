@@ -25,7 +25,7 @@
 				type: 'POST',
 				url: "{% url 'submit_inversion' %}",
 				data: {
-					submit: $('#inversion_generator').serialize(),
+					submit: $('#settings_form').serialize(),
 					csrfmiddlewaretoken: $('input[name=csrfmiddlewaretoken]').val()
 				},
 				success: function(response) {
@@ -44,13 +44,25 @@
 
 	<p>Generate a random chord inversion.</p>
 
-	<div class="table_row">
-		<div class="table_column_center">
-			<form method="post" id="inversion_generator" onsubmit="ajax(event)">
+	<div class="row">
+		<div class="column_left">
+			<form method="post" id="settings_form" onsubmit="ajax(event)">
 				{% csrf_token %}
-				<input type="submit" id="submit" value="Generate inversion">
+				<div class="table_row">
+					<div class="table_column_center">
+						<input type="submit" id="submit" value="Generate inversion">
+					</div>
+				</div>
+
+				<div class="table_row">
+					<div class="table_column_left">
+						<div>{{ form.sequential }}{{ form.sequential.label }}</div>
+					</div>
+				</div>
 			</form>
 		</div>
-	</div>
 
+		<div class="column_right" style="text-align: center">
+		</div>
+	</div>
 </body>
