@@ -106,8 +106,8 @@ img {
 
 .inversions {
     display: flex;
-    float: center;
-    width: 100%;
+    justify-content: space-around;
+    text-align: center;
     margin: 15px 15px 25px 25px;
 }
 
