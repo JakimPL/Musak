@@ -20,6 +20,12 @@
 	<script src="{% static 'js/json.js' %}"></script>
 
 	<script type="text/javascript">
+		function playAgain() {
+			if (typeof directory !== 'undefined') {
+				playSound(directory, chord_audio);
+			}
+		}
+
 		function inversion_text(index) {
 			var text = "";
 			if (index == 0) {
@@ -81,9 +87,13 @@
 				},
 				success: function(response) {
 					if ('directory' in response) {
-						playSound(response.directory, response.chord_audio);
+						directory = response.directory;
+						chord_audio = response.chord_audio;
+
 						$("#chord_info").hide(0);
-						openJSON(response.directory, response.chord_info, set_chord_info);
+						$("#play_again").show(100);
+						playSound(directory, chord_audio);
+						openJSON(directory, response.chord_info, set_chord_info);
 					}
 
 					if ('max_inversion_index' in response) {
@@ -128,12 +138,12 @@
 					<div class="table_row">
 						<p><label for="Notes range"><strong>Notes range</strong></label></p>
 						<div class="table_column_left">
-							<div><p><label for="{{ form.lowest_note.label }}"><strong>{{ form.lowest_note.label }}</strong>:</label></p></div>
-							<div>{{ form.lowest_note }}</div>
+							<div class="widget"><p><label for="{{ form.lowest_note.label }}"><strong>{{ form.lowest_note.label }}</strong>:</label></p></div>
+							<div class="widget">{{ form.lowest_note }}</div>
 						</div>
 						<div class="table_column_right">
-							<div><p><label for="{{ form.highest_note.label }}"><strong>{{ form.highest_note.label }}</strong>:</label></p></div>
-							<div>{{ form.highest_note }}</div>
+							<div class="widget"><p><label for="{{ form.highest_note.label }}"><strong>{{ form.highest_note.label }}</strong>:</label></p></div>
+							<div class="widget">{{ form.highest_note }}</div>
 						</div>
 					</div>
 
@@ -150,9 +160,12 @@
 		</div>
 
 		<div class="column_right">
-			<div class="inversions">
-				<div id="inversions">
+			<div style="float: center; justify-content: space-around; text-align: center;" onclick="playAgain()">
+				<input type="submit" id="play_again" value="Play again" style="display: none; background-color: #FFFFFF; border: 2px solid #404040; color: #202020">
+			</div>
 
+			<div class="flex">
+				<div id="inversions">
 				</div>
 			</div>
 
