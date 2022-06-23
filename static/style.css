@@ -90,10 +90,33 @@ img {
     margin: 0px 0px 10px 10px;
 }
 
+.chord_info {
+    display: table-column;
+    float: center;
+
+    width: 100%;
+    margin-bottom: 0px;
+    border-radius: 25px;
+    border: 2px solid #248a6d;
+
+    line-height: 0.5;
+    text-align: center;
+    display: none;
+}
+
+.inversions {
+    display: flex;
+    float: center;
+    width: 100%;
+    margin: 15px 15px 25px 25px;
+}
+
 input[type=button], input[type=submit], input[type=reset] {
     background-color: #248a6d;
     font-family: "Noto Mono", sans-serif;
     border: 1px;
+    border-radius: 15px;
+
     color: white;
     padding: 16px 32px;
     text-decoration: none;

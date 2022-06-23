@@ -1,24 +1,73 @@
 <!doctype html>
 <head>
-	{% load static %}
-	<link rel="stylesheet" href="{% static 'style.css' %}">
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'style.css' %}">
 
-	<meta charset="utf-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1">
-	<meta name="description" content="A simple chord inversion generator.">
-	<meta name="author" content="Jakim">
-	<title>Chord inversions generator</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="A simple chord inversion generator.">
+    <meta name="author" content="Jakim">
+    <title>Chord inversions generator</title>
 </head>
 
 <body>
-	<script src="https://code.jquery.com/jquery-3.6.0.js"
-			integrity="sha256-H+K7U5CnXl1h5ywQfKtSj8PCmoN9aaq30gDh27Xc0jk="
-			crossorigin="anonymous">
-	</script>
+<script src="https://code.jquery.com/jquery-3.6.0.js"
+        integrity="sha256-H+K7U5CnXl1h5ywQfKtSj8PCmoN9aaq30gDh27Xc0jk="
+        crossorigin="anonymous">
+</script>
 
-	<script src="{% static 'js/play.js' %}"></script>
+<script src="{% static 'js/play.js' %}"></script>
+<script src="{% static 'js/json.js' %}"></script>
 
-	<script type="text/javascript">
+<script type="text/javascript">
+		function inversion_text(index) {
+			var text = "";
+			if (index == 0) {
+				text += "Root position";
+			} else {
+				text += "Inversion no. " + index;
+			}
+
+			return text;
+		}
+
+		function add_buttons(number_of_buttons) {
+			inversions = document.getElementById("inversions");
+			chord_info = document.getElementById("chord_info");
+			while (inversions.firstChild) {
+				inversions.removeChild(inversions.lastChild);
+		  	}
+
+			for (var index = 0; index < number_of_buttons; index++) {
+				var button = document.createElement('input');
+				var text = inversion_text(index);
+				button.type = 'button';
+				button.className = 'input';
+				button.id = 'submit';
+				button.value = text;
+
+				button.onclick = function() {
+					$("#chord_info").show(100);
+					if (this.value == $('#chord_inversion').text()) {
+						chord_info.style.borderColor = "#248a6d";
+					} else {
+						chord_info.style.borderColor = "red";
+					}
+				};
+
+				inversions.appendChild(button);
+			}
+		}
+
+		function chord_info(data) {
+			var inversion = data.inversion_index;
+			var chord_type = data.base_note + data.chord_type;
+			var chord_inversion = inversion_text(data.inversion_index);
+
+			$('#chord_type').text(chord_type);
+			$('#chord_inversion').text(chord_inversion);
+		}
+
 		function ajax(event) {
 			event.preventDefault();
 			$.ajax({
@@ -30,7 +79,13 @@
 				},
 				success: function(response) {
 					if ('directory' in response) {
-						playSound(response.directory, response.filename);
+						playSound(response.directory, response.chord_audio);
+						$("#chord_info").hide(0);
+						openJSON(response.directory, response.chord_info, chord_info);
+					}
+
+					if ('max_inversion_index' in response) {
+						add_buttons(response.max_inversion_index);
 					}
 				},
 				error: function(response){
@@ -38,61 +93,77 @@
 				}
 			});
 		}
-	</script>
 
-	<p><h1>Chord Inversions Generator v0.1</h1>
+</script>
 
-	<p>Generate a random chord inversion.</p>
+<p>
+<h1>Chord Inversions Generator v0.1</h1>
 
-	<div class="row">
-		<div class="column_left">
-			<form method="post" id="settings_form" onsubmit="ajax(event)">
-				{% csrf_token %}
-				<div class="table">
-					<div class="table_row">
-						<div class="table_column_center">
-							<input type="submit" id="submit" value="Generate inversion">
-						</div>
-					</div>
+<p>Generate a random chord inversion.</p>
 
-					<div class="table_row">
-						<div class="table_column_left">
-							<div>{{ form.sequential }}{{ form.sequential.label }}</div>
-						</div>
-					</div>
+<div class="row">
+    <div class="column_left">
+        <form method="post" id="settings_form" onsubmit="ajax(event)">
+            {% csrf_token %}
+            <div class="table">
+                <div class="table_row">
+                    <div class="table_column_center">
+                        <input type="submit" id="submit" value="Generate inversion">
+                    </div>
+                </div>
 
-					<div class="table_row">
-						<div class="table_column_center">
-							<div><p><label for="{{ form.tempo.label }}"><strong>{{ form.tempo.label }}</strong>:</label></p></div>
-							<div>{{ form.tempo }}</div>
-						</div>
-					</div>
+                <div class="table_row">
+                    <div class="table_column_left">
+                        <div>{{ form.sequential }}{{ form.sequential.label }}</div>
+                    </div>
+                </div>
 
-					<div class="table_row">
-						<p><label for="Notes range"><strong>Notes range</strong></label></p>
-						<div class="table_column_left">
-							<div><p><label for="{{ form.lowest_note.label }}"><strong>{{ form.lowest_note.label }}</strong>:</label></p></div>
-							<div>{{ form.lowest_note }}</div>
-						</div>
-						<div class="table_column_right">
-							<div><p><label for="{{ form.highest_note.label }}"><strong>{{ form.highest_note.label }}</strong>:</label></p></div>
-							<div>{{ form.highest_note }}</div>
-						</div>
-					</div>
+                <div class="table_row">
+                    <div class="table_column_center">
+                        <div><p><label for="{{ form.tempo.label }}"><strong>{{ form.tempo.label }}</strong>:</label></p>
+                        </div>
+                        <div>{{ form.tempo }}</div>
+                    </div>
+                </div>
 
-					<div class="table_row">
-						<p><label for="Chords"><strong>Chords</strong></label></p>
-						<div class="table_column_left">
-							{% for chord in form.get_chords %}
-							<div>{{ chord }}{{ chord.label }}</div>
-							{% endfor %}
-						</div>
-					</div>
-				</div>
-			</form>
-		</div>
+                <div class="table_row">
+                    <p><label for="Notes range"><strong>Notes range</strong></label></p>
+                    <div class="table_column_left">
+                        <div><p><label for="{{ form.lowest_note.label }}"><strong>{{ form.lowest_note.label }}</strong>:</label>
+                        </p></div>
+                        <div>{{ form.lowest_note }}</div>
+                    </div>
+                    <div class="table_column_right">
+                        <div><p><label for="{{ form.highest_note.label }}"><strong>{{ form.highest_note.label
+                            }}</strong>:</label></p></div>
+                        <div>{{ form.highest_note }}</div>
+                    </div>
+                </div>
 
-		<div class="column_right" style="text-align: center">
-		</div>
-	</div>
+                <div class="table_row">
+                    <p><label for="Chords"><strong>Chords</strong></label></p>
+                    <div class="table_column_left">
+                        {% for chord in form.get_chords %}
+                        <div>{{ chord }}{{ chord.label }}</div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <div class="column_right">
+        <div class="inversions">
+            <div id="inversions">
+
+            </div>
+        </div>
+
+        <div id="chord_info" class="chord_info">
+            <p><strong>Chord info:</strong></p>
+            <p id="chord_type"></p>
+            <p id="chord_inversion"></p>
+        </div>
+    </div>
+</div>
 </body>

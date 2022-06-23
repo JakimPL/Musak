@@ -9,13 +9,16 @@ from shared.directory import create_directory
 class ChordInversionModel:
     def __init__(self, settings: dict):
         chords = settings['chords']
-        self._chords = chords if chords else get_chords_definitions()
-        self._inversions = generate_all_inversions(self._chords)
-        self._settings = settings
-        self._exporter = Exporter(
+        self._chords: dict[str, list[int]] = chords if chords else get_chords_definitions()
+        self._inversions: dict[str, list[ChordInversion]] = generate_all_inversions(self._chords)
+        self._settings: dict = settings
+        self._exporter: Exporter = Exporter(
             sequential=settings['sequential'],
             tempo=settings['tempo']
         )
+
+    def get_max_inversion_index(self) -> int:
+        return max([len(chord) for chord in self._inversions.values()])
 
     def get_random_chord_inversion(self) -> ChordInversion:
         return get_random_chord_inversion(
@@ -38,3 +41,7 @@ class ChordInversionModel:
     @property
     def chords(self) -> dict[str, list[int]]:
         return self._chords
+
+    @property
+    def inversions(self) -> dict[str, list[ChordInversion]]:
+        return self._inversions

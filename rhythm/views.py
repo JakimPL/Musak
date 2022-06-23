@@ -48,7 +48,7 @@ def submit_rhythm(request) -> JsonResponse:
 
 def index(request):
     if request.method == 'POST':
-        form = SettingsForm(request)
+        form = SettingsForm(request.POST)
     else:
         form = SettingsForm(default_settings(form=True))
 

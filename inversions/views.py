@@ -17,14 +17,19 @@ def submit_inversion(request) -> JsonResponse:
 
         chord_inversion_model = ChordInversionModel(get_settings(data, chords_definitions))
         uuid = chord_inversion_model.generate()
-        return JsonResponse({'directory': uuid, 'filename': 'chord.mp3'})
+        return JsonResponse({
+            'directory': uuid,
+            'chord_audio': 'chord.mp3',
+            'chord_info': 'chord.json',
+            'max_inversion_index': chord_inversion_model.get_max_inversion_index()
+        })
     else:
         return JsonResponse({'error_message': 'invalid request'}, status=400)
 
 
 def index(request):
     if request.method == 'POST':
-        form = SettingsForm(data=request, chords_definitions=chords_definitions)
+        form = SettingsForm(data=request.POST, chords_definitions=chords_definitions)
     else:
         form = SettingsForm(data=default_settings(form=True), chords_definitions=chords_definitions)
 

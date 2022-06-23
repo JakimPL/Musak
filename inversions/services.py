@@ -39,7 +39,7 @@ def get_settings(data: dict[str, Union[str, list]], chords_definitions: dict[str
     return settings
 
 
-def get_chords_definitions() -> dict:
+def get_chords_definitions() -> dict[str, list[int]]:
     config_path = os.path.join('config', 'inversions.yml')
     with open(config_path, 'r') as file:
         data = yaml.safe_load(file)
