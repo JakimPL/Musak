@@ -7,6 +7,7 @@ from rhygen.modules.exceptions import RhygenException
 from rhygen.modules.exporter import Exporter
 from rhygen.modules.settings import Settings
 
+from config.defaults import TEMPO, GROUPS, MEASURES
 from shared.dict import get_key
 from shared.directory import create_directory
 
@@ -50,9 +51,9 @@ settings_map = {
 
 def default_settings(form: bool = False) -> dict[str, Any]:
     settings = {
-        'groups': 1,
-        'measures': 2,
-        'tempo': 120,
+        'groups': GROUPS,
+        'measures': MEASURES,
+        'tempo': TEMPO,
         'time_signature_numerator': 4,
         'time_signature_denominator': 4,
         'half_note': 'on',
@@ -172,21 +173,6 @@ class RhygenService:
             self.score, self.uuid, self.image, self.midi, self.audio = self.generate()
         except RhygenException as exception:
             self.exception = exception
-
-    @staticmethod
-    def default_settings(form: bool = False) -> dict[str, Any]:
-        settings = {
-            'groups': 1,
-            'measures': 2,
-            'tempo': 120,
-            'time_signature_numerator': 4,
-            'time_signature_denominator': 4,
-            'half_note': 'on',
-            'half_rest': 'on',
-            'quarter_note': 'on'
-        }
-
-        return settings if form else get_settings(settings)
 
     @property
     def settings(self) -> Settings:

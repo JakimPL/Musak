@@ -5,6 +5,7 @@ from django.shortcuts import render
 
 from inversions.forms import SettingsForm
 from inversions.models import ChordInversionModel
+from inversions.services import default_settings
 from shared.dict import get_key
 
 
@@ -12,19 +13,23 @@ def submit_inversion(request) -> JsonResponse:
     if 'submit' in request.POST:
         parameters = request.POST['submit']
         data = parse_qs(parameters)
-
         options = {key: True for key in data if get_key(data, key) == 'on'}
-        chord_inversion_model = ChordInversionModel(sequential=options.get('sequential', False))
+        chord_inversion_model = ChordInversionModel(
+            sequential=options.get('sequential', False),
+            tempo=int(get_key(data, 'tempo'))
+        )
+
         uuid = chord_inversion_model.generate()
-        return JsonResponse({
-            'directory': uuid,
-            'filename': 'chord.mp3'
-        })
+        return JsonResponse({'directory': uuid, 'filename': 'chord.mp3'})
     else:
         return JsonResponse({'error_message': 'invalid request'}, status=400)
 
 
 def index(request):
-    form = SettingsForm(request)
+    if request.method == 'POST':
+        form = SettingsForm(request)
+    else:
+        form = SettingsForm(default_settings(form=True))
+
     response = {'form': form}
     return render(request, 'inversions.html', response)

@@ -1,12 +1,30 @@
 from django import forms
 
+from config.defaults import (
+    TEMPO,
+    MIN_TEMPO,
+    MAX_TEMPO,
+    GROUPS,
+    MIN_GROUPS,
+    MAX_GROUPS,
+    MEASURES,
+    MIN_MEASURES,
+    MAX_MEASURES,
+    TIME_SIGNATURE_NUMERATOR,
+    MIN_TIME_SIGNATURE_NUMERATOR,
+    MAX_TIME_SIGNATURE_NUMERATOR,
+    TIME_SIGNATURE_DENOMINATOR,
+    MIN_TIME_SIGNATURE_DENOMINATOR,
+    MAX_TIME_SIGNATURE_DENOMINATOR
+)
+
 
 class SettingsForm(forms.Form):
-    tempo = forms.IntegerField(label='Tempo', min_value=32, max_value=512, initial=120)
-    time_signature_numerator = forms.IntegerField(label='Time signature', min_value=1, max_value=32, initial=4)
-    time_signature_denominator = forms.IntegerField(label='Time signature', min_value=1, max_value=32, initial=4)
-    groups = forms.IntegerField(label='Groups', min_value=1, max_value=4, initial=1)
-    measures = forms.IntegerField(label='Measures', min_value=1, max_value=8, initial=2)
+    tempo = forms.IntegerField(label='Tempo', min_value=MIN_TEMPO, max_value=MAX_TEMPO, initial=TEMPO)
+    time_signature_numerator = forms.IntegerField(label='Time signature', min_value=MIN_TIME_SIGNATURE_NUMERATOR, max_value=MAX_TIME_SIGNATURE_NUMERATOR, initial=TIME_SIGNATURE_NUMERATOR)
+    time_signature_denominator = forms.IntegerField(label='Time signature', min_value=MIN_TIME_SIGNATURE_DENOMINATOR, max_value=MAX_TIME_SIGNATURE_DENOMINATOR, initial=TIME_SIGNATURE_DENOMINATOR)
+    groups = forms.IntegerField(label='Groups', min_value=MIN_GROUPS, max_value=MAX_GROUPS, initial=GROUPS)
+    measures = forms.IntegerField(label='Measures', min_value=MIN_MEASURES, max_value=MAX_MEASURES, initial=MEASURES)
 
     whole_note = forms.BooleanField(label='\U0001d15d', required=False)
     half_note = forms.BooleanField(label='\U0001d15e', required=False)

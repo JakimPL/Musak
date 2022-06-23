@@ -5,14 +5,22 @@ from chordinversions.exporter import Exporter
 from chordinversions.generator import get_random_chord_inversion, generate_all_inversions
 from chordinversions.inversion import ChordInversion
 
+from config.defaults import TEMPO
 from shared.directory import create_directory
 
 
 class ChordInversionModel:
-    def __init__(self, sequential: bool = True):
+    def __init__(
+            self,
+            sequential: bool = True,
+            tempo: int = TEMPO
+    ):
         self._chords = self.get_chords_definitions()
         self._inversions = generate_all_inversions(self._chords)
-        self._exporter = Exporter(sequential=sequential)
+        self._exporter = Exporter(
+            sequential=sequential,
+            tempo=tempo
+        )
 
     @staticmethod
     def get_chords_definitions() -> dict:
