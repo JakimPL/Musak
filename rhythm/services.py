@@ -1,8 +1,12 @@
+import re
+from typing import Any, Union
+
 from rhygen.generator import RhythmGenerator
 from rhygen.modules.exceptions import RhygenException
 from rhygen.modules.misc import save_score
 from rhygen.modules.settings import Settings
 
+from shared.dict import get_key
 from shared.directory import create_directory
 
 settings_map = {
@@ -43,6 +47,103 @@ settings_map = {
 }
 
 
+def default_settings(form: bool = False) -> dict[str, Any]:
+    settings = {
+        'groups': 1,
+        'measures': 2,
+        'time_signature_numerator': 4,
+        'time_signature_denominator': 4,
+        'half_note': 'on',
+        'half_rest': 'on',
+        'quarter_note': 'on'
+    }
+
+    return settings if form else get_settings(settings)
+
+
+def parse_custom_phrase(raw_phrase: str) -> list:
+    elements = raw_phrase.split(',')
+    notes = []
+
+    for element in elements:
+        if '(' in element or ')' in element:
+            if re.match(r"(-)?\(\d+:\d+\)", element):
+                raw_pair = element.replace('(', '').replace(')', '').split(':')
+                note = int(raw_pair[0]), int(raw_pair[1])
+            else:
+                raise ValueError(f'invalid note element {element}')
+        else:
+            note = int(element)
+
+        notes.append(note)
+
+    return notes
+
+
+def parse_custom_phrases(phrases_string: str) -> list:
+    string = phrases_string.strip().replace(' ', '')
+
+    count = 0
+    elements = []
+    raw_phrase = ''
+    for char in string:
+        if char not in ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', ',', '[', ']', '(', ')', '-', ':']:
+            raise ValueError(f'unexpected symbol {char}')
+        bracket = True
+        if char == '[':
+            count += 1
+        elif char == ']':
+            count -= 1
+            if raw_phrase:
+                elements.append(raw_phrase)
+
+            raw_phrase = ''
+        else:
+            bracket = False
+            if count != 0:
+                raw_phrase += char
+
+        if count < 0:
+            raise ValueError('unexpected closing bracket')
+        elif count > 1:
+            raise ValueError('unexpected nested expression')
+        elif count == 0 and char != ',' and not bracket:
+            raise ValueError(f'unexpected symbol {char} outside the expression')
+
+    if count != 0:
+        raise ValueError('unbalanced square brackets')
+    return [parse_custom_phrase(raw_phrase) for raw_phrase in elements]
+
+
+def get_settings(data: dict[str, Union[str, list]]) -> dict[str, Any]:
+    settings = {
+        'notes': [],
+        'phrases': []
+    }
+
+    try:
+        settings['groups'] = int(get_key(data, 'groups'))
+        settings['measures'] = int(get_key(data, 'measures'))
+        settings['time_signature'] = (
+            int(get_key(data, 'time_signature_numerator')),
+            int(get_key(data, 'time_signature_denominator'))
+        )
+        options = {key: get_key(data, key) for key in data if get_key(data, key) == 'on'}
+        for key, value in options.items():
+            if '_phrase' in key:
+                settings['phrases'].append(settings_map[key])
+            else:
+                settings['notes'].append(settings_map[key])
+
+        settings['phrases'] += parse_custom_phrases(get_key(data, 'custom_phrases'))
+    except KeyError:
+        pass
+    except TypeError:
+        pass
+
+    return settings
+
+
 class RhygenService:
     def __init__(self, settings: dict):
         self.rhythm_generator = RhythmGenerator()
@@ -63,6 +164,20 @@ class RhygenService:
         except RhygenException as ex:
             self.image = ''
             self.exception = ex
+
+    @staticmethod
+    def default_settings(form: bool = False) -> dict[str, Any]:
+        settings = {
+            'groups': 1,
+            'measures': 2,
+            'time_signature_numerator': 4,
+            'time_signature_denominator': 4,
+            'half_note': 'on',
+            'half_rest': 'on',
+            'quarter_note': 'on'
+        }
+
+        return settings if form else get_settings(settings)
 
     @property
     def settings(self) -> Settings:
