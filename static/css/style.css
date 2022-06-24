@@ -78,21 +78,19 @@ img {
 }
 
 .table_column_center {
-    display: table-column;
-    float: left;
-    margin: 0px 0px 10px 10px;
+    text-align: center;
+    width: 100%
+    display: flex;
 }
 
 .table_column_left {
-    display: table-column;
+    width: calc(48% - 10px);
     float: left;
-    margin: 0px 0px 10px 10px;
 }
 
 .table_column_right {
-    display: table-column;
+    width: calc(48% - 10px);
     float: right;
-    margin: 0px 0px 10px 10px;
 }
 
 .flex {
@@ -122,24 +120,9 @@ input[type=button], input[type=submit], input[type=reset] {
 }
 
 @media screen and (max-width: 1024px) {
-    .table, .table_row {
-        margin: 0px 0px 0px 0px;
-        display: grid;
-    }
 
    .column_left, .column_right {
-        margin: 0px 0px 0px 0px;
         display: block;
-    }
-
-    .column_left {
-        display: block;
-        float: center;
-        width: 100%;
-        padding: 0px;
-    }
-
-    .column_right {
         float: center;
         width: 100%;
         padding: 0px;

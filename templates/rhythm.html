@@ -77,19 +77,13 @@
 			<form method="post" id="settings_form" onsubmit="ajax(event)">
 				{% csrf_token %}
 				<div class="table">
-					<div class="table_row">
-						<div class="table_row">
-							<div class="table_column_center" style="text-align: center">
-								<input type="submit" id="submit" value="Generate rhythm">
-							</div>
-						</div>
+					<div class="table_row" style="text-align: center">
+						<input type="submit" id="submit" value="Generate rhythm">
 					</div>
 
 					<div class="table_row">
-						<div class="table_column_center">
-							<div><p><label for="{{ form.tempo.label }}"><strong>{{ form.tempo.label }}</strong>:</label></p></div>
-							<div>{{ form.tempo }}</div>
-						</div>
+						<div><p><label for="{{ form.tempo.label }}"><strong>{{ form.tempo.label }}</strong>:</label></p></div>
+						<div>{{ form.tempo }}</div>
 					</div>
 
 					<div class="table_row">
@@ -105,9 +99,17 @@
 					</div>
 
 					<div class="table_row">
+						<div><p><label for="{{ form.time_signature_numerator.label }}"><strong>{{ form.time_signature_numerator.label }}:</strong></label></p></div>
+						<div class="table_column_left">
+							<div>{{ form.time_signature_numerator }}</div>
+						</div>
+
+						<div class="table_column_right">
+							<div>{{ form.time_signature_denominator }} <p id="time_signature_error" style="font-weight: bold">{% if time_signature_error %}<strong>the denominator has to be a power of two!</strong>{% endif %}</p></div>
+						</div>
+
 						<div class="table_column_center">
-							<div><p><label for="{{ form.time_signature_numerator.label }}"><strong>{{ form.time_signature_numerator.label }}:</strong></label></p></div>
-							<div>{{ form.time_signature_numerator }} / {{ form.time_signature_denominator }} <p id="time_signature_error" style="font-weight: bold">{% if time_signature_error %}<strong>the denominator has to be a power of two!</strong>{% endif %}</p></div>
+							/
 						</div>
 					</div>
 
@@ -136,7 +138,7 @@
 
 					<div class="table_row">
 						<p><label for="Basic"><strong>Dotted notes</strong></label></p>
-						<div class="table_column_center">
+						<div class="table_column_left">
 							<div><p><label for="Dotted notes"><strong>Dotted notes</strong>:</label></p></div>
 							<div>{{ form.dotted_half_note }}{{ form.dotted_half_note.label }}</div>
 							<div>{{ form.dotted_quarter_note }}{{ form.dotted_quarter_note.label }}</div>

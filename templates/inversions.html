@@ -142,16 +142,12 @@
 			<form method="post" id="settings_form" onsubmit="ajax(event)">
 				{% csrf_token %}
 				<div class="table">
-					<div class="table_row">
-						<div class="table_column_center" style="text-align: center">
-							<input type="submit" id="submit" value="Generate inversion">
-						</div>
+					<div class="table_row" style="text-align: center">
+						<input type="submit" id="submit" value="Generate inversion">
 					</div>
 
 					<div class="table_row">
-						<div class="table_column_left">
-							<div>{{ form.sequential }}{{ form.sequential.label }}</div>
-						</div>
+						<div>{{ form.sequential }}{{ form.sequential.label }}</div>
 					</div>
 
 					<div class="table_row">
