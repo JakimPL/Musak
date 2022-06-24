@@ -6,7 +6,7 @@ body {
     padding-left: 5pt;
     padding-right: 5pt;
     padding-top: 5pt;
-    margin: 50px 100px 100px 50px;
+    margin: 50px 50px 50px 50px;
 }
 
 h1 {
@@ -44,6 +44,11 @@ div.footer {
 img {
     max-width: 100%;
     max-height: 100%;
+}
+
+.main {
+    float: center;
+    padding: 0px;
 }
 
 .row:after {
@@ -90,20 +95,6 @@ img {
     margin: 0px 0px 10px 10px;
 }
 
-.chord_info {
-    display: table-column;
-    float: center;
-
-    width: 100%;
-    margin-bottom: 0px;
-    border-radius: 25px;
-    border: 2px solid #248a6d;
-
-    line-height: 0.5;
-    text-align: center;
-    display: none;
-}
-
 .flex {
     display: flex;
     justify-content: space-around;
@@ -122,4 +113,35 @@ input[type=button], input[type=submit], input[type=reset] {
     text-decoration: none;
     margin: 4px 2px;
     cursor: pointer;
+}
+
+[type='button'].play_again {
+    background-color: #FFFFFF;
+    border: 2px solid #404040;
+    color: #202020;
+}
+
+@media screen and (max-width: 1024px) {
+    .table, .table_row {
+        margin: 0px 0px 0px 0px;
+        display: grid;
+    }
+
+   .column_left, .column_right {
+        margin: 0px 0px 0px 0px;
+        display: block;
+    }
+
+    .column_left {
+        display: block;
+        float: center;
+        width: 100%;
+        padding: 0px;
+    }
+
+    .column_right {
+        float: center;
+        width: 100%;
+        padding: 0px;
+    }
 }

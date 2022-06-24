@@ -1,7 +1,8 @@
 <!doctype html>
 <head>
 	{% load static %}
-	<link rel="stylesheet" href="{% static 'style.css' %}">
+	<link rel="stylesheet" href="{% static 'css/style.css' %}">
+	<link rel="stylesheet" href="{% static 'css/rhythm.css' %}">
 
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
@@ -57,18 +58,28 @@
 	}
 	</script>
 
-	<p><h1>Rhythm Generator v0.1</h1>
+	<div class="main">
+		<p><h1>Rhythm Generator v0.1</h1>
 
-	<p>Generate a random rhythm score.</p>
+		<p style="text-align: center">Generate a random rhythm score.</p>
+	</div>
 
 	<div class="row">
+		<div class="column_right">
+			<div class="flex">
+				<p id="score"><img src="{{ image_source }}" alt="{{ score }}" id="rhythm_image"></p>
+				<p id="error" style="font-weight: bold"></p>
+				<p id="error_message" style="font-style: italic"></p>
+			</div>
+		</div>
+
 		<div class="column_left">
 			<form method="post" id="settings_form" onsubmit="ajax(event)">
 				{% csrf_token %}
 				<div class="table">
 					<div class="table_row">
 						<div class="table_row">
-							<div class="table_column_center">
+							<div class="table_column_center" style="text-align: center">
 								<input type="submit" id="submit" value="Generate rhythm">
 							</div>
 						</div>
@@ -165,12 +176,6 @@
 					</div>
 				</div>
 			</form>
-		</div>
-
-		<div class="column_right" style="text-align: center">
-			<p id="score"><img src="{{ image_source }}" alt="{{ score }}" id="rhythm_image"></p>
-			<p id="error" style="font-weight: bold"></p>
-			<p id="error_message" style="font-style: italic"></p>
 		</div>
 	</div>
 </body>

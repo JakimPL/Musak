@@ -1,0 +1,12 @@
+.chord_info {
+    display: table-column, none;
+    float: center;
+
+    width: 100%;
+    border-radius: 25px;
+    border: 2px solid #248a6d;
+    margin-bottom: 40px;
+
+    line-height: 0.5;
+    text-align: center;
+}
