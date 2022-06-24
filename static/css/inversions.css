@@ -10,3 +10,15 @@
     line-height: 0.5;
     text-align: center;
 }
+
+#id_tempo {
+    width: 100%;
+}
+
+#id_lowest_note {
+    width: 100%;
+}
+
+#id_highest_note {
+    width: 100%;
+}
