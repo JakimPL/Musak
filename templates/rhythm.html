@@ -11,7 +11,7 @@
 	<title>Rhythm generator</title>
 </head>
 
-<body>
+<body onload="hideScore();">
 	<script src="https://code.jquery.com/jquery-3.6.0.js"
 			integrity="sha256-H+K7U5CnXl1h5ywQfKtSj8PCmoN9aaq30gDh27Xc0jk="
 			crossorigin="anonymous">
@@ -20,6 +20,20 @@
 	<script src="{% static 'js/play.js' %}"></script>
 
 	<script type="text/javascript" id="ajax">
+	function hideScore() {
+		$("#play").hide(0);
+		$("#play").css('visibility', 'hidden');
+
+		$("#rhythm_image").hide(0);
+		$("#rhythm_image").css('visibility', 'hidden');
+	}
+
+	function play() {
+		if (typeof directory !== 'undefined') {
+			playSound(directory, audio_source);
+		}
+	}
+
 	function ajax(event) {
 		event.preventDefault();
 		$.ajax({
@@ -33,7 +47,14 @@
 				if ('image_source' in response) {
 					$('#rhythm_image').attr('src', response.image_source);
 					$('#rhythm_image').attr('alt', response.score);
-					playSound(response.directory, response.audio_source);
+					directory = response.directory;
+					audio_source = response.audio_source;
+
+					$("#play").show(100);
+					$("#play").css('visibility', 'visible');
+
+					$("#rhythm_image").show(100);
+					$("#rhythm_image").css('visibility', 'visible');
 				}
 
 				if ('exception' in response) {
@@ -66,7 +87,11 @@
 
 	<div class="row">
 		<div class="column_right">
-			<div class="flex">
+			<div onclick="play()" style="text-align: center">
+				<input type="button" id="play" value="Play" class="play">
+			</div>
+
+			<div class="table">
 				<p id="score"><img src="{{ image_source }}" alt="{{ score }}" id="rhythm_image"></p>
 				<p id="error" style="font-weight: bold"></p>
 				<p id="error_message" style="font-style: italic"></p>

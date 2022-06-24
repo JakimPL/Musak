@@ -42,12 +42,14 @@ div.footer {
 }
 
 img {
-    max-width: 100%;
-    max-height: 100%;
+    text-align: center;
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
 }
 
 .main {
-    float: center;
+    text-align: center;
     padding: 0px;
 }
 
@@ -70,7 +72,7 @@ img {
 
 .table {
     display: table;
-    margin: 10px 10px;
+    width: 100%;
 }
 
 .table_row {
@@ -79,7 +81,7 @@ img {
 
 .table_column_center {
     text-align: center;
-    width: 100%
+    width: 100%;
     display: flex;
 }
 
@@ -113,17 +115,15 @@ input[type=button], input[type=submit], input[type=reset] {
     cursor: pointer;
 }
 
-[type='button'].play_again {
+[type='button'].play {
     background-color: #FFFFFF;
     border: 2px solid #404040;
     color: #202020;
 }
 
 @media screen and (max-width: 1024px) {
-
    .column_left, .column_right {
         display: block;
-        float: center;
         width: 100%;
         padding: 0px;
     }

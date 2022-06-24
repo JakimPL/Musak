@@ -28,7 +28,7 @@
 
 		function playAgain() {
 			if (typeof directory !== 'undefined') {
-				playSound(directory, chord_audio);
+				playSound(directory, chord_audio_source);
 			}
 		}
 
@@ -95,12 +95,13 @@
 				success: function(response) {
 					if ('directory' in response) {
 						directory = response.directory;
-						chord_audio = response.chord_audio;
-						$("#play_again").show(100);
-						$("#chord_info").css('visibility', 'hidden');
-						$("#play_again").css('visibility', 'visible');
-						playSound(directory, chord_audio);
+						chord_audio_source = response.chord_audio;
+						playSound(directory, chord_audio_source);
 						openJSON(directory, response.chord_info, set_chord_info);
+
+						$("#play_again").show(100);
+						$("#play_again").css('visibility', 'visible');
+						$("#chord_info").css('visibility', 'hidden');
 					}
 
 					if ('max_inversion_index' in response) {
@@ -123,7 +124,7 @@
 	<div class="row">
 		<div class="column_right">
 			<div onclick="playAgain()" style="text-align: center">
-				<input type="button" id="play_again" value="Play again" class="play_again">
+				<input type="button" id="play_again" value="Play again" class="play">
 			</div>
 
 			<div class="flex">
@@ -154,10 +155,8 @@
 					</div>
 
 					<div class="table_row">
-						<div class="table_column_center">
-							<div><p><label for="{{ form.tempo.label }}"><strong>{{ form.tempo.label }}</strong>:</label></p></div>
-							<div>{{ form.tempo }}</div>
-						</div>
+						<div><p><label for="{{ form.tempo.label }}"><strong>{{ form.tempo.label }}</strong>:</label></p></div>
+						<div>{{ form.tempo }}</div>
 					</div>
 
 					<div class="table_row">
