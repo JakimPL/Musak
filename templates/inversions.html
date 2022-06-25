@@ -11,7 +11,7 @@
 	<title>Chord inversions generator</title>
 </head>
 
-<body onload="hideChordInfo();">
+<body onload="initialize();">
 	<script src="https://code.jquery.com/jquery-3.6.0.js"
 			integrity="sha256-H+K7U5CnXl1h5ywQfKtSj8PCmoN9aaq30gDh27Xc0jk="
 			crossorigin="anonymous">
@@ -21,7 +21,32 @@
 	<script src="{% static 'js/json.js' %}"></script>
 
 	<script type="text/javascript">
+		function initialize() {
+			resetScore();
+			hideChordInfo();
+		}
+
+		function resetScore() {
+			points = 0;
+			total = 0;
+			lockScore = false;
+		}
+
+		function updateScore(point) {
+			if (!lockScore) {
+				total += 1;
+				if (point) {
+					points += 1;
+				}
+
+				$("#points").text(points);
+				$("#total").text(total);
+				lockScore = true;
+			}
+		}
+
 		function hideChordInfo() {
+			$("#score").hide(0);
 			$("#chord_info").hide(0);
 			$("#play_again").hide(0);
 		}
@@ -59,14 +84,17 @@
 				button.value = text;
 
 				button.onclick = function() {
+					$("#score").show(100);
 					$("#chord_info").show(100);
 					$("#chord_info").css('visibility', 'visible');
 					if (this.value == $('#chord_inversion').text()) {
 						chord_info.style.borderColor = "#248a6d";
 						this.style.background = "green";
+						updateScore(1);
 					} else {
 						chord_info.style.borderColor = "red";
 						this.style.background = "red";
+						updateScore(0);
 					}
 				};
 
@@ -102,6 +130,7 @@
 						$("#play_again").show(100);
 						$("#play_again").css('visibility', 'visible');
 						$("#chord_info").css('visibility', 'hidden');
+						lockScore = false;
 					}
 
 					if ('max_inversion_index' in response) {
@@ -130,6 +159,10 @@
 			<div class="flex">
 				<div id="inversions">
 				</div>
+			</div>
+
+			<div id="score">
+				<p style="text-align: center">Score: <mark id="points" class="score_points">0</mark>/<mark id="total" class="score_total">0</mark></p>
 			</div>
 
 			<div id="chord_info" class="chord_info">

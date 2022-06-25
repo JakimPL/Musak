@@ -3,10 +3,22 @@
 
     border-radius: 25px;
     border: 2px solid #248a6d;
-    margin: 50px 50px 50px 50px;
+    margin: 20px 50px 20px 50px;
 
     line-height: 0.5;
     text-align: center;
+}
+
+.score_points {
+    color: #248a6d;
+    background: none;
+    font-weight: bold;
+}
+
+.score_total {
+    background: none;
+    font-weight: bold;
+    width: 100%;
 }
 
 #id_tempo {

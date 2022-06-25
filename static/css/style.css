@@ -102,7 +102,7 @@ img {
     display: flex;
     justify-content: space-around;
     text-align: center;
-    margin: 15px 15px 25px 25px;
+    margin: 15px 15px 15px 25px;
 }
 
 input[type=button], input[type=submit], input[type=reset] {
