@@ -52,11 +52,11 @@ class SettingsForm(forms.Form):
     four_sixteenth_notes_phrase = forms.BooleanField(label='\U0000266c\U0000266c', required=False)
     eight_sixteenth_notes_phrase = forms.BooleanField(label='\U0000266c\U0000266c\U0000266c\U0000266c', required=False)
 
-    left_quarter_phrase = forms.BooleanField(label='\U0001d15f\U0001d13d', required=False)
-    right_quarter_phrase = forms.BooleanField(label='\U0001d13d\U0001d15f', required=False)
-    left_eighth_phrase = forms.BooleanField(label='\U0001d160\U0001d13e', required=False)
-    right_eighth_phrase = forms.BooleanField(label='\U0001d13e\U0001d160', required=False)
-    left_sixteenth_phrase = forms.BooleanField(label='\U0001d161\U0001d13f', required=False)
-    right_sixteenth_phrase = forms.BooleanField(label='\U0001d13f\U0001d161', required=False)
+    left_quarter_phrase = forms.BooleanField(label='\U0001d15f\u00A0\U0001d13d', required=False)
+    right_quarter_phrase = forms.BooleanField(label='\U0001d13d\u00A0\U0001d15f', required=False)
+    left_eighth_phrase = forms.BooleanField(label='\U0001d160\u00A0\U0001d13e', required=False)
+    right_eighth_phrase = forms.BooleanField(label='\U0001d13e\u00A0\U0001d160', required=False)
+    left_sixteenth_phrase = forms.BooleanField(label='\U0001d161\u00A0\U0001d13f', required=False)
+    right_sixteenth_phrase = forms.BooleanField(label='\U0001d13f\u00A0\U0001d161', required=False)
 
     custom_phrases = forms.CharField(label='', required=False)
