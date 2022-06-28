@@ -66,7 +66,7 @@
 
 			for (var index = 0; index < number_of_buttons; index++) {
 				var button = document.createElement('input');
-				var text = inversionText(index);
+				var text = intervalText(index);
 				button.type = 'button';
 				button.className = 'input';
 				button.id = 'submit';
@@ -92,12 +92,10 @@
 		}
 
 		function setIntervalInfo(data) {
-			var inversion = data.inversion_index;
-			var chord_type = data.base_note + data.chord_type;
-			var chord_inversion = inversionText(data.inversion_index);
+			var interval = data.interval;
+			var interval_type = data.base_note + data.name;
 
-			$('#chord_type').text(chord_type);
-			$('#chord_inversion').text(chord_inversion);
+			$('#interval_type').text(interval_type);
 		}
 
 		function ajax(event) {
@@ -112,9 +110,9 @@
 				success: function(response) {
 					if ('directory' in response) {
 						directory = response.directory;
-						interval_audio_source = response.chord_audio;
+						interval_audio_source = response.interval_audio;
 						playSound(directory, interval_audio_source);
-						openJSON(directory, response.interval_info, set_interval_info);
+						openJSON(directory, response.interval_info, setIntervalInfo);
 
 						$("#play_again").show(100);
 						$("#play_again").css('visibility', 'visible');
@@ -193,7 +191,7 @@
 					</div>
 
 					<div class="table_row">
-						<p><label for="Chords"><strong>Intervals</strong></label></p>
+						<p><label for="Intervals"><strong>Intervals</strong></label></p>
 						<div class="table_column_left">
 							{% for interval in form.get_intervals %}
 							<div>{{ interval }}{{ interval.label }}</div>
