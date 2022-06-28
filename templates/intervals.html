@@ -57,16 +57,16 @@
 			}
 		}
 
-		function addButtons(number_of_buttons) {
-			inversions = document.getElementById("inversions");
+		function addButtons(intervals) {
+			interval_buttons = document.getElementById("interval_buttons");
 			interval_info = document.getElementById("interval_info");
-			while (inversions.firstChild) {
-				inversions.removeChild(inversions.lastChild);
+			while (interval_buttons.firstChild) {
+				interval_buttons.removeChild(interval_buttons.lastChild);
 		  	}
 
-			for (var index = 0; index < number_of_buttons; index++) {
+			for (const [name, interval] of Object.entries(intervals)) {
 				var button = document.createElement('input');
-				var text = intervalText(index);
+				var text = name;
 				button.type = 'button';
 				button.className = 'input';
 				button.id = 'submit';
@@ -87,15 +87,16 @@
 					}
 				};
 
-				inversions.appendChild(button);
+				interval_buttons.appendChild(button);
 			}
 		}
 
 		function setIntervalInfo(data) {
+			var interval_type = data.base_note + ' (' + data.interval + ')';
 			var interval = data.interval;
-			var interval_type = data.base_note + data.name;
 
 			$('#interval_type').text(interval_type);
+			$('#interval').text(data.name);
 		}
 
 		function ajax(event) {
@@ -120,8 +121,8 @@
 						lockScore = false;
 					}
 
-					if ('max_inversion_index' in response) {
-						addButtons(response.max_inversion_index);
+					if ('intervals' in response) {
+						addButtons(response.intervals);
 					}
 				},
 				error: function(response){
@@ -144,7 +145,7 @@
 			</div>
 
 			<div class="flex">
-				<div id="inversions">
+				<div id="interval_buttons">
 				</div>
 			</div>
 
@@ -152,9 +153,10 @@
 				<p style="text-align: center">Score: <mark id="points" class="score_points">0</mark>/<mark id="total" class="score_total">0</mark></p>
 			</div>
 
-			<div id="interval_info" class="interval_info">
+			<div id="interval_info" class="info">
 				<p><strong>Interval info:</strong></p>
 				<p id="interval_type"></p>
+				<p id="interval"></p>
 			</div>
 		</div>
 
@@ -163,7 +165,7 @@
 				{% csrf_token %}
 				<div class="table">
 					<div class="table_row" style="text-align: center">
-						<input type="submit" id="submit" value="Generate inversion">
+						<input type="submit" id="submit" value="Generate interval">
 					</div>
 
 					<div class="table_row">

@@ -69,10 +69,10 @@
 		}
 
 		function addButtons(number_of_buttons) {
-			inversions = document.getElementById("inversions");
+			inversion_buttons = document.getElementById("inversion_buttons");
 			chord_info = document.getElementById("chord_info");
-			while (inversions.firstChild) {
-				inversions.removeChild(inversions.lastChild);
+			while (inversion_buttons.firstChild) {
+				inversion_buttons.removeChild(inversion_buttons.lastChild);
 		  	}
 
 			for (var index = 0; index < number_of_buttons; index++) {
@@ -98,7 +98,7 @@
 					}
 				};
 
-				inversions.appendChild(button);
+				inversion_buttons.appendChild(button);
 			}
 		}
 
@@ -157,7 +157,7 @@
 			</div>
 
 			<div class="flex">
-				<div id="inversions">
+				<div id="inversion_buttons">
 				</div>
 			</div>
 
@@ -165,7 +165,7 @@
 				<p style="text-align: center">Score: <mark id="points" class="score_points">0</mark>/<mark id="total" class="score_total">0</mark></p>
 			</div>
 
-			<div id="chord_info" class="chord_info">
+			<div id="chord_info" class="info">
 				<p><strong>Chord info:</strong></p>
 				<p id="chord_type"></p>
 				<p id="chord_inversion"></p>

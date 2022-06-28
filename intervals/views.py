@@ -20,7 +20,8 @@ def submit_interval(request) -> JsonResponse:
         return JsonResponse({
             'directory': uuid,
             'interval_audio': 'interval.mp3',
-            'interval_info': 'interval.json'
+            'interval_info': 'interval.json',
+            'intervals': interval_model.intervals
         })
     else:
         return JsonResponse({'error_message': 'invalid request'}, status=400)
