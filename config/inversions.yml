@@ -1,6 +1,6 @@
 lowest_note: 40
 highest_note: 90
-chord_definitions:
+chords_definitions:
     '': [0, 4, 7]
     'm': [0, 3, 7]
     'dim': [0, 3, 6]

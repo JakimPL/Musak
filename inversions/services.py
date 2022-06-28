@@ -43,4 +43,4 @@ def get_chords_definitions() -> dict[str, list[int]]:
     config_path = os.path.join('config', 'inversions.yml')
     with open(config_path, 'r') as file:
         data = yaml.safe_load(file)
-        return data['chord_definitions']
+        return data['chords_definitions']

@@ -4,12 +4,12 @@ from typing import Any, Union, Optional
 import abjad
 from rhygen.generator import RhythmGenerator
 from rhygen.modules.exceptions import RhygenException
-from rhygen.modules.exporter import Exporter
 from rhygen.modules.settings import Settings
 
 from config.defaults import TEMPO, GROUPS, MEASURES
 from shared.dict import get_key
 from shared.directory import create_directory
+from shared.exporter import Exporter
 
 settings_map = {
     'whole_note': 1,
@@ -197,7 +197,7 @@ class RhygenService:
         self.rhythm_generator.settings.default_group_settings.phrases = phrases
 
     def generate(self) -> tuple[abjad.Score, str, str, str, str]:
-        exporter = Exporter()
+        exporter = Exporter('rhythm')
 
         uuid64, directory = create_directory()
         rhythm = self.rhythm_generator()
