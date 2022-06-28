@@ -6,9 +6,9 @@
 
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
-	<meta name="description" content="A simple chord inversion generator.">
+	<meta name="description" content="A simple interval generator.">
 	<meta name="author" content="Jakim">
-	<title>Chord inversions generator</title>
+	<title>Interval generator</title>
 </head>
 
 <body onload="initialize();">
@@ -23,7 +23,7 @@
 	<script type="text/javascript">
 		function initialize() {
 			resetScore();
-			hideChordInfo();
+			hideIntervalInfo();
 		}
 
 		function resetScore() {
@@ -45,32 +45,21 @@
 			}
 		}
 
-		function hideChordInfo() {
+		function hideIntervalInfo() {
 			$("#score").hide(0);
-			$("#chord_info").hide(0);
+			$("#interval_info").hide(0);
 			$("#play_again").hide(0);
 		}
 
 		function playAgain() {
 			if (typeof directory !== 'undefined') {
-				playSound(directory, chord_audio_source);
+				playSound(directory, interval_audio_source);
 			}
-		}
-
-		function inversionText(index) {
-			var text = "";
-			if (index == 0) {
-				text += "Root position";
-			} else {
-				text += "Inversion no. " + index;
-			}
-
-			return text;
 		}
 
 		function addButtons(number_of_buttons) {
 			inversions = document.getElementById("inversions");
-			chord_info = document.getElementById("chord_info");
+			interval_info = document.getElementById("interval_info");
 			while (inversions.firstChild) {
 				inversions.removeChild(inversions.lastChild);
 		  	}
@@ -85,14 +74,14 @@
 
 				button.onclick = function() {
 					$("#score").show(100);
-					$("#chord_info").show(100);
-					$("#chord_info").css('visibility', 'visible');
-					if (this.value == $('#chord_inversion').text()) {
-						chord_info.style.borderColor = "#248a6d";
+					$("#interval_info").show(100);
+					$("#interval_info").css('visibility', 'visible');
+					if (this.value == $('#interval').text()) {
+						interval_info.style.borderColor = "#248a6d";
 						this.style.background = "green";
 						updateScore(1);
 					} else {
-						chord_info.style.borderColor = "red";
+						interval_info.style.borderColor = "red";
 						this.style.background = "red";
 						updateScore(0);
 					}
@@ -102,7 +91,7 @@
 			}
 		}
 
-		function setChordInfo(data) {
+		function setIntervalInfo(data) {
 			var inversion = data.inversion_index;
 			var chord_type = data.base_note + data.chord_type;
 			var chord_inversion = inversionText(data.inversion_index);
@@ -115,7 +104,7 @@
 			event.preventDefault();
 			$.ajax({
 				type: 'POST',
-				url: "{% url 'submit_inversion' %}",
+				url: "{% url 'submit_interval' %}",
 				data: {
 					submit: $('#settings_form').serialize(),
 					csrfmiddlewaretoken: $('input[name=csrfmiddlewaretoken]').val()
@@ -123,13 +112,13 @@
 				success: function(response) {
 					if ('directory' in response) {
 						directory = response.directory;
-						chord_audio_source = response.chord_audio;
-						playSound(directory, chord_audio_source);
-						openJSON(directory, response.chord_info, setChordInfo);
+						interval_audio_source = response.chord_audio;
+						playSound(directory, interval_audio_source);
+						openJSON(directory, response.interval_info, set_interval_info);
 
 						$("#play_again").show(100);
 						$("#play_again").css('visibility', 'visible');
-						$("#chord_info").css('visibility', 'hidden');
+						$("#interval_info").css('visibility', 'hidden');
 						lockScore = false;
 					}
 
@@ -145,9 +134,9 @@
 	</script>
 
 	<div class="main">
-		<p><h1>Chord Inversions Generator v0.1</h1>
+		<p><h1>Intervals Generator v0.1</h1>
 
-		<p style="text-align: center">Generate a random chord inversion.</p>
+		<p style="text-align: center">Generate a random interval.</p>
 	</div>
 
 	<div class="row">
@@ -165,10 +154,9 @@
 				<p style="text-align: center">Score: <mark id="points" class="score_points">0</mark>/<mark id="total" class="score_total">0</mark></p>
 			</div>
 
-			<div id="chord_info" class="chord_info">
-				<p><strong>Chord info:</strong></p>
-				<p id="chord_type"></p>
-				<p id="chord_inversion"></p>
+			<div id="interval_info" class="interval_info">
+				<p><strong>Interval info:</strong></p>
+				<p id="interval_type"></p>
 			</div>
 		</div>
 
@@ -205,10 +193,10 @@
 					</div>
 
 					<div class="table_row">
-						<p><label for="Chords"><strong>Chords</strong></label></p>
+						<p><label for="Chords"><strong>Intervals</strong></label></p>
 						<div class="table_column_left">
-							{% for chord in form.get_chords %}
-							<div>{{ chord }}{{ chord.label }}</div>
+							{% for interval in form.get_intervals %}
+							<div>{{ interval }}{{ interval.label }}</div>
 							{% endfor %}
 						</div>
 					</div>
