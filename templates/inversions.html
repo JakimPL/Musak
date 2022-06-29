@@ -33,16 +33,19 @@
 			$("#total").text(score.total);
 		}
 
-		function playAgain() {
-			if (typeof directory !== 'undefined') {
-				playSound(directory, chord_audio_source);
-			}
-		}
-
 		function hideChordInfo() {
 			$("#score_info").hide(0);
 			$("#chord_info").hide(0);
 			$("#play_again").hide(0);
+		}
+
+		function setChordInfo(data) {
+			var inversion = data.inversion_index;
+			var chord_type = data.base_note + data.chord_type;
+			var chord_inversion = inversionText(data.inversion_index);
+
+			$('#chord_type').text(chord_type);
+			$('#chord_inversion').text(chord_inversion);
 		}
 
 		function inversionText(index) {
@@ -90,15 +93,6 @@
 			}
 		}
 
-		function setChordInfo(data) {
-			var inversion = data.inversion_index;
-			var chord_type = data.base_note + data.chord_type;
-			var chord_inversion = inversionText(data.inversion_index);
-
-			$('#chord_type').text(chord_type);
-			$('#chord_inversion').text(chord_inversion);
-		}
-
 		function ajax(event) {
 			event.preventDefault();
 			$.ajax({
@@ -111,8 +105,8 @@
 				success: function(response) {
 					if ('directory' in response) {
 						directory = response.directory;
-						chord_audio_source = response.chord_audio;
-						playSound(directory, chord_audio_source);
+						audio_source = response.chord_audio;
+						playSound(directory, audio_source);
 						openJSON(directory, response.chord_info, setChordInfo);
 
 						$("#play_again").show(100);
@@ -140,7 +134,7 @@
 
 	<div class="row">
 		<div class="column_right">
-			<div onclick="playAgain()" style="text-align: center">
+			<div onclick="playAgain(directory, audio_source)" style="text-align: center">
 				<input type="button" id="play_again" value="Play again" class="play">
 			</div>
 

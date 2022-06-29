@@ -33,16 +33,18 @@
 			$("#total").text(score.total);
 		}
 
-		function playAgain() {
-			if (typeof directory !== 'undefined') {
-				playSound(directory, interval_audio_source);
-			}
-		}
-
 		function hideIntervalInfo() {
 			$("#score_info").hide(0);
 			$("#interval_info").hide(0);
 			$("#play_again").hide(0);
+		}
+
+		function setIntervalInfo(data) {
+			var interval_type = data.base_note + ' (' + data.interval + ')';
+			var interval = data.interval;
+
+			$('#interval_type').text(interval_type);
+			$('#interval').text(data.name);
 		}
 
 		function addButtons(intervals) {
@@ -79,14 +81,6 @@
 			}
 		}
 
-		function setIntervalInfo(data) {
-			var interval_type = data.base_note + ' (' + data.interval + ')';
-			var interval = data.interval;
-
-			$('#interval_type').text(interval_type);
-			$('#interval').text(data.name);
-		}
-
 		function ajax(event) {
 			event.preventDefault();
 			$.ajax({
@@ -99,8 +93,8 @@
 				success: function(response) {
 					if ('directory' in response) {
 						directory = response.directory;
-						interval_audio_source = response.interval_audio;
-						playSound(directory, interval_audio_source);
+						audio_source = response.interval_audio;
+						playSound(directory, audio_source);
 						openJSON(directory, response.interval_info, setIntervalInfo);
 
 						$("#play_again").show(100);
@@ -128,7 +122,7 @@
 
 	<div class="row">
 		<div class="column_right">
-			<div onclick="playAgain()" style="text-align: center">
+			<div onclick="playAgain(directory, audio_source)" style="text-align: center">
 				<input type="button" id="play_again" value="Play again" class="play">
 			</div>
 
