@@ -28,14 +28,9 @@
 		$("#rhythm_image").css('visibility', 'hidden');
 	}
 
-	function play() {
-		if (typeof directory !== 'undefined') {
-			playSound(directory, audio_source);
-		}
-	}
-
 	function ajax(event) {
 		event.preventDefault();
+
 		$.ajax({
 			type: 'POST',
 			url: "{% url 'submit_rhythm' %}",
@@ -87,7 +82,7 @@
 
 	<div class="row">
 		<div class="column_right">
-			<div onclick="play()" style="text-align: center">
+			<div onclick="playAgain(directory, audio_source);" style="text-align: center">
 				<input type="button" id="play" value="Play" class="play">
 			</div>
 

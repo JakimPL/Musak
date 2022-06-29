@@ -95,6 +95,7 @@
 
 		function ajax(event) {
 			event.preventDefault();
+
 			$.ajax({
 				type: 'POST',
 				url: "{% url 'submit_inversion' %}",
@@ -134,7 +135,7 @@
 
 	<div class="row">
 		<div class="column_right">
-			<div onclick="playAgain(directory, audio_source)" style="text-align: center">
+			<div onclick="playAgain(directory, audio_source);" style="text-align: center">
 				<input type="button" id="play_again" value="Play again" class="play">
 			</div>
 
