@@ -19,42 +19,30 @@
 
 	<script src="{% static 'js/play.js' %}"></script>
 	<script src="{% static 'js/json.js' %}"></script>
+	<script src="{% static 'js/score.js' %}"></script>
 
 	<script type="text/javascript">
 		function initialize() {
-			resetScore();
+			score = new Score();
 			hideChordInfo();
 		}
 
-		function resetScore() {
-			points = 0;
-			total = 0;
-			lockScore = false;
-		}
-
 		function updateScore(point) {
-			if (!lockScore) {
-				total += 1;
-				if (point) {
-					points += 1;
-				}
-
-				$("#points").text(points);
-				$("#total").text(total);
-				lockScore = true;
-			}
-		}
-
-		function hideChordInfo() {
-			$("#score").hide(0);
-			$("#chord_info").hide(0);
-			$("#play_again").hide(0);
+			score.update(point);
+			$("#points").text(score.points);
+			$("#total").text(score.total);
 		}
 
 		function playAgain() {
 			if (typeof directory !== 'undefined') {
 				playSound(directory, chord_audio_source);
 			}
+		}
+
+		function hideChordInfo() {
+			$("#score_info").hide(0);
+			$("#chord_info").hide(0);
+			$("#play_again").hide(0);
 		}
 
 		function inversionText(index) {
@@ -84,7 +72,7 @@
 				button.value = text;
 
 				button.onclick = function() {
-					$("#score").show(100);
+					$("#score_info").show(100);
 					$("#chord_info").show(100);
 					$("#chord_info").css('visibility', 'visible');
 					if (this.value == $('#chord_inversion').text()) {
@@ -130,7 +118,7 @@
 						$("#play_again").show(100);
 						$("#play_again").css('visibility', 'visible');
 						$("#chord_info").css('visibility', 'hidden');
-						lockScore = false;
+						score.unlock();
 					}
 
 					if ('max_inversion_index' in response) {
@@ -161,7 +149,7 @@
 				</div>
 			</div>
 
-			<div id="score">
+			<div id="score_info">
 				<p style="text-align: center">Score: <mark id="points" class="score_points">0</mark>/<mark id="total" class="score_total">0</mark></p>
 			</div>
 
