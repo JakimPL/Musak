@@ -11,8 +11,8 @@ AUDIO_FORMAT = 'wav'
 CONVERT_TO_MP3 = True
 IGNORE_MIDI = False
 IGNORE_AUDIO = False
-IGNORE_SCORE = True
-GAIN = 5.0
+IGNORE_SCORE = False
+GAIN = 3.5
 
 
 class Exporter:

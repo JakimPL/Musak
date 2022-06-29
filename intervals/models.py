@@ -36,7 +36,7 @@ class IntervalModel:
             interval = self.get_random_interval()
 
         score = to_abjad(interval.chord, self._settings['tempo'], self._settings['sequential'])
-        exporter = Exporter('interval', ignore_score=True)
+        exporter = Exporter('interval')
 
         self.export_info(interval, os.path.join(path, 'interval.json'))
         exporter.export(score, path)

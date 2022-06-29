@@ -39,7 +39,7 @@ class ChordInversionModel:
             chord_inversion = self.get_random_chord_inversion()
 
         score = to_abjad(chord_inversion.chord, self._settings['tempo'], self._settings['sequential'])
-        exporter = Exporter('chord', ignore_score=True)
+        exporter = Exporter('chord')
 
         self.export_info(chord_inversion, os.path.join(path, 'chord.json'))
         exporter.export(score, path)
