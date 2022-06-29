@@ -19,8 +19,9 @@ def submit_interval(request) -> JsonResponse:
         uuid = interval_model.generate()
         return JsonResponse({
             'directory': uuid,
-            'interval_audio': 'interval.mp3',
             'interval_info': 'interval.json',
+            'audio_source': 'interval.mp3',
+            'image_source': 'interval.png',
             'intervals': interval_model.intervals
         })
     else:

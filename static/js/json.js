@@ -1,5 +1,4 @@
-function openJSON(uuid, filename, func) {
-    var path = '../temp/' + uuid + '/' + filename
+function openJSON(path, func) {
     $.getJSON(path, function(data) {
         func(data);
     }).fail(function(){

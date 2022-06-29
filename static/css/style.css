@@ -116,6 +116,13 @@ img {
     text-align: center;
 }
 
+.image {
+    text-align: center;
+    width: 50%;
+    max-height: 100%;
+    max-width: 100%;
+}
+
 input[type=button], input[type=submit], input[type=reset] {
     background-color: #248a6d;
     font-family: "Noto Mono", sans-serif;

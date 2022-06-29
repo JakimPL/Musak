@@ -17,6 +17,7 @@
 			crossorigin="anonymous">
 	</script>
 
+	<script src="{% static 'js/path.js' %}"></script>
 	<script src="{% static 'js/play.js' %}"></script>
 	<script src="{% static 'js/json.js' %}"></script>
 	<script src="{% static 'js/score.js' %}"></script>
@@ -66,6 +67,7 @@
 					$("#score_info").show(100);
 					$("#interval_info").show(100);
 					$("#interval_info").css('visibility', 'visible');
+					$("#interval_image").css('visibility', 'visible');
 					if (this.value == $('#interval').text()) {
 						interval_info.style.borderColor = "#248a6d";
 						this.style.background = "green";
@@ -95,13 +97,21 @@
 				success: function(response) {
 					if ('directory' in response) {
 						directory = response.directory;
-						audio_source = response.interval_audio;
-						playSound(directory, audio_source);
-						openJSON(directory, response.interval_info, setIntervalInfo);
+
+						audio_path = getPath(directory, response.audio_source);
+						playSound(audio_path);
+
+						json_path = getPath(directory, response.interval_info);
+						openJSON(json_path, setIntervalInfo);
+
+						image_path = getPath(directory, response.image_source);
+						$("#interval_image").css('visibility', 'hidden');
+						$("#interval_image").attr('src', image_path);
 
 						$("#play_again").show(100);
 						$("#play_again").css('visibility', 'visible');
 						$("#interval_info").css('visibility', 'hidden');
+
 						score.unlock();
 					}
 
@@ -124,7 +134,7 @@
 
 	<div class="row">
 		<div class="column_right">
-			<div onclick="playAgain(directory, audio_source);" style="text-align: center">
+			<div onclick="playAgain(audio_path);" style="text-align: center">
 				<input type="button" id="play_again" value="Play again" class="play">
 			</div>
 
@@ -141,6 +151,10 @@
 				<p><strong>Interval info:</strong></p>
 				<p id="interval_type"></p>
 				<p id="interval"></p>
+			</div>
+
+			<div class="table">
+				<p id="image"><img src="" alt="" id="interval_image" class="image"></p>
 			</div>
 		</div>
 

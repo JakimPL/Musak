@@ -19,8 +19,9 @@ def submit_inversion(request) -> JsonResponse:
         uuid = chord_inversion_model.generate()
         return JsonResponse({
             'directory': uuid,
-            'chord_audio': 'chord.mp3',
             'chord_info': 'chord.json',
+            'audio_source': 'chord.mp3',
+            'image_source': 'chord.png',
             'max_inversion_index': chord_inversion_model.get_max_inversion_index()
         })
     else:

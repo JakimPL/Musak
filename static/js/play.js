@@ -1,11 +1,10 @@
-function playSound(uuid, filename) {
-    var path = '../temp/' + uuid + '/' + filename
+function playSound(path) {
     var audio = new Audio(path);
     audio.play();
 }
 
-function playAgain(directory, audioSource) {
-    if (typeof directory !== 'undefined') {
-        playSound(directory, audioSource);
+function playAgain(path) {
+    if (typeof path !== 'undefined') {
+        playSound(path);
     }
 }
