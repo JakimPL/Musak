@@ -1,10 +1,10 @@
 import os
 import pathlib
+import subprocess
 from typing import Union
 
 import abjad
 import pydub
-from rhygen.modules.converted import to_audio
 
 SOUNDFONT = 'st_concert.sf2'
 AUDIO_FORMAT = 'wav'
@@ -12,6 +12,7 @@ CONVERT_TO_MP3 = True
 IGNORE_MIDI = False
 IGNORE_AUDIO = False
 IGNORE_SCORE = True
+GAIN = 5.0
 
 
 class Exporter:
@@ -23,13 +24,15 @@ class Exporter:
             ignore_audio: bool = IGNORE_AUDIO,
             ignore_score: bool = IGNORE_SCORE,
             audio_format: str = AUDIO_FORMAT,
-            convert_to_mp3: bool = CONVERT_TO_MP3
+            convert_to_mp3: bool = CONVERT_TO_MP3,
+            gain: float = GAIN
     ):
         self.name: str = name
 
         self.soundfont_path: str = os.path.join(os.getcwd(), 'soundfont', sf2)
         self.audio_format: str = audio_format
         self.convert_to_mp3: bool = convert_to_mp3
+        self.gain: float = gain
 
         self.ignore_midi: bool = ignore_midi
         self.ignore_audio: bool = ignore_audio
@@ -74,7 +77,7 @@ class Exporter:
         return path
 
     def export_audio(self, midi_path: str, audio_path: str) -> str:
-        to_audio(self.soundfont_path, midi_path, audio_path, out_type=self.audio_format)
+        self.to_audio(self.soundfont_path, midi_path, audio_path, out_type=self.audio_format)
         if self.convert_to_mp3:
             mp3_path = str(pathlib.Path(audio_path).with_suffix('.mp3'))
             sound = pydub.AudioSegment.from_wav(audio_path)
@@ -102,3 +105,7 @@ class Exporter:
                 mp3_path = self.export_audio(midi_path, audio_path)
 
         return image_path, midi_path, mp3_path
+
+    def to_audio(self, sf2: str, midi_file: str, out_file: str, out_type: str = 'wav'):
+        subprocess.call(['fluidsynth', '-g', str(self.gain), '-T', out_type, '-F', out_file, '-ni', sf2, midi_file])
+
