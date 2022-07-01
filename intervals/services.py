@@ -11,7 +11,6 @@ def default_settings(form: bool = False) -> dict[str, Any]:
     with open(config_path, 'r') as file:
         config = yaml.safe_load(file)
         settings = config['default_settings']
-        print(settings)
 
     return settings
 

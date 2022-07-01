@@ -23,9 +23,11 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.environ.get('MUSAK_SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = bool(os.environ.get('DEBUG', False))
+DEBUG = bool(int(os.environ.get('MUSAK_DEBUG', 0)))
 
 ALLOWED_HOSTS = os.environ.get('MUSAK_ALLOWED_HOSTS', '').split(',')
+if 'MUSAK_CSRF_TRUSTED_ORIGINS' in os.environ:
+    CSRF_TRUSTED_ORIGINS = os.environ.get('MUSAK_CSRF_TRUSTED_ORIGINS', '').split(',')
 
 # Application definition
 
@@ -120,5 +122,6 @@ STATICFILES_DIRS = [
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+TEMP_URL = 'temp/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'temp')
 MEDIA_URL = '/temp/'

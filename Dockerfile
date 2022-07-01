@@ -20,4 +20,4 @@ RUN pip install --upgrade pip
 RUN pip install -r requirements.txt
 
 EXPOSE $MUSAK_PORT
-CMD ["gunicorn"  , "-b", "0.0.0.0:$MUSAK_PORT", "musak:application"]
+CMD ["sh", "-c", "gunicorn -b 0:0.0:$MUSAK_PORT musak:application"]

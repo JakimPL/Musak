@@ -45,7 +45,7 @@
 			var interval = data.interval;
 
 			$('#interval_type').text(interval_type);
-			$('#interval').text(data.name);
+			$('#interval').text(data.name.replaceAll('_', ' '));
 		}
 
 		function addButtons(intervals) {
