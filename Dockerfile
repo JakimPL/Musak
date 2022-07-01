@@ -3,21 +3,30 @@ ENV APP_DIR=/home/app/
 
 RUN mkdir -p $APP_DIR
 WORKDIR $APP_DIR
-COPY . $APP_DIR
+
+COPY requirements.txt requirements.txt
+COPY manage.py manage.py
+COPY db.sqlite3 db.sqlite3
 
 ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
-
-ENV MUSAK_ALLOWED_HOSTS $MUSAK_ALLOWED_HOSTS
-ENV MUSAK_CSRF_TRUSTED_ORIGINS $MUSAK_CSRF_TRUSTED_ORIGINS
-ENV MUSAK_SECRET_KEY $MUSAK_SECRET_KEY
-ENV MUSAK_DEBUG $MUSAK_DEBUG
-ENV MUSAK_PORT $MUSAK_PORT
 
 RUN apt-get update
 RUN apt-get install -y ffmpeg lilypond fluidsynth
 RUN pip install --upgrade pip
 RUN pip install -r requirements.txt
 
-EXPOSE $MUSAK_PORT
-CMD ["sh", "-c", "gunicorn -b 0:0.0:$MUSAK_PORT musak:application"]
+RUN chmod 755 "./entrypoint.sh"
+
+COPY ./config/ ./config/
+COPY ./intervals/ ./intervals/
+COPY ./inversions/ ./inversions/
+COPY ./modules/ ./modules/
+COPY ./musak/ ./musak/
+COPY ./rhythm/ ./rhythm/
+COPY ./shared/ ./shared/
+COPY ./start/ ./start/
+COPY ./static/ ./static/
+COPY ./templates/ ./templates/
+
+CMD ["sh", "-c", "python manage.py runserver 0.0.0.0:$MUSAK_PORT"]
