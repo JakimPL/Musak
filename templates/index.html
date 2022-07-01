@@ -1,0 +1,30 @@
+<!doctype html>
+<head>
+	{% load static %}
+	<link rel="stylesheet" href="{% static 'css/style.css' %}">
+	<link rel="stylesheet" href="{% static 'css/inversions.css' %}">
+
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<meta name="description" content="Simple music quizzes.">
+	<meta name="author" content="Jakim">
+	<title>Musak</title>
+</head>
+
+<body onload="initialize();">
+	<div class="main">
+		<p><h1>Musak v0.1</h1>
+
+		<p style="text-align: center">Simple music quizzes.</p>
+	</div>
+
+	<div class="row">
+		<div class="flex">
+			<div>
+				<p><input type="button" onclick="location.href='intervals/';" value="Intervals"></p>
+				<p><input type="button" onclick="location.href='inversions/';" value="Chord inversions"></p>
+				<p><input type="button" onclick="location.href='rhythm/';" value="Rhythm generator"></p>
+			</div>
+		</div>
+	</div>
+</body>

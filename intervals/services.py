@@ -3,17 +3,15 @@ from typing import Any, Union
 
 import yaml
 
-from config.defaults import TEMPO, LOWEST_NOTE, HIGHEST_NOTE
 from shared.dict import get_key
 
 
 def default_settings(form: bool = False) -> dict[str, Any]:
-    settings = {
-        'sequential': False,
-        'tempo': TEMPO,
-        'lowest_note': LOWEST_NOTE,
-        'highest_note': HIGHEST_NOTE
-    }
+    config_path = os.path.join('config', 'intervals.yml')
+    with open(config_path, 'r') as file:
+        config = yaml.safe_load(file)
+        settings = config['default_settings']
+        print(settings)
 
     return settings
 

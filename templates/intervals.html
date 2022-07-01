@@ -57,7 +57,7 @@
 
 			for (const [name, interval] of Object.entries(intervals)) {
 				var button = document.createElement('input');
-				var text = name;
+				var text = name.replaceAll('_', ' ');
 				button.type = 'button';
 				button.className = 'input';
 				button.id = 'submit';

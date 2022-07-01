@@ -1,8 +1,9 @@
-groups: 1
-measures: 2
-tempo: 120
-time_signature_numerator': 4
-time_signature_denominator': 4
-half_note': 'on'
-half_rest': 'on'
-quarter_note': 'on'
+default_settings:
+    groups: 1
+    measures: 2
+    tempo: 120
+    time_signature_numerator: 4
+    time_signature_denominator: 4
+    half_note: 'on'
+    half_rest: 'on'
+    quarter_note: 'on'

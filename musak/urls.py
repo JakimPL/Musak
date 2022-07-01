@@ -8,6 +8,8 @@ from musak import settings
 from rhythm.views import submit_rhythm
 
 urlpatterns = [
+    path('', include('start.urls')),
+    path('start/', include('start.urls')),
     path('inversions/', include('inversions.urls')),
     path('intervals/', include('intervals.urls')),
     path('rhythm/', include('rhythm.urls')),

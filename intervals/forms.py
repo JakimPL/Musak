@@ -24,7 +24,7 @@ class SettingsForm(forms.Form):
 
         self.intervals = []
         for key, value in intervals_definitions.items():
-            widget = forms.BooleanField(label=key, required=False)
+            widget = forms.BooleanField(label=key.replace('_', ' '), required=False)
             self.fields[f'interval_{key}'] = widget
             self.intervals.append(widget)
 

@@ -1,29 +1,38 @@
-lowest_note: 40
-highest_note: 90
 intervals_definitions:
     prime: 0
-    minor second: 1
-    major second: 2
-    minor third: 3
-    major third: 4
-    perfect fourth: 5
+    minor_second: 1
+    major_second: 2
+    minor_third: 3
+    major_third: 4
+    perfect_fourth: 5
     tritone: 6
-    perfect fifth: 7
-    minor sixth: 8
-    major sixth: 9
-    minor seventh: 10
-    major seventh: 11
+    perfect_fifth: 7
+    minor_sixth: 8
+    major_sixth: 9
+    minor_seventh: 10
+    major_seventh: 11
     octave: 12
-    minor ninth: 13
-    major ninth: 14
-    minor tenth: 15
-    major tenth: 16
-    perfect eleventh: 17
-    octave and tritone: 18
-    perfect twelfth: 19
-    minor thirteenth: 20
-    major thirteenth: 21
-    minor fourteenth: 22
-    major fourteenth: 23
-    double octave: 24
+    minor_ninth: 13
+    major_ninth: 14
+    minor_tenth: 15
+    major_tenth: 16
+    perfect_eleventh: 17
+    octave_and_tritone: 18
+    perfect_twelfth: 19
+    minor_thirteenth: 20
+    major_thirteenth: 21
+    minor_fourteenth: 22
+    major_fourteenth: 23
+    double_octave: 24
+
+default_settings:
+    sequential: false
+    lowest_note: 40
+    highest_note: 90
+    tempo: 120
+    interval_minor_second: 'on'
+    interval_major_second: 'on'
+    interval_minor_third: 'on'
+    interval_major_third: 'on'
+    interval_perfect_fourth: 'on'
 

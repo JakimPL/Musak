@@ -7,14 +7,17 @@ COPY . $APP_DIR
 
 ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
-ENV DEBUG 0
+
+ENV MUSAK_ALLOWED_HOSTS $MUSAK_ALLOWED_HOSTS
+ENV MUSAK_CSRF_TRUSTED_ORIGINS $MUSAK_CSRF_TRUSTED_ORIGINS
+ENV MUSAK_SECRET_KEY $MUSAK_SECRET_KEY
+ENV MUSAK_DEBUG $MUSAK_DEBUG
+ENV MUSAK_PORT $MUSAK_PORT
 
 RUN apt-get update
 RUN apt-get install -y ffmpeg lilypond fluidsynth
 RUN pip install --upgrade pip
 RUN pip install -r requirements.txt
 
-EXPOSE 8000
-#ENTRYPOINT ["sh", "-c", "apt-get update; pt-get install -y ffmpeg lilypond fluidsynth; pip install --upgrade pip; pip install -r requirements.txt; python manage.py runserver 0.0.0.0:8000"]
-
-CMD python manage.py runserver 0.0.0.0:$PORT
+EXPOSE $MUSAK_PORT
+CMD ["gunicorn"  , "-b", "0.0.0.0:$MUSAK_PORT", "musak:application"]

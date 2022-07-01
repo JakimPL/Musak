@@ -1,5 +1,3 @@
-lowest_note: 40
-highest_note: 90
 chords_definitions:
     '': [0, 4, 7]
     'm': [0, 3, 7]
@@ -10,3 +8,11 @@ chords_definitions:
     'maj7': [0, 4, 7, 11]
     'm7': [0, 3, 7, 10]
     'm(maj7)': [0, 3, 7, 11]
+
+default_settings:
+    sequential: false
+    lowest_note: 40
+    highest_note: 90
+    tempo: 120
+    chord_: 'on'
+    chord_m: 'on'

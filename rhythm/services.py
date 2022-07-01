@@ -1,9 +1,10 @@
+import os
 import re
 from typing import Any, Union, Optional
 
 import abjad
+import yaml
 
-from config.defaults import TEMPO, GROUPS, MEASURES
 from modules.rhythm.exceptions import RhygenException
 from modules.rhythm.generator import RhythmGenerator
 from modules.rhythm.settings import Settings
@@ -50,16 +51,10 @@ settings_map = {
 
 
 def default_settings(form: bool = False) -> dict[str, Any]:
-    settings = {
-        'groups': GROUPS,
-        'measures': MEASURES,
-        'tempo': TEMPO,
-        'time_signature_numerator': 4,
-        'time_signature_denominator': 4,
-        'half_note': 'on',
-        'half_rest': 'on',
-        'quarter_note': 'on'
-    }
+    config_path = os.path.join('config', 'rhythm.yml')
+    with open(config_path, 'r') as file:
+        config = yaml.safe_load(file)
+        settings = config['default_settings']
 
     return settings if form else get_settings(settings)
 
