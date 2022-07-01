@@ -2,8 +2,8 @@ from urllib.parse import parse_qs
 
 from django.http import JsonResponse
 from django.shortcuts import render
-from rhygen.modules.exceptions import NoteNotSupportedError
 
+from modules.rhythm.exceptions import NoteNotSupportedError
 from rhythm.forms import SettingsForm
 from rhythm.services import RhygenService, get_settings, default_settings
 

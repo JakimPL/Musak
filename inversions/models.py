@@ -1,9 +1,9 @@
 import json
 import os
 
-from chordinversions.exporter import to_abjad
-from chordinversions.generator import get_random_chord_inversion, generate_all_inversions
-from chordinversions.inversion import ChordInversion
+from modules.chords.exporter import to_abjad
+from modules.chords.generator import get_random_chord_inversion, generate_all_inversions
+from modules.chords.inversion import ChordInversion
 
 from inversions.services import get_chords_definitions
 from shared.directory import create_directory

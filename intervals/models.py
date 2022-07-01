@@ -1,11 +1,10 @@
 import json
 import os
 
-from chordinversions.exporter import to_abjad
-from chordinversions.generator import get_random_interval
-from chordinversions.interval import Interval
-
 from intervals.services import get_intervals_definitions
+from modules.chords.exporter import to_abjad
+from modules.chords.generator import get_random_interval
+from modules.chords.interval import Interval
 from shared.directory import create_directory
 from shared.exporter import Exporter
 

@@ -2,11 +2,11 @@ import re
 from typing import Any, Union, Optional
 
 import abjad
-from rhygen.generator import RhythmGenerator
-from rhygen.modules.exceptions import RhygenException
-from rhygen.modules.settings import Settings
 
 from config.defaults import TEMPO, GROUPS, MEASURES
+from modules.rhythm.exceptions import RhygenException
+from modules.rhythm.generator import RhythmGenerator
+from modules.rhythm.settings import Settings
 from shared.dict import get_key
 from shared.directory import create_directory
 from shared.exporter import Exporter
