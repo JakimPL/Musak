@@ -17,8 +17,11 @@ def submit_inversion(request) -> JsonResponse:
 
         chord_inversion_model = ChordInversionModel(get_settings(data, chords_definitions))
         uuid = chord_inversion_model.generate()
+        chord_types = list(chord_inversion_model.chords.keys())
+
         return JsonResponse({
             'directory': uuid,
+            'chord_types': chord_types,
             'chord_info': 'chord.json',
             'audio_source': 'chord.mp3',
             'image_source': 'chord.png',

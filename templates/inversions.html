@@ -17,6 +17,7 @@
 			crossorigin="anonymous">
 	</script>
 
+	<script src="{% static 'js/chord_info.js' %}"></script>
 	<script src="{% static 'js/path.js' %}"></script>
 	<script src="{% static 'js/play.js' %}"></script>
 	<script src="{% static 'js/json.js' %}"></script>
@@ -25,6 +26,7 @@
 	<script type="text/javascript">
 		function initialize() {
 			score = new Score();
+			chord_data = new ChordInfo();
 			hideChordInfo();
 		}
 
@@ -38,6 +40,8 @@
 			$("#score_info").hide(0);
 			$("#chord_info").hide(0);
 			$("#play_again").hide(0);
+
+			chord_info.type = null;
 		}
 
 		function setChordInfo(data) {
@@ -47,6 +51,9 @@
 
 			$('#chord_type').text(chord_type);
 			$('#chord_inversion').text(chord_inversion);
+
+			chord_data.type = chord_data.names[data.chord_type];
+			chord_data.inversion = chord_inversion;
 		}
 
 		function inversionText(index) {
@@ -60,13 +67,51 @@
 			return text;
 		}
 
-		function addButtons(number_of_buttons) {
+		function resetInversionButtons() {
 			inversion_buttons = document.getElementById("inversion_buttons");
-			chord_info = document.getElementById("chord_info");
 			while (inversion_buttons.firstChild) {
 				inversion_buttons.removeChild(inversion_buttons.lastChild);
 		  	}
+		}
 
+		function addChordTypeButtons(chord_types, max_inversion_index) {
+			resetInversionButtons();
+
+			inversion_buttons = document.getElementById("inversion_buttons");
+			chord_info = document.getElementById("chord_info");
+
+			for (const type of chord_types) {
+				var button = document.createElement('input');
+				var text = chord_data.names[type];
+				button.type = 'button';
+				button.className = 'input';
+				button.id = 'submit';
+				button.value = text;
+
+				button.onclick = function() {
+					if (this.value == chord_data.type) {
+						chord_info.style.borderColor = "#248a6d";
+						this.style.background = "green";
+						setTimeout(function() {
+							addInversionButtons(max_inversion_index);
+						}, 500);
+					} else {
+						chord_info.style.borderColor = "red";
+						this.style.background = "red";
+						updateScore(0);
+						$("#score_info").show(100);
+					}
+				};
+
+				inversion_buttons.appendChild(button);
+			}
+		}
+
+		function addInversionButtons(number_of_buttons) {
+			resetInversionButtons();
+
+			inversion_buttons = document.getElementById("inversion_buttons");
+			chord_info = document.getElementById("chord_info");
 			for (var index = 0; index < number_of_buttons; index++) {
 				var button = document.createElement('input');
 				var text = inversionText(index);
@@ -80,7 +125,7 @@
 					$("#chord_info").show(100);
 					$("#chord_info").css('visibility', 'visible');
 					$("#inversion_image").css('visibility', 'visible');
-					if (this.value == $('#chord_inversion').text()) {
+					if (this.value == chord_data.inversion) {
 						chord_info.style.borderColor = "#248a6d";
 						this.style.background = "green";
 						updateScore(1);
@@ -126,8 +171,8 @@
 						score.unlock();
 					}
 
-					if ('max_inversion_index' in response) {
-						addButtons(response.max_inversion_index);
+					if ('chord_types' in response && 'max_inversion_index' in response) {
+						addChordTypeButtons(response.chord_types, response.max_inversion_index);
 					}
 				},
 				error: function(response){
@@ -145,7 +190,7 @@
 
 	<div class="row">
 		<div class="column_right">
-			<div onclick="playAgain(audio_path);" style="text-align: center">
+			<div onclick="playAgain(audio_path);" style="text-align: center; visible: hidden;">
 				<input type="button" id="play_again" value="Play again" class="play">
 			</div>
 
