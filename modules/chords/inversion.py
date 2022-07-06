@@ -10,10 +10,7 @@ class ChordInversion(NamedTuple):
     base_note_index: int = 0
 
     def get_base_note_name(self) -> str:
-        if self.base_note_index:
-            return get_note_name(self.base_note_index)
-        else:
-            return ''
+        return get_note_name(self.chord[-self.inversion_index])
 
     def inversion_description(self) -> str:
         if self.inversion_index:
