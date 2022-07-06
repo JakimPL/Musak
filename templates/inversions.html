@@ -44,6 +44,13 @@
 			chord_info.type = null;
 		}
 
+		function showChordInfo() {
+			$("#score_info").show(100);
+			$("#chord_info").show(100);
+			$("#chord_info").css('visibility', 'visible');
+			$("#inversion_image").css('visibility', 'visible');
+		}
+
 		function setChordInfo(data) {
 			var inversion = data.inversion_index;
 			var chord_type = data.base_note + data.chord_type;
@@ -52,8 +59,10 @@
 			$('#chord_type').text(chord_type);
 			$('#chord_inversion').text(chord_inversion);
 
-			chord_data.type = chord_data.names[data.chord_type];
+			chord_data.type = data.chord_type;
+			chord_data.type_name = chord_data.names[data.chord_type];
 			chord_data.inversion = chord_inversion;
+			chord_data.inversions_numbers = data.inversions_numbers;
 		}
 
 		function inversionText(index) {
@@ -74,7 +83,7 @@
 		  	}
 		}
 
-		function addChordTypeButtons(chord_types, max_inversion_index) {
+		function addChordTypeButtons(chord_types) {
 			resetInversionButtons();
 
 			inversion_buttons = document.getElementById("inversion_buttons");
@@ -89,12 +98,20 @@
 				button.value = text;
 
 				button.onclick = function() {
-					if (this.value == chord_data.type) {
+					if (this.value == chord_data.type_name) {
 						chord_info.style.borderColor = "#248a6d";
 						this.style.background = "green";
-						setTimeout(function() {
-							addInversionButtons(max_inversion_index);
-						}, 500);
+						var number_of_buttons = chord_info.inversions_numbers[type];
+						if (number_of_buttons <= 1) {
+							showChordInfo();
+							chord_info.style.borderColor = "#248a6d";
+							this.style.background = "green";
+							updateScore(1);
+						} else {
+							setTimeout(function() {
+								addInversionButtons(number_of_buttons);
+							}, 500);
+						}
 					} else {
 						chord_info.style.borderColor = "red";
 						this.style.background = "red";
@@ -121,10 +138,7 @@
 				button.value = text;
 
 				button.onclick = function() {
-					$("#score_info").show(100);
-					$("#chord_info").show(100);
-					$("#chord_info").css('visibility', 'visible');
-					$("#inversion_image").css('visibility', 'visible');
+					showChordInfo();
 					if (this.value == chord_data.inversion) {
 						chord_info.style.borderColor = "#248a6d";
 						this.style.background = "green";
@@ -171,8 +185,12 @@
 						score.unlock();
 					}
 
-					if ('chord_types' in response && 'max_inversion_index' in response) {
-						addChordTypeButtons(response.chord_types, response.max_inversion_index);
+					if ('inversions_numbers' in response) {
+						chord_info.inversions_numbers = response.inversions_numbers;
+					}
+
+					if ('chord_types' in response) {
+						addChordTypeButtons(response.chord_types);
 					}
 				},
 				error: function(response){

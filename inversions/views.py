@@ -18,14 +18,15 @@ def submit_inversion(request) -> JsonResponse:
         chord_inversion_model = ChordInversionModel(get_settings(data, chords_definitions))
         uuid = chord_inversion_model.generate()
         chord_types = list(chord_inversion_model.chords.keys())
+        inversions_numbers = {key: len(value) for key, value in chord_inversion_model.inversions.items()}
 
         return JsonResponse({
             'directory': uuid,
             'chord_types': chord_types,
+            'inversions_numbers': inversions_numbers,
             'chord_info': 'chord.json',
             'audio_source': 'chord.mp3',
-            'image_source': 'chord.png',
-            'max_inversion_index': chord_inversion_model.get_max_inversion_index()
+            'image_source': 'chord.png'
         })
     else:
         return JsonResponse({'error_message': 'invalid request'}, status=400)

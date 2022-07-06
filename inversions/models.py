@@ -17,9 +17,6 @@ class ChordInversionModel:
         self._inversions: dict[str, list[ChordInversion]] = generate_all_inversions(self._chords)
         self._settings: dict = settings
 
-    def get_max_inversion_index(self) -> int:
-        return max([len(chord) for chord in self._inversions.values()])
-
     def get_random_chord_inversion(self) -> ChordInversion:
         return get_random_chord_inversion(
             self._inversions,

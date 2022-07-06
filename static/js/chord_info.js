@@ -5,7 +5,9 @@ class ChordInfo {
 
     reset() {
         this.type = null;
+        this.type_name = null;
         this.inversion = -1;
+        this.inversions_numbers = {};
         this.names = {
           '': 'major',
           'm': 'minor',
