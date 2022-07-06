@@ -25,6 +25,7 @@
 	<script type="text/javascript">
 		function initialize() {
 			score = new Score();
+			submit_lock = false;
 			hideIntervalInfo();
 		}
 
@@ -32,6 +33,16 @@
 			score.update(point);
 			$("#points").text(score.points);
 			$("#total").text(score.total);
+		}
+
+		function lockSubmitButton() {
+			submit_lock = true;
+			$("#submit").css("opacity", 0.6);
+		}
+
+		function unlockSubmitButton() {
+			submit_lock = false;
+			$("#submit").css("opacity", 1.0);
 		}
 
 		function hideIntervalInfo() {
@@ -60,7 +71,6 @@
 				var text = name.replaceAll('_', ' ');
 				button.type = 'button';
 				button.className = 'input';
-				button.id = 'submit';
 				button.value = text;
 
 				button.onclick = function() {
@@ -84,45 +94,49 @@
 		}
 
 		function ajax(event) {
-			$("submit").css('opacity', 0.6);
 			event.preventDefault();
 
-			$.ajax({
-				type: 'POST',
-				url: "{% url 'submit_interval' %}",
-				data: {
-					submit: $('#settings_form').serialize(),
-					csrfmiddlewaretoken: $('input[name=csrfmiddlewaretoken]').val()
-				},
-				success: function(response) {
-					if ('directory' in response) {
-						directory = response.directory;
+			if (!submit_lock) {
+				lockSubmitButton();
+				$.ajax({
+					type: 'POST',
+					url: "{% url 'submit_interval' %}",
+					data: {
+						submit: $('#settings_form').serialize(),
+						csrfmiddlewaretoken: $('input[name=csrfmiddlewaretoken]').val()
+					},
+					success: function(response) {
+						unlockSubmitButton();
+						if ('directory' in response) {
+							directory = response.directory;
 
-						audio_path = getPath(directory, response.audio_source);
-						playSound(audio_path);
+							audio_path = getPath(directory, response.audio_source);
+							playSound(audio_path);
 
-						json_path = getPath(directory, response.interval_info);
-						openJSON(json_path, setIntervalInfo);
+							json_path = getPath(directory, response.interval_info);
+							openJSON(json_path, setIntervalInfo);
 
-						image_path = getPath(directory, response.image_source);
-						$("#interval_image").css('visibility', 'hidden');
-						$("#interval_image").attr('src', image_path);
+							image_path = getPath(directory, response.image_source);
+							$("#interval_image").css('visibility', 'hidden');
+							$("#interval_image").attr('src', image_path);
 
-						$("#play_again").show(100);
-						$("#play_again").css('visibility', 'visible');
-						$("#interval_info").css('visibility', 'hidden');
+							$("#play_again").show(100);
+							$("#play_again").css('visibility', 'visible');
+							$("#interval_info").css('visibility', 'hidden');
 
-						score.unlock();
+							score.unlock();
+						}
+
+						if ('intervals' in response) {
+							addButtons(response.intervals);
+						}
+					},
+					error: function(response){
+						unlockSubmitButton();
+						alert('An error occurred');
 					}
-
-					if ('intervals' in response) {
-						addButtons(response.intervals);
-					}
-				},
-				error: function(response){
-					alert('Bad request');
-				}
-			});
+				});
+			}
 		}
 	</script>
 

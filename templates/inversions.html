@@ -27,6 +27,7 @@
 		function initialize() {
 			score = new Score();
 			chord_data = new ChordInfo();
+			submit_lock = false;
 			hideChordInfo();
 		}
 
@@ -34,6 +35,16 @@
 			score.update(point);
 			$("#points").text(score.points);
 			$("#total").text(score.total);
+		}
+
+		function lockSubmitButton() {
+			submit_lock = true;
+			$("#submit").css("opacity", 0.6);
+		}
+
+		function unlockSubmitButton() {
+			submit_lock = false;
+			$("#submit").css("opacity", 1.0);
 		}
 
 		function hideChordInfo() {
@@ -94,7 +105,6 @@
 				var text = chord_data.names[type];
 				button.type = 'button';
 				button.className = 'input';
-				button.id = 'submit';
 				button.value = text;
 
 				button.onclick = function() {
@@ -134,7 +144,6 @@
 				var text = inversionText(index);
 				button.type = 'button';
 				button.className = 'input';
-				button.id = 'submit';
 				button.value = text;
 
 				button.onclick = function() {
@@ -157,46 +166,51 @@
 		function ajax(event) {
 			event.preventDefault();
 
-			$.ajax({
-				type: 'POST',
-				url: "{% url 'submit_inversion' %}",
-				data: {
-					submit: $('#settings_form').serialize(),
-					csrfmiddlewaretoken: $('input[name=csrfmiddlewaretoken]').val()
-				},
-				success: function(response) {
-					if ('directory' in response) {
-						directory = response.directory;
+			if (!submit_lock) {
+				lockSubmitButton();
+				$.ajax({
+					type: 'POST',
+					url: "{% url 'submit_inversion' %}",
+					data: {
+						submit: $('#settings_form').serialize(),
+						csrfmiddlewaretoken: $('input[name=csrfmiddlewaretoken]').val()
+					},
+					success: function(response) {
+						unlockSubmitButton();
+						if ('directory' in response) {
+							directory = response.directory;
 
-						audio_path = getPath(directory, response.audio_source);
-						playSound(audio_path);
+							audio_path = getPath(directory, response.audio_source);
+							playSound(audio_path);
 
-						json_path = getPath(directory, response.chord_info);
-						openJSON(json_path, setChordInfo);
+							json_path = getPath(directory, response.chord_info);
+							openJSON(json_path, setChordInfo);
 
-						image_path = getPath(directory, response.image_source);
-						$("#inversion_image").css('visibility', 'hidden');
-						$("#inversion_image").attr('src', image_path);
+							image_path = getPath(directory, response.image_source);
+							$("#inversion_image").css('visibility', 'hidden');
+							$("#inversion_image").attr('src', image_path);
 
-						$("#play_again").show(100);
-						$("#play_again").css('visibility', 'visible');
-						$("#chord_info").css('visibility', 'hidden');
+							$("#play_again").show(100);
+							$("#play_again").css('visibility', 'visible');
+							$("#chord_info").css('visibility', 'hidden');
 
-						score.unlock();
+							score.unlock();
+						}
+
+						if ('inversions_numbers' in response) {
+							chord_info.inversions_numbers = response.inversions_numbers;
+						}
+
+						if ('chord_types' in response) {
+							addChordTypeButtons(response.chord_types);
+						}
+					},
+					error: function(response){
+						unlockSubmitButton();
+						alert('An error occurred');
 					}
-
-					if ('inversions_numbers' in response) {
-						chord_info.inversions_numbers = response.inversions_numbers;
-					}
-
-					if ('chord_types' in response) {
-						addChordTypeButtons(response.chord_types);
-					}
-				},
-				error: function(response){
-					alert('Bad request');
-				}
-			});
+				});
+			}
 		}
 	</script>
 

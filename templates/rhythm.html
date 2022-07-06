@@ -11,7 +11,7 @@
 	<title>Rhythm generator</title>
 </head>
 
-<body onload="hideScore();">
+<body onload="initialize();">
 	<script src="https://code.jquery.com/jquery-3.6.0.js"
 			integrity="sha256-H+K7U5CnXl1h5ywQfKtSj8PCmoN9aaq30gDh27Xc0jk="
 			crossorigin="anonymous">
@@ -21,58 +21,78 @@
 	<script src="{% static 'js/play.js' %}"></script>
 
 	<script type="text/javascript" id="ajax">
-	function hideScore() {
-		$("#play").hide(0);
-		$("#play").css('visibility', 'hidden');
+		function initialize() {
+			hideScore();
+			submit_lock = false;
+		}
 
-		$("#rhythm_image").hide(0);
-		$("#rhythm_image").css('visibility', 'hidden');
-	}
+		function lockSubmitButton() {
+			submit_lock = true;
+			$("#submit").css("opacity", 0.6);
+		}
 
-	function ajax(event) {
-		event.preventDefault();
+		function unlockSubmitButton() {
+			submit_lock = false;
+			$("#submit").css("opacity", 1.0);
+		}
 
-		$.ajax({
-			type: 'POST',
-			url: "{% url 'submit_rhythm' %}",
-			data: {
-				submit: $('#settings_form').serialize(),
-				csrfmiddlewaretoken: $('input[name=csrfmiddlewaretoken]').val()
-			},
-			success: function(response){
-				if ('image_source' in response) {
-					audio_path = getPath(response.directory, response.audio_source);
+		function hideScore() {
+			$("#play").hide(0);
+			$("#play").css('visibility', 'hidden');
 
-					$('#rhythm_image').attr('src', response.image_source);
-					$('#rhythm_image').attr('alt', response.score);
+			$("#rhythm_image").hide(0);
+			$("#rhythm_image").css('visibility', 'hidden');
+		}
 
-					$("#play").show(100);
-					$("#play").css('visibility', 'visible');
+		function ajax(event) {
+			event.preventDefault();
 
-					$("#rhythm_image").show(100);
-					$("#rhythm_image").css('visibility', 'visible');
-				}
+			if (!submit_lock) {
+				lockSubmitButton();
+				$.ajax({
+					type: 'POST',
+					url: "{% url 'submit_rhythm' %}",
+					data: {
+						submit: $('#settings_form').serialize(),
+						csrfmiddlewaretoken: $('input[name=csrfmiddlewaretoken]').val()
+					},
+					success: function(response){
+						unlockSubmitButton();
+						if ('image_source' in response) {
+							audio_path = getPath(response.directory, response.audio_source);
 
-				if ('exception' in response) {
-					$('#error').text("An error during generating the image:");
-					$('#error_message').text(response.exception);
-				} else {
-					$('#error').text("");
-					$('#error_message').text("");
-				}
+							$('#rhythm_image').attr('src', response.image_source);
+							$('#rhythm_image').attr('alt', response.score);
 
-				if ('time_signature_error' in response) {
-					$('#time_signature_error').text("the denominator has to be a power of two!");
-				} else {
-					$('#time_signature_error').text("");
-				}
-			},
-			error: function(response){
-				$('#error').text("An error during generating the image:");
-				$('#error_message').text(response.error_message);
+							$("#play").show(100);
+							$("#play").css('visibility', 'visible');
+
+							$("#rhythm_image").show(100);
+							$("#rhythm_image").css('visibility', 'visible');
+						}
+
+						if ('exception' in response) {
+							$('#error').text("An error during generating the image:");
+							$('#error_message').text(response.exception);
+						} else {
+							$('#error').text("");
+							$('#error_message').text("");
+						}
+
+						if ('time_signature_error' in response) {
+							$('#time_signature_error').text("the denominator has to be a power of two!");
+						} else {
+							$('#time_signature_error').text("");
+						}
+					},
+					error: function(response){
+						unlockSubmitButton();
+						$('#error').text("An error during generating the image:");
+						$('#error_message').text(response.error_message);
+					}
+				});
 			}
-		});
-	}
+		}
 	</script>
 
 	<div class="main">
