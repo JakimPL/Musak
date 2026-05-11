@@ -107,7 +107,7 @@ async function onSubmit(event) {
             }
         } catch (err) {
             unlockSubmitButton();
-            alert('An error occurred');
+            alert(window.DEBUG ? `An error occurred: ${err.message}` : 'An error occurred');
         }
     }
 }

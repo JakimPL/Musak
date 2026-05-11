@@ -1,7 +1,7 @@
 import os
 import uuid
 
-TEMP_DIRECTORY = 'temp'
+TEMP_DIRECTORY = "temp"
 
 
 def create_directory() -> tuple[str, str]:

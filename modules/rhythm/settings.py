@@ -61,17 +61,13 @@ class Settings(BaseModel):
 
     @field_validator("time_signature", mode="before")
     @classmethod
-    def _check_time_signature(
-        cls, v: tuple[int, int] | Sequence[int]
-    ) -> TimeSignatureType:
+    def _check_time_signature(cls, v: tuple[int, int] | Sequence[int]) -> TimeSignatureType:
         if len(v) != 2:
             raise ValueError(f"expected a 2-element sequence, got length {len(v)}")
 
         numerator, denominator = int(v[0]), int(v[1])
         if numerator <= 0 or denominator <= 0:
-            raise ValueError(
-                f"non-positive element in signature: ({numerator}, {denominator})"
-            )
+            raise ValueError(f"non-positive element in signature: ({numerator}, {denominator})")
 
         if not is_power_of_two(denominator):
             raise ValueError("time signature denominator has to be a power of two")

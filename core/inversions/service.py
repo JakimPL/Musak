@@ -156,9 +156,7 @@ class InversionService:
         self._write_chord_info(chord_inversion, directory)
         Exporter("chord").export(score, directory)
 
-        inversions_numbers = {
-            chord_type: len(inv_list) for chord_type, inv_list in inversions.items()
-        }
+        inversions_numbers = {chord_type: len(inv_list) for chord_type, inv_list in inversions.items()}
 
         return InversionResponse(
             directory=uuid64,

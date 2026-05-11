@@ -104,19 +104,14 @@ def generate_all_inversions(
     reduce: bool = True,
 ) -> dict[str, list[ChordInversion]]:
     candidates = chords if chords else CHORDS
-    all_inversions = {
-        chord_name: generate_chord_inversions(chord)
-        for chord_name, chord in candidates.items()
-    }
+    all_inversions = {chord_name: generate_chord_inversions(chord) for chord_name, chord in candidates.items()}
 
     if not reduce:
         all_chords = all_inversions
     else:
         all_chords = {}
         for chord_type in all_inversions:
-            if all_inversions[chord_type] and all_inversions[chord_type][0] not in sum(
-                all_chords.values(), []
-            ):
+            if all_inversions[chord_type] and all_inversions[chord_type][0] not in sum(all_chords.values(), []):
                 all_chords[chord_type] = all_inversions[chord_type]
 
     return {

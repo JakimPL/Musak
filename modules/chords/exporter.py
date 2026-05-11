@@ -87,7 +87,7 @@ def to_abjad(
     parser = LilyPondParser("nederlands")  # type: ignore[no-untyped-call]
     staff = parser(str(ly_stream))
 
-    abjad_tempo = abjad.MetronomeMark(QUARTER_NOTE, tempo)  # type: ignore[arg-type]
+    abjad_tempo = abjad.MetronomeMark(abjad.Duration(*QUARTER_NOTE), tempo)  # type: ignore[no-untyped-call]
     abjad.attach(abjad_tempo, staff[0])
     score = abjad.Score([staff])
     return score

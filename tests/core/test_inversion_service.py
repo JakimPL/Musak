@@ -33,9 +33,7 @@ def test_generate_returns_inversion_response() -> None:
 
 def test_generate_uses_only_requested_chords() -> None:
     with (
-        patch(
-            "core.inversions.service.create_directory", return_value=("xyz", "/tmp/xyz")
-        ),
+        patch("core.inversions.service.create_directory", return_value=("xyz", "/tmp/xyz")),
         patch("core.inversions.service.to_abjad"),
         patch("core.inversions.service.InversionService._write_chord_info"),
         patch("core.inversions.service.Exporter") as mock_exporter,

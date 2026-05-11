@@ -32,9 +32,7 @@ def test_generate_returns_rhythm_response() -> None:
 def test_generate_returns_exception_on_invalid_phrase_set() -> None:
     # notes=[2] is a half note (duration 1/2); gcd(1/2, 3/4)=1/4 but min_length=1/2 > 1/4
     # so the generator cannot tile a 3/4 measure and must raise InvalidPhraseSetError
-    response = RhythmService().generate(
-        RhythmRequest(notes=[2], phrases=[], time_signature=(3, 4))
-    )
+    response = RhythmService().generate(RhythmRequest(notes=[2], phrases=[], time_signature=(3, 4)))
     assert response.exception is not None
 
 

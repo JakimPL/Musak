@@ -31,17 +31,11 @@ class RhythmGenerator:
         remainder = Fraction(*self.settings.time_signature)
         validation_message = self._validate(phrases, remainder)
         if validation_message:
-            raise InvalidPhraseSetError(
-                "invalid set of notes/phrases, {message}".format(
-                    message=validation_message
-                )
-            )
+            raise InvalidPhraseSetError("invalid set of notes/phrases, {message}".format(message=validation_message))
 
         elements = []
         while remainder:
-            possible_phrases = [
-                phrase for phrase in phrases if phrase.length <= remainder
-            ]
+            possible_phrases = [phrase for phrase in phrases if phrase.length <= remainder]
             choice = random.choice(possible_phrases)
             elements.append(choice)
             length = choice.length
@@ -58,30 +52,21 @@ class RhythmGenerator:
         )
 
     def _generate_score(self) -> list[Phrase]:
-        return [
-            self._generate_group(group_id) for group_id in range(self.settings.groups)
-        ]
+        return [self._generate_group(group_id) for group_id in range(self.settings.groups)]
 
     @staticmethod
     def _validate(phrases: list[Phrase], remainder: Fraction) -> str:
         gcd = Fraction(
-            misc.gcd(
-                [phrase.length.numerator for phrase in phrases] + [remainder.numerator]
-            ),
-            misc.lcm(
-                [phrase.length.denominator for phrase in phrases]
-                + [remainder.denominator]
-            ),
+            misc.gcd([phrase.length.numerator for phrase in phrases] + [remainder.numerator]),
+            misc.lcm([phrase.length.denominator for phrase in phrases] + [remainder.denominator]),
         )
 
         min_length = min([phrase.length for phrase in phrases])
         if min_length > gcd:
             return "missing notes of length {length}".format(length=gcd)
-        
+
         if min_length > remainder:
-            return "too long notes, required a note of length {length}".format(
-                length=remainder
-            )
+            return "too long notes, required a note of length {length}".format(length=remainder)
 
         return ""
 
@@ -90,7 +75,7 @@ class RhythmGenerator:
         all_notes: list[Note] = []
         for phrase in phrases:
             all_notes.extend(phrase.notes)
-        
+
         return Phrase(notes=all_notes)
 
     @property

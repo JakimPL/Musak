@@ -49,9 +49,7 @@ class Phrase(BaseModel):
     def __len__(self) -> int:
         return len(self.notes)
 
-    def find_invalid_beat(
-        self, time_signature: TimeSignatureType = DEFAULT_TIME_SIGNATURE
-    ) -> int:
+    def find_invalid_beat(self, time_signature: TimeSignatureType = DEFAULT_TIME_SIGNATURE) -> int:
         if not self.notes:
             raise EmptyScoreException("an empty phrase")
 
@@ -64,8 +62,7 @@ class Phrase(BaseModel):
 
         time_signature_fraction = Fraction(*time_signature)
         validation_set = {
-            index * time_signature_fraction
-            for index in range(math.ceil(total_length / time_signature_fraction) + 1)
+            index * time_signature_fraction for index in range(math.ceil(total_length / time_signature_fraction) + 1)
         }
         difference = validation_set.difference(set(checkpoints))
 

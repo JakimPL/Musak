@@ -54,16 +54,13 @@ class Exporter:
         if directory is None:
             directory = os.getcwd()
 
-        original_path = os.path.join(
-            directory, "{name}_uncropped.png".format(name=self.name)
-        )
+        original_path = os.path.join(directory, "{name}_uncropped.png".format(name=self.name))
         path = os.path.join(directory, "{name}.png".format(name=self.name))
 
         try:
             abjad.persist.as_png(
                 score,
                 original_path,
-                remove_ly=True,
                 resolution=250,
                 flags="--png -dcrop",
                 **kwargs,
@@ -88,9 +85,7 @@ class Exporter:
         original_path = os.path.join(directory, "{name}.midi".format(name=self.name))
         path = str(pathlib.Path(original_path).with_suffix(".mid"))
 
-        ly_file = (
-            Exporter.prepare_ly_file(score) if isinstance(score, abjad.Score) else score
-        )
+        ly_file = Exporter.prepare_ly_file(score) if isinstance(score, abjad.Score) else score
         abjad.persist.as_midi(ly_file, original_path, remove_ly=False, **kwargs)  # type: ignore[no-untyped-call]
 
         os.rename(original_path, path)
@@ -98,9 +93,7 @@ class Exporter:
         return path
 
     def export_audio(self, midi_path: str, audio_path: str) -> str:
-        self.to_audio(
-            self.soundfont_path, midi_path, audio_path, out_type=self.audio_format
-        )
+        self.to_audio(self.soundfont_path, midi_path, audio_path, out_type=self.audio_format)
         if self.convert_to_mp3:
             mp3_path = str(pathlib.Path(audio_path).with_suffix(".mp3"))
             sound = pydub.AudioSegment.from_wav(audio_path)
@@ -124,16 +117,12 @@ class Exporter:
             midi_path = self.export_midi(score, directory)
 
             if not self.ignore_audio:
-                audio_path = os.path.join(
-                    directory, "{name}.wav".format(name=self.name)
-                )
+                audio_path = os.path.join(directory, "{name}.wav".format(name=self.name))
                 mp3_path = self.export_audio(midi_path, audio_path)
 
         return image_path, midi_path, mp3_path
 
-    def to_audio(
-        self, sf2: str, midi_file: str, out_file: str, out_type: str = "wav"
-    ) -> None:
+    def to_audio(self, sf2: str, midi_file: str, out_file: str, out_type: str = "wav") -> None:
         subprocess.call(
             [
                 "fluidsynth",

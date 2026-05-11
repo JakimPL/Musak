@@ -63,7 +63,7 @@ async function onSubmit(event) {
         } catch (err) {
             unlockSubmitButton();
             document.getElementById('error').textContent = 'An error during generating the image:';
-            document.getElementById('error_message').textContent = err.message || '';
+            document.getElementById('error_message').textContent = window.DEBUG ? (err.message || '') : '';
         }
     }
 }

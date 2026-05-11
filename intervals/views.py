@@ -39,9 +39,7 @@ def interval_config(request) -> JsonResponse:
 
 def index(request):
     if request.method == "POST":
-        form = SettingsForm(
-            data=request.POST, intervals_definitions=intervals_definitions
-        )
+        form = SettingsForm(data=request.POST, intervals_definitions=intervals_definitions)
     else:
         form = SettingsForm(
             data=default_settings(form=True),

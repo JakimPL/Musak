@@ -11,33 +11,31 @@ from shared.exporter import Exporter
 
 class IntervalModel:
     def __init__(self, settings: dict):
-        intervals = settings['intervals']
+        intervals = settings["intervals"]
         self._intervals: dict[str, int] = intervals if intervals else get_intervals_definitions()
         self._settings: dict = settings
 
     def get_random_interval(self) -> Interval:
         return get_random_interval(
-            self._intervals,
-            lowest_note=self._settings['lowest_note'],
-            highest_note=self._settings['highest_note']
+            self._intervals, lowest_note=self._settings["lowest_note"], highest_note=self._settings["highest_note"]
         )
 
     @staticmethod
     def export_info(interval: Interval, interval_info_path: str):
-        with open(interval_info_path, 'w') as file:
+        with open(interval_info_path, "w") as file:
             data = interval._asdict()
-            data['base_note'] = interval.get_base_note_name()
-            data['name'] = interval.name
+            data["base_note"] = interval.get_base_note_name()
+            data["name"] = interval.name
             json.dump(data, file)
 
     def export_interval(self, path: str, interval: Interval = None):
         if interval is None:
             interval = self.get_random_interval()
 
-        score = to_abjad(interval.chord, self._settings['tempo'], self._settings['sequential'])
-        exporter = Exporter('interval')
+        score = to_abjad(interval.chord, self._settings["tempo"], self._settings["sequential"])
+        exporter = Exporter("interval")
 
-        self.export_info(interval, os.path.join(path, 'interval.json'))
+        self.export_info(interval, os.path.join(path, "interval.json"))
         exporter.export(score, path)
 
     def generate(self) -> str:

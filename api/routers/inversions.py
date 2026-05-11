@@ -23,11 +23,7 @@ async def submit(request: Request) -> InversionResponse:
     form = await request.form()
     definitions = _service.definitions
 
-    chords = {
-        name: intervals
-        for name, intervals in definitions.items()
-        if form_str(form, f"chord_{name}") == "on"
-    }
+    chords = {name: intervals for name, intervals in definitions.items() if form_str(form, f"chord_{name}") == "on"}
 
     inversion_request = InversionRequest(
         tempo=int(form_str(form, "tempo", TEMPO)),
@@ -36,5 +32,5 @@ async def submit(request: Request) -> InversionResponse:
         sequential=(form_str(form, "sequential") == "on"),
         chords=chords,
     )
-    
+
     return _service.generate(inversion_request)

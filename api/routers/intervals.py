@@ -24,9 +24,7 @@ async def submit(request: Request) -> IntervalResponse:
     definitions = _service.definitions
 
     intervals = {
-        name: semitones
-        for name, semitones in definitions.items()
-        if form_str(form, f"interval_{name}") == "on"
+        name: semitones for name, semitones in definitions.items() if form_str(form, f"interval_{name}") == "on"
     }
 
     interval_request = IntervalRequest(
@@ -36,5 +34,5 @@ async def submit(request: Request) -> IntervalResponse:
         sequential=(form_str(form, "sequential") == "on"),
         intervals=intervals,
     )
-    
+
     return _service.generate(interval_request)

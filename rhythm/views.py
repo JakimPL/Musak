@@ -59,10 +59,6 @@ def index(request):
     else:
         form = SettingsForm(default_settings(form=True))
 
-    settings = (
-        get_settings(form.data)
-        if request.method == "POST" and form.is_valid()
-        else default_settings()
-    )
+    settings = get_settings(form.data) if request.method == "POST" and form.is_valid() else default_settings()
     rhygen = RhygenService(settings)
     return generate_content(request, form, rhygen)

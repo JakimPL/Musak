@@ -15,14 +15,10 @@ def submit_inversion(request) -> JsonResponse:
         parameters = request.POST["submit"]
         data = parse_qs(parameters)
 
-        chord_inversion_model = ChordInversionModel(
-            get_settings(data, chords_definitions)
-        )
+        chord_inversion_model = ChordInversionModel(get_settings(data, chords_definitions))
         uuid = chord_inversion_model.generate()
         chord_types = list(chord_inversion_model.chords.keys())
-        inversions_numbers = {
-            key: len(value) for key, value in chord_inversion_model.inversions.items()
-        }
+        inversions_numbers = {key: len(value) for key, value in chord_inversion_model.inversions.items()}
 
         return JsonResponse(
             {
@@ -49,9 +45,7 @@ def index(request):
     if request.method == "POST":
         form = SettingsForm(data=request.POST, chords_definitions=chords_definitions)
     else:
-        form = SettingsForm(
-            data=default_settings(form=True), chords_definitions=chords_definitions
-        )
+        form = SettingsForm(data=default_settings(form=True), chords_definitions=chords_definitions)
 
     response = {"form": form}
     return render(request, "inversions.html", response)

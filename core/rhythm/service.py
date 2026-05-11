@@ -240,9 +240,7 @@ class RhythmService:
                     name="time_signature_numerator",
                     type="integer",
                     label="Numerator",
-                    default=defaults.get(
-                        "time_signature_numerator", TIME_SIGNATURE_NUMERATOR
-                    ),
+                    default=defaults.get("time_signature_numerator", TIME_SIGNATURE_NUMERATOR),
                     min=MIN_TIME_SIGNATURE_NUMERATOR,
                     max=MAX_TIME_SIGNATURE_NUMERATOR,
                 ),
@@ -250,9 +248,7 @@ class RhythmService:
                     name="time_signature_denominator",
                     type="integer",
                     label="Denominator",
-                    default=defaults.get(
-                        "time_signature_denominator", TIME_SIGNATURE_DENOMINATOR
-                    ),
+                    default=defaults.get("time_signature_denominator", TIME_SIGNATURE_DENOMINATOR),
                     min=MIN_TIME_SIGNATURE_DENOMINATOR,
                     max=MAX_TIME_SIGNATURE_DENOMINATOR,
                 ),
@@ -348,29 +344,26 @@ class RhythmService:
 
     def _build_settings(self, request: RhythmRequest) -> tuple[Settings, bool]:
         config = _load_config()
-        default_group_settings = GroupSettings.model_validate(
-            config.default_group.model_dump()
-        )
+        default_group_settings = GroupSettings.model_validate(config.default_group.model_dump())
         time_signature = request.time_signature
         time_signature_error = not is_power_of_two(time_signature[1])
         if time_signature_error:
             time_signature = DEFAULT_TIME_SIGNATURE
 
-        return Settings(
-            tempo=request.tempo,
-            groups=request.groups,
-            measures=request.measures,
-            time_signature=time_signature,
-            default_group_settings=default_group_settings,
-        ), time_signature_error
-
-    def _collect_notes_phrases(
-        self, request: RhythmRequest
-    ) -> tuple[list[Note], list[Phrase]]:
-        notes = [Note.model_validate(note) for note in request.notes]
-        phrases_raw = list(request.phrases) + parse_custom_phrases(
-            request.custom_phrases
+        return (
+            Settings(
+                tempo=request.tempo,
+                groups=request.groups,
+                measures=request.measures,
+                time_signature=time_signature,
+                default_group_settings=default_group_settings,
+            ),
+            time_signature_error,
         )
+
+    def _collect_notes_phrases(self, request: RhythmRequest) -> tuple[list[Note], list[Phrase]]:
+        notes = [Note.model_validate(note) for note in request.notes]
+        phrases_raw = list(request.phrases) + parse_custom_phrases(request.custom_phrases)
         phrases = [Phrase.model_validate(phrase) for phrase in phrases_raw]
         return notes, phrases
 
@@ -379,9 +372,7 @@ class RhythmService:
         notes, phrases = self._collect_notes_phrases(request)
 
         if notes or phrases:
-            settings.default_group_settings = GroupSettings.model_validate(
-                {"notes": notes, "phrases": phrases}
-            )
+            settings.default_group_settings = GroupSettings.model_validate({"notes": notes, "phrases": phrases})
 
         try:
             score = RhythmGenerator(settings)()
