@@ -1,3 +1,3 @@
-function getPath(uuid, filename) {
+export function getPath(uuid, filename) {
     return '../temp/' + uuid + '/' + filename;
 }

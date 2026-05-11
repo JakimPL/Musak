@@ -1,4 +1,4 @@
-class Score {
+export class Score {
     constructor() {
         this.reset();
     }

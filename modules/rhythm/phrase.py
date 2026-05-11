@@ -1,65 +1,76 @@
 import math
-from dataclasses import dataclass
 from fractions import Fraction
-from typing import List, Union
+from functools import cached_property
+from typing import Any, Iterator, List, Optional, Sequence, Union
+
+from pydantic import BaseModel, ConfigDict, computed_field, field_validator
 
 from modules.rhythm.exceptions import EmptyScoreException
-from modules.rhythm.misc import check_type
 from modules.rhythm.note import Note, NoteType
 from modules.rhythm.time_signature import TimeSignatureType
 
 
-@dataclass
-class Phrase:
-    notes: List[Note]
+class Phrase(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True, frozen=True)
 
-    def __init__(self, notes: List[NoteType] = None):
+    notes: list[Note] = []
+
+    def __init__(self, notes: Optional[Sequence[NoteType]] = None, **data: Any) -> None:
         if notes is not None:
-            check_type(notes, list)
-            self.notes = list(map(Note, notes))
+            super().__init__(notes=list(notes), **data)
         else:
-            self.notes = []
+            super().__init__(**data)
 
-    def __add__(self, other):
+    @field_validator("notes", mode="before")
+    @classmethod
+    def _coerce_notes(cls, v: object) -> list[Note]:
+        if isinstance(v, (list, tuple)):
+            return [n if isinstance(n, Note) else Note(n) for n in v]  # type: ignore[arg-type]
+        raise TypeError(f"expected a list or tuple, got {type(v)}")
+
+    def __add__(self, other: "Phrase") -> "Phrase":
         if not isinstance(other, Phrase):
-            raise TypeError('cannot add phrase to {type}'.format(type=type(other)))
+            raise TypeError(f"cannot add phrase to {type(other)}")
         return Phrase(self.notes + other.notes)
 
-    def __bool__(self):
+    def __bool__(self) -> bool:
         return bool(self.notes)
 
-    def __iter__(self):
-        return self.notes.__iter__()
+    def __iter__(self) -> Iterator[Note]:
+        return iter(self.notes)
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.notes)
 
     def validate(self, time_signature: TimeSignatureType = (4, 4)) -> int:
         if not self.notes:
-            raise EmptyScoreException('an empty phrase')
+            raise EmptyScoreException("an empty phrase")
 
-        total_length = 0
-        checkpoints = [0]
+        total_length: Fraction = Fraction(0)
+        checkpoints: list[Fraction] = [Fraction(0)]
 
         for note in self.notes:
             total_length += note.duration
             checkpoints.append(total_length)
 
         time_signature_fraction = Fraction(*time_signature)
-        validation_set = {index * time_signature_fraction for index in range(
-            math.ceil(total_length / time_signature_fraction) + 1)}
-        checkpoints_set = set(checkpoints)
-        difference = validation_set.difference(checkpoints_set)
+        validation_set = {
+            index * time_signature_fraction
+            for index in range(math.ceil(total_length / time_signature_fraction) + 1)
+        }
+        difference = validation_set.difference(set(checkpoints))
 
         return int(min(difference) / time_signature_fraction) if difference else 0
 
-    @property
-    def length(self):
-        return sum([note.duration for note in self.notes])
+    @computed_field  # type: ignore[misc]
+    @cached_property
+    def length(self) -> Fraction:
+        return sum((note.duration for note in self.notes), Fraction(0))
 
-    @property
-    def lcm(self):
-        return math.lcm(*[note.duration.denominator for note in self.notes])
+    @computed_field  # type: ignore[misc]
+    @cached_property
+    def lcm(self) -> int:
+        return math.lcm(*(note.duration.denominator for note in self.notes))
 
 
-PhraseType = Union[Phrase, List[NoteType]]
+PhraseType = Union[Phrase, Sequence[NoteType]]
