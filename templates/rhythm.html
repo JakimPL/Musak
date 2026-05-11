@@ -1,9 +1,8 @@
 <!doctype html>
 
 <head>
-	{% load static %}
-	<link rel="stylesheet" href="{% static 'css/style.css' %}">
-	<link rel="stylesheet" href="{% static 'css/rhythm.css' %}">
+	<link rel="stylesheet" href="{{ request.url_for('static', path='css/style.css') }}">
+	<link rel="stylesheet" href="{{ request.url_for('static', path='css/rhythm.css') }}">
 
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
@@ -27,16 +26,16 @@
 			</div>
 
 			<div class="table">
-				<p id="score"><img src="{{ image_source }}" alt="{{ score }}" id="rhythm_image"></p>
+				<p id="score"><img src="" alt="" id="rhythm_image"></p>
 				<p id="error" style="font-weight: bold"></p>
 				<p id="error_message" style="font-style: italic"></p>
+				<p id="time_signature_error" style="font-style: italic"></p>
 			</div>
 		</div>
 
 		<div class="column_left">
-			<form method="post" id="settings_form" data-api-url="{% url 'submit_rhythm' %}"
-				data-config-url="{% url 'rhythm_config' %}">
-				{% csrf_token %}
+		<form method="post" id="settings_form" data-api-url="/api/rhythm/submit"
+			data-config-url="/api/rhythm/config">
 				<div class="table">
 					<div class="table_row" style="text-align: center">
 						<input type="submit" id="submit" value="Generate rhythm">
@@ -47,5 +46,5 @@
 		</div>
 	</div>
 
-	<script type="module" src="{% static 'js/modules/rhythm.js' %}"></script>
+	<script type="module" src="{{ request.url_for('static', path='js/modules/rhythm.js') }}"></script>
 </body>

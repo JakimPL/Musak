@@ -7,3 +7,10 @@ default_settings:
     half_note: 'on'
     half_rest: 'on'
     quarter_note: 'on'
+default_group:
+    notes: [-8, -4, -2, 2, 4, 8]
+    phrases:
+        - [4, -4]
+        - [-4, 4]
+        - [8, 8, 8, 8]
+        - [4, 4]

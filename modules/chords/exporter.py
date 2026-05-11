@@ -1,58 +1,80 @@
 import abjad
 from abjad.parsers.parser import LilyPondParser
+from music21.base import Music21Object
 from music21.chord import Chord
 from music21.lily.translate import LilypondConverter
-from music21.note import Note
-from music21.note import Rest
-from music21.stream import Stream
+from music21.note import Note, Rest
+from music21.stream.base import Stream
 from music21.tempo import MetronomeMark
 
-TEMPO = 120
-SEQUENTIAL = False
+from modules.chords.constants import (
+    DEFAULT_SEQUENTIAL,
+    DEFAULT_TEMPO,
+    HALF_DURATION,
+    QUARTER_DURATION,
+    QUARTER_NOTE,
+    WHOLE_DURATION,
+)
 
 
-def add_rest(stream: Stream, duration: str = 'half'):
+def add_rest(stream: Stream[Music21Object], duration: str = HALF_DURATION) -> None:
     rest = Rest()
     rest.duration.type = duration
-    stream.append(rest)
+    stream.append(rest)  # type: ignore[no-untyped-call]
 
 
-def create_sequence(iterable: list[int], stream: Stream, note_duration: str = 'quarter'):
-    for note in iterable:
-        note = Note(note)
+def create_sequence(
+    iterable: list[int],
+    stream: Stream[Music21Object],
+    note_duration: str = QUARTER_DURATION,
+) -> None:
+    for midi_note in iterable:
+        note = Note(midi_note)
         note.duration.type = note_duration
-        stream.append(note)
+        stream.append(note)  # type: ignore[no-untyped-call]
 
 
-def create_chord(iterable: list[int], stream: Stream, duration: str = 'whole'):
+def create_chord(
+    iterable: list[int],
+    stream: Stream[Music21Object],
+    duration: str = WHOLE_DURATION,
+) -> None:
     chord = Chord(iterable)
     chord.duration.type = duration
-    stream.append(chord)
+    stream.append(chord)  # type: ignore[no-untyped-call]
 
 
-def create_stream(iterable: list[int], tempo: int = TEMPO, sequential: bool = SEQUENTIAL):
-    stream = Stream()
-    tempo = MetronomeMark(number=tempo)
-    stream.append(tempo)
+def create_stream(
+    iterable: list[int],
+    tempo: int = DEFAULT_TEMPO,
+    sequential: bool = DEFAULT_SEQUENTIAL,
+) -> Stream[Music21Object]:
+    stream = Stream[Music21Object]()
+    mark = MetronomeMark(number=tempo)
+    stream.append(mark)  # type: ignore[no-untyped-call]
     if sequential:
         create_sequence(iterable, stream)
         add_rest(stream)
     else:
         create_chord(iterable, stream)
-        add_rest(stream, duration='whole')
+        add_rest(stream, duration=WHOLE_DURATION)
 
     return stream
 
 
-def to_abjad(iterable: list[int], tempo: int = TEMPO, sequential: bool = SEQUENTIAL) -> abjad.Score:
+def to_abjad(
+    iterable: list[int],
+    tempo: int = DEFAULT_TEMPO,
+    sequential: bool = DEFAULT_SEQUENTIAL,
+) -> abjad.Score:
     stream = create_stream(iterable, tempo, sequential)
-    ly_converter = LilypondConverter()
-    ly_stream = ly_converter.lySequentialMusicFromStream(stream)
+    ly_converter = LilypondConverter()  # type: ignore[no-untyped-call]
+    ly_stream = ly_converter.lySequentialMusicFromStream(stream)  # type: ignore[no-untyped-call]
 
-    parser = LilyPondParser('nederlands')
+    parser = LilyPondParser("nederlands")  # type: ignore[no-untyped-call]
     staff = parser(str(ly_stream))
 
-    abjad_tempo = abjad.MetronomeMark((1, 4), tempo)
+    abjad_tempo = abjad.MetronomeMark(QUARTER_NOTE, tempo)  # type: ignore[arg-type]
     abjad.attach(abjad_tempo, staff[0])
     score = abjad.Score([staff])
     return score

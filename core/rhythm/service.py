@@ -17,7 +17,7 @@ from config.defaults import (
     MIN_TIME_SIGNATURE_NUMERATOR,
 )
 from config.models import RhythmConfig
-from core.rhythm.schema import RhythmConfigResponse, RhythmRequest, RhythmResponse
+from core.rhythm.schema import NoteValue, RhythmConfigResponse, RhythmRequest, RhythmResponse
 from core.schemas.common import FieldGroupSchema, FieldSchema
 from modules.rhythm.exceptions import RhygenException
 from modules.rhythm.generator import RhythmGenerator
@@ -28,7 +28,7 @@ from paths import RHYTHM_CONFIG
 from shared.directory import create_directory
 from shared.exporter import Exporter
 
-settings_map = {
+note_map: dict[str, NoteValue] = {
     "whole_note": 1,
     "half_note": 2,
     "quarter_note": 4,
@@ -45,6 +45,9 @@ settings_map = {
     "dotted_quarter_note": (3, 8),
     "dotted_eighth_note": (3, 16),
     "dotted_sixteenth_note": (3, 32),
+}
+
+phrase_map: dict[str, list[NoteValue]] = {
     "two_quarter_notes_phrase": [4, 4],
     "two_eighth_notes_phrase": [8, 8],
     "four_eighth_notes_phrase": [8, 8, 8, 8],
@@ -58,6 +61,8 @@ settings_map = {
     "left_sixteenth_phrase": [16, -16],
     "right_sixteenth_phrase": [-16, 16],
 }
+
+settings_map: dict[str, NoteValue | list[NoteValue]] = {**note_map, **phrase_map}
 
 _NOTE_LABELS = {
     "whole_note": "\U0001d15d",

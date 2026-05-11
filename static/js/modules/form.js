@@ -3,9 +3,8 @@
  * Schema shape: { groups: [{ label, fields: [{ name, type, label, default, min, max }] }] }
  *
  * @param {HTMLElement} container - The element to render fields into
- * @param {Object} schema - Config schema from GET /api/*/config
-    * @returns { HTMLFormElement } The rendered form
-        */
+ * @param {Object} schema - Config schema from GET /api/.../config
+ * @returns { HTMLFormElement } The rendered form */
 export function renderForm(container, schema) {
     container.innerHTML = '';
 

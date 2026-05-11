@@ -1,3 +1,5 @@
-from typing import Tuple
+from typing import Final
 
-TimeSignatureType = Tuple[int, int]
+TimeSignatureType = tuple[int, int]
+
+DEFAULT_TIME_SIGNATURE: Final[TimeSignatureType] = (4, 4)

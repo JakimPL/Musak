@@ -39,5 +39,11 @@ class RhythmDefaultSettings(BaseModel):
     time_signature_denominator: int = 4
 
 
+class GroupSettingsConfig(BaseModel):
+    notes: list[int] = [-8, -4, -2, 2, 4, 8]
+    phrases: list[list[int]] = [[4, -4], [-4, 4], [8, 8, 8, 8], [4, 4]]
+
+
 class RhythmConfig(BaseModel):
     default_settings: RhythmDefaultSettings
+    default_group: GroupSettingsConfig = GroupSettingsConfig()

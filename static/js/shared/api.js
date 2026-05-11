@@ -1,17 +1,9 @@
 /**
- * Posts a form to the given URL using the format expected by the Django backend:
- * submit=<url-encoded-form-data>&csrfmiddlewaretoken=<token>
+ * Posts a form to the given URL as application/x-www-form-urlencoded.
  * Returns parsed JSON response.
  */
 export async function postForm(url, formElement) {
-    const formData = new FormData(formElement);
-    const csrfToken = formData.get('csrfmiddlewaretoken') || '';
-    const serialized = new URLSearchParams(formData).toString();
-
-    const body = new URLSearchParams({
-        submit: serialized,
-        csrfmiddlewaretoken: csrfToken,
-    });
+    const body = new URLSearchParams(new FormData(formElement));
 
     const response = await fetch(url, {
         method: 'POST',
@@ -21,7 +13,7 @@ export async function postForm(url, formElement) {
 
     if (!response.ok) {
         const err = await response.json().catch(() => ({}));
-        throw new Error(err.error_message || response.statusText);
+        throw new Error(err.detail || response.statusText);
     }
     return response.json();
 }

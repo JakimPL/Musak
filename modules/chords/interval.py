@@ -14,7 +14,7 @@ class Interval(NamedTuple):
         else:
             return ''
 
-    def __str__(self):
+    def __str__(self) -> str:
         return '{base_note} {name} ({interval})'.format(
             interval=self.interval,
             base_note=self.get_base_note_name(),
