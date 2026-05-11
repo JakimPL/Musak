@@ -15,8 +15,8 @@ class ChordInversion(NamedTuple):
     def inversion_description(self) -> str:
         if self.inversion_index:
             return "inversion no. {index}".format(index=self.inversion_index)
-        else:
-            return "root position"
+
+        return "root position"
 
     def __str__(self) -> str:
         return "{base_note}{chord_type}, {inversion_index}: {chord}".format(

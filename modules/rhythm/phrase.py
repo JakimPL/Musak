@@ -5,7 +5,7 @@ from collections.abc import Sequence
 from fractions import Fraction
 from functools import cached_property
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 from modules.rhythm.exceptions import EmptyScoreException
 from modules.rhythm.note import Note, NoteType
@@ -16,6 +16,16 @@ class Phrase(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True, frozen=True)
 
     notes: list[Note] = []
+
+    @model_validator(mode="before")
+    @classmethod
+    def _coerce_from_sequence(
+        cls, data: Sequence[NoteType] | dict[str, list[Note]]
+    ) -> Sequence[NoteType] | dict[str, list[Note]]:
+        if isinstance(data, (list, tuple)):
+            return {"notes": list(data)}
+
+        return data
 
     @field_validator("notes", mode="before")
     @classmethod

@@ -5,12 +5,16 @@ from typing import Any, Mapping
 import yaml
 
 from config.defaults import (
+    HIGHEST_NOTE,
+    LOWEST_NOTE,
     MAX_HIGHEST_NOTE,
     MAX_LOWEST_NOTE,
     MAX_TEMPO,
     MIN_HIGHEST_NOTE,
     MIN_LOWEST_NOTE,
     MIN_TEMPO,
+    SEQUENTIAL,
+    TEMPO,
 )
 from config.models import InversionsConfig
 from core.inversions.schema import (
@@ -66,7 +70,7 @@ class InversionService:
                     name="sequential",
                     type="boolean",
                     label="Sequential",
-                    default=defaults.get("sequential", False),
+                    default=defaults.get("sequential", SEQUENTIAL),
                 ),
             ],
         )
@@ -78,7 +82,7 @@ class InversionService:
                     name="tempo",
                     type="integer",
                     label="Tempo",
-                    default=defaults.get("tempo", 120),
+                    default=defaults.get("tempo", TEMPO),
                     min=MIN_TEMPO,
                     max=MAX_TEMPO,
                 ),
@@ -92,7 +96,7 @@ class InversionService:
                     name="lowest_note",
                     type="integer",
                     label="Lowest note",
-                    default=defaults.get("lowest_note", 40),
+                    default=defaults.get("lowest_note", LOWEST_NOTE),
                     min=MIN_LOWEST_NOTE,
                     max=MAX_LOWEST_NOTE,
                 ),
@@ -100,7 +104,7 @@ class InversionService:
                     name="highest_note",
                     type="integer",
                     label="Highest note",
-                    default=defaults.get("highest_note", 90),
+                    default=defaults.get("highest_note", HIGHEST_NOTE),
                     min=MIN_HIGHEST_NOTE,
                     max=MAX_HIGHEST_NOTE,
                 ),
@@ -142,7 +146,11 @@ class InversionService:
             lowest_note=request.lowest_note,
             highest_note=request.highest_note,
         )
-        score = to_abjad(chord_inversion.chord, request.tempo, request.sequential)
+        score = to_abjad(
+            chord_inversion.chord,
+            tempo=request.tempo,
+            sequential=request.sequential,
+        )
 
         uuid64, directory = create_directory()
         self._write_chord_info(chord_inversion, directory)

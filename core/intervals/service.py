@@ -5,12 +5,16 @@ from typing import Any
 import yaml
 
 from config.defaults import (
+    HIGHEST_NOTE,
+    LOWEST_NOTE,
     MAX_HIGHEST_NOTE,
     MAX_LOWEST_NOTE,
     MAX_TEMPO,
     MIN_HIGHEST_NOTE,
     MIN_LOWEST_NOTE,
     MIN_TEMPO,
+    SEQUENTIAL,
+    TEMPO,
 )
 from config.models import IntervalsConfig
 from core.intervals.schema import (
@@ -21,6 +25,7 @@ from core.intervals.schema import (
 from core.schemas.common import FieldGroupSchema, FieldSchema
 from modules.chords.exporter import to_abjad
 from modules.chords.generator import get_random_interval
+from modules.chords.interval import Interval
 from paths import INTERVALS_CONFIG
 from shared.directory import create_directory
 from shared.exporter import Exporter
@@ -31,8 +36,8 @@ class IntervalService:
         self._definitions = self._load_definitions()
 
     def _load_config(self) -> IntervalsConfig:
-        with open(INTERVALS_CONFIG, "r") as f:
-            return IntervalsConfig.model_validate(yaml.safe_load(f))
+        with open(INTERVALS_CONFIG, "r") as file:
+            return IntervalsConfig.model_validate(yaml.safe_load(file))
 
     def _load_definitions(self) -> dict[str, int]:
         return self._load_config().intervals_definitions
@@ -54,7 +59,7 @@ class IntervalService:
                     name="sequential",
                     type="boolean",
                     label="Sequential",
-                    default=defaults.get("sequential", False),
+                    default=defaults.get("sequential", SEQUENTIAL),
                 ),
             ],
         )
@@ -66,7 +71,7 @@ class IntervalService:
                     name="tempo",
                     type="integer",
                     label="Tempo",
-                    default=defaults.get("tempo", 120),
+                    default=defaults.get("tempo", TEMPO),
                     min=MIN_TEMPO,
                     max=MAX_TEMPO,
                 ),
@@ -80,7 +85,7 @@ class IntervalService:
                     name="lowest_note",
                     type="integer",
                     label="Lowest note",
-                    default=defaults.get("lowest_note", 40),
+                    default=defaults.get("lowest_note", LOWEST_NOTE),
                     min=MIN_LOWEST_NOTE,
                     max=MAX_LOWEST_NOTE,
                 ),
@@ -88,7 +93,7 @@ class IntervalService:
                     name="highest_note",
                     type="integer",
                     label="Highest note",
-                    default=defaults.get("highest_note", 90),
+                    default=defaults.get("highest_note", HIGHEST_NOTE),
                     min=MIN_HIGHEST_NOTE,
                     max=MAX_HIGHEST_NOTE,
                 ),
@@ -115,7 +120,7 @@ class IntervalService:
         return request.intervals if request.intervals else self._definitions
 
     @staticmethod
-    def _write_interval_info(interval: Any, directory: str) -> None:
+    def _write_interval_info(interval: Interval, directory: str) -> None:
         data = interval._asdict()
         data["base_note"] = interval.get_base_note_name()
         data["name"] = interval.name
@@ -130,7 +135,12 @@ class IntervalService:
             lowest_note=request.lowest_note,
             highest_note=request.highest_note,
         )
-        score = to_abjad(interval.chord, request.tempo, request.sequential)
+
+        score = to_abjad(
+            interval.chord,
+            tempo=request.tempo,
+            sequential=request.sequential,
+        )
 
         uuid64, directory = create_directory()
         self._write_interval_info(interval, directory)

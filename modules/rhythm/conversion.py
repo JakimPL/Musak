@@ -32,12 +32,13 @@ def to_abjad_score(
         raise EmptyScoreException("an empty score")
 
     abjad_signature = abjad.TimeSignature(time_signature)
-    abjad_tempo = abjad.MetronomeMark(QUARTER_NOTE, tempo)  # type: ignore[arg-type]
+    abjad_tempo = abjad.MetronomeMark(abjad.Duration(*QUARTER_NOTE), tempo)  # type: ignore[no-untyped-call]
 
     staves = []
     for notes in phrases:
         voice = abjad.Voice(
-            to_abjad_string(notes, time_signature=time_signature), name="Rhythm"
+            to_abjad_string(notes, time_signature=time_signature),
+            name="Rhythm",
         )
         abjad.attach(abjad_tempo, voice[0])
         abjad.attach(abjad_signature, voice[0])

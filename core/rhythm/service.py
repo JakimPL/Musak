@@ -1,29 +1,41 @@
-import os
 import re
+from pathlib import Path
 from typing import Any
 
 import yaml
 
 from config.defaults import (
+    GROUPS,
     MAX_GROUPS,
     MAX_MEASURES,
     MAX_TEMPO,
     MAX_TIME_SIGNATURE_DENOMINATOR,
     MAX_TIME_SIGNATURE_NUMERATOR,
+    MEASURES,
     MIN_GROUPS,
     MIN_MEASURES,
     MIN_TEMPO,
     MIN_TIME_SIGNATURE_DENOMINATOR,
     MIN_TIME_SIGNATURE_NUMERATOR,
+    TEMPO,
+    TIME_SIGNATURE_DENOMINATOR,
+    TIME_SIGNATURE_NUMERATOR,
 )
 from config.models import RhythmConfig
-from core.rhythm.schema import NoteValue, RhythmConfigResponse, RhythmRequest, RhythmResponse
+from core.rhythm.schema import (
+    NoteValue,
+    RhythmConfigResponse,
+    RhythmRequest,
+    RhythmResponse,
+)
 from core.schemas.common import FieldGroupSchema, FieldSchema
 from modules.rhythm.exceptions import RhygenException
 from modules.rhythm.generator import RhythmGenerator
+from modules.rhythm.misc import is_power_of_two
 from modules.rhythm.note import Note
 from modules.rhythm.phrase import Phrase
-from modules.rhythm.settings import Settings
+from modules.rhythm.settings import GroupSettings, Settings
+from modules.rhythm.time_signature import DEFAULT_TIME_SIGNATURE
 from paths import RHYTHM_CONFIG
 from shared.directory import create_directory
 from shared.exporter import Exporter
@@ -143,6 +155,7 @@ def parse_custom_phrases(phrases_string: str) -> list[list[int | tuple[int, int]
             ":",
         ]:
             raise ValueError(f"unexpected symbol {char}")
+
         bracket = True
         if char == "[":
             count += 1
@@ -158,9 +171,11 @@ def parse_custom_phrases(phrases_string: str) -> list[list[int | tuple[int, int]
 
         if count < 0:
             raise ValueError("unexpected closing bracket")
-        elif count > 1:
+
+        if count > 1:
             raise ValueError("unexpected nested expression")
-        elif count == 0 and char != "," and not bracket:
+
+        if count == 0 and char != "," and not bracket:
             raise ValueError(f"unexpected symbol {char} outside the expression")
 
     if count != 0:
@@ -169,11 +184,13 @@ def parse_custom_phrases(phrases_string: str) -> list[list[int | tuple[int, int]
     return [parse_custom_phrase(raw_phrase) for raw_phrase in elements]
 
 
+def _load_config() -> RhythmConfig:
+    with open(RHYTHM_CONFIG, "r") as file:
+        return RhythmConfig.model_validate(yaml.safe_load(file))
+
+
 def _load_defaults() -> dict[str, Any]:
-    with open(RHYTHM_CONFIG, "r") as f:
-        return RhythmConfig.model_validate(
-            yaml.safe_load(f)
-        ).default_settings.model_dump()
+    return _load_config().default_settings.model_dump()
 
 
 class RhythmService:
@@ -187,7 +204,7 @@ class RhythmService:
                     name="tempo",
                     type="integer",
                     label="Tempo",
-                    default=defaults.get("tempo", 120),
+                    default=defaults.get("tempo", TEMPO),
                     min=MIN_TEMPO,
                     max=MAX_TEMPO,
                 ),
@@ -201,7 +218,7 @@ class RhythmService:
                     name="groups",
                     type="integer",
                     label="Groups",
-                    default=defaults.get("groups", 1),
+                    default=defaults.get("groups", GROUPS),
                     min=MIN_GROUPS,
                     max=MAX_GROUPS,
                 ),
@@ -209,7 +226,7 @@ class RhythmService:
                     name="measures",
                     type="integer",
                     label="Measures",
-                    default=defaults.get("measures", 2),
+                    default=defaults.get("measures", MEASURES),
                     min=MIN_MEASURES,
                     max=MAX_MEASURES,
                 ),
@@ -223,7 +240,9 @@ class RhythmService:
                     name="time_signature_numerator",
                     type="integer",
                     label="Numerator",
-                    default=defaults.get("time_signature_numerator", 4),
+                    default=defaults.get(
+                        "time_signature_numerator", TIME_SIGNATURE_NUMERATOR
+                    ),
                     min=MIN_TIME_SIGNATURE_NUMERATOR,
                     max=MAX_TIME_SIGNATURE_NUMERATOR,
                 ),
@@ -231,7 +250,9 @@ class RhythmService:
                     name="time_signature_denominator",
                     type="integer",
                     label="Denominator",
-                    default=defaults.get("time_signature_denominator", 4),
+                    default=defaults.get(
+                        "time_signature_denominator", TIME_SIGNATURE_DENOMINATOR
+                    ),
                     min=MIN_TIME_SIGNATURE_DENOMINATOR,
                     max=MAX_TIME_SIGNATURE_DENOMINATOR,
                 ),
@@ -326,52 +347,57 @@ class RhythmService:
         )
 
     def _build_settings(self, request: RhythmRequest) -> tuple[Settings, bool]:
-        time_signature_error = False
-        settings = Settings()
-        settings.tempo = request.tempo
-        settings.groups = request.groups
-        settings.measures = request.measures
+        config = _load_config()
+        default_group_settings = GroupSettings.model_validate(
+            config.default_group.model_dump()
+        )
+        time_signature = request.time_signature
+        time_signature_error = not is_power_of_two(time_signature[1])
+        if time_signature_error:
+            time_signature = DEFAULT_TIME_SIGNATURE
 
-        try:
-            settings.time_signature = request.time_signature
-        except ValueError:
-            settings.time_signature = (4, 4)
-            time_signature_error = True
-
-        return settings, time_signature_error
+        return Settings(
+            tempo=request.tempo,
+            groups=request.groups,
+            measures=request.measures,
+            time_signature=time_signature,
+            default_group_settings=default_group_settings,
+        ), time_signature_error
 
     def _collect_notes_phrases(
         self, request: RhythmRequest
     ) -> tuple[list[Note], list[Phrase]]:
-        notes = [Note(n) for n in request.notes]
+        notes = [Note.model_validate(note) for note in request.notes]
         phrases_raw = list(request.phrases) + parse_custom_phrases(
             request.custom_phrases
         )
-        phrases = [Phrase(p) for p in phrases_raw]
+        phrases = [Phrase.model_validate(phrase) for phrase in phrases_raw]
         return notes, phrases
 
     def generate(self, request: RhythmRequest) -> RhythmResponse:
         settings, time_signature_error = self._build_settings(request)
         notes, phrases = self._collect_notes_phrases(request)
 
-        settings.default_group_settings.notes = notes
-        settings.default_group_settings.phrases = phrases
+        if notes or phrases:
+            settings.default_group_settings = GroupSettings.model_validate(
+                {"notes": notes, "phrases": phrases}
+            )
 
         try:
             score = RhythmGenerator(settings)()
-        except RhygenException as e:
+        except RhygenException as exception:
             return RhythmResponse(
-                exception=str(e),
+                exception=str(exception),
                 time_signature_error=time_signature_error,
             )
 
         uuid64, directory = create_directory()
-        image_path, _midi_path, audio_path = Exporter("rhythm").export(score, directory)
+        image_path, _, audio_path = Exporter("rhythm").export(score, directory)
 
         return RhythmResponse(
             directory=uuid64,
             image_source=f"../{image_path}",
-            audio_source=os.path.basename(audio_path),
+            audio_source=Path(audio_path).name,
             score=str(score),
             exception=None,
             time_signature_error=time_signature_error,

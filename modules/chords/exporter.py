@@ -17,7 +17,11 @@ from modules.chords.constants import (
 )
 
 
-def add_rest(stream: Stream[Music21Object], duration: str = HALF_DURATION) -> None:
+def add_rest(
+    stream: Stream[Music21Object],
+    *,
+    duration: str = HALF_DURATION,
+) -> None:
     rest = Rest()
     rest.duration.type = duration
     stream.append(rest)  # type: ignore[no-untyped-call]
@@ -26,6 +30,7 @@ def add_rest(stream: Stream[Music21Object], duration: str = HALF_DURATION) -> No
 def create_sequence(
     iterable: list[int],
     stream: Stream[Music21Object],
+    *,
     note_duration: str = QUARTER_DURATION,
 ) -> None:
     for midi_note in iterable:
@@ -37,6 +42,7 @@ def create_sequence(
 def create_chord(
     iterable: list[int],
     stream: Stream[Music21Object],
+    *,
     duration: str = WHOLE_DURATION,
 ) -> None:
     chord = Chord(iterable)
@@ -46,6 +52,7 @@ def create_chord(
 
 def create_stream(
     iterable: list[int],
+    *,
     tempo: int = DEFAULT_TEMPO,
     sequential: bool = DEFAULT_SEQUENTIAL,
 ) -> Stream[Music21Object]:
@@ -64,10 +71,16 @@ def create_stream(
 
 def to_abjad(
     iterable: list[int],
+    *,
     tempo: int = DEFAULT_TEMPO,
     sequential: bool = DEFAULT_SEQUENTIAL,
 ) -> abjad.Score:
-    stream = create_stream(iterable, tempo, sequential)
+    stream = create_stream(
+        iterable,
+        tempo=tempo,
+        sequential=sequential,
+    )
+
     ly_converter = LilypondConverter()  # type: ignore[no-untyped-call]
     ly_stream = ly_converter.lySequentialMusicFromStream(stream)  # type: ignore[no-untyped-call]
 

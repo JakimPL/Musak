@@ -1,12 +1,14 @@
 from pydantic import BaseModel
+
+from config.defaults import HIGHEST_NOTE, LOWEST_NOTE, SEQUENTIAL, TEMPO
 from core.schemas.common import ConfigResponse
 
 
 class InversionRequest(BaseModel):
-    tempo: int = 120
-    lowest_note: int = 40
-    highest_note: int = 90
-    sequential: bool = False
+    tempo: int = TEMPO
+    lowest_note: int = LOWEST_NOTE
+    highest_note: int = HIGHEST_NOTE
+    sequential: bool = SEQUENTIAL
     chords: dict[str, list[int]] = {}  # empty means use all enabled from config
 
 

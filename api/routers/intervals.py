@@ -1,7 +1,12 @@
 from fastapi import APIRouter, Request
 
 from api.routers import form_str
-from core.intervals.schema import IntervalConfigResponse, IntervalRequest, IntervalResponse
+from config.defaults import HIGHEST_NOTE, LOWEST_NOTE, TEMPO
+from core.intervals.schema import (
+    IntervalConfigResponse,
+    IntervalRequest,
+    IntervalResponse,
+)
 from core.intervals.service import IntervalService
 
 router = APIRouter()
@@ -19,16 +24,17 @@ async def submit(request: Request) -> IntervalResponse:
     definitions = _service.definitions
 
     intervals = {
-        name: val
-        for name, val in definitions.items()
+        name: semitones
+        for name, semitones in definitions.items()
         if form_str(form, f"interval_{name}") == "on"
     }
 
-    req = IntervalRequest(
-        tempo=int(form_str(form, "tempo", "120")),
-        lowest_note=int(form_str(form, "lowest_note", "40")),
-        highest_note=int(form_str(form, "highest_note", "90")),
+    interval_request = IntervalRequest(
+        tempo=int(form_str(form, "tempo", TEMPO)),
+        lowest_note=int(form_str(form, "lowest_note", LOWEST_NOTE)),
+        highest_note=int(form_str(form, "highest_note", HIGHEST_NOTE)),
         sequential=(form_str(form, "sequential") == "on"),
         intervals=intervals,
     )
-    return _service.generate(req)
+    
+    return _service.generate(interval_request)
