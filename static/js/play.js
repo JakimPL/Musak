@@ -1,9 +1,9 @@
-function playSound(path) {
-    var audio = new Audio(path);
+export function playSound(path) {
+    const audio = new Audio(path);
     audio.play();
 }
 
-function playAgain(path) {
+export function playAgain(path) {
     if (typeof path !== 'undefined') {
         playSound(path);
     }

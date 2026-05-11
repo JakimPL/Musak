@@ -1,154 +1,28 @@
 <!doctype html>
+
 <head>
-	{% load static %}
-	<link rel="stylesheet" href="{% static 'css/style.css' %}">
-	<link rel="stylesheet" href="{% static 'css/inversions.css' %}">
+	<link rel="stylesheet" href="{{ request.url_for('static', path='css/style.css') }}">
+	<link rel="stylesheet" href="{{ request.url_for('static', path='css/inversions.css') }}">
 
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<meta name="description" content="A simple interval generator.">
 	<meta name="author" content="Jakim">
 	<title>Interval generator</title>
+	<script>window.DEBUG = {{ debug | tojson }};</script>
 </head>
 
-<body onload="initialize();">
-	<script src="https://code.jquery.com/jquery-3.6.0.js"
-			integrity="sha256-H+K7U5CnXl1h5ywQfKtSj8PCmoN9aaq30gDh27Xc0jk="
-			crossorigin="anonymous">
-	</script>
-
-	<script src="{% static 'js/path.js' %}"></script>
-	<script src="{% static 'js/play.js' %}"></script>
-	<script src="{% static 'js/json.js' %}"></script>
-	<script src="{% static 'js/score.js' %}"></script>
-
-	<script type="text/javascript">
-		function initialize() {
-			score = new Score();
-			submit_lock = false;
-			hideIntervalInfo();
-		}
-
-		function updateScore(point) {
-			score.update(point);
-			$("#points").text(score.points);
-			$("#total").text(score.total);
-		}
-
-		function lockSubmitButton() {
-			submit_lock = true;
-			$("#submit").css("opacity", 0.6);
-		}
-
-		function unlockSubmitButton() {
-			submit_lock = false;
-			$("#submit").css("opacity", 1.0);
-		}
-
-		function hideIntervalInfo() {
-			$("#score_info").hide(0);
-			$("#interval_info").hide(0);
-			$("#play_again").hide(0);
-		}
-
-		function setIntervalInfo(data) {
-			var interval_type = data.base_note + ' (' + data.interval + ')';
-			var interval = data.interval;
-
-			$('#interval_type').text(interval_type);
-			$('#interval').text(data.name.replaceAll('_', ' '));
-		}
-
-		function addButtons(intervals) {
-			interval_buttons = document.getElementById("interval_buttons");
-			interval_info = document.getElementById("interval_info");
-			while (interval_buttons.firstChild) {
-				interval_buttons.removeChild(interval_buttons.lastChild);
-		  	}
-
-			for (const [name, interval] of Object.entries(intervals)) {
-				var button = document.createElement('input');
-				var text = name.replaceAll('_', ' ');
-				button.type = 'button';
-				button.className = 'input';
-				button.value = text;
-
-				button.onclick = function() {
-					$("#score_info").show(100);
-					$("#interval_info").show(100);
-					$("#interval_info").css('visibility', 'visible');
-					$("#interval_image").css('visibility', 'visible');
-					if (this.value == $('#interval').text()) {
-						interval_info.style.borderColor = "#248a6d";
-						this.style.background = "green";
-						updateScore(1);
-					} else {
-						interval_info.style.borderColor = "red";
-						this.style.background = "red";
-						updateScore(0);
-					}
-				};
-
-				interval_buttons.appendChild(button);
-			}
-		}
-
-		function ajax(event) {
-			event.preventDefault();
-
-			if (!submit_lock) {
-				lockSubmitButton();
-				$.ajax({
-					type: 'POST',
-					url: "{% url 'submit_interval' %}",
-					data: {
-						submit: $('#settings_form').serialize(),
-						csrfmiddlewaretoken: $('input[name=csrfmiddlewaretoken]').val()
-					},
-					success: function(response) {
-						unlockSubmitButton();
-						if ('directory' in response) {
-							directory = response.directory;
-
-							audio_path = getPath(directory, response.audio_source);
-							playSound(audio_path);
-
-							json_path = getPath(directory, response.interval_info);
-							openJSON(json_path, setIntervalInfo);
-
-							image_path = getPath(directory, response.image_source);
-							$("#interval_image").css('visibility', 'hidden');
-							$("#interval_image").attr('src', image_path);
-
-							$("#play_again").show(100);
-							$("#play_again").css('visibility', 'visible');
-							$("#interval_info").css('visibility', 'hidden');
-
-							score.unlock();
-						}
-
-						if ('intervals' in response) {
-							addButtons(response.intervals);
-						}
-					},
-					error: function(response){
-						unlockSubmitButton();
-						alert('An error occurred');
-					}
-				});
-			}
-		}
-	</script>
-
+<body>
 	<div class="main">
-		<p><h1>Intervals Generator v0.1</h1>
+		<p>
+		<h1>Intervals Generator v0.1</h1>
 
 		<p style="text-align: center">Generate a random interval.</p>
 	</div>
 
 	<div class="row">
 		<div class="column_right">
-			<div onclick="playAgain(audio_path);" style="text-align: center">
+			<div style="text-align: center">
 				<input type="button" id="play_again" value="Play again" class="play">
 			</div>
 
@@ -158,7 +32,8 @@
 			</div>
 
 			<div id="score_info">
-				<p style="text-align: center">Score: <mark id="points" class="score_points">0</mark>/<mark id="total" class="score_total">0</mark></p>
+				<p style="text-align: center">Score: <mark id="points" class="score_points">0</mark>/<mark id="total"
+						class="score_total">0</mark></p>
 			</div>
 
 			<div id="interval_info" class="info">
@@ -173,47 +48,17 @@
 		</div>
 
 		<div class="column_left">
-			<form method="post" id="settings_form" onsubmit="ajax(event)">
-				{% csrf_token %}
+		<form method="post" id="settings_form" data-api-url="/api/intervals/submit"
+			data-config-url="/api/intervals/config">
 				<div class="table">
 					<div class="table_row" style="text-align: center">
 						<input type="submit" id="submit" value="Generate interval">
 					</div>
-
-					<div class="table_row">
-						<p><label for="Options"><strong>Options</strong></label></p>
-						<div class="table_column_left">
-							<div>{{ form.sequential }}{{ form.sequential.label }}</div>
-						</div>
-					</div>
-
-					<div class="table_row">
-						<div><p><label for="{{ form.tempo.label }}"><strong>{{ form.tempo.label }}</strong>:</label></p></div>
-						<div>{{ form.tempo }}</div>
-					</div>
-
-					<div class="table_row">
-						<p><label for="Notes range"><strong>Notes range</strong></label></p>
-						<div class="table_column_left">
-							<div class="widget"><p><label for="{{ form.lowest_note.label }}"><strong>{{ form.lowest_note.label }}</strong>:</label></p></div>
-							<div class="widget">{{ form.lowest_note }}</div>
-						</div>
-						<div class="table_column_right">
-							<div class="widget"><p><label for="{{ form.highest_note.label }}"><strong>{{ form.highest_note.label }}</strong>:</label></p></div>
-							<div class="widget">{{ form.highest_note }}</div>
-						</div>
-					</div>
-
-					<div class="table_row">
-						<p><label for="Intervals"><strong>Intervals</strong></label></p>
-						<div>
-							{% for interval in form.get_intervals %}
-							<div>{{ interval }}{{ interval.label }}</div>
-							{% endfor %}
-						</div>
-					</div>
+					<div id="form_fields"></div>
 				</div>
 			</form>
 		</div>
 	</div>
+
+	<script type="module" src="{{ request.url_for('static', path='js/modules/intervals.js') }}"></script>
 </body>

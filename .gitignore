@@ -1,6 +1,9 @@
-.idea/
 __pycache__/
+.idea/
+.mypy_cache/
+.pytest_cache/
 temp/
+soundfont/
 
 *.egg-info/
 *.pyc
@@ -8,3 +11,4 @@ temp/
 *.png
 *.wav
 *.mid
+
