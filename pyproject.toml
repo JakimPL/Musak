@@ -3,7 +3,7 @@ name = "musak"
 version = "0.2.0"
 description = "Musak - Web music training tools"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.13"
 authors = [{ name = "Jakim" }]
 
 dependencies = [
@@ -11,6 +11,7 @@ dependencies = [
     "fastapi[standard]",
     "music21",
     "pydantic",
+    "audioop-lts",
     "pydub",
     "pyfluidsynth",
     "PyYAML",
@@ -38,7 +39,7 @@ packages = ["musak"]
 
 [tool.black]
 line-length = 120
-target-version = ["py311"]
+target-version = ["py313"]
 
 [tool.isort]
 profile = "black"
@@ -52,11 +53,11 @@ addopts = "--import-mode=importlib"
 show_missing = true
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.13"
 files = ["musak"]
 explicit_package_bases = true
 ignore_missing_imports = true
 strict = true
 
 [tool.pylint.main]
-py-version = "3.11"
+py-version = "3.13"

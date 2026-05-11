@@ -87,7 +87,7 @@ class Exporter:
         path = directory / f"{self.name}.png"
 
         try:
-            abjad.persist.as_png(  # type: ignore[no-untyped-call]
+            abjad.persist.as_png(
                 score,
                 str(original_path),
                 resolution=250,
@@ -112,7 +112,7 @@ class Exporter:
         path = original_path.with_suffix(".mid")
 
         ly_file = Exporter.prepare_ly_file(score) if isinstance(score, abjad.Score) else score
-        abjad.persist.as_midi(ly_file, str(original_path), remove_ly=False)  # type: ignore[no-untyped-call]
+        abjad.persist.as_midi(ly_file, str(original_path), remove_ly=False)
 
         original_path.rename(path)
 

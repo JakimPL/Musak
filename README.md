@@ -18,16 +18,22 @@ On macOS or unsupported systems, install those packages manually and place a `.s
 
 ### Python environment
 
-Requires Python 3.11+. Install the project and its dependencies:
+Requires [uv](https://docs.astral.sh/uv/). Python 3.13 is managed automatically. `./install.sh` runs `uv sync` for you, but you can also run it manually:
 
 ```bash
-pip install -e ".[dev]"
+uv sync --extra dev
 ```
 
 ## Running
 
 ```bash
-uvicorn api.main:app --reload
+./run.sh
+```
+
+Or with a custom port:
+
+```bash
+./run.sh 9000
 ```
 
 Then open [http://localhost:8000](http://localhost:8000).
@@ -35,11 +41,11 @@ Then open [http://localhost:8000](http://localhost:8000).
 To enable verbose error messages in the browser:
 
 ```bash
-DEBUG=1 uvicorn api.main:app --reload
+DEBUG=1 ./run.sh
 ```
 
 ## Tests
 
 ```bash
-pytest tests/
+uv run pytest tests/
 ```

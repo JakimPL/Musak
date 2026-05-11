@@ -89,3 +89,7 @@ esac
 
 echo ""
 echo "Done. External dependencies are installed."
+
+echo ""
+echo "Setting up Python environment:"
+run_cmd uv sync --extra dev

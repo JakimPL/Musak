@@ -3,7 +3,10 @@ import abjad
 from musak.modules.rhythm.constants import DEFAULT_TEMPO, QUARTER_NOTE
 from musak.modules.rhythm.exceptions import EmptyScoreException, InvalidBeatException
 from musak.modules.rhythm.phrase import Phrase
-from musak.modules.rhythm.time_signature import DEFAULT_TIME_SIGNATURE, TimeSignatureType
+from musak.modules.rhythm.time_signature import (
+    DEFAULT_TIME_SIGNATURE,
+    TimeSignatureType,
+)
 
 
 def to_abjad_string(
@@ -32,7 +35,7 @@ def to_abjad_score(
         raise EmptyScoreException("an empty score")
 
     abjad_signature = abjad.TimeSignature(time_signature)
-    abjad_tempo = abjad.MetronomeMark(abjad.Duration(*QUARTER_NOTE), tempo)  # type: ignore[no-untyped-call]
+    abjad_tempo = abjad.MetronomeMark(abjad.Duration(*QUARTER_NOTE), tempo)
 
     staves = []
     for notes in phrases:
