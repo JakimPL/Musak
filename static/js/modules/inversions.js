@@ -16,10 +16,7 @@ function updateScore(point) {
     document.getElementById('total').textContent = score.total;
 }
 
-const ANSWER_BTN_CLASS =
-    'py-2 px-4 rounded-xl border-2 border-gray-200 dark:border-gray-700 ' +
-    'bg-white dark:bg-gray-800 text-sm font-semibold cursor-pointer ' +
-    'hover:border-primary hover:text-primary transition-colors';
+const ANSWER_BTN_CLASS = 'btn-answer';
 
 function lockSubmitButton() {
     submitLock = true;
@@ -56,8 +53,7 @@ function hideChordInfo() {
 }
 
 function showChordInfo() {
-    document.getElementById('score_info').style.display = '';
-    document.getElementById('chord_info').style.display = '';
+    document.getElementById('score_info').style.visibility = 'visible';
     document.getElementById('chord_info').style.visibility = 'visible';
     document.getElementById('inversion_image').style.visibility = 'visible';
 }
@@ -116,7 +112,7 @@ function addChordTypeButtons(chordTypes) {
                 this.style.borderColor = '#dc2626';
                 this.style.color = 'white';
                 updateScore(0);
-                document.getElementById('score_info').style.display = '';
+                document.getElementById('score_info').style.visibility = 'visible';
             }
         });
 
@@ -179,12 +175,21 @@ async function onSubmit(event) {
 
                 const imagePath = getPath(response.directory, response.image_source);
                 const img = document.getElementById('inversion_image');
-                img.style.visibility = 'hidden';
                 img.setAttribute('src', imagePath);
+                // Space reserved but hidden — revealed together with score/info on answer click
+                img.style.display = '';
+                img.style.visibility = 'hidden';
+
+                // Reserve space for score and info box to prevent layout shift
+                const scoreEl = document.getElementById('score_info');
+                scoreEl.style.display = '';
+                scoreEl.style.visibility = 'hidden';
+                const infoEl = document.getElementById('chord_info');
+                infoEl.style.display = '';
+                infoEl.style.visibility = 'hidden';
 
                 document.getElementById('play_again').style.display = '';
                 document.getElementById('play_again').style.visibility = 'visible';
-                document.getElementById('chord_info').style.visibility = 'hidden';
 
                 score.unlock();
             }

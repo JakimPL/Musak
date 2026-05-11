@@ -12,6 +12,7 @@ IGNORE_MIDI: Final[bool] = False
 IGNORE_AUDIO: Final[bool] = False
 IGNORE_SCORE: Final[bool] = False
 GAIN: Final[float] = 3.5
+RESOLUTION: Final[int] = 500
 
 
 class Exporter:
@@ -37,6 +38,37 @@ class Exporter:
         self.ignore_score: bool = ignore_score
 
     @staticmethod
+    def _make_transparent(path: pathlib.Path) -> None:
+        """Post-process a LilyPond PNG: remap luminance to alpha channel.
+
+        Maps white (lum=255) → fully transparent, black (lum=0) → fully opaque.
+        The RGB channels are set to black so the image renders correctly with
+        CSS ``invert()`` in dark mode.
+        """
+        tmp = path.with_name(path.stem + "._tmp.png")
+        try:
+            subprocess.run(
+                [
+                    "ffmpeg",
+                    "-i",
+                    str(path),
+                    "-vf",
+                    "format=rgba,geq=r=0:g=0:b=0:a='255-r(X,Y)'",
+                    "-update",
+                    "1",
+                    "-y",
+                    str(tmp),
+                ],
+                check=True,
+                capture_output=True,
+            )
+        except (subprocess.CalledProcessError, FileNotFoundError) as exception:
+            tmp.unlink(missing_ok=True)
+            raise RuntimeError(f"ffmpeg post-processing failed for {path}: {exception}") from exception
+
+        tmp.rename(path)
+
+    @staticmethod
     def prepare_ly_file(score: abjad.Score) -> abjad.LilyPondFile:
         score_block = abjad.Block("score", items=[score])
         score_block.items.append(abjad.Block("layout"))
@@ -59,12 +91,13 @@ class Exporter:
         ly_file = self.prepare_ly_file(score)
         abjad.persist.as_ly(ly_file, str(ly_path))  # type: ignore[no-untyped-call]
 
-        flags = "--png -dresolution=250 -dcrop"
+        flags = f"--png -dresolution={RESOLUTION} -dcrop"
         abjad.io.run_lilypond(str(ly_path), flags=flags)
 
         if cropped_path.exists():
             full_png.unlink(missing_ok=True)
             cropped_path.rename(png_path)
+            Exporter._make_transparent(png_path)
 
         midi_raw = directory / f"{self.name}.midi"
         if midi_raw.exists():
@@ -90,7 +123,7 @@ class Exporter:
             abjad.persist.as_png(
                 score,
                 str(original_path),
-                resolution=250,
+                resolution=RESOLUTION,
                 flags="--png -dcrop",
             )
         except AttributeError:
@@ -98,6 +131,7 @@ class Exporter:
 
         cropped_path = original_path.with_name(f"{original_path.stem}.cropped.png")
         cropped_path.rename(path)
+        Exporter._make_transparent(path)
 
         return path
 

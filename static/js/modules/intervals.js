@@ -14,10 +14,7 @@ function updateScore(point) {
     document.getElementById('total').textContent = score.total;
 }
 
-const ANSWER_BTN_CLASS =
-    'py-2 px-4 rounded-xl border-2 border-gray-200 dark:border-gray-700 ' +
-    'bg-white dark:bg-gray-800 text-sm font-semibold cursor-pointer ' +
-    'hover:border-primary hover:text-primary transition-colors';
+const ANSWER_BTN_CLASS = 'btn-answer';
 
 function lockSubmitButton() {
     submitLock = true;
@@ -72,10 +69,10 @@ function addButtons(intervals) {
         button.value = name.replaceAll('_', ' ');
 
         button.addEventListener('click', function () {
-            document.getElementById('score_info').style.display = '';
-            document.getElementById('interval_info').style.display = '';
-            document.getElementById('interval_info').style.visibility = 'visible';
+            // Reveal image, score and info together — no layout shift
             document.getElementById('interval_image').style.visibility = 'visible';
+            document.getElementById('score_info').style.visibility = 'visible';
+            document.getElementById('interval_info').style.visibility = 'visible';
 
             if (this.value === document.getElementById('interval').textContent) {
                 intervalInfo.style.borderColor = '#248a6d';
@@ -119,12 +116,21 @@ async function onSubmit(event) {
 
                 const imagePath = getPath(response.directory, response.image_source);
                 const img = document.getElementById('interval_image');
-                img.style.visibility = 'hidden';
                 img.setAttribute('src', imagePath);
+                // Space reserved but hidden — revealed together with score/info on answer click
+                img.style.display = '';
+                img.style.visibility = 'hidden';
+
+                // Reserve space for score and info box to prevent layout shift
+                const scoreEl = document.getElementById('score_info');
+                scoreEl.style.display = '';
+                scoreEl.style.visibility = 'hidden';
+                const infoEl = document.getElementById('interval_info');
+                infoEl.style.display = '';
+                infoEl.style.visibility = 'hidden';
 
                 document.getElementById('play_again').style.display = '';
                 document.getElementById('play_again').style.visibility = 'visible';
-                document.getElementById('interval_info').style.visibility = 'hidden';
 
                 score.unlock();
             }

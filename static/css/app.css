@@ -1,4 +1,3 @@
-/* Dark-mode inversion for LilyPond score images (white background → dark background) */
-.dark .score-image {
-    filter: invert(1) hue-rotate(180deg);
-}
+/* app.css — residual rules that cannot be expressed as Tailwind utilities.
+   Component classes (.btn-primary, .score-image, etc.) live in base.html
+   inside <style type="text/tailwindcss"> so the Play CDN processes them. */

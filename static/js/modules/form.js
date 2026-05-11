@@ -27,11 +27,8 @@ export function renderForm(container, schema) {
     }
 }
 
-const INPUT_CLASSES =
-    'w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 ' +
-    'px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-primary';
-
-const LABEL_CLASSES = 'block text-sm text-gray-700 dark:text-gray-300 mb-1';
+const INPUT_CLASSES = 'form-input';
+const LABEL_CLASSES = 'form-label';
 
 function createField(field) {
     const wrapper = document.createElement('div');

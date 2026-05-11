@@ -9,71 +9,60 @@
 
 {% block content %}
 <div class="mb-6">
-    <h1 class="text-xl font-bold mb-1">Interval Generator</h1>
-    <p class="text-sm text-gray-500 dark:text-gray-400">Listen to the interval and identify it.</p>
+	<h1 class="text-xl font-bold mb-1">Interval Generator</h1>
+	<p class="text-sm text-gray-500 dark:text-gray-400">Listen to the interval and identify it.</p>
 </div>
 
-<div id="error-banner"
-     class="hidden mb-4 rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 px-4 py-3 text-sm text-red-700 dark:text-red-400"
-     role="alert"></div>
+<div id="error-banner" class="error-banner mb-4" role="alert"></div>
 
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
 
-    <!-- Settings panel -->
-    <aside class="lg:col-span-1">
-        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 p-4">
-            <form method="post" id="settings_form"
-                  data-api-url="/api/intervals/submit"
-                  data-config-url="/api/intervals/config">
-                <button type="submit" id="submit"
-                        class="w-full mb-4 py-3 px-4 rounded-xl bg-primary text-white font-bold text-sm hover:opacity-90 active:opacity-75 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed">
-                    Generate interval
-                </button>
-                <div id="form_fields" class="space-y-3"></div>
-            </form>
-        </div>
-    </aside>
+	<!-- Settings panel -->
+	<aside class="lg:col-span-1 order-2 lg:order-1">
+		<form method="post" id="settings_form" data-api-url="/api/intervals/submit"
+			data-config-url="/api/intervals/config">
+			<button type="submit" id="submit" class="btn-primary mb-3">Generate interval</button>
+			<div class="settings-card">
+				<details open>
+					<summary class="options-summary">Options</summary>
+					<div id="form_fields" class="space-y-3 mt-2"></div>
+				</details>
+			</div>
+		</form>
+	</aside>
 
-    <!-- Exercise area -->
-    <section class="lg:col-span-2 space-y-4" aria-label="Exercise">
+	<!-- Exercise area -->
+	<section class="lg:col-span-2 order-1 lg:order-2 space-y-4" aria-label="Exercise">
 
-        <!-- Play again -->
-        <div class="text-center">
-            <button id="play_again" style="display:none"
-                    class="py-2 px-6 rounded-xl border-2 border-gray-300 dark:border-gray-600 text-sm font-bold hover:border-primary hover:text-primary transition-colors">
-                &#9654; Play again
-            </button>
-        </div>
+		<!-- Play again -->
+		<div class="text-center">
+			<button id="play_again" style="display:none" class="btn-secondary">&#9654; Play again</button>
+		</div>
 
-        <!-- Answer buttons -->
-        <div id="interval_buttons"
-             class="flex flex-wrap gap-2 justify-center"
-             aria-label="Interval choices" aria-live="polite"></div>
+		<!-- Answer buttons -->
+		<div id="interval_buttons" class="flex flex-wrap gap-2 justify-center" aria-label="Interval choices"
+			aria-live="polite"></div>
 
-        <!-- Score -->
-        <div id="score_info" class="text-center text-sm" style="display:none">
-            Score:
-            <span id="points" class="text-primary font-bold">0</span>
-            / <span id="total" class="font-bold">0</span>
-        </div>
+		<!-- Score -->
+		<div id="score_info" class="text-center text-sm" style="display:none">
+			Score:
+			<span id="points" class="text-primary font-bold">0</span>
+			/ <span id="total" class="font-bold">0</span>
+		</div>
 
-        <!-- Info box -->
-        <div id="interval_info"
-             class="rounded-2xl border-2 border-primary p-4 text-center space-y-1 text-sm"
-             style="display:none">
-            <p class="font-bold">Interval info</p>
-            <p id="interval_type"></p>
-            <p id="interval"></p>
-        </div>
+		<!-- Info box -->
+		<div id="interval_info" class="info-box" style="display:none">
+			<p class="font-bold">Interval info</p>
+			<p id="interval_type"></p>
+			<p id="interval"></p>
+		</div>
 
-        <!-- Score image -->
-        <div class="text-center">
-            <img src="" alt="Interval score" id="interval_image"
-                 class="score-image inline-block w-full max-w-2xl"
-                 style="visibility:hidden">
-        </div>
+		<!-- Score image -->
+		<div class="score-wrapper">
+			<img src="" alt="Interval score" id="interval_image" class="score-image" style="display:none">
+		</div>
 
-    </section>
+	</section>
 </div>
 {% endblock %}
 
