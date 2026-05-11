@@ -34,19 +34,19 @@ async def lilypond_not_found_handler(request: Request, exc: LilyTranslateExcepti
 
 @app.get("/")
 async def index(request: Request) -> HTMLResponse:
-    return templates.TemplateResponse(request, "index.html")
+    return templates.TemplateResponse(request, "index.html", {"active_page": None})
 
 
 @app.get("/intervals/")
 async def intervals_page(request: Request) -> HTMLResponse:
-    return templates.TemplateResponse(request, "intervals.html", {"debug": DEBUG})
+    return templates.TemplateResponse(request, "intervals.html", {"debug": DEBUG, "active_page": "intervals"})
 
 
 @app.get("/inversions/")
 async def inversions_page(request: Request) -> HTMLResponse:
-    return templates.TemplateResponse(request, "inversions.html", {"debug": DEBUG})
+    return templates.TemplateResponse(request, "inversions.html", {"debug": DEBUG, "active_page": "inversions"})
 
 
 @app.get("/rhythm/")
 async def rhythm_page(request: Request) -> HTMLResponse:
-    return templates.TemplateResponse(request, "rhythm.html", {"debug": DEBUG})
+    return templates.TemplateResponse(request, "rhythm.html", {"debug": DEBUG, "active_page": "rhythm"})

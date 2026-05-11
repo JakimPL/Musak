@@ -8,12 +8,16 @@ let audioPath;
 
 function lockSubmitButton() {
     submitLock = true;
-    document.getElementById('submit').style.opacity = '0.6';
+    const btn = document.getElementById('submit');
+    btn.disabled = true;
+    btn.textContent = 'Generating…';
 }
 
 function unlockSubmitButton() {
     submitLock = false;
-    document.getElementById('submit').style.opacity = '1.0';
+    const btn = document.getElementById('submit');
+    btn.disabled = false;
+    btn.textContent = 'Generate rhythm';
 }
 
 function hideScore() {
@@ -62,8 +66,9 @@ async function onSubmit(event) {
 
         } catch (err) {
             unlockSubmitButton();
-            document.getElementById('error').textContent = 'An error during generating the image:';
+            document.getElementById('error').textContent = 'An error occurred generating the score:';
             document.getElementById('error_message').textContent = window.DEBUG ? (err.message || '') : '';
+            document.getElementById('time_signature_error').textContent = '';
         }
     }
 }

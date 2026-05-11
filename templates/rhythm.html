@@ -1,51 +1,64 @@
-<!doctype html>
+{% extends "base.html" %}
 
-<head>
-	<link rel="stylesheet" href="{{ request.url_for('static', path='css/style.css') }}">
-	<link rel="stylesheet" href="{{ request.url_for('static', path='css/rhythm.css') }}">
+{% block title %}Rhythm Generator{% endblock %}
+{% block description %}Generate and study rhythm patterns.{% endblock %}
 
-	<meta charset="utf-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1">
-	<meta name="description" content="A simple rhythm score generator.">
-	<meta name="author" content="Jakim">
-	<title>Rhythm generator</title>
-	<script>window.DEBUG = {{ debug | tojson }};</script>
-</head>
+{% block head %}
+<script>window.DEBUG = {{ debug | tojson }};</script>
+{% endblock %}
 
-<body>
-	<div class="main">
-		<p>
-		<h1>Rhythm Generator v0.1</h1>
+{% block content %}
+<div class="mb-6">
+    <h1 class="text-xl font-bold mb-1">Rhythm Generator</h1>
+    <p class="text-sm text-gray-500 dark:text-gray-400">Generate a random rhythm score.</p>
+</div>
 
-		<p style="text-align: center">Generate a random rhythm score.</p>
-	</div>
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
 
-	<div class="row">
-		<div class="column_right">
-			<div style="text-align: center">
-				<input type="button" id="play" value="Play" class="play">
-			</div>
+    <!-- Settings panel -->
+    <aside class="lg:col-span-1">
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 p-4">
+            <form method="post" id="settings_form"
+                  data-api-url="/api/rhythm/submit"
+                  data-config-url="/api/rhythm/config">
+                <button type="submit" id="submit"
+                        class="w-full mb-4 py-3 px-4 rounded-xl bg-primary text-white font-bold text-sm hover:opacity-90 active:opacity-75 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed">
+                    Generate rhythm
+                </button>
+                <div id="form_fields" class="space-y-3"></div>
+            </form>
+        </div>
+    </aside>
 
-			<div class="table">
-				<p id="score"><img src="" alt="" id="rhythm_image"></p>
-				<p id="error" style="font-weight: bold"></p>
-				<p id="error_message" style="font-style: italic"></p>
-				<p id="time_signature_error" style="font-style: italic"></p>
-			</div>
-		</div>
+    <!-- Exercise area -->
+    <section class="lg:col-span-2 space-y-4" aria-label="Rhythm score">
 
-		<div class="column_left">
-		<form method="post" id="settings_form" data-api-url="/api/rhythm/submit"
-			data-config-url="/api/rhythm/config">
-				<div class="table">
-					<div class="table_row" style="text-align: center">
-						<input type="submit" id="submit" value="Generate rhythm">
-					</div>
-					<div id="form_fields"></div>
-				</div>
-			</form>
-		</div>
-	</div>
+        <!-- Play button -->
+        <div class="text-center">
+            <button id="play" style="display:none"
+                    class="py-2 px-6 rounded-xl border-2 border-gray-300 dark:border-gray-600 text-sm font-bold hover:border-primary hover:text-primary transition-colors">
+                &#9654; Play
+            </button>
+        </div>
 
-	<script type="module" src="{{ request.url_for('static', path='js/modules/rhythm.js') }}"></script>
-</body>
+        <!-- Rhythm score image -->
+        <div class="text-center">
+            <img src="" alt="Rhythm score" id="rhythm_image"
+                 class="score-image inline-block w-full"
+                 style="display:none">
+        </div>
+
+        <!-- Error messages -->
+        <div class="space-y-1 text-sm">
+            <div id="error" class="font-bold text-red-600 dark:text-red-400"></div>
+            <div id="error_message" class="italic text-red-500 dark:text-red-400"></div>
+            <div id="time_signature_error" class="italic text-amber-600 dark:text-amber-400"></div>
+        </div>
+
+    </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script type="module" src="{{ request.url_for('static', path='js/modules/rhythm.js') }}"></script>
+{% endblock %}

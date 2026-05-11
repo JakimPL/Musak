@@ -1,64 +1,82 @@
-<!doctype html>
+{% extends "base.html" %}
 
-<head>
-	<link rel="stylesheet" href="{{ request.url_for('static', path='css/style.css') }}">
-	<link rel="stylesheet" href="{{ request.url_for('static', path='css/inversions.css') }}">
+{% block title %}Interval Generator{% endblock %}
+{% block description %}Identify musical intervals by ear.{% endblock %}
 
-	<meta charset="utf-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1">
-	<meta name="description" content="A simple interval generator.">
-	<meta name="author" content="Jakim">
-	<title>Interval generator</title>
-	<script>window.DEBUG = {{ debug | tojson }};</script>
-</head>
+{% block head %}
+<script>window.DEBUG = {{ debug | tojson }};</script>
+{% endblock %}
 
-<body>
-	<div class="main">
-		<p>
-		<h1>Intervals Generator v0.1</h1>
+{% block content %}
+<div class="mb-6">
+    <h1 class="text-xl font-bold mb-1">Interval Generator</h1>
+    <p class="text-sm text-gray-500 dark:text-gray-400">Listen to the interval and identify it.</p>
+</div>
 
-		<p style="text-align: center">Generate a random interval.</p>
-	</div>
+<div id="error-banner"
+     class="hidden mb-4 rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 px-4 py-3 text-sm text-red-700 dark:text-red-400"
+     role="alert"></div>
 
-	<div class="row">
-		<div class="column_right">
-			<div style="text-align: center">
-				<input type="button" id="play_again" value="Play again" class="play">
-			</div>
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
 
-			<div class="flex">
-				<div id="interval_buttons">
-				</div>
-			</div>
+    <!-- Settings panel -->
+    <aside class="lg:col-span-1">
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 p-4">
+            <form method="post" id="settings_form"
+                  data-api-url="/api/intervals/submit"
+                  data-config-url="/api/intervals/config">
+                <button type="submit" id="submit"
+                        class="w-full mb-4 py-3 px-4 rounded-xl bg-primary text-white font-bold text-sm hover:opacity-90 active:opacity-75 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed">
+                    Generate interval
+                </button>
+                <div id="form_fields" class="space-y-3"></div>
+            </form>
+        </div>
+    </aside>
 
-			<div id="score_info">
-				<p style="text-align: center">Score: <mark id="points" class="score_points">0</mark>/<mark id="total"
-						class="score_total">0</mark></p>
-			</div>
+    <!-- Exercise area -->
+    <section class="lg:col-span-2 space-y-4" aria-label="Exercise">
 
-			<div id="interval_info" class="info">
-				<p><strong>Interval info:</strong></p>
-				<p id="interval_type"></p>
-				<p id="interval"></p>
-			</div>
+        <!-- Play again -->
+        <div class="text-center">
+            <button id="play_again" style="display:none"
+                    class="py-2 px-6 rounded-xl border-2 border-gray-300 dark:border-gray-600 text-sm font-bold hover:border-primary hover:text-primary transition-colors">
+                &#9654; Play again
+            </button>
+        </div>
 
-			<div class="table">
-				<p id="image"><img src="" alt="" id="interval_image" class="image"></p>
-			</div>
-		</div>
+        <!-- Answer buttons -->
+        <div id="interval_buttons"
+             class="flex flex-wrap gap-2 justify-center"
+             aria-label="Interval choices" aria-live="polite"></div>
 
-		<div class="column_left">
-		<form method="post" id="settings_form" data-api-url="/api/intervals/submit"
-			data-config-url="/api/intervals/config">
-				<div class="table">
-					<div class="table_row" style="text-align: center">
-						<input type="submit" id="submit" value="Generate interval">
-					</div>
-					<div id="form_fields"></div>
-				</div>
-			</form>
-		</div>
-	</div>
+        <!-- Score -->
+        <div id="score_info" class="text-center text-sm" style="display:none">
+            Score:
+            <span id="points" class="text-primary font-bold">0</span>
+            / <span id="total" class="font-bold">0</span>
+        </div>
 
-	<script type="module" src="{{ request.url_for('static', path='js/modules/intervals.js') }}"></script>
-</body>
+        <!-- Info box -->
+        <div id="interval_info"
+             class="rounded-2xl border-2 border-primary p-4 text-center space-y-1 text-sm"
+             style="display:none">
+            <p class="font-bold">Interval info</p>
+            <p id="interval_type"></p>
+            <p id="interval"></p>
+        </div>
+
+        <!-- Score image -->
+        <div class="text-center">
+            <img src="" alt="Interval score" id="interval_image"
+                 class="score-image inline-block w-full max-w-2xl"
+                 style="visibility:hidden">
+        </div>
+
+    </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script type="module" src="{{ request.url_for('static', path='js/modules/intervals.js') }}"></script>
+{% endblock %}

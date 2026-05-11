@@ -1,0 +1,4 @@
+/* Dark-mode inversion for LilyPond score images (white background → dark background) */
+.dark .score-image {
+    filter: invert(1) hue-rotate(180deg);
+}

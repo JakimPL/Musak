@@ -14,14 +14,36 @@ function updateScore(point) {
     document.getElementById('total').textContent = score.total;
 }
 
+const ANSWER_BTN_CLASS =
+    'py-2 px-4 rounded-xl border-2 border-gray-200 dark:border-gray-700 ' +
+    'bg-white dark:bg-gray-800 text-sm font-semibold cursor-pointer ' +
+    'hover:border-primary hover:text-primary transition-colors';
+
 function lockSubmitButton() {
     submitLock = true;
-    document.getElementById('submit').style.opacity = '0.6';
+    const btn = document.getElementById('submit');
+    btn.disabled = true;
+    btn.textContent = 'Generating…';
 }
 
 function unlockSubmitButton() {
     submitLock = false;
-    document.getElementById('submit').style.opacity = '1.0';
+    const btn = document.getElementById('submit');
+    btn.disabled = false;
+    btn.textContent = 'Generate interval';
+}
+
+function showError(message) {
+    const banner = document.getElementById('error-banner');
+    if (banner) {
+        banner.textContent = message;
+        banner.classList.remove('hidden');
+    }
+}
+
+function clearError() {
+    const banner = document.getElementById('error-banner');
+    if (banner) banner.classList.add('hidden');
 }
 
 function hideIntervalInfo() {
@@ -46,7 +68,7 @@ function addButtons(intervals) {
     for (const [name] of Object.entries(intervals)) {
         const button = document.createElement('input');
         button.type = 'button';
-        button.className = 'input';
+        button.className = ANSWER_BTN_CLASS;
         button.value = name.replaceAll('_', ' ');
 
         button.addEventListener('click', function () {
@@ -57,11 +79,15 @@ function addButtons(intervals) {
 
             if (this.value === document.getElementById('interval').textContent) {
                 intervalInfo.style.borderColor = '#248a6d';
-                this.style.background = 'green';
+                this.style.backgroundColor = '#16a34a';
+                this.style.borderColor = '#16a34a';
+                this.style.color = 'white';
                 updateScore(1);
             } else {
-                intervalInfo.style.borderColor = 'red';
-                this.style.background = 'red';
+                intervalInfo.style.borderColor = '#dc2626';
+                this.style.backgroundColor = '#dc2626';
+                this.style.borderColor = '#dc2626';
+                this.style.color = 'white';
                 updateScore(0);
             }
         });
@@ -74,6 +100,7 @@ async function onSubmit(event) {
     event.preventDefault();
 
     if (!submitLock) {
+        clearError();
         lockSubmitButton();
         const form = document.getElementById('settings_form');
         const apiUrl = form.dataset.apiUrl;
@@ -107,7 +134,7 @@ async function onSubmit(event) {
             }
         } catch (err) {
             unlockSubmitButton();
-            alert(window.DEBUG ? `An error occurred: ${err.message}` : 'An error occurred');
+            showError(window.DEBUG ? `An error occurred: ${err.message}` : 'An error occurred. Please try again.');
         }
     }
 }
