@@ -1,8 +1,5 @@
 import re
-from pathlib import Path
 from typing import Any
-
-import yaml
 
 from config.defaults import (
     GROUPS,
@@ -39,6 +36,7 @@ from modules.rhythm.time_signature import DEFAULT_TIME_SIGNATURE
 from paths import RHYTHM_CONFIG
 from shared.directory import create_directory
 from shared.exporter import Exporter
+from shared.files import load_yaml
 
 note_map: dict[str, NoteValue] = {
     "whole_note": 1,
@@ -185,8 +183,7 @@ def parse_custom_phrases(phrases_string: str) -> list[list[int | tuple[int, int]
 
 
 def _load_config() -> RhythmConfig:
-    with open(RHYTHM_CONFIG, "r") as file:
-        return RhythmConfig.model_validate(yaml.safe_load(file))
+    return load_yaml(RHYTHM_CONFIG, RhythmConfig)
 
 
 def _load_defaults() -> dict[str, Any]:
@@ -388,7 +385,7 @@ class RhythmService:
         return RhythmResponse(
             directory=uuid64,
             image_source=f"../{image_path}",
-            audio_source=Path(audio_path).name,
+            audio_source=audio_path.name,
             score=str(score),
             exception=None,
             time_signature_error=time_signature_error,

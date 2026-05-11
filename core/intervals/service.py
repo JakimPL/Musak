@@ -1,8 +1,6 @@
 import json
-import os
+import pathlib
 from typing import Any
-
-import yaml
 
 from config.defaults import (
     HIGHEST_NOTE,
@@ -29,6 +27,7 @@ from modules.chords.interval import Interval
 from paths import INTERVALS_CONFIG
 from shared.directory import create_directory
 from shared.exporter import Exporter
+from shared.files import load_yaml
 
 
 class IntervalService:
@@ -36,8 +35,7 @@ class IntervalService:
         self._definitions = self._load_definitions()
 
     def _load_config(self) -> IntervalsConfig:
-        with open(INTERVALS_CONFIG, "r") as file:
-            return IntervalsConfig.model_validate(yaml.safe_load(file))
+        return load_yaml(INTERVALS_CONFIG, IntervalsConfig)
 
     def _load_definitions(self) -> dict[str, int]:
         return self._load_config().intervals_definitions
@@ -120,11 +118,11 @@ class IntervalService:
         return request.intervals if request.intervals else self._definitions
 
     @staticmethod
-    def _write_interval_info(interval: Interval, directory: str) -> None:
+    def _write_interval_info(interval: Interval, directory: pathlib.Path) -> None:
         data = interval._asdict()
         data["base_note"] = interval.get_base_note_name()
         data["name"] = interval.name
-        with open(os.path.join(directory, "interval.json"), "w") as f:
+        with open(directory / "interval.json", "w", encoding="utf-8") as f:
             json.dump(data, f)
 
     def generate(self, request: IntervalRequest) -> IntervalResponse:

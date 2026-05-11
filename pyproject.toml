@@ -18,7 +18,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["httpx", "isort", "mypy", "pre-commit", "pylint", "pytest", "pytest-cov"]
+dev = ["httpx", "isort", "mypy", "pre-commit", "pylint", "pylint-pydantic", "pytest", "pytest-cov"]
 
 [build-system]
 requires = ["hatchling"]

@@ -54,11 +54,11 @@ async function onSubmit(event) {
             }
 
             document.getElementById('error').textContent =
-                'exception' in response ? 'An error during generating the image:' : '';
+                response.exception ? 'An error during generating the image:' : '';
             document.getElementById('error_message').textContent =
-                'exception' in response ? (response.exception || '') : '';
+                response.exception || '';
             document.getElementById('time_signature_error').textContent =
-                'time_signature_error' in response ? 'the denominator has to be a power of two!' : '';
+                response.time_signature_error ? 'the denominator has to be a power of two!' : '';
 
         } catch (err) {
             unlockSubmitButton();

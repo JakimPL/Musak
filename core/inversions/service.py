@@ -1,8 +1,6 @@
 import json
-import os
+import pathlib
 from typing import Any, Mapping
-
-import yaml
 
 from config.defaults import (
     HIGHEST_NOTE,
@@ -28,6 +26,7 @@ from modules.chords.generator import generate_all_inversions, get_random_chord_i
 from paths import INVERSIONS_CONFIG
 from shared.directory import create_directory
 from shared.exporter import Exporter
+from shared.files import load_yaml
 
 CHORD_NAMES = {
     "": "major",
@@ -47,8 +46,7 @@ class InversionService:
         self._definitions = self._load_definitions()
 
     def _load_config(self) -> InversionsConfig:
-        with open(INVERSIONS_CONFIG, "r") as f:
-            return InversionsConfig.model_validate(yaml.safe_load(f))
+        return load_yaml(INVERSIONS_CONFIG, InversionsConfig)
 
     def _load_definitions(self) -> dict[str, list[int]]:
         return self._load_config().chords_definitions
@@ -131,10 +129,10 @@ class InversionService:
         return request.chords if request.chords else self._definitions
 
     @staticmethod
-    def _write_chord_info(chord_inversion: Any, directory: str) -> None:
+    def _write_chord_info(chord_inversion: Any, directory: pathlib.Path) -> None:
         data = chord_inversion._asdict()
         data["base_note"] = chord_inversion.get_base_note_name()
-        with open(os.path.join(directory, "chord.json"), "w") as f:
+        with open(directory / "chord.json", "w", encoding="utf-8") as f:
             json.dump(data, f)
 
     def generate(self, request: InversionRequest) -> InversionResponse:

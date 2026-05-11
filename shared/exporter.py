@@ -1,24 +1,24 @@
-import os
 import pathlib
 import subprocess
-from typing import Any, Optional, Union
+from typing import Final
 
 import abjad
 import pydub
 
-SOUNDFONT = "st_concert.sf2"
-AUDIO_FORMAT = "wav"
-CONVERT_TO_MP3 = True
-IGNORE_MIDI = False
-IGNORE_AUDIO = False
-IGNORE_SCORE = False
-GAIN = 3.5
+SOUNDFONT: Final[str] = "st_concert.sf2"
+AUDIO_FORMAT: Final[str] = "wav"
+CONVERT_TO_MP3: Final[bool] = True
+IGNORE_MIDI: Final[bool] = False
+IGNORE_AUDIO: Final[bool] = False
+IGNORE_SCORE: Final[bool] = False
+GAIN: Final[float] = 3.5
 
 
 class Exporter:
     def __init__(
         self,
         name: str,
+        *,
         sf2: str = SOUNDFONT,
         ignore_midi: bool = IGNORE_MIDI,
         ignore_audio: bool = IGNORE_AUDIO,
@@ -26,14 +26,12 @@ class Exporter:
         audio_format: str = AUDIO_FORMAT,
         convert_to_mp3: bool = CONVERT_TO_MP3,
         gain: float = GAIN,
-    ):
+    ) -> None:
         self.name: str = name
-
-        self.soundfont_path: str = os.path.join(os.getcwd(), "soundfont", sf2)
+        self.soundfont_path: pathlib.Path = pathlib.Path.cwd() / "soundfont" / sf2
         self.audio_format: str = audio_format
         self.convert_to_mp3: bool = convert_to_mp3
         self.gain: float = gain
-
         self.ignore_midi: bool = ignore_midi
         self.ignore_audio: bool = ignore_audio
         self.ignore_score: bool = ignore_score
@@ -47,82 +45,88 @@ class Exporter:
 
     def export_score(
         self,
-        score: Union[abjad.Score, abjad.LilyPondFile],
-        directory: Optional[str] = None,
-        **kwargs: Any,
-    ) -> str:
-        if directory is None:
-            directory = os.getcwd()
+        score: abjad.Score | abjad.LilyPondFile,
+        *,
+        directory: pathlib.Path | None = None,
+    ) -> pathlib.Path:
+        directory = directory or pathlib.Path.cwd()
+        original_path = directory / f"{self.name}_uncropped.png"
+        path = directory / f"{self.name}.png"
 
-        original_path = os.path.join(directory, "{name}_uncropped.png".format(name=self.name))
-        path = os.path.join(directory, "{name}.png".format(name=self.name))
+        abjad.persist.as_png(  # type: ignore[no-untyped-call]
+            score,
+            str(original_path),
+            resolution=250,
+            flags="--png -dcrop",
+        )
 
-        try:
-            abjad.persist.as_png(
-                score,
-                original_path,
-                resolution=250,
-                flags="--png -dcrop",
-                **kwargs,
-            )  # type: ignore[no-untyped-call]
-        except AttributeError:
-            pass
-
-        cropped_path = original_path[:-4] + ".cropped.png"
-        os.rename(cropped_path, path)
+        cropped_path = original_path.with_name(f"{original_path.stem}.cropped.png")
+        cropped_path.rename(path)
 
         return path
 
     def export_midi(
         self,
-        score: Union[abjad.Score, abjad.LilyPondFile],
-        directory: Optional[str] = None,
-        **kwargs: Any,
-    ) -> str:
-        if directory is None:
-            directory = os.getcwd()
-
-        original_path = os.path.join(directory, "{name}.midi".format(name=self.name))
-        path = str(pathlib.Path(original_path).with_suffix(".mid"))
+        score: abjad.Score | abjad.LilyPondFile,
+        *,
+        directory: pathlib.Path | None = None,
+    ) -> pathlib.Path:
+        directory = directory or pathlib.Path.cwd()
+        original_path = directory / f"{self.name}.midi"
+        path = original_path.with_suffix(".mid")
 
         ly_file = Exporter.prepare_ly_file(score) if isinstance(score, abjad.Score) else score
-        abjad.persist.as_midi(ly_file, original_path, remove_ly=False, **kwargs)  # type: ignore[no-untyped-call]
+        abjad.persist.as_midi(ly_file, str(original_path), remove_ly=False)  # type: ignore[no-untyped-call]
 
-        os.rename(original_path, path)
+        original_path.rename(path)
 
         return path
 
-    def export_audio(self, midi_path: str, audio_path: str) -> str:
+    def export_audio(
+        self,
+        midi_path: pathlib.Path,
+        audio_path: pathlib.Path,
+    ) -> pathlib.Path:
         self.to_audio(self.soundfont_path, midi_path, audio_path, out_type=self.audio_format)
         if self.convert_to_mp3:
-            mp3_path = str(pathlib.Path(audio_path).with_suffix(".mp3"))
-            sound = pydub.AudioSegment.from_wav(audio_path)
-            sound.export(mp3_path, format="mp3")
+            mp3_path = audio_path.with_suffix(".mp3")
+            sound = pydub.AudioSegment.from_wav(str(audio_path))
+            sound.export(str(mp3_path), format="mp3")
             return mp3_path
-        else:
-            return audio_path
+        return audio_path
 
-    def export(self, score: abjad.Score, directory: str) -> tuple[str, str, str]:
+    def export(
+        self,
+        score: abjad.Score,
+        directory: pathlib.Path,
+    ) -> tuple[pathlib.Path, pathlib.Path, pathlib.Path]:
         if not isinstance(score, abjad.Score):
-            raise TypeError("expected abjad.Score, got {type}".format(type=type(score)))
+            raise TypeError(f"expected abjad.Score, got {type(score)}")
 
-        image_path = ""
-        midi_path = ""
-        mp3_path = ""
+        image_path = pathlib.Path()
+        midi_path = pathlib.Path()
+        mp3_path = pathlib.Path()
 
         if not self.ignore_score:
-            image_path = self.export_score(score, directory)
+            image_path = self.export_score(score, directory=directory)
 
         if not self.ignore_midi:
-            midi_path = self.export_midi(score, directory)
+            midi_path = self.export_midi(score, directory=directory)
 
             if not self.ignore_audio:
-                audio_path = os.path.join(directory, "{name}.wav".format(name=self.name))
+                audio_path = directory / f"{self.name}.wav"
                 mp3_path = self.export_audio(midi_path, audio_path)
 
         return image_path, midi_path, mp3_path
 
-    def to_audio(self, sf2: str, midi_file: str, out_file: str, out_type: str = "wav") -> None:
+    def to_audio(
+        self,
+        sf2: pathlib.Path,
+        midi_file: pathlib.Path,
+        out_file: pathlib.Path,
+        *,
+        out_type: str = "wav",
+    ) -> None:
         subprocess.call(
             [
                 "fluidsynth",
@@ -131,9 +135,9 @@ class Exporter:
                 "-T",
                 out_type,
                 "-F",
-                out_file,
+                str(out_file),
                 "-ni",
-                sf2,
-                midi_file,
+                str(sf2),
+                str(midi_file),
             ]
         )
