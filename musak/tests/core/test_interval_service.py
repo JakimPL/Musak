@@ -12,12 +12,12 @@ def test_get_config_returns_groups() -> None:
 def test_generate_returns_interval_response() -> None:
     with (
         patch(
-            "core.intervals.service.create_directory",
+            "musak.core.intervals.service.create_directory",
             return_value=("abc123", "/tmp/abc123"),
         ),
-        patch("core.intervals.service.to_abjad"),
-        patch("core.intervals.service.IntervalService._write_interval_info"),
-        patch("core.intervals.service.Exporter") as mock_exporter,
+        patch("musak.core.intervals.service.to_abjad"),
+        patch("musak.core.intervals.service.IntervalService._write_interval_info"),
+        patch("musak.core.intervals.service.Exporter") as mock_exporter,
     ):
         mock_exporter.return_value.export.return_value = (
             "/tmp/abc123/score.png",
@@ -34,10 +34,13 @@ def test_generate_returns_interval_response() -> None:
 
 def test_generate_uses_all_config_intervals_when_none_requested() -> None:
     with (
-        patch("core.intervals.service.create_directory", return_value=("xyz", "/tmp/xyz")),
-        patch("core.intervals.service.to_abjad"),
-        patch("core.intervals.service.IntervalService._write_interval_info"),
-        patch("core.intervals.service.Exporter") as mock_exporter,
+        patch(
+            "musak.core.intervals.service.create_directory",
+            return_value=("xyz", "/tmp/xyz"),
+        ),
+        patch("musak.core.intervals.service.to_abjad"),
+        patch("musak.core.intervals.service.IntervalService._write_interval_info"),
+        patch("musak.core.intervals.service.Exporter") as mock_exporter,
     ):
         mock_exporter.return_value.export.return_value = (
             "/tmp/xyz/score.png",

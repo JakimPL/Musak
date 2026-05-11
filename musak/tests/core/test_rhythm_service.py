@@ -13,10 +13,10 @@ def test_get_config_returns_groups() -> None:
 def test_generate_returns_rhythm_response() -> None:
     with (
         patch(
-            "core.rhythm.service.create_directory",
+            "musak.core.rhythm.service.create_directory",
             return_value=("abc123", pathlib.Path("/tmp/abc123")),
         ),
-        patch("core.rhythm.service.Exporter") as mock_exporter,
+        patch("musak.core.rhythm.service.Exporter") as mock_exporter,
     ):
         mock_exporter.return_value.export.return_value = (
             pathlib.Path("/tmp/abc123/score.png"),
@@ -40,10 +40,10 @@ def test_generate_returns_exception_on_invalid_phrase_set() -> None:
 def test_generate_sets_time_signature_error_for_non_power_of_two() -> None:
     with (
         patch(
-            "core.rhythm.service.create_directory",
+            "musak.core.rhythm.service.create_directory",
             return_value=("xyz", pathlib.Path("/tmp/xyz")),
         ),
-        patch("core.rhythm.service.Exporter") as mock_exporter,
+        patch("musak.core.rhythm.service.Exporter") as mock_exporter,
     ):
         mock_exporter.return_value.export.return_value = (
             pathlib.Path("/tmp/xyz/score.png"),

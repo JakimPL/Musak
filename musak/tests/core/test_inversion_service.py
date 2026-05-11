@@ -12,12 +12,12 @@ def test_get_config_returns_groups() -> None:
 def test_generate_returns_inversion_response() -> None:
     with (
         patch(
-            "core.inversions.service.create_directory",
+            "musak.core.inversions.service.create_directory",
             return_value=("abc123", "/tmp/abc123"),
         ),
-        patch("core.inversions.service.to_abjad"),
-        patch("core.inversions.service.InversionService._write_chord_info"),
-        patch("core.inversions.service.Exporter") as mock_exporter,
+        patch("musak.core.inversions.service.to_abjad"),
+        patch("musak.core.inversions.service.InversionService._write_chord_info"),
+        patch("musak.core.inversions.service.Exporter") as mock_exporter,
     ):
         mock_exporter.return_value.export.return_value = (
             "/tmp/abc123/score.png",
@@ -33,10 +33,13 @@ def test_generate_returns_inversion_response() -> None:
 
 def test_generate_uses_only_requested_chords() -> None:
     with (
-        patch("core.inversions.service.create_directory", return_value=("xyz", "/tmp/xyz")),
-        patch("core.inversions.service.to_abjad"),
-        patch("core.inversions.service.InversionService._write_chord_info"),
-        patch("core.inversions.service.Exporter") as mock_exporter,
+        patch(
+            "musak.core.inversions.service.create_directory",
+            return_value=("xyz", "/tmp/xyz"),
+        ),
+        patch("musak.core.inversions.service.to_abjad"),
+        patch("musak.core.inversions.service.InversionService._write_chord_info"),
+        patch("musak.core.inversions.service.Exporter") as mock_exporter,
     ):
         mock_exporter.return_value.export.return_value = (
             "/tmp/xyz/score.png",
