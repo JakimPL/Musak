@@ -11,6 +11,10 @@ SOUNDFONT: Final[str] = "st_concert.sf2"
 GAIN: Final[float] = 3.5
 
 
+class AudioExportError(RuntimeError):
+    pass
+
+
 def midi_to_audio(midi_file: mido.MidiFile) -> str:
     buffer = io.BytesIO()
     midi_file.save(file=buffer)
@@ -35,27 +39,34 @@ class Exporter:
             mp3_path = tmp_dir / "audio.mp3"
             midi_path.write_bytes(midi_data)
             self._to_audio(midi_path, wav_path)
-            subprocess.run(
-                ["ffmpeg", "-y", "-i", str(wav_path), str(mp3_path)],
-                check=True,
-                capture_output=True,
-            )
+            try:
+                subprocess.run(
+                    ["ffmpeg", "-y", "-i", str(wav_path), str(mp3_path)],
+                    check=True,
+                    capture_output=True,
+                )
+            except subprocess.CalledProcessError as exception:
+                raise AudioExportError(f"ffmpeg failed with exit code {exception.returncode}") from exception
+
             return "data:audio/mpeg;base64," + base64.b64encode(mp3_path.read_bytes()).decode()
 
     def _to_audio(self, midi_file: pathlib.Path, out_file: pathlib.Path) -> None:
-        subprocess.run(
-            [
-                "fluidsynth",
-                "-g",
-                str(self.gain),
-                "-T",
-                "wav",
-                "-F",
-                str(out_file),
-                "-ni",
-                str(self.soundfont_path),
-                str(midi_file),
-            ],
-            check=True,
-            capture_output=True,
-        )
+        try:
+            subprocess.run(
+                [
+                    "fluidsynth",
+                    "-g",
+                    str(self.gain),
+                    "-T",
+                    "wav",
+                    "-F",
+                    str(out_file),
+                    "-ni",
+                    str(self.soundfont_path),
+                    str(midi_file),
+                ],
+                check=True,
+                capture_output=True,
+            )
+        except subprocess.CalledProcessError as exception:
+            raise AudioExportError(f"fluidsynth failed with exit code {exception.returncode}") from exception
