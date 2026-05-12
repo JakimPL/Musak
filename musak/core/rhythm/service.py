@@ -32,13 +32,12 @@ from musak.core.schemas.common import FieldGroupSchema, FieldSchema
 from musak.modules.elements.misc import is_power_of_two
 from musak.modules.elements.note import Note
 from musak.modules.elements.phrase import Phrase
-from musak.modules.rhythm.conversion import save_midi as save_rhythm_midi
+from musak.modules.rhythm.conversion import phrases_to_midi
 from musak.modules.rhythm.exceptions import RhygenException
 from musak.modules.rhythm.generator import RhythmGenerator
 from musak.modules.rhythm.settings import GroupSettings, Settings
 from musak.paths import RHYTHM_CONFIG
-from musak.shared.directory import create_directory
-from musak.shared.exporter import Exporter
+from musak.shared.exporter import midi_to_audio
 from musak.shared.files import load_yaml
 
 note_map: dict[str, NoteValue] = {
@@ -392,8 +391,8 @@ class RhythmService:
     def generate(self, request: RhythmRequest) -> RhythmResponse:
         try:
             settings, time_signature_error = self._build_settings(request)
-        except ValueError as exc:
-            return RhythmResponse(exception=str(exc))
+        except ValueError as exception:
+            return RhythmResponse(exception=str(exception))
 
         try:
             generator = RhythmGenerator(settings)
@@ -404,8 +403,6 @@ class RhythmService:
                 time_signature_error=time_signature_error,
             )
 
-        uuid64, directory = create_directory()
-
         score_data = phrases_to_score_data(
             phrase_list,
             time_signature=settings.time_signature,
@@ -413,18 +410,16 @@ class RhythmService:
             max_notes_per_measure=generator.max_notes_per_measure,
         )
 
-        midi_path = save_rhythm_midi(
+        midi_file = phrases_to_midi(
             phrase_list,
-            directory / "rhythm.mid",
             time_signature=settings.time_signature,
             tempo=settings.tempo,
             melodic=request.melodic,
         )
-        audio_path = Exporter("rhythm").export_audio(midi_path, directory / "rhythm.wav")
+        audio_data = midi_to_audio(midi_file)
 
         return RhythmResponse(
-            directory=uuid64,
-            audio_source=audio_path.name,
+            audio_data=audio_data,
             score_data=score_data,
             exception=None,
             time_signature_error=time_signature_error,

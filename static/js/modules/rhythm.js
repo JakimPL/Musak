@@ -1,4 +1,3 @@
-import { getPath } from '../path.js';
 import { playAgain, stopSound } from '../play.js';
 import { postForm, loadJSON } from '../shared/api.js';
 import { renderForm } from './form.js';
@@ -44,7 +43,7 @@ async function onSubmit(event) {
             unlockSubmitButton();
 
             if ('score_data' in response && response.score_data) {
-                audioPath = getPath(response.directory, response.audio_source);
+                audioPath = response.audio_data;
 
                 const container = document.getElementById('score_container');
                 renderScore(response.score_data, container);

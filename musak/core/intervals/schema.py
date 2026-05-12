@@ -1,3 +1,5 @@
+from typing import Any
+
 from pydantic import BaseModel, ConfigDict, Field
 
 from musak.config.defaults import (
@@ -27,10 +29,9 @@ class IntervalRequest(BaseModel):
 class IntervalResponse(BaseModel):
     model_config = ConfigDict(frozen=True)
 
-    directory: str
-    audio_source: str
+    audio_data: str = ""
     score_data: ScoreData
-    interval_info: str
+    interval_info: dict[str, Any] = Field(default_factory=dict)
     intervals: dict[str, int]
 
 

@@ -35,8 +35,7 @@ class RhythmRequest(BaseModel):
 class RhythmResponse(BaseModel):
     model_config = ConfigDict(frozen=True)
 
-    directory: str = ""
-    audio_source: str = ""
+    audio_data: str = ""
     score_data: ScoreData | None = None
     exception: Optional[str] = None
     time_signature_error: bool = False

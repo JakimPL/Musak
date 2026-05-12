@@ -1,4 +1,3 @@
-import pathlib
 from unittest.mock import patch
 
 from musak.core.notation.schema import ScoreData
@@ -12,22 +11,14 @@ def test_get_config_returns_groups() -> None:
 
 
 def test_generate_returns_rhythm_response() -> None:
-    with (
-        patch(
-            "musak.core.rhythm.service.create_directory",
-            return_value=("abc123", pathlib.Path("/tmp/abc123")),
-        ),
-        patch(
-            "musak.core.rhythm.service.save_rhythm_midi",
-            return_value=pathlib.Path("/tmp/abc123/rhythm.mid"),
-        ),
-        patch("musak.core.rhythm.service.Exporter") as mock_exporter,
+    with patch(
+        "musak.core.rhythm.service.midi_to_audio",
+        return_value="data:audio/mpeg;base64,abc",
     ):
-        mock_exporter.return_value.export_audio.return_value = pathlib.Path("/tmp/abc123/rhythm.mp3")
         response = RhythmService().generate(RhythmRequest())
 
     assert isinstance(response, RhythmResponse)
-    assert response.directory == "abc123"
+    assert response.audio_data == "data:audio/mpeg;base64,abc"
     assert response.exception is None
     assert isinstance(response.score_data, ScoreData)
 
@@ -40,18 +31,10 @@ def test_generate_returns_exception_on_invalid_phrase_set() -> None:
 
 
 def test_generate_sets_time_signature_error_for_non_power_of_two() -> None:
-    with (
-        patch(
-            "musak.core.rhythm.service.create_directory",
-            return_value=("xyz", pathlib.Path("/tmp/xyz")),
-        ),
-        patch(
-            "musak.core.rhythm.service.save_rhythm_midi",
-            return_value=pathlib.Path("/tmp/xyz/rhythm.mid"),
-        ),
-        patch("musak.core.rhythm.service.Exporter") as mock_exporter,
+    with patch(
+        "musak.core.rhythm.service.midi_to_audio",
+        return_value="data:audio/mpeg;base64,abc",
     ):
-        mock_exporter.return_value.export_audio.return_value = pathlib.Path("/tmp/xyz/rhythm.mp3")
         response = RhythmService().generate(RhythmRequest(time_signature=(4, 3)))
 
     assert response.time_signature_error is True

@@ -7,14 +7,11 @@ from fastapi.templating import Jinja2Templates
 
 from musak.api.routers import intervals, inversions, rhythm
 
-os.makedirs("temp", exist_ok=True)
-
 DEBUG = os.getenv("DEBUG", "0") == "1"
 
 app = FastAPI(title="Musak", debug=DEBUG)
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
-app.mount("/temp", StaticFiles(directory="temp"), name="temp")
 
 templates = Jinja2Templates(directory="templates")
 

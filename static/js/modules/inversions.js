@@ -1,6 +1,5 @@
 import { Score } from '../score.js';
 import { ChordInfo } from '../chord_info.js';
-import { getPath } from '../path.js';
 import { renderScore } from '../shared/notation.js';
 import { playSound, playAgain, stopSound } from '../play.js';
 import { postForm, loadJSON } from '../shared/api.js';
@@ -167,13 +166,11 @@ async function onSubmit(event) {
             const response = await postForm(apiUrl, form);
             unlockSubmitButton();
 
-            if ('directory' in response) {
-                audioPath = getPath(response.directory, response.audio_source);
+            if (response.audio_data) {
+                audioPath = response.audio_data;
                 playSound(audioPath);
 
-                const jsonPath = getPath(response.directory, response.chord_info);
-                const infoData = await loadJSON(jsonPath);
-                setChordInfo(infoData);
+                setChordInfo(response.chord_info);
 
                 renderScore(response.score_data, document.getElementById('score_container'));
                 document.getElementById('score_container').style.visibility = 'hidden';
