@@ -75,6 +75,9 @@ phrase_map: dict[str, list[NoteValue]] = {
 
 settings_map: dict[str, NoteValue | list[NoteValue]] = {**note_map, **phrase_map}
 
+NOTE_KEYS: tuple[str, ...] = tuple(note_map)
+PHRASE_KEYS: tuple[str, ...] = tuple(phrase_map)
+
 _NOTE_LABELS = {
     "whole_note": "\U0001d15d",
     "half_note": "\U0001d15e",

@@ -9,43 +9,10 @@ from musak.config.defaults import (
     TIME_SIGNATURE_NUMERATOR,
 )
 from musak.core.rhythm.schema import RhythmConfigResponse, RhythmRequest, RhythmResponse
-from musak.core.rhythm.service import RhythmService, note_map, phrase_map
+from musak.core.rhythm.service import NOTE_KEYS, PHRASE_KEYS, RhythmService, note_map, phrase_map
 
 router = APIRouter()
 _service = RhythmService()
-
-_NOTE_KEYS = [
-    "whole_note",
-    "half_note",
-    "quarter_note",
-    "eighth_note",
-    "sixteenth_note",
-    "thirty_second_note",
-    "whole_rest",
-    "half_rest",
-    "quarter_rest",
-    "eighth_rest",
-    "sixteenth_rest",
-    "thirty_second_rest",
-    "dotted_half_note",
-    "dotted_quarter_note",
-    "dotted_eighth_note",
-    "dotted_sixteenth_note",
-]
-_PHRASE_KEYS = [
-    "two_quarter_notes_phrase",
-    "two_eighth_notes_phrase",
-    "four_eighth_notes_phrase",
-    "two_sixteenth_notes_phrase",
-    "four_sixteenth_notes_phrase",
-    "eight_sixteenth_notes_phrase",
-    "left_quarter_phrase",
-    "right_quarter_phrase",
-    "left_eighth_phrase",
-    "right_eighth_phrase",
-    "left_sixteenth_phrase",
-    "right_sixteenth_phrase",
-]
 
 
 @router.get("/config", response_model=RhythmConfigResponse)
@@ -57,8 +24,8 @@ async def get_config() -> RhythmConfigResponse:
 async def submit(request: Request) -> RhythmResponse:
     form = await request.form()
 
-    notes = [note_map[key] for key in _NOTE_KEYS if form_str(form, key) == "on"]
-    phrases = [phrase_map[key] for key in _PHRASE_KEYS if form_str(form, key) == "on"]
+    notes = [note_map[key] for key in NOTE_KEYS if form_str(form, key) == "on"]
+    phrases = [phrase_map[key] for key in PHRASE_KEYS if form_str(form, key) == "on"]
 
     rhythm_request = RhythmRequest(
         tempo=int(form_str(form, "tempo", TEMPO)),
