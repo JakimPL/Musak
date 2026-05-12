@@ -5,7 +5,7 @@ from pydantic import BaseModel
 
 class FieldSchema(BaseModel):
     name: str
-    type: Literal["integer", "boolean", "text"]
+    type: Literal["integer", "boolean", "text", "slider"]
     label: str
     default: Any
     min: Optional[int] = None

@@ -68,7 +68,7 @@ class IntervalService:
             fields=[
                 FieldSchema(
                     name="tempo",
-                    type="integer",
+                    type="slider",
                     label="Tempo",
                     default=defaults.get("tempo", TEMPO),
                     min=MIN_TEMPO,
@@ -82,7 +82,7 @@ class IntervalService:
             fields=[
                 FieldSchema(
                     name="lowest_note",
-                    type="integer",
+                    type="slider",
                     label="Lowest note",
                     default=defaults.get("lowest_note", LOWEST_NOTE),
                     min=MIN_LOWEST_NOTE,
@@ -90,7 +90,7 @@ class IntervalService:
                 ),
                 FieldSchema(
                     name="highest_note",
-                    type="integer",
+                    type="slider",
                     label="Highest note",
                     default=defaults.get("highest_note", HIGHEST_NOTE),
                     min=MIN_HIGHEST_NOTE,

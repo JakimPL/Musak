@@ -50,6 +50,31 @@ function createField(field) {
 
         wrapper.appendChild(input);
         wrapper.appendChild(lbl);
+    } else if (field.type === 'slider') {
+        const lbl = document.createElement('label');
+        lbl.htmlFor = field.name;
+        lbl.className = LABEL_CLASSES;
+
+        const valueSpan = document.createElement('span');
+        valueSpan.className = 'float-right font-bold tabular-nums';
+        valueSpan.textContent = field.default;
+        lbl.textContent = field.label + ' ';
+        lbl.appendChild(valueSpan);
+
+        const input = document.createElement('input');
+        input.type = 'range';
+        input.name = field.name;
+        input.id = field.name;
+        input.value = field.default;
+        input.step = '1';
+        if (field.min !== null && field.min !== undefined) input.min = field.min;
+        if (field.max !== null && field.max !== undefined) input.max = field.max;
+        input.className = 'form-slider';
+        input.setAttribute('aria-label', field.label);
+        input.addEventListener('input', () => { valueSpan.textContent = input.value; });
+
+        wrapper.appendChild(lbl);
+        wrapper.appendChild(input);
     } else if (field.type === 'integer') {
         const lbl = document.createElement('label');
         lbl.htmlFor = field.name;
