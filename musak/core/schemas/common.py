@@ -11,6 +11,8 @@ class FieldSchema(BaseModel):
     min: Optional[int] = None
     max: Optional[int] = None
     format: Optional[str] = None
+    placeholder: Optional[str] = None
+    tooltip: Optional[str] = None
 
 
 class FieldGroupSchema(BaseModel):

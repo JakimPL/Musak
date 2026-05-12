@@ -330,7 +330,19 @@ class RhythmService:
         custom_phrases_group = FieldGroupSchema(
             label="Custom phrases",
             fields=[
-                FieldSchema(name="custom_phrases", type="text", label="", default=""),
+                FieldSchema(
+                    name="custom_phrases",
+                    type="text",
+                    label="",
+                    default="",
+                    placeholder="[4,8,8][-4,4]",
+                    tooltip=(
+                        "Each [...] is one phrase.\n"
+                        "Numbers are note denominators: 1=whole, 2=half, 4=quarter, etc.\n"
+                        "Negative values are rests (e.g. -4 = quarter rest).\n"
+                        "Dotted notes use (numerator:denominator) syntax, e.g. (3:8) = dotted quarter."
+                    ),
+                ),
             ],
         )
 
@@ -378,7 +390,10 @@ class RhythmService:
         return notes, phrases
 
     def generate(self, request: RhythmRequest) -> RhythmResponse:
-        settings, time_signature_error = self._build_settings(request)
+        try:
+            settings, time_signature_error = self._build_settings(request)
+        except ValueError as exc:
+            return RhythmResponse(exception=str(exc))
 
         try:
             generator = RhythmGenerator(settings)
