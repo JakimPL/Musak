@@ -17,13 +17,13 @@ def test_generate_returns_rhythm_response() -> None:
             "musak.core.rhythm.service.create_directory",
             return_value=("abc123", pathlib.Path("/tmp/abc123")),
         ),
+        patch(
+            "musak.core.rhythm.service.save_rhythm_midi",
+            return_value=pathlib.Path("/tmp/abc123/rhythm.mid"),
+        ),
         patch("musak.core.rhythm.service.Exporter") as mock_exporter,
     ):
-        mock_exporter.return_value.export.return_value = (
-            pathlib.Path("/tmp/abc123/score.png"),
-            pathlib.Path("/tmp/abc123/score.midi"),
-            pathlib.Path("/tmp/abc123/score.mp3"),
-        )
+        mock_exporter.return_value.export_audio.return_value = pathlib.Path("/tmp/abc123/rhythm.mp3")
         response = RhythmService().generate(RhythmRequest())
 
     assert isinstance(response, RhythmResponse)
@@ -45,13 +45,13 @@ def test_generate_sets_time_signature_error_for_non_power_of_two() -> None:
             "musak.core.rhythm.service.create_directory",
             return_value=("xyz", pathlib.Path("/tmp/xyz")),
         ),
+        patch(
+            "musak.core.rhythm.service.save_rhythm_midi",
+            return_value=pathlib.Path("/tmp/xyz/rhythm.mid"),
+        ),
         patch("musak.core.rhythm.service.Exporter") as mock_exporter,
     ):
-        mock_exporter.return_value.export.return_value = (
-            pathlib.Path("/tmp/xyz/score.png"),
-            pathlib.Path("/tmp/xyz/score.midi"),
-            pathlib.Path("/tmp/xyz/score.mp3"),
-        )
+        mock_exporter.return_value.export_audio.return_value = pathlib.Path("/tmp/xyz/rhythm.mp3")
         response = RhythmService().generate(RhythmRequest(time_signature=(4, 3)))
 
     assert response.time_signature_error is True

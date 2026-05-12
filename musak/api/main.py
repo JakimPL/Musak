@@ -1,10 +1,9 @@
 import os
 
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from music21.lily.translate import LilyTranslateException
 
 from musak.api.routers import intervals, inversions, rhythm
 
@@ -22,14 +21,6 @@ templates = Jinja2Templates(directory="templates")
 app.include_router(intervals.router, prefix="/api/intervals", tags=["intervals"])
 app.include_router(inversions.router, prefix="/api/inversions", tags=["inversions"])
 app.include_router(rhythm.router, prefix="/api/rhythm", tags=["rhythm"])
-
-
-@app.exception_handler(LilyTranslateException)
-async def lilypond_not_found_handler(request: Request, exc: LilyTranslateException) -> JSONResponse:
-    return JSONResponse(
-        status_code=503,
-        content={"detail": "LilyPond is not installed or cannot be found on this system."},
-    )
 
 
 @app.get("/")

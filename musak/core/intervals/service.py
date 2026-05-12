@@ -22,7 +22,7 @@ from musak.core.intervals.schema import (
 )
 from musak.core.notation.chord_serializer import interval_to_score_data
 from musak.core.schemas.common import FieldGroupSchema, FieldSchema
-from musak.modules.chords.exporter import to_abjad
+from musak.modules.chords.exporter import save_midi
 from musak.modules.chords.generator import get_random_interval
 from musak.modules.elements.interval import Interval
 from musak.paths import INTERVALS_CONFIG
@@ -138,13 +138,16 @@ class IntervalService:
         )
 
         score_data = interval_to_score_data(interval, sequential=request.sequential, tempo=request.tempo)
-        abjad_score = to_abjad(interval.chord, tempo=request.tempo, sequential=request.sequential)
 
         uuid64, directory = create_directory()
         self._write_interval_info(interval, directory)
-        exporter = Exporter("interval")
-        midi_path = exporter.export_midi(abjad_score, directory=directory)
-        exporter.export_audio(midi_path, directory / "interval.wav")
+        midi_path = save_midi(
+            interval.chord,
+            directory / "interval.mid",
+            tempo=request.tempo,
+            sequential=request.sequential,
+        )
+        Exporter("interval").export_audio(midi_path, directory / "interval.wav")
 
         return IntervalResponse(
             directory=uuid64,

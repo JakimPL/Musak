@@ -17,7 +17,7 @@ def test_generate_returns_interval_response() -> None:
             "musak.core.intervals.service.create_directory",
             return_value=("abc123", pathlib.Path("/tmp/abc123")),
         ),
-        patch("musak.core.intervals.service.to_abjad"),
+        patch("musak.core.intervals.service.save_midi", return_value=pathlib.Path("/tmp/abc123/interval.mid")),
         patch("musak.core.intervals.service.IntervalService._write_interval_info"),
         patch("musak.core.intervals.service.Exporter"),
     ):
@@ -36,7 +36,7 @@ def test_generate_uses_all_config_intervals_when_none_requested() -> None:
             "musak.core.intervals.service.create_directory",
             return_value=("xyz", pathlib.Path("/tmp/xyz")),
         ),
-        patch("musak.core.intervals.service.to_abjad"),
+        patch("musak.core.intervals.service.save_midi", return_value=pathlib.Path("/tmp/xyz/interval.mid")),
         patch("musak.core.intervals.service.IntervalService._write_interval_info"),
         patch("musak.core.intervals.service.Exporter"),
     ):

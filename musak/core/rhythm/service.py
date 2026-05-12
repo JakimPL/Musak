@@ -31,7 +31,7 @@ from musak.core.schemas.common import FieldGroupSchema, FieldSchema
 from musak.modules.elements.misc import is_power_of_two
 from musak.modules.elements.note import Note
 from musak.modules.elements.phrase import Phrase
-from musak.modules.rhythm.conversion import to_abjad_score
+from musak.modules.rhythm.conversion import save_midi as save_rhythm_midi
 from musak.modules.rhythm.exceptions import RhygenException
 from musak.modules.rhythm.generator import RhythmGenerator
 from musak.modules.rhythm.settings import GroupSettings, Settings
@@ -201,7 +201,7 @@ class RhythmService:
             fields=[
                 FieldSchema(
                     name="tempo",
-                    type="slider",
+                    type="integer",
                     label="Tempo",
                     default=defaults.get("tempo", TEMPO),
                     min=MIN_TEMPO,
@@ -215,7 +215,7 @@ class RhythmService:
             fields=[
                 FieldSchema(
                     name="groups",
-                    type="slider",
+                    type="integer",
                     label="Groups",
                     default=defaults.get("groups", GROUPS),
                     min=MIN_GROUPS,
@@ -223,7 +223,7 @@ class RhythmService:
                 ),
                 FieldSchema(
                     name="measures",
-                    type="slider",
+                    type="integer",
                     label="Measures",
                     default=defaults.get("measures", MEASURES),
                     min=MIN_MEASURES,
@@ -237,7 +237,7 @@ class RhythmService:
             fields=[
                 FieldSchema(
                     name="time_signature_numerator",
-                    type="slider",
+                    type="integer",
                     label="Numerator",
                     default=defaults.get("time_signature_numerator", TIME_SIGNATURE_NUMERATOR),
                     min=MIN_TIME_SIGNATURE_NUMERATOR,
@@ -245,7 +245,7 @@ class RhythmService:
                 ),
                 FieldSchema(
                     name="time_signature_denominator",
-                    type="slider",
+                    type="integer",
                     label="Denominator",
                     default=defaults.get("time_signature_denominator", TIME_SIGNATURE_DENOMINATOR),
                     min=MIN_TIME_SIGNATURE_DENOMINATOR,
@@ -389,12 +389,13 @@ class RhythmService:
             tempo=settings.tempo,
         )
 
-        abjad_score = to_abjad_score(
+        midi_path = save_rhythm_midi(
             phrase_list,
+            directory / "rhythm.mid",
             time_signature=settings.time_signature,
             tempo=settings.tempo,
         )
-        _, _, audio_path = Exporter("rhythm").export(abjad_score, directory)
+        audio_path = Exporter("rhythm").export_audio(midi_path, directory / "rhythm.wav")
 
         return RhythmResponse(
             directory=uuid64,

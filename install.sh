@@ -34,7 +34,7 @@ install_debian() {
     echo "Installing system dependencies (Debian/Ubuntu):"
     run_all \
         "sudo apt-get update -qq" \
-        "sudo apt-get install -y lilypond fluidsynth ffmpeg fluid-soundfont-gm"
+        "sudo apt-get install -y fluidsynth ffmpeg fluid-soundfont-gm"
 }
 
 install_macos() {
@@ -43,7 +43,7 @@ install_macos() {
         echo "Homebrew is not installed. Install it from https://brew.sh and re-run this script."
         exit 1
     fi
-    run_all "brew install lilypond fluid-synth ffmpeg"
+    run_all "brew install fluid-synth ffmpeg"
 }
 
 setup_soundfont_debian() {

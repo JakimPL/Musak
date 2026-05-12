@@ -17,7 +17,7 @@ def test_generate_returns_inversion_response() -> None:
             "musak.core.inversions.service.create_directory",
             return_value=("abc123", pathlib.Path("/tmp/abc123")),
         ),
-        patch("musak.core.inversions.service.to_abjad"),
+        patch("musak.core.inversions.service.save_midi", return_value=pathlib.Path("/tmp/abc123/chord.mid")),
         patch("musak.core.inversions.service.InversionService._write_chord_info"),
         patch("musak.core.inversions.service.Exporter"),
     ):
@@ -35,7 +35,7 @@ def test_generate_uses_only_requested_chords() -> None:
             "musak.core.inversions.service.create_directory",
             return_value=("xyz", pathlib.Path("/tmp/xyz")),
         ),
-        patch("musak.core.inversions.service.to_abjad"),
+        patch("musak.core.inversions.service.save_midi", return_value=pathlib.Path("/tmp/xyz/chord.mid")),
         patch("musak.core.inversions.service.InversionService._write_chord_info"),
         patch("musak.core.inversions.service.Exporter"),
     ):
