@@ -10,6 +10,7 @@ class FieldSchema(BaseModel):
     default: Any
     min: Optional[int] = None
     max: Optional[int] = None
+    options: Optional[list[int]] = None
     format: Optional[str] = None
     placeholder: Optional[str] = None
     tooltip: Optional[str] = None

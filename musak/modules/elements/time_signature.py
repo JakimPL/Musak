@@ -1,8 +1,7 @@
 from musak.config.defaults import (
-    MAX_TIME_SIGNATURE_DENOMINATOR,
     MAX_TIME_SIGNATURE_NUMERATOR,
-    MIN_TIME_SIGNATURE_DENOMINATOR,
     MIN_TIME_SIGNATURE_NUMERATOR,
+    TIME_SIGNATURE_DENOMINATOR_OPTIONS,
 )
 from musak.modules.elements.misc import is_power_of_two
 
@@ -20,10 +19,8 @@ def validate_time_signature(time_signature: TimeSignatureType) -> TimeSignatureT
     if not is_power_of_two(denominator):
         raise ValueError(f"time signature denominator must be a power of two, got {denominator}")
 
-    if not MIN_TIME_SIGNATURE_DENOMINATOR <= denominator <= MAX_TIME_SIGNATURE_DENOMINATOR:
-        raise ValueError(
-            f"time signature denominator must be between {MIN_TIME_SIGNATURE_DENOMINATOR} and "
-            f"{MAX_TIME_SIGNATURE_DENOMINATOR}, got {denominator}"
-        )
+    if denominator not in TIME_SIGNATURE_DENOMINATOR_OPTIONS:
+        time_signature_options = ", ".join(map(str, TIME_SIGNATURE_DENOMINATOR_OPTIONS))
+        raise ValueError(f"time signature denominator must be one of {time_signature_options}, got {denominator}")
 
     return time_signature

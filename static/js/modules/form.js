@@ -70,24 +70,53 @@ function createField(field) {
 
         const valueSpan = document.createElement('span');
         valueSpan.className = 'float-right font-bold tabular-nums';
-        valueSpan.textContent = formatValue(field.default, field.format);
-        lbl.textContent = field.label + ' ';
-        lbl.appendChild(valueSpan);
 
         const input = document.createElement('input');
         input.type = 'range';
-        input.name = field.name;
         input.id = field.name;
-        input.value = field.default;
         input.step = '1';
-        if (field.min !== null && field.min !== undefined) input.min = field.min;
-        if (field.max !== null && field.max !== undefined) input.max = field.max;
         input.className = 'form-slider';
         input.setAttribute('aria-label', field.label);
-        input.addEventListener('input', () => { valueSpan.textContent = formatValue(input.value, field.format); });
 
-        wrapper.appendChild(lbl);
-        wrapper.appendChild(input);
+        if (field.options) {
+            const defaultIndex = field.options.indexOf(field.default);
+            const initialIndex = defaultIndex >= 0 ? defaultIndex : 0;
+
+            input.min = '0';
+            input.max = String(field.options.length - 1);
+            input.value = String(initialIndex);
+
+            const hidden = document.createElement('input');
+            hidden.type = 'hidden';
+            hidden.name = field.name;
+            hidden.value = field.options[initialIndex];
+
+            valueSpan.textContent = formatValue(field.options[initialIndex], field.format);
+            input.addEventListener('input', () => {
+                const value = field.options[Number(input.value)];
+                valueSpan.textContent = formatValue(value, field.format);
+                hidden.value = value;
+            });
+
+            lbl.textContent = field.label + ' ';
+            lbl.appendChild(valueSpan);
+            wrapper.appendChild(lbl);
+            wrapper.appendChild(input);
+            wrapper.appendChild(hidden);
+        } else {
+            input.name = field.name;
+            input.value = field.default;
+            if (field.min !== null && field.min !== undefined) input.min = field.min;
+            if (field.max !== null && field.max !== undefined) input.max = field.max;
+
+            valueSpan.textContent = formatValue(field.default, field.format);
+            input.addEventListener('input', () => { valueSpan.textContent = formatValue(input.value, field.format); });
+
+            lbl.textContent = field.label + ' ';
+            lbl.appendChild(valueSpan);
+            wrapper.appendChild(lbl);
+            wrapper.appendChild(input);
+        }
     } else if (field.type === 'integer') {
         const lbl = document.createElement('label');
         lbl.htmlFor = field.name;
