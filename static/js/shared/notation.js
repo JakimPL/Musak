@@ -2,6 +2,7 @@ import { Renderer, Stave, StaveNote, Voice, Formatter, Dot, Beam } from 'https:/
 
 const STAVE_HEIGHT = 140;
 const STAVE_PADDING = 40;
+const NOTE_WIDTH = 55;
 const REST_PLACEHOLDER_KEY = 'b/4';
 const DEFAULT_WIDTH = 400;
 const STAVE_X_OFFSET = 20;
@@ -26,16 +27,19 @@ function drawVoice(voiceData, stave, staveData, context) {
     const beatValue = staveData.time_signature ? staveData.time_signature[1] : DEFAULT_BEAT_VALUE;
     const voice = new Voice({ num_beats: numBeats, beat_value: beatValue }).setStrict(false);
     voice.addTickables(vfNotes);
-    new Formatter().joinVoices([voice]).format([voice], staveWidth - STAVE_PADDING);
+    const formatWidth = Math.min(staveWidth - STAVE_PADDING, vfNotes.length * NOTE_WIDTH);
+    new Formatter().joinVoices([voice]).format([voice], formatWidth);
     const nonRestNotes = vfNotes.filter((_, i) => !voiceData.notes[i].duration.endsWith('r'));
     const beams = Beam.generateBeams(nonRestNotes);
     voice.draw(context, stave);
     beams.forEach(beam => beam.setContext(context).draw());
 }
 
-function drawStave(staveData, context, x, y, width) {
+function drawStave(staveData, context, x, y, width, showClef) {
     const stave = new Stave(x, y, width);
-    stave.addClef(staveData.clef);
+    if (showClef) {
+        stave.addClef(staveData.clef);
+    }
     if (staveData.time_signature) {
         stave.addTimeSignature(`${staveData.time_signature[0]}/${staveData.time_signature[1]}`);
     }
@@ -63,7 +67,7 @@ export function renderScore(scoreData, containerElement) {
         const staveWidth = (width - 2 * STAVE_X_OFFSET) / row.length;
         row.forEach((staveData, colIndex) => {
             const x = STAVE_X_OFFSET + colIndex * staveWidth;
-            drawStave(staveData, context, x, y, staveWidth);
+            drawStave(staveData, context, x, y, staveWidth, colIndex === 0);
         });
     });
 }
