@@ -4,13 +4,11 @@ from collections.abc import Sequence
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from musak.config.defaults import TIME_SIGNATURE
 from musak.modules.elements.misc import is_power_of_two
 from musak.modules.elements.note import Note, NoteType
 from musak.modules.elements.phrase import Phrase, PhraseType
-from musak.modules.elements.time_signature import (
-    DEFAULT_TIME_SIGNATURE,
-    TimeSignatureType,
-)
+from musak.modules.elements.time_signature import TimeSignatureType
 
 
 class GroupSettings(BaseModel):
@@ -55,7 +53,7 @@ class GroupSettings(BaseModel):
 class Settings(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True, validate_assignment=True)
 
-    time_signature: TimeSignatureType = DEFAULT_TIME_SIGNATURE
+    time_signature: TimeSignatureType = TIME_SIGNATURE
     tempo: int = Field(gt=0)
     groups: int = Field(ge=1)
     measures: int = Field(ge=1)

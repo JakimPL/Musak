@@ -1,9 +1,5 @@
 from typing import Final
 
-LOWEST_NOTE: Final[int] = 40
-HIGHEST_NOTE: Final[int] = 90
-DEFAULT_TEMPO: Final[int] = 120
-DEFAULT_SEQUENTIAL: Final[bool] = False
 KEYS: Final[dict[int, str]] = {
     0: "C",
     1: "C#",

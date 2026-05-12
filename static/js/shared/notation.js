@@ -1,4 +1,4 @@
-import { Renderer, Stave, StaveNote, Voice, Formatter, Dot } from 'https://esm.sh/vexflow';
+import { Renderer, Stave, StaveNote, Voice, Formatter, Dot, Beam } from 'https://esm.sh/vexflow';
 
 const STAVE_HEIGHT = 140;
 const STAVE_PADDING = 40;
@@ -19,13 +19,18 @@ function buildStaveNote(noteData, clef) {
     return note;
 }
 
-function drawVoice(voiceData, stave, clef, context) {
+function drawVoice(voiceData, stave, staveData, context) {
     const staveWidth = stave.getWidth();
-    const vfNotes = voiceData.notes.map(noteData => buildStaveNote(noteData, clef));
-    const voice = new Voice({ num_beats: DEFAULT_NUM_BEATS, beat_value: DEFAULT_BEAT_VALUE }).setStrict(false);
+    const vfNotes = voiceData.notes.map(noteData => buildStaveNote(noteData, staveData.clef));
+    const numBeats = staveData.time_signature ? staveData.time_signature[0] : DEFAULT_NUM_BEATS;
+    const beatValue = staveData.time_signature ? staveData.time_signature[1] : DEFAULT_BEAT_VALUE;
+    const voice = new Voice({ num_beats: numBeats, beat_value: beatValue }).setStrict(false);
     voice.addTickables(vfNotes);
     new Formatter().joinVoices([voice]).format([voice], staveWidth - STAVE_PADDING);
+    const nonRestNotes = vfNotes.filter((_, i) => !voiceData.notes[i].duration.endsWith('r'));
+    const beams = Beam.generateBeams(nonRestNotes);
     voice.draw(context, stave);
+    beams.forEach(beam => beam.setContext(context).draw());
 }
 
 function drawStave(staveData, context, x, y, width) {
@@ -36,24 +41,29 @@ function drawStave(staveData, context, x, y, width) {
     }
     stave.setContext(context).draw();
     for (const voice of staveData.voices) {
-        drawVoice(voice, stave, staveData.clef, context);
+        drawVoice(voice, stave, staveData, context);
     }
 }
 
 /**
  * Renders a ScoreData object as an SVG into containerElement.
- * @param {Object} scoreData - { staves: Array, tempo: number|null }
+ * @param {Object} scoreData - { rows: Array<Array<StaveData>>, tempo: number|null }
  * @param {HTMLElement} containerElement
  */
 export function renderScore(scoreData, containerElement) {
     containerElement.innerHTML = '';
     const width = containerElement.clientWidth || DEFAULT_WIDTH;
-    const totalHeight = scoreData.staves.length * STAVE_HEIGHT;
+    const rows = scoreData.rows;
+    const totalHeight = rows.length * STAVE_HEIGHT;
     const renderer = new Renderer(containerElement, Renderer.Backends.SVG);
     renderer.resize(width, totalHeight);
     const context = renderer.getContext();
-    const staveWidth = width - STAVE_PADDING;
-    scoreData.staves.forEach((staveData, index) => {
-        drawStave(staveData, context, STAVE_X_OFFSET, index * STAVE_HEIGHT + STAVE_Y_OFFSET, staveWidth);
+    rows.forEach((row, rowIndex) => {
+        const y = rowIndex * STAVE_HEIGHT + STAVE_Y_OFFSET;
+        const staveWidth = (width - 2 * STAVE_X_OFFSET) / row.length;
+        row.forEach((staveData, colIndex) => {
+            const x = STAVE_X_OFFSET + colIndex * staveWidth;
+            drawStave(staveData, context, x, y, staveWidth);
+        });
     });
 }

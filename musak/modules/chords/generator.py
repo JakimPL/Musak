@@ -2,7 +2,8 @@ import random
 from collections import OrderedDict
 from collections.abc import Sequence
 
-from musak.modules.elements.constants import CHORDS, HIGHEST_NOTE, LOWEST_NOTE
+from musak.config.defaults import HIGHEST_NOTE, LOWEST_NOTE
+from musak.modules.elements.constants import CHORDS
 from musak.modules.elements.interval import Interval
 from musak.modules.elements.inversion import ChordInversion
 

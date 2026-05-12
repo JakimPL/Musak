@@ -1,37 +1,41 @@
 from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 
 from musak.config.defaults import (
     GROUPS,
+    MAX_GROUPS,
+    MAX_MEASURES,
+    MAX_TEMPO,
     MEASURES,
+    MIN_GROUPS,
+    MIN_MEASURES,
+    MIN_TEMPO,
     TEMPO,
-    TIME_SIGNATURE_DENOMINATOR,
-    TIME_SIGNATURE_NUMERATOR,
+    TIME_SIGNATURE,
 )
+from musak.core.notation.schema import ScoreData
 from musak.core.schemas.common import ConfigResponse
 
 NoteValue = int | tuple[int, int]
 
 
 class RhythmRequest(BaseModel):
-    tempo: int = TEMPO
-    groups: int = GROUPS
-    measures: int = MEASURES
-    time_signature: tuple[int, int] = (
-        TIME_SIGNATURE_NUMERATOR,
-        TIME_SIGNATURE_DENOMINATOR,
-    )
-    notes: list[NoteValue] = []
-    phrases: list[list[NoteValue]] = []
-    custom_phrases: str = ""
+    tempo: int = Field(default=TEMPO, ge=MIN_TEMPO, le=MAX_TEMPO)
+    groups: int = Field(default=GROUPS, ge=MIN_GROUPS, le=MAX_GROUPS)
+    measures: int = Field(default=MEASURES, ge=MIN_MEASURES, le=MAX_MEASURES)
+    time_signature: tuple[int, int] = Field(default=TIME_SIGNATURE)
+    notes: list[NoteValue] = Field(default_factory=list)
+    phrases: list[list[NoteValue]] = Field(default_factory=list)
+    custom_phrases: str = Field(default="")
 
 
 class RhythmResponse(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
     directory: str = ""
     audio_source: str = ""
-    image_source: str = ""
-    score: str = ""
+    score_data: ScoreData | None = None
     exception: Optional[str] = None
     time_signature_error: bool = False
 

@@ -15,10 +15,12 @@ from musak.config.defaults import (
     MIN_TIME_SIGNATURE_DENOMINATOR,
     MIN_TIME_SIGNATURE_NUMERATOR,
     TEMPO,
+    TIME_SIGNATURE,
     TIME_SIGNATURE_DENOMINATOR,
     TIME_SIGNATURE_NUMERATOR,
 )
 from musak.config.models import RhythmConfig
+from musak.core.notation.rhythm_serializer import phrases_to_score_data
 from musak.core.rhythm.schema import (
     NoteValue,
     RhythmConfigResponse,
@@ -29,7 +31,7 @@ from musak.core.schemas.common import FieldGroupSchema, FieldSchema
 from musak.modules.elements.misc import is_power_of_two
 from musak.modules.elements.note import Note
 from musak.modules.elements.phrase import Phrase
-from musak.modules.elements.time_signature import DEFAULT_TIME_SIGNATURE
+from musak.modules.rhythm.conversion import to_abjad_score
 from musak.modules.rhythm.exceptions import RhygenException
 from musak.modules.rhythm.generator import RhythmGenerator
 from musak.modules.rhythm.settings import GroupSettings, Settings
@@ -345,7 +347,7 @@ class RhythmService:
         time_signature = request.time_signature
         time_signature_error = not is_power_of_two(time_signature[1])
         if time_signature_error:
-            time_signature = DEFAULT_TIME_SIGNATURE
+            time_signature = TIME_SIGNATURE
 
         return (
             Settings(
@@ -372,7 +374,7 @@ class RhythmService:
             settings.default_group_settings = GroupSettings.model_validate({"notes": notes, "phrases": phrases})
 
         try:
-            score = RhythmGenerator(settings)()
+            phrase_list = RhythmGenerator(settings)()
         except RhygenException as exception:
             return RhythmResponse(
                 exception=str(exception),
@@ -380,13 +382,24 @@ class RhythmService:
             )
 
         uuid64, directory = create_directory()
-        image_path, _, audio_path = Exporter("rhythm").export(score, directory)
+
+        score_data = phrases_to_score_data(
+            phrase_list,
+            time_signature=settings.time_signature,
+            tempo=settings.tempo,
+        )
+
+        abjad_score = to_abjad_score(
+            phrase_list,
+            time_signature=settings.time_signature,
+            tempo=settings.tempo,
+        )
+        _, _, audio_path = Exporter("rhythm").export(abjad_score, directory)
 
         return RhythmResponse(
             directory=uuid64,
-            image_source=f"../{image_path}",
             audio_source=audio_path.name,
-            score=str(score),
+            score_data=score_data,
             exception=None,
             time_signature_error=time_signature_error,
         )

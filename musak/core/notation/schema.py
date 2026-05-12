@@ -66,5 +66,6 @@ class StaveData(BaseModel):
 
 class ScoreData(BaseModel):
     model_config = ConfigDict(frozen=True)
-    staves: list[StaveData]
+
+    rows: list[list[StaveData]]
     tempo: Annotated[int, Field(gt=0)] | None = None

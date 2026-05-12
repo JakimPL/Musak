@@ -2,6 +2,7 @@ import { getPath } from '../path.js';
 import { playAgain } from '../play.js';
 import { postForm, loadJSON } from '../shared/api.js';
 import { renderForm } from './form.js';
+import { renderScore } from '../shared/notation.js';
 
 let submitLock = false;
 let audioPath;
@@ -25,9 +26,8 @@ function hideScore() {
     play.style.display = 'none';
     play.style.visibility = 'hidden';
 
-    const img = document.getElementById('rhythm_image');
-    img.style.display = 'none';
-    img.style.visibility = 'hidden';
+    const container = document.getElementById('score_container');
+    container.innerHTML = '';
 }
 
 async function onSubmit(event) {
@@ -42,19 +42,15 @@ async function onSubmit(event) {
             const response = await postForm(apiUrl, form);
             unlockSubmitButton();
 
-            if ('image_source' in response) {
+            if ('score_data' in response && response.score_data) {
                 audioPath = getPath(response.directory, response.audio_source);
 
-                const img = document.getElementById('rhythm_image');
-                img.setAttribute('src', response.image_source);
-                img.setAttribute('alt', response.score || '');
+                const container = document.getElementById('score_container');
+                renderScore(response.score_data, container);
 
                 const play = document.getElementById('play');
                 play.style.display = '';
                 play.style.visibility = 'visible';
-
-                img.style.display = '';
-                img.style.visibility = 'visible';
             }
 
             document.getElementById('error').textContent =

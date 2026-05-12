@@ -1,19 +1,32 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 
-from musak.config.defaults import HIGHEST_NOTE, LOWEST_NOTE, SEQUENTIAL, TEMPO
+from musak.config.defaults import (
+    HIGHEST_NOTE,
+    LOWEST_NOTE,
+    MAX_HIGHEST_NOTE,
+    MAX_LOWEST_NOTE,
+    MAX_TEMPO,
+    MIN_HIGHEST_NOTE,
+    MIN_LOWEST_NOTE,
+    MIN_TEMPO,
+    SEQUENTIAL,
+    TEMPO,
+)
 from musak.core.notation.schema import ScoreData
 from musak.core.schemas.common import ConfigResponse
 
 
 class InversionRequest(BaseModel):
-    tempo: int = TEMPO
-    lowest_note: int = LOWEST_NOTE
-    highest_note: int = HIGHEST_NOTE
-    sequential: bool = SEQUENTIAL
-    chords: dict[str, list[int]] = {}  # empty means use all enabled from config
+    tempo: int = Field(default=TEMPO, ge=MIN_TEMPO, le=MAX_TEMPO)
+    lowest_note: int = Field(default=LOWEST_NOTE, ge=MIN_LOWEST_NOTE, le=MAX_LOWEST_NOTE)
+    highest_note: int = Field(default=HIGHEST_NOTE, ge=MIN_HIGHEST_NOTE, le=MAX_HIGHEST_NOTE)
+    sequential: bool = Field(default=SEQUENTIAL)
+    chords: dict[str, list[int]] = Field(default_factory=dict)
 
 
 class InversionResponse(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
     directory: str
     audio_source: str
     score_data: ScoreData

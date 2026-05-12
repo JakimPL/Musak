@@ -1,12 +1,9 @@
 import random
 from fractions import Fraction
 
-import abjad
-
 from musak.modules.elements import misc
 from musak.modules.elements.note import Note
 from musak.modules.elements.phrase import Phrase
-from musak.modules.rhythm.conversion import to_abjad_score
 from musak.modules.rhythm.exceptions import InvalidPhraseSetError
 from musak.modules.rhythm.settings import Settings
 
@@ -16,13 +13,9 @@ class RhythmGenerator:
         self.settings = settings
         self._cache: list[Phrase] | None = None
 
-    def __call__(self) -> abjad.Score:
+    def __call__(self) -> list[Phrase]:
         self._cache = self._generate_score()
-        return to_abjad_score(
-            self._cache,
-            time_signature=self.settings.time_signature,
-            tempo=self.settings.tempo,
-        )
+        return self._cache
 
     def _generate_measure(self, group_id: int) -> Phrase:
         group_settings = self.settings.group_settings(group_id)

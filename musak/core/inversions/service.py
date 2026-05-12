@@ -145,7 +145,7 @@ class InversionService:
             lowest_note=request.lowest_note,
             highest_note=request.highest_note,
         )
-        score_data = inversion_to_score_data(chord_inversion, tempo=request.tempo)
+        score_data = inversion_to_score_data(chord_inversion, sequential=request.sequential, tempo=request.tempo)
         abjad_score = to_abjad(chord_inversion.chord, tempo=request.tempo, sequential=request.sequential)
 
         uuid64, directory = create_directory()

@@ -51,16 +51,17 @@ def interval_to_score_data(
     clef = _select_clef(midi_notes)
     voice = _sequential_voice(midi_notes) if sequential else _chord_voice(midi_notes)
     stave = StaveData(clef=clef, voices=[voice])
-    return ScoreData(staves=[stave], tempo=tempo)
+    return ScoreData(rows=[[stave]], tempo=tempo)
 
 
 def inversion_to_score_data(
     inversion: ChordInversion,
     *,
+    sequential: bool,
     tempo: int,
 ) -> ScoreData:
     midi_notes = inversion.chord
     clef = _select_clef(midi_notes)
-    voice = _chord_voice(midi_notes)
+    voice = _sequential_voice(midi_notes) if sequential else _chord_voice(midi_notes)
     stave = StaveData(clef=clef, voices=[voice])
-    return ScoreData(staves=[stave], tempo=tempo)
+    return ScoreData(rows=[[stave]], tempo=tempo)

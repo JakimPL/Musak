@@ -7,9 +7,8 @@ from music21.note import Note, Rest
 from music21.stream.base import Stream
 from music21.tempo import MetronomeMark
 
+from musak.config.defaults import SEQUENTIAL, TEMPO
 from musak.modules.elements.constants import (
-    DEFAULT_SEQUENTIAL,
-    DEFAULT_TEMPO,
     HALF_DURATION,
     QUARTER_DURATION,
     QUARTER_NOTE,
@@ -53,8 +52,8 @@ def create_chord(
 def create_stream(
     iterable: list[int],
     *,
-    tempo: int = DEFAULT_TEMPO,
-    sequential: bool = DEFAULT_SEQUENTIAL,
+    tempo: int = TEMPO,
+    sequential: bool = SEQUENTIAL,
 ) -> Stream[Music21Object]:
     stream = Stream[Music21Object]()
     mark = MetronomeMark(number=tempo)
@@ -72,8 +71,8 @@ def create_stream(
 def to_abjad(
     iterable: list[int],
     *,
-    tempo: int = DEFAULT_TEMPO,
-    sequential: bool = DEFAULT_SEQUENTIAL,
+    tempo: int = TEMPO,
+    sequential: bool = SEQUENTIAL,
 ) -> abjad.Score:
     stream = create_stream(
         iterable,

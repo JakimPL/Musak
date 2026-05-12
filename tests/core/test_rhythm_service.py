@@ -1,6 +1,7 @@
 import pathlib
 from unittest.mock import patch
 
+from musak.core.notation.schema import ScoreData
 from musak.core.rhythm.schema import RhythmRequest, RhythmResponse
 from musak.core.rhythm.service import RhythmService
 
@@ -28,6 +29,7 @@ def test_generate_returns_rhythm_response() -> None:
     assert isinstance(response, RhythmResponse)
     assert response.directory == "abc123"
     assert response.exception is None
+    assert isinstance(response.score_data, ScoreData)
 
 
 def test_generate_returns_exception_on_invalid_phrase_set() -> None:
