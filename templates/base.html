@@ -73,6 +73,9 @@
             .score-wrapper {
                 @apply rounded-2xl overflow-hidden;
             }
+            .score-wrapper svg {
+                @apply dark:invert;
+            }
 
             /* Score images: LilyPond output is black-on-transparent after processing;
                invert in dark mode to get white-on-dark. */

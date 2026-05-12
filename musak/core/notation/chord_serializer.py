@@ -1,17 +1,14 @@
 from __future__ import annotations
 
-from typing import Final, cast
+from typing import Final
 
 from musak.core.notation.schema import (
-    HALF,
     QUARTER,
-    REST_SUFFIX,
     WHOLE,
     Clef,
     NoteData,
     ScoreData,
     StaveData,
-    VexflowDuration,
     VoiceData,
 )
 from musak.modules.elements.interval import Interval
@@ -33,24 +30,15 @@ def _select_clef(midi_notes: list[int]) -> Clef:
     return "treble"
 
 
-def _whole_rest() -> NoteData:
-    return NoteData(keys=[], duration=cast(VexflowDuration, WHOLE + REST_SUFFIX))
-
-
-def _half_rest() -> NoteData:
-    return NoteData(keys=[], duration=cast(VexflowDuration, HALF + REST_SUFFIX))
-
-
 def _chord_voice(midi_notes: list[int]) -> VoiceData:
     keys = [midi_to_vexflow_key(midi_note) for midi_note in midi_notes]
     chord_note = NoteData(keys=keys, duration=WHOLE)
-    return VoiceData(notes=[chord_note, _whole_rest()])
+    return VoiceData(notes=[chord_note])
 
 
 def _sequential_voice(midi_notes: list[int]) -> VoiceData:
     quarter_notes = [NoteData(keys=[midi_to_vexflow_key(midi_note)], duration=QUARTER) for midi_note in midi_notes]
-
-    return VoiceData(notes=quarter_notes + [_half_rest()])
+    return VoiceData(notes=quarter_notes)
 
 
 def interval_to_score_data(

@@ -112,9 +112,9 @@ class TestIntervalToScoreData:
         score = interval_to_score_data(interval, sequential=True, tempo=120)
 
         voice = score.staves[0].voices[0]
+        assert len(voice.notes) == 2
         assert voice.notes[0].duration == "q"
         assert voice.notes[1].duration == "q"
-        assert voice.notes[-1].duration == "hr"
 
     def test_low_notes_uses_bass_clef(self) -> None:
         interval = Interval(interval=4, base_note_index=40)
