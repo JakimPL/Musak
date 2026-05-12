@@ -1,6 +1,7 @@
 import { Score } from '../score.js';
 import { ChordInfo } from '../chord_info.js';
 import { getPath } from '../path.js';
+import { renderScore } from '../shared/notation.js';
 import { playSound, playAgain } from '../play.js';
 import { postForm, loadJSON } from '../shared/api.js';
 import { renderForm } from './form.js';
@@ -55,7 +56,7 @@ function hideChordInfo() {
 function showChordInfo() {
     document.getElementById('score_info').style.visibility = 'visible';
     document.getElementById('chord_info').style.visibility = 'visible';
-    document.getElementById('inversion_image').style.visibility = 'visible';
+    document.getElementById('score_container').style.visibility = 'visible';
 }
 
 function setChordInfo(data) {
@@ -173,14 +174,9 @@ async function onSubmit(event) {
                 const infoData = await loadJSON(jsonPath);
                 setChordInfo(infoData);
 
-                const imagePath = getPath(response.directory, response.image_source);
-                const img = document.getElementById('inversion_image');
-                img.setAttribute('src', imagePath);
-                // Space reserved but hidden — revealed together with score/info on answer click
-                img.style.display = '';
-                img.style.visibility = 'hidden';
+                renderScore(response.score_data, document.getElementById('score_container'));
+                document.getElementById('score_container').style.visibility = 'hidden';
 
-                // Reserve space for score and info box to prevent layout shift
                 const scoreEl = document.getElementById('score_info');
                 scoreEl.style.display = '';
                 scoreEl.style.visibility = 'hidden';

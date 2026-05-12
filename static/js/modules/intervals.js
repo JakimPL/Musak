@@ -1,6 +1,7 @@
 import { Score } from '../score.js';
 import { getPath } from '../path.js';
 import { playSound, playAgain } from '../play.js';
+import { renderScore } from '../shared/notation.js';
 import { postForm, loadJSON } from '../shared/api.js';
 import { renderForm } from './form.js';
 
@@ -69,8 +70,7 @@ function addButtons(intervals) {
         button.value = name.replaceAll('_', ' ');
 
         button.addEventListener('click', function () {
-            // Reveal image, score and info together — no layout shift
-            document.getElementById('interval_image').style.visibility = 'visible';
+            document.getElementById('score_container').style.visibility = 'visible';
             document.getElementById('score_info').style.visibility = 'visible';
             document.getElementById('interval_info').style.visibility = 'visible';
 
@@ -114,14 +114,9 @@ async function onSubmit(event) {
                 const infoData = await loadJSON(jsonPath);
                 setIntervalInfo(infoData);
 
-                const imagePath = getPath(response.directory, response.image_source);
-                const img = document.getElementById('interval_image');
-                img.setAttribute('src', imagePath);
-                // Space reserved but hidden — revealed together with score/info on answer click
-                img.style.display = '';
-                img.style.visibility = 'hidden';
+                renderScore(response.score_data, document.getElementById('score_container'));
+                document.getElementById('score_container').style.visibility = 'hidden';
 
-                // Reserve space for score and info box to prevent layout shift
                 const scoreEl = document.getElementById('score_info');
                 scoreEl.style.display = '';
                 scoreEl.style.visibility = 'hidden';

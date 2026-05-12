@@ -1,4 +1,4 @@
-import Vex from 'https://esm.sh/vexflow';
+import { Renderer, Stave, StaveNote, Voice, Formatter, Dot } from 'https://esm.sh/vexflow';
 
 const STAVE_HEIGHT = 140;
 const STAVE_PADDING = 40;
@@ -9,45 +9,27 @@ const STAVE_Y_OFFSET = 20;
 const DEFAULT_NUM_BEATS = 4;
 const DEFAULT_BEAT_VALUE = 4;
 
-/**
- * @param {Object} noteData - { keys: string[], duration: string, dots: number }
- * @param {string} clef
- * @returns {Vex.Flow.StaveNote}
- */
 function buildStaveNote(noteData, clef) {
     const isRest = noteData.duration.endsWith('r');
     const keys = isRest ? [REST_PLACEHOLDER_KEY] : noteData.keys;
-    const note = new Vex.Flow.StaveNote({ clef, keys, duration: noteData.duration });
+    const note = new StaveNote({ clef, keys, duration: noteData.duration });
     if (noteData.dots > 0) {
-        Vex.Flow.Dot.buildAndAttach([note], { all: true });
+        Dot.buildAndAttach([note], { all: true });
     }
     return note;
 }
 
-/**
- * @param {Object} voiceData - { notes: Array }
- * @param {Vex.Flow.Stave} stave
- * @param {string} clef
- * @param {Vex.Flow.RenderContext} context
- */
 function drawVoice(voiceData, stave, clef, context) {
     const staveWidth = stave.getWidth();
     const vfNotes = voiceData.notes.map(noteData => buildStaveNote(noteData, clef));
-    const voice = new Vex.Flow.Voice({ num_beats: DEFAULT_NUM_BEATS, beat_value: DEFAULT_BEAT_VALUE }).setStrict(false);
+    const voice = new Voice({ num_beats: DEFAULT_NUM_BEATS, beat_value: DEFAULT_BEAT_VALUE }).setStrict(false);
     voice.addTickables(vfNotes);
-    new Vex.Flow.Formatter().joinVoices([voice]).format([voice], staveWidth - STAVE_PADDING);
+    new Formatter().joinVoices([voice]).format([voice], staveWidth - STAVE_PADDING);
     voice.draw(context, stave);
 }
 
-/**
- * @param {Object} staveData - { clef: string, time_signature: [number, number]|null, voices: Array }
- * @param {Vex.Flow.RenderContext} context
- * @param {number} x
- * @param {number} y
- * @param {number} width
- */
 function drawStave(staveData, context, x, y, width) {
-    const stave = new Vex.Flow.Stave(x, y, width);
+    const stave = new Stave(x, y, width);
     stave.addClef(staveData.clef);
     if (staveData.time_signature) {
         stave.addTimeSignature(`${staveData.time_signature[0]}/${staveData.time_signature[1]}`);
@@ -67,7 +49,7 @@ export function renderScore(scoreData, containerElement) {
     containerElement.innerHTML = '';
     const width = containerElement.clientWidth || DEFAULT_WIDTH;
     const totalHeight = scoreData.staves.length * STAVE_HEIGHT;
-    const renderer = new Vex.Flow.Renderer(containerElement, Vex.Flow.Renderer.Backends.SVG);
+    const renderer = new Renderer(containerElement, Renderer.Backends.SVG);
     renderer.resize(width, totalHeight);
     const context = renderer.getContext();
     const staveWidth = width - STAVE_PADDING;
