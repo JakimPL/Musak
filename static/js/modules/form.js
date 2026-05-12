@@ -150,16 +150,14 @@ function createField(field) {
         input.className = INPUT_CLASSES;
         input.setAttribute('aria-label', field.label);
 
+        wrapper.appendChild(lbl);
+        wrapper.appendChild(input);
+
         if (field.tooltip) {
             const hint = document.createElement('p');
             hint.textContent = field.tooltip;
             hint.className = 'mt-1 text-xs text-gray-400 dark:text-gray-500';
-            wrapper.appendChild(lbl);
-            wrapper.appendChild(input);
             wrapper.appendChild(hint);
-        } else {
-            wrapper.appendChild(lbl);
-            wrapper.appendChild(input);
         }
     }
 

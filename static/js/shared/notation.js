@@ -1,4 +1,4 @@
-import { Renderer, Stave, StaveNote, Voice, Formatter, Dot, Beam } from 'https://esm.sh/vexflow';
+import { Renderer, Stave, StaveNote, Voice, Formatter, Dot, Beam } from 'https://esm.sh/vexflow@5.0.0';
 
 const STAVE_HEIGHT = 140;
 const STAVE_PADDING = 40;

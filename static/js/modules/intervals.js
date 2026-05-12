@@ -31,7 +31,7 @@ function unlockSubmitButton() {
 }
 
 function showError(message) {
-    const banner = document.getElementById('error-banner');
+    const banner = document.getElementById('error_banner');
     if (banner) {
         banner.textContent = message;
         banner.classList.remove('hidden');
@@ -39,7 +39,7 @@ function showError(message) {
 }
 
 function clearError() {
-    const banner = document.getElementById('error-banner');
+    const banner = document.getElementById('error_banner');
     if (banner) banner.classList.add('hidden');
 }
 

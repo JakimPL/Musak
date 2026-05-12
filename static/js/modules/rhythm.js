@@ -20,6 +20,19 @@ function unlockSubmitButton() {
     btn.textContent = 'Generate rhythm';
 }
 
+function showError(message) {
+    const banner = document.getElementById('error_banner');
+    if (banner) {
+        banner.textContent = message;
+        banner.classList.remove('hidden');
+    }
+}
+
+function clearError() {
+    const banner = document.getElementById('error_banner');
+    if (banner) banner.classList.add('hidden');
+}
+
 function hideScore() {
     const play = document.getElementById('play');
     play.style.display = 'none';
@@ -33,6 +46,7 @@ async function onSubmit(event) {
     event.preventDefault();
 
     if (!submitLock) {
+        clearError();
         stopSound();
         lockSubmitButton();
         const form = document.getElementById('settings_form');
@@ -53,18 +67,15 @@ async function onSubmit(event) {
                 play.style.visibility = 'visible';
             }
 
-            document.getElementById('error').textContent =
-                response.exception ? 'An error during generating the image:' : '';
-            document.getElementById('error_message').textContent =
-                response.exception || '';
-            document.getElementById('time_signature_error').textContent =
-                response.time_signature_error ? 'the denominator has to be a power of two!' : '';
+            if (response.exception) {
+                showError(`An error during generating the rhythm: ${response.exception}`);
+            } else if (response.time_signature_error) {
+                showError('The denominator must be a power of two.');
+            }
 
         } catch (err) {
             unlockSubmitButton();
-            document.getElementById('error').textContent = 'An error occurred generating the score:';
-            document.getElementById('error_message').textContent = window.DEBUG ? (err.message || '') : '';
-            document.getElementById('time_signature_error').textContent = '';
+            showError(window.DEBUG ? `An error occurred: ${err.message}` : 'An error occurred. Please try again.');
         }
     }
 }
