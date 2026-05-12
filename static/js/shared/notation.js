@@ -2,13 +2,13 @@ import { Renderer, Stave, StaveNote, Voice, Formatter, Dot, Beam } from 'https:/
 
 const STAVE_HEIGHT = 140;
 const STAVE_PADDING = 40;
-const NOTE_WIDTH = 55;
+const NOTE_WIDTH = 50;
 const MAX_NOTES_PER_MEASURE = 16;
 const NOTE_SPACING = 18;
 const FIRST_STAVE_OVERHEAD = 70;
 const REST_PLACEHOLDER_KEY = 'b/4';
 const DEFAULT_WIDTH = 400;
-const STAVE_X_OFFSET = 20;
+const STAVE_X_OFFSET = 10;
 const STAVE_Y_OFFSET = 20;
 const DEFAULT_NUM_BEATS = 4;
 const DEFAULT_BEAT_VALUE = 4;
@@ -41,6 +41,15 @@ function drawVoice(voiceData, stave, staveData, context) {
 
 function drawStave(staveData, context, x, y, width, showClef) {
     const stave = new Stave(x, y, width);
+    if (staveData.clef === 'percussion') {
+        stave.setConfigForLines([
+            { visible: false },
+            { visible: false },
+            { visible: true },
+            { visible: false },
+            { visible: false },
+        ]);
+    }
     if (showClef) {
         stave.addClef(staveData.clef);
     }
@@ -80,10 +89,17 @@ export function renderScore(scoreData, containerElement) {
     const context = renderer.getContext();
     rows.forEach((row, rowIndex) => {
         const y = rowIndex * STAVE_HEIGHT + STAVE_Y_OFFSET;
-        const staveWidth = (naturalWidth - 2 * STAVE_X_OFFSET) / row.length;
+        let x = STAVE_X_OFFSET;
         row.forEach((staveData, colIndex) => {
-            const x = STAVE_X_OFFSET + colIndex * staveWidth;
-            drawStave(staveData, context, x, y, staveWidth, colIndex === 0);
+            let width;
+            if (!hasTimeSig) {
+                width = (naturalWidth - 2 * STAVE_X_OFFSET) / row.length;
+            } else {
+                const normalWidth = (naturalWidth - 2 * STAVE_X_OFFSET - FIRST_STAVE_OVERHEAD) / row.length;
+                width = colIndex === 0 ? normalWidth + FIRST_STAVE_OVERHEAD : normalWidth;
+            }
+            drawStave(staveData, context, x, y, width, colIndex === 0);
+            x += width;
         });
     });
 
