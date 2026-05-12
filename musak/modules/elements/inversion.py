@@ -1,6 +1,6 @@
 from typing import NamedTuple
 
-from musak.modules.chords.auxiliary import get_note_name
+from musak.modules.elements.names import get_note_name
 
 
 class ChordInversion(NamedTuple):
@@ -14,17 +14,14 @@ class ChordInversion(NamedTuple):
 
     def inversion_description(self) -> str:
         if self.inversion_index:
-            return "inversion no. {index}".format(index=self.inversion_index)
+            return f"inversion no. {self.inversion_index}"
 
         return "root position"
 
     def __str__(self) -> str:
-        return "{base_note}{chord_type}, {inversion_index}: {chord}".format(
-            chord=self.chord,
-            base_note=self.get_base_note_name(),
-            chord_type=self.chord_type,
-            inversion_index=self.inversion_description(),
-        )
+        base_note = self.get_base_note_name()
+        inversion_index = self.inversion_description()
+        return f"{base_note} {self.chord_type}, {inversion_index}: {self.chord}"
 
     @property
     def chord(self) -> list[int]:

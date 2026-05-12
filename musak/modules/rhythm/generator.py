@@ -1,13 +1,11 @@
+import math
 import random
 from fractions import Fraction
 
-import abjad
-
-from musak.modules.rhythm import misc
-from musak.modules.rhythm.conversion import to_abjad_score
+from musak.modules.elements import misc
+from musak.modules.elements.note import Note
+from musak.modules.elements.phrase import Phrase
 from musak.modules.rhythm.exceptions import InvalidPhraseSetError
-from musak.modules.rhythm.note import Note
-from musak.modules.rhythm.phrase import Phrase
 from musak.modules.rhythm.settings import Settings
 
 
@@ -16,13 +14,9 @@ class RhythmGenerator:
         self.settings = settings
         self._cache: list[Phrase] | None = None
 
-    def __call__(self) -> abjad.Score:
+    def __call__(self) -> list[Phrase]:
         self._cache = self._generate_score()
-        return to_abjad_score(
-            self._cache,
-            time_signature=self.settings.time_signature,
-            tempo=self.settings.tempo,
-        )
+        return self._cache
 
     def _generate_measure(self, group_id: int) -> Phrase:
         group_settings = self.settings.group_settings(group_id)
@@ -31,7 +25,7 @@ class RhythmGenerator:
         remainder = Fraction(*self.settings.time_signature)
         validation_message = self._validate(phrases, remainder)
         if validation_message:
-            raise InvalidPhraseSetError("invalid set of notes/phrases, {message}".format(message=validation_message))
+            raise InvalidPhraseSetError(f"invalid set of notes/phrases, {validation_message}")
 
         elements = []
         while remainder:
@@ -63,10 +57,10 @@ class RhythmGenerator:
 
         min_length = min(phrase.length for phrase in phrases)
         if min_length > gcd:
-            return "missing notes of length {length}".format(length=gcd)
+            return f"missing notes of length {gcd}"
 
         if min_length > remainder:
-            return "too long notes, required a note of length {length}".format(length=remainder)
+            return f"too long notes, required a note of length {remainder}"
 
         return ""
 
@@ -81,3 +75,18 @@ class RhythmGenerator:
     @property
     def cache(self) -> list[Phrase] | None:
         return self._cache
+
+    @property
+    def shortest_note_duration(self) -> Fraction:
+        all_phrases = [
+            phrase
+            for group_id in range(self.settings.groups)
+            for phrase in self.settings.group_settings(group_id).get_all_phrases()
+        ]
+
+        return min(phrase.length for phrase in all_phrases)
+
+    @property
+    def max_notes_per_measure(self) -> int:
+        measure_length = Fraction(*self.settings.time_signature)
+        return math.ceil(measure_length / self.shortest_note_duration)

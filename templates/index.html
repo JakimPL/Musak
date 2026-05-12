@@ -1,31 +1,36 @@
-<!doctype html>
+{% extends "base.html" %}
 
-<head>
-	<link rel="stylesheet" href="{{ request.url_for('static', path='css/style.css') }}">
-	<link rel="stylesheet" href="{{ request.url_for('static', path='css/inversions.css') }}">
+{% block title %}Musak{% endblock %}
+{% block description %}Simple music exercises.{% endblock %}
 
-	<meta charset="utf-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1">
-	<meta name="description" content="Simple music exercises.">
-	<meta name="author" content="Jakim">
-	<title>Musak</title>
-</head>
+{% block content %}
+<div class="text-center mb-12 mt-4">
+	<h1 class="text-2xl font-bold mb-2">Musak <span
+			class="text-gray-400 dark:text-gray-500 font-normal text-lg">v0.2</span></h1>
+	<p class="text-sm text-gray-500 dark:text-gray-400">Simple music exercises.</p>
+</div>
 
-<body>
-	<div class="main">
-		<p>
-		<h1>Musak v0.1</h1>
+<div class="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-2xl mx-auto">
+	<a href="/intervals/"
+		class="group flex flex-col gap-3 p-6 rounded-2xl border border-gray-200 dark:border-gray-700 hover:border-primary dark:hover:border-primary hover:shadow-lg transition-all">
+		<span class="text-3xl" aria-hidden="true">&#9833;</span>
+		<h2 class="font-bold group-hover:text-primary transition-colors">Intervals</h2>
+		<p class="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">Identify musical intervals by ear.</p>
+	</a>
 
-		<p style="text-align: center">Simple music exercises.</p>
-	</div>
+	<a href="/inversions/"
+		class="group flex flex-col gap-3 p-6 rounded-2xl border border-gray-200 dark:border-gray-700 hover:border-primary dark:hover:border-primary hover:shadow-lg transition-all">
+		<span class="text-3xl" aria-hidden="true">&#9835;</span>
+		<h2 class="font-bold group-hover:text-primary transition-colors">Chord Inversions</h2>
+		<p class="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">Recognize chord types and their inversions.
+		</p>
+	</a>
 
-	<div class="row">
-		<div class="flex">
-			<div>
-				<p><input type="button" onclick="location.href='/intervals/';" value="Intervals"></p>
-				<p><input type="button" onclick="location.href='/inversions/';" value="Chord inversions"></p>
-				<p><input type="button" onclick="location.href='/rhythm/';" value="Rhythm generator"></p>
-			</div>
-		</div>
-	</div>
-</body>
+	<a href="/rhythm/"
+		class="group flex flex-col gap-3 p-6 rounded-2xl border border-gray-200 dark:border-gray-700 hover:border-primary dark:hover:border-primary hover:shadow-lg transition-all">
+		<span class="text-3xl" aria-hidden="true">&#119070;</span>
+		<h2 class="font-bold group-hover:text-primary transition-colors">Rhythm</h2>
+		<p class="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">Generate and study rhythm patterns.</p>
+	</a>
+</div>
+{% endblock %}

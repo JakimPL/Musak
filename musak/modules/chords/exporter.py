@@ -1,93 +1,59 @@
-import abjad
-from abjad.parsers.parser import LilyPondParser
-from music21.base import Music21Object
-from music21.chord import Chord
-from music21.lily.translate import LilypondConverter
-from music21.note import Note, Rest
-from music21.stream.base import Stream
-from music21.tempo import MetronomeMark
+import pathlib
 
-from musak.modules.chords.constants import (
-    DEFAULT_SEQUENTIAL,
-    DEFAULT_TEMPO,
-    HALF_DURATION,
-    QUARTER_DURATION,
-    QUARTER_NOTE,
-    WHOLE_DURATION,
-)
+import mido
+
+from musak.config.defaults import SEQUENTIAL, TEMPO
+from musak.modules.elements.constants import MIDI_TICKS_PER_BEAT, MIDI_VELOCITY
 
 
-def add_rest(
-    stream: Stream[Music21Object],
+def _tempo_to_us(tempo: int) -> int:
+    return 60_000_000 // tempo
+
+
+def _duration_ticks(beats: float) -> int:
+    return round(beats * MIDI_TICKS_PER_BEAT)
+
+
+def to_midi(
+    midi_notes: list[int],
     *,
-    duration: str = HALF_DURATION,
-) -> None:
-    rest = Rest()
-    rest.duration.type = duration
-    stream.append(rest)  # type: ignore[no-untyped-call]
+    tempo: int = TEMPO,
+    sequential: bool = SEQUENTIAL,
+) -> mido.MidiFile:
+    mid = mido.MidiFile(ticks_per_beat=MIDI_TICKS_PER_BEAT)
+    track = mido.MidiTrack()
+    mid.tracks.append(track)
 
+    track.append(mido.MetaMessage("set_tempo", tempo=_tempo_to_us(tempo), time=0))
 
-def create_sequence(
-    iterable: list[int],
-    stream: Stream[Music21Object],
-    *,
-    note_duration: str = QUARTER_DURATION,
-) -> None:
-    for midi_note in iterable:
-        note = Note(midi_note)
-        note.duration.type = note_duration
-        stream.append(note)  # type: ignore[no-untyped-call]
-
-
-def create_chord(
-    iterable: list[int],
-    stream: Stream[Music21Object],
-    *,
-    duration: str = WHOLE_DURATION,
-) -> None:
-    chord = Chord(iterable)
-    chord.duration.type = duration
-    stream.append(chord)  # type: ignore[no-untyped-call]
-
-
-def create_stream(
-    iterable: list[int],
-    *,
-    tempo: int = DEFAULT_TEMPO,
-    sequential: bool = DEFAULT_SEQUENTIAL,
-) -> Stream[Music21Object]:
-    stream = Stream[Music21Object]()
-    mark = MetronomeMark(number=tempo)
-    stream.append(mark)  # type: ignore[no-untyped-call]
     if sequential:
-        create_sequence(iterable, stream)
-        add_rest(stream)
+        note_ticks = _duration_ticks(1)
+        rest_ticks = _duration_ticks(2)
+        for pitch in midi_notes:
+            track.append(mido.Message("note_on", note=pitch, velocity=MIDI_VELOCITY, time=0))
+            track.append(mido.Message("note_off", note=pitch, velocity=0, time=note_ticks))
+        track.append(mido.Message("note_on", note=0, velocity=0, time=0))
+        track.append(mido.Message("note_off", note=0, velocity=0, time=rest_ticks))
     else:
-        create_chord(iterable, stream)
-        add_rest(stream, duration=WHOLE_DURATION)
+        note_ticks = _duration_ticks(4)
+        rest_ticks = _duration_ticks(4)
+        for pitch in midi_notes:
+            track.append(mido.Message("note_on", note=pitch, velocity=MIDI_VELOCITY, time=0))
+        for i, pitch in enumerate(midi_notes):
+            track.append(mido.Message("note_off", note=pitch, velocity=0, time=note_ticks if i == 0 else 0))
+        track.append(mido.Message("note_on", note=0, velocity=0, time=0))
+        track.append(mido.Message("note_off", note=0, velocity=0, time=rest_ticks))
 
-    return stream
+    return mid
 
 
-def to_abjad(
-    iterable: list[int],
+def save_midi(
+    midi_notes: list[int],
+    path: pathlib.Path,
     *,
-    tempo: int = DEFAULT_TEMPO,
-    sequential: bool = DEFAULT_SEQUENTIAL,
-) -> abjad.Score:
-    stream = create_stream(
-        iterable,
-        tempo=tempo,
-        sequential=sequential,
-    )
-
-    ly_converter = LilypondConverter()  # type: ignore[no-untyped-call]
-    ly_stream = ly_converter.lySequentialMusicFromStream(stream)  # type: ignore[no-untyped-call]
-
-    parser = LilyPondParser("nederlands")  # type: ignore[no-untyped-call]
-    staff = parser(str(ly_stream))
-
-    abjad_tempo = abjad.MetronomeMark(abjad.Duration(*QUARTER_NOTE), tempo)
-    abjad.attach(abjad_tempo, staff[0])
-    score = abjad.Score([staff])
-    return score
+    tempo: int = TEMPO,
+    sequential: bool = SEQUENTIAL,
+) -> pathlib.Path:
+    mid = to_midi(midi_notes, tempo=tempo, sequential=sequential)
+    mid.save(str(path))
+    return path

@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <!-- Prevent FOUC: apply saved or system theme before any paint -->
+    <script>
+        (function () {
+            var t = localStorage.getItem('theme');
+            if (t === 'dark' || (!t && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                document.documentElement.classList.add('dark');
+            }
+        })();
+    </script>
+
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="{% block description %}Simple music exercises.{% endblock %}">
+    <meta name="author" content="Jakim">
+    <title>{% block title %}Musak{% endblock %}</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Mono:wght@400;700&display=swap" rel="stylesheet">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        mono: ['"Noto Sans Mono"', 'ui-monospace', 'SFMono-Regular', 'monospace'],
+                    },
+                    colors: {
+                        primary: '#248a6d',
+                    },
+                },
+            },
+        };
+    </script>
+
+    <link rel="stylesheet" href="{{ request.url_for('static', path='css/app.css') }}">
+
+    <style type="text/tailwindcss">
+        @layer components {
+            /* Buttons */
+            .btn-primary {
+                @apply w-full py-3 px-4 rounded-xl bg-primary text-white font-bold text-sm
+                       hover:opacity-90 active:opacity-75 transition-opacity
+                       disabled:opacity-50 disabled:cursor-not-allowed;
+            }
+            .btn-secondary {
+                @apply py-2 px-6 rounded-xl border-2 border-gray-300 dark:border-gray-600
+                       text-sm font-bold hover:border-primary hover:text-primary transition-colors;
+            }
+            .btn-answer {
+                @apply py-2 px-4 rounded-xl border-2 border-gray-200 dark:border-gray-700
+                       bg-white dark:bg-gray-800 text-sm font-semibold cursor-pointer
+                       hover:border-primary hover:text-primary transition-colors;
+            }
+
+            /* Layout / containers */
+            .settings-card {
+                @apply rounded-2xl border border-gray-200 dark:border-gray-700 p-4;
+            }
+            .info-box {
+                @apply rounded-2xl border-2 border-primary p-4 text-center space-y-1 text-sm;
+            }
+            .error-banner {
+                @apply hidden rounded-xl border border-red-200 dark:border-red-800
+                       bg-red-50 dark:bg-red-900/20 px-4 py-3 text-sm
+                       text-red-700 dark:text-red-400;
+            }
+            .score-wrapper {
+                @apply rounded-2xl overflow-hidden;
+            }
+            .score-wrapper svg {
+                @apply dark:invert;
+            }
+
+            /* Score images: LilyPond output is black-on-transparent after processing;
+               invert in dark mode to get white-on-dark. */
+            .score-image {
+                @apply block w-full dark:invert;
+            }
+
+            /* Form elements rendered by form.js */
+            .options-summary {
+                @apply cursor-pointer select-none text-xs font-bold uppercase tracking-wide
+                       text-gray-400 dark:text-gray-500 hover:text-primary dark:hover:text-primary
+                       transition-colors py-1;
+            }
+            .form-label {
+                @apply block text-sm text-gray-700 dark:text-gray-300 mb-1;
+            }
+            .form-input {
+                @apply w-full rounded-lg border border-gray-300 dark:border-gray-600
+                       bg-white dark:bg-gray-800 px-2 py-1 text-sm
+                       focus:outline-none focus:ring-2 focus:ring-primary;
+            }
+            .form-slider {
+                @apply w-full accent-primary cursor-pointer;
+            }
+        }
+    </style>
+
+    {% block head %}{% endblock %}
+</head>
+
+<body class="font-mono bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 min-h-screen">
+
+    <nav
+        class="sticky top-0 z-50 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700">
+        <div class="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between gap-4">
+            <a href="/" class="text-primary font-bold text-lg shrink-0 hover:opacity-75 transition-opacity">Musak</a>
+            <div class="flex items-center gap-1 sm:gap-2">
+                <a href="/intervals/"
+                    class="px-2 sm:px-3 py-1 rounded-lg text-sm transition-colors {% if active_page == 'intervals' %}text-primary font-bold{% else %}text-gray-500 dark:text-gray-400 hover:text-primary dark:hover:text-primary{% endif %}">
+                    Intervals
+                </a>
+                <a href="/inversions/"
+                    class="px-2 sm:px-3 py-1 rounded-lg text-sm transition-colors {% if active_page == 'inversions' %}text-primary font-bold{% else %}text-gray-500 dark:text-gray-400 hover:text-primary dark:hover:text-primary{% endif %}">
+                    Inversions
+                </a>
+                <a href="/rhythm/"
+                    class="px-2 sm:px-3 py-1 rounded-lg text-sm transition-colors {% if active_page == 'rhythm' %}text-primary font-bold{% else %}text-gray-500 dark:text-gray-400 hover:text-primary dark:hover:text-primary{% endif %}">
+                    Rhythm
+                </a>
+                <button id="theme-toggle" aria-label="Toggle dark/light mode"
+                    class="ml-1 p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                    <!-- Sun icon — shown in dark mode to switch to light -->
+                    <svg id="icon-sun" class="hidden dark:block w-5 h-5" fill="none" stroke="currentColor"
+                        stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                        <circle cx="12" cy="12" r="4" />
+                        <path stroke-linecap="round"
+                            d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
+                    </svg>
+                    <!-- Moon icon — shown in light mode to switch to dark -->
+                    <svg id="icon-moon" class="block dark:hidden w-5 h-5" fill="none" stroke="currentColor"
+                        stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                            d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-5xl mx-auto px-4 py-8">
+        {% block content %}{% endblock %}
+    </main>
+
+    <script type="module" src="{{ request.url_for('static', path='js/theme.js') }}"></script>
+    {% block scripts %}{% endblock %}
+</body>
+
+</html>

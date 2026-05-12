@@ -1,5 +1,3 @@
-import json
-import pathlib
 from typing import Any, Mapping
 
 from musak.config.defaults import (
@@ -20,12 +18,16 @@ from musak.core.inversions.schema import (
     InversionRequest,
     InversionResponse,
 )
+from musak.core.notation.chord_serializer import inversion_to_score_data
 from musak.core.schemas.common import FieldGroupSchema, FieldSchema
-from musak.modules.chords.exporter import to_abjad
-from musak.modules.chords.generator import generate_all_inversions, get_random_chord_inversion
+from musak.modules.chords.exporter import to_midi
+from musak.modules.chords.generator import (
+    generate_all_inversions,
+    get_random_chord_inversion,
+)
 from musak.paths import INVERSIONS_CONFIG
-from musak.shared.directory import create_directory
-from musak.shared.exporter import Exporter
+from musak.shared.dict import namedtuple_with_base_note
+from musak.shared.exporter import midi_to_audio
 from musak.shared.files import load_yaml
 
 CHORD_NAMES = {
@@ -78,7 +80,7 @@ class InversionService:
             fields=[
                 FieldSchema(
                     name="tempo",
-                    type="integer",
+                    type="slider",
                     label="Tempo",
                     default=defaults.get("tempo", TEMPO),
                     min=MIN_TEMPO,
@@ -92,19 +94,21 @@ class InversionService:
             fields=[
                 FieldSchema(
                     name="lowest_note",
-                    type="integer",
+                    type="slider",
                     label="Lowest note",
                     default=defaults.get("lowest_note", LOWEST_NOTE),
                     min=MIN_LOWEST_NOTE,
                     max=MAX_LOWEST_NOTE,
+                    format="note",
                 ),
                 FieldSchema(
                     name="highest_note",
-                    type="integer",
+                    type="slider",
                     label="Highest note",
                     default=defaults.get("highest_note", HIGHEST_NOTE),
                     min=MIN_HIGHEST_NOTE,
                     max=MAX_HIGHEST_NOTE,
+                    format="note",
                 ),
             ],
         )
@@ -129,11 +133,8 @@ class InversionService:
         return request.chords if request.chords else self._definitions
 
     @staticmethod
-    def _write_chord_info(chord_inversion: Any, directory: pathlib.Path) -> None:
-        data = chord_inversion._asdict()
-        data["base_note"] = chord_inversion.get_base_note_name()
-        with open(directory / "chord.json", "w", encoding="utf-8") as f:
-            json.dump(data, f)
+    def _build_chord_info(chord_inversion: Any) -> dict[str, Any]:
+        return namedtuple_with_base_note(chord_inversion)
 
     def generate(self, request: InversionRequest) -> InversionResponse:
         chords = self._resolve_chords(request)
@@ -144,23 +145,21 @@ class InversionService:
             lowest_note=request.lowest_note,
             highest_note=request.highest_note,
         )
-        score = to_abjad(
+        score_data = inversion_to_score_data(chord_inversion, sequential=request.sequential, tempo=request.tempo)
+
+        midi_file = to_midi(
             chord_inversion.chord,
             tempo=request.tempo,
             sequential=request.sequential,
         )
-
-        uuid64, directory = create_directory()
-        self._write_chord_info(chord_inversion, directory)
-        Exporter("chord").export(score, directory)
+        audio_data = midi_to_audio(midi_file)
 
         inversions_numbers = {chord_type: len(inv_list) for chord_type, inv_list in inversions.items()}
 
         return InversionResponse(
-            directory=uuid64,
-            audio_source="chord.mp3",
-            image_source="chord.png",
-            chord_info="chord.json",
+            audio_data=audio_data,
+            score_data=score_data,
+            chord_info=self._build_chord_info(chord_inversion),
             chord_types=list(chords.keys()),
             inversions_numbers=inversions_numbers,
         )

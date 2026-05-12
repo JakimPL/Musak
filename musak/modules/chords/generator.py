@@ -2,9 +2,10 @@ import random
 from collections import OrderedDict
 from collections.abc import Sequence
 
-from musak.modules.chords.constants import CHORDS, HIGHEST_NOTE, LOWEST_NOTE
-from musak.modules.chords.interval import Interval
-from musak.modules.chords.inversion import ChordInversion
+from musak.config.defaults import HIGHEST_NOTE, LOWEST_NOTE
+from musak.modules.elements.constants import CHORDS
+from musak.modules.elements.interval import Interval
+from musak.modules.elements.inversion import ChordInversion
 
 
 def generate_chord_inversions(chord: Sequence[int]) -> list[tuple[int, ...]]:

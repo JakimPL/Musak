@@ -1,7 +1,7 @@
 import { Score } from '../score.js';
 import { ChordInfo } from '../chord_info.js';
-import { getPath } from '../path.js';
-import { playSound, playAgain } from '../play.js';
+import { renderScore } from '../shared/notation.js';
+import { playSound, playAgain, stopSound } from '../play.js';
 import { postForm, loadJSON } from '../shared/api.js';
 import { renderForm } from './form.js';
 
@@ -16,14 +16,33 @@ function updateScore(point) {
     document.getElementById('total').textContent = score.total;
 }
 
+const ANSWER_BTN_CLASS = 'btn-answer';
+
 function lockSubmitButton() {
     submitLock = true;
-    document.getElementById('submit').style.opacity = '0.6';
+    const btn = document.getElementById('submit');
+    btn.disabled = true;
+    btn.textContent = 'Generating…';
 }
 
 function unlockSubmitButton() {
     submitLock = false;
-    document.getElementById('submit').style.opacity = '1.0';
+    const btn = document.getElementById('submit');
+    btn.disabled = false;
+    btn.textContent = 'Generate inversion';
+}
+
+function showError(message) {
+    const banner = document.getElementById('error_banner');
+    if (banner) {
+        banner.textContent = message;
+        banner.classList.remove('hidden');
+    }
+}
+
+function clearError() {
+    const banner = document.getElementById('error_banner');
+    if (banner) banner.classList.add('hidden');
 }
 
 function hideChordInfo() {
@@ -34,10 +53,9 @@ function hideChordInfo() {
 }
 
 function showChordInfo() {
-    document.getElementById('score_info').style.display = '';
-    document.getElementById('chord_info').style.display = '';
+    document.getElementById('score_info').style.visibility = 'visible';
     document.getElementById('chord_info').style.visibility = 'visible';
-    document.getElementById('inversion_image').style.visibility = 'visible';
+    document.getElementById('score_container').style.visibility = 'visible';
 }
 
 function setChordInfo(data) {
@@ -72,13 +90,15 @@ function addChordTypeButtons(chordTypes) {
     for (const type of chordTypes) {
         const button = document.createElement('input');
         button.type = 'button';
-        button.className = 'input';
+        button.className = ANSWER_BTN_CLASS;
         button.value = chordData.names[type];
 
         button.addEventListener('click', function () {
             if (this.value === chordData.type_name) {
                 chordInfo.style.borderColor = '#248a6d';
-                this.style.background = 'green';
+                this.style.backgroundColor = '#16a34a';
+                this.style.borderColor = '#16a34a';
+                this.style.color = 'white';
                 const numberOfButtons = chordData.inversions_numbers[type];
                 if (numberOfButtons <= 1) {
                     showChordInfo();
@@ -87,10 +107,12 @@ function addChordTypeButtons(chordTypes) {
                     setTimeout(() => addInversionButtons(numberOfButtons), 500);
                 }
             } else {
-                chordInfo.style.borderColor = 'red';
-                this.style.background = 'red';
+                chordInfo.style.borderColor = '#dc2626';
+                this.style.backgroundColor = '#dc2626';
+                this.style.borderColor = '#dc2626';
+                this.style.color = 'white';
                 updateScore(0);
-                document.getElementById('score_info').style.display = '';
+                document.getElementById('score_info').style.visibility = 'visible';
             }
         });
 
@@ -106,18 +128,22 @@ function addInversionButtons(numberOfButtons) {
     for (let index = 0; index < numberOfButtons; index++) {
         const button = document.createElement('input');
         button.type = 'button';
-        button.className = 'input';
+        button.className = ANSWER_BTN_CLASS;
         button.value = inversionText(index);
 
         button.addEventListener('click', function () {
             showChordInfo();
             if (this.value === chordData.inversion) {
                 chordInfo.style.borderColor = '#248a6d';
-                this.style.background = 'green';
+                this.style.backgroundColor = '#16a34a';
+                this.style.borderColor = '#16a34a';
+                this.style.color = 'white';
                 updateScore(1);
             } else {
-                chordInfo.style.borderColor = 'red';
-                this.style.background = 'red';
+                chordInfo.style.borderColor = '#dc2626';
+                this.style.backgroundColor = '#dc2626';
+                this.style.borderColor = '#dc2626';
+                this.style.color = 'white';
                 updateScore(0);
             }
         });
@@ -130,6 +156,8 @@ async function onSubmit(event) {
     event.preventDefault();
 
     if (!submitLock) {
+        clearError();
+        stopSound();
         lockSubmitButton();
         const form = document.getElementById('settings_form');
         const apiUrl = form.dataset.apiUrl;
@@ -138,22 +166,24 @@ async function onSubmit(event) {
             const response = await postForm(apiUrl, form);
             unlockSubmitButton();
 
-            if ('directory' in response) {
-                audioPath = getPath(response.directory, response.audio_source);
+            if (response.audio_data) {
+                audioPath = response.audio_data;
                 playSound(audioPath);
 
-                const jsonPath = getPath(response.directory, response.chord_info);
-                const infoData = await loadJSON(jsonPath);
-                setChordInfo(infoData);
+                setChordInfo(response.chord_info);
 
-                const imagePath = getPath(response.directory, response.image_source);
-                const img = document.getElementById('inversion_image');
-                img.style.visibility = 'hidden';
-                img.setAttribute('src', imagePath);
+                renderScore(response.score_data, document.getElementById('score_container'));
+                document.getElementById('score_container').style.visibility = 'hidden';
+
+                const scoreEl = document.getElementById('score_info');
+                scoreEl.style.display = '';
+                scoreEl.style.visibility = 'hidden';
+                const infoEl = document.getElementById('chord_info');
+                infoEl.style.display = '';
+                infoEl.style.visibility = 'hidden';
 
                 document.getElementById('play_again').style.display = '';
                 document.getElementById('play_again').style.visibility = 'visible';
-                document.getElementById('chord_info').style.visibility = 'hidden';
 
                 score.unlock();
             }
@@ -167,7 +197,7 @@ async function onSubmit(event) {
             }
         } catch (err) {
             unlockSubmitButton();
-            alert(window.DEBUG ? `An error occurred: ${err.message}` : 'An error occurred');
+            showError(window.DEBUG ? `An error occurred: ${err.message}` : 'An error occurred. Please try again.');
         }
     }
 }

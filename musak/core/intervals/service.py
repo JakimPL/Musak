@@ -1,5 +1,3 @@
-import json
-import pathlib
 from typing import Any
 
 from musak.config.defaults import (
@@ -20,13 +18,14 @@ from musak.core.intervals.schema import (
     IntervalRequest,
     IntervalResponse,
 )
+from musak.core.notation.chord_serializer import interval_to_score_data
 from musak.core.schemas.common import FieldGroupSchema, FieldSchema
-from musak.modules.chords.exporter import to_abjad
+from musak.modules.chords.exporter import to_midi
 from musak.modules.chords.generator import get_random_interval
-from musak.modules.chords.interval import Interval
+from musak.modules.elements.interval import Interval
 from musak.paths import INTERVALS_CONFIG
-from musak.shared.directory import create_directory
-from musak.shared.exporter import Exporter
+from musak.shared.dict import namedtuple_with_base_note
+from musak.shared.exporter import midi_to_audio
 from musak.shared.files import load_yaml
 
 
@@ -67,7 +66,7 @@ class IntervalService:
             fields=[
                 FieldSchema(
                     name="tempo",
-                    type="integer",
+                    type="slider",
                     label="Tempo",
                     default=defaults.get("tempo", TEMPO),
                     min=MIN_TEMPO,
@@ -81,19 +80,21 @@ class IntervalService:
             fields=[
                 FieldSchema(
                     name="lowest_note",
-                    type="integer",
+                    type="slider",
                     label="Lowest note",
                     default=defaults.get("lowest_note", LOWEST_NOTE),
                     min=MIN_LOWEST_NOTE,
                     max=MAX_LOWEST_NOTE,
+                    format="note",
                 ),
                 FieldSchema(
                     name="highest_note",
-                    type="integer",
+                    type="slider",
                     label="Highest note",
                     default=defaults.get("highest_note", HIGHEST_NOTE),
                     min=MIN_HIGHEST_NOTE,
                     max=MAX_HIGHEST_NOTE,
+                    format="note",
                 ),
             ],
         )
@@ -118,12 +119,10 @@ class IntervalService:
         return request.intervals if request.intervals else self._definitions
 
     @staticmethod
-    def _write_interval_info(interval: Interval, directory: pathlib.Path) -> None:
-        data = interval._asdict()
-        data["base_note"] = interval.get_base_note_name()
+    def _build_interval_info(interval: Interval) -> dict[str, Any]:
+        data = namedtuple_with_base_note(interval)
         data["name"] = interval.name
-        with open(directory / "interval.json", "w", encoding="utf-8") as f:
-            json.dump(data, f)
+        return data
 
     def generate(self, request: IntervalRequest) -> IntervalResponse:
         intervals = self._resolve_intervals(request)
@@ -134,20 +133,18 @@ class IntervalService:
             highest_note=request.highest_note,
         )
 
-        score = to_abjad(
+        score_data = interval_to_score_data(interval, sequential=request.sequential, tempo=request.tempo)
+
+        midi_file = to_midi(
             interval.chord,
             tempo=request.tempo,
             sequential=request.sequential,
         )
-
-        uuid64, directory = create_directory()
-        self._write_interval_info(interval, directory)
-        Exporter("interval").export(score, directory)
+        audio_data = midi_to_audio(midi_file)
 
         return IntervalResponse(
-            directory=uuid64,
-            audio_source="interval.mp3",
-            image_source="interval.png",
-            interval_info="interval.json",
+            audio_data=audio_data,
+            score_data=score_data,
+            interval_info=self._build_interval_info(interval),
             intervals=intervals,
         )

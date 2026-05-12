@@ -7,13 +7,9 @@ requires-python = ">=3.13"
 authors = [{ name = "Jakim" }]
 
 dependencies = [
-    "abjad",
     "fastapi[standard]",
-    "music21",
+    "mido>=1.3.3",
     "pydantic",
-    "audioop-lts",
-    "pydub",
-    "pyfluidsynth",
     "PyYAML",
     "uvicorn[standard]",
 ]
@@ -55,6 +51,7 @@ show_missing = true
 [tool.mypy]
 python_version = "3.13"
 files = ["musak"]
+exclude = ["tests"]
 explicit_package_bases = true
 ignore_missing_imports = true
 strict = true

@@ -1,19 +1,36 @@
-import { getPath } from '../path.js';
-import { playAgain } from '../play.js';
+import { playAgain, stopSound } from '../play.js';
 import { postForm, loadJSON } from '../shared/api.js';
 import { renderForm } from './form.js';
+import { renderScore } from '../shared/notation.js';
 
 let submitLock = false;
 let audioPath;
 
 function lockSubmitButton() {
     submitLock = true;
-    document.getElementById('submit').style.opacity = '0.6';
+    const btn = document.getElementById('submit');
+    btn.disabled = true;
+    btn.textContent = 'Generating…';
 }
 
 function unlockSubmitButton() {
     submitLock = false;
-    document.getElementById('submit').style.opacity = '1.0';
+    const btn = document.getElementById('submit');
+    btn.disabled = false;
+    btn.textContent = 'Generate rhythm';
+}
+
+function showError(message) {
+    const banner = document.getElementById('error_banner');
+    if (banner) {
+        banner.textContent = message;
+        banner.classList.remove('hidden');
+    }
+}
+
+function clearError() {
+    const banner = document.getElementById('error_banner');
+    if (banner) banner.classList.add('hidden');
 }
 
 function hideScore() {
@@ -21,15 +38,16 @@ function hideScore() {
     play.style.display = 'none';
     play.style.visibility = 'hidden';
 
-    const img = document.getElementById('rhythm_image');
-    img.style.display = 'none';
-    img.style.visibility = 'hidden';
+    const container = document.getElementById('score_container');
+    container.innerHTML = '';
 }
 
 async function onSubmit(event) {
     event.preventDefault();
 
     if (!submitLock) {
+        clearError();
+        stopSound();
         lockSubmitButton();
         const form = document.getElementById('settings_form');
         const apiUrl = form.dataset.apiUrl;
@@ -38,32 +56,26 @@ async function onSubmit(event) {
             const response = await postForm(apiUrl, form);
             unlockSubmitButton();
 
-            if ('image_source' in response) {
-                audioPath = getPath(response.directory, response.audio_source);
+            if ('score_data' in response && response.score_data) {
+                audioPath = response.audio_data;
 
-                const img = document.getElementById('rhythm_image');
-                img.setAttribute('src', response.image_source);
-                img.setAttribute('alt', response.score || '');
+                const container = document.getElementById('score_container');
+                renderScore(response.score_data, container);
 
                 const play = document.getElementById('play');
                 play.style.display = '';
                 play.style.visibility = 'visible';
-
-                img.style.display = '';
-                img.style.visibility = 'visible';
             }
 
-            document.getElementById('error').textContent =
-                response.exception ? 'An error during generating the image:' : '';
-            document.getElementById('error_message').textContent =
-                response.exception || '';
-            document.getElementById('time_signature_error').textContent =
-                response.time_signature_error ? 'the denominator has to be a power of two!' : '';
+            if (response.exception) {
+                showError(`An error during generating the rhythm: ${response.exception}`);
+            } else if (response.time_signature_error) {
+                showError('The denominator must be a power of two.');
+            }
 
         } catch (err) {
             unlockSubmitButton();
-            document.getElementById('error').textContent = 'An error during generating the image:';
-            document.getElementById('error_message').textContent = window.DEBUG ? (err.message || '') : '';
+            showError(window.DEBUG ? `An error occurred: ${err.message}` : 'An error occurred. Please try again.');
         }
     }
 }

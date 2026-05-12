@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PORT="${1:-8000}"
+if [ -z ${PORT+x} ]; then
+    PORT="${1:-8000}"
+fi
 
 uv run uvicorn musak.api.main:app --port "$PORT"

@@ -1,9 +1,5 @@
 from typing import Final
 
-LOWEST_NOTE: Final[int] = 40
-HIGHEST_NOTE: Final[int] = 90
-DEFAULT_TEMPO: Final[int] = 120
-DEFAULT_SEQUENTIAL: Final[bool] = False
 KEYS: Final[dict[int, str]] = {
     0: "C",
     1: "C#",
@@ -60,7 +56,9 @@ INTERVAL_NAMES: Final[dict[int, str]] = {
     24: "double_octave",
 }
 
-QUARTER_NOTE: Final[tuple[int, int]] = (1, 4)
-QUARTER_DURATION: Final[str] = "quarter"
-HALF_DURATION: Final[str] = "half"
-WHOLE_DURATION: Final[str] = "whole"
+MIDI_TICKS_PER_BEAT: Final[int] = 480
+MIDI_VELOCITY: Final[int] = 80
+MIDI_PERCUSSION_CHANNEL: Final[int] = 9
+MIDI_PERCUSSION_NOTE: Final[int] = 42
+MIDI_MELODIC_CHANNEL: Final[int] = 0
+MIDI_MELODIC_NOTE: Final[int] = 60

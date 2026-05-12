@@ -5,8 +5,8 @@ from functools import cached_property
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from musak.modules.rhythm.exceptions import NoteNotSupportedError
-from musak.modules.rhythm.misc import is_power_of_two
+from musak.modules.elements.exceptions import NoteNotSupportedError
+from musak.modules.elements.misc import is_power_of_two
 
 
 class Note(BaseModel):
@@ -27,6 +27,7 @@ class Note(BaseModel):
         if isinstance(data, int):
             if data == 0:
                 raise ValueError("duration value cannot be zero")
+
             return {"duration": Fraction(1, abs(data)), "pause": data < 0}
 
         if isinstance(data, Fraction):
@@ -43,10 +44,12 @@ class Note(BaseModel):
         if isinstance(raw_duration, int):
             if raw_duration == 0:
                 raise ValueError("duration value cannot be zero")
+
             return {
                 "duration": Fraction(1, abs(raw_duration)),
                 "pause": data.get("pause", raw_duration < 0),
             }
+
         if isinstance(raw_duration, tuple):
             numerator, denominator = raw_duration
             return {
@@ -78,11 +81,7 @@ class Note(BaseModel):
 
     def __repr__(self) -> str:
         _, denominator, dots = self.dots
-        return "{type}{length}{dotted}".format(
-            type="r" if self.pause else "c",
-            length=denominator,
-            dotted="." * dots,
-        )
+        return f"{'r' if self.pause else 'c'}{denominator}{'.' * dots}"
 
     def __str__(self) -> str:
         return self.__repr__()

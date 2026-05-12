@@ -6,19 +6,21 @@ from musak.config.defaults import (
     MAX_GROUPS,
     MAX_MEASURES,
     MAX_TEMPO,
-    MAX_TIME_SIGNATURE_DENOMINATOR,
     MAX_TIME_SIGNATURE_NUMERATOR,
     MEASURES,
+    MELODIC,
     MIN_GROUPS,
     MIN_MEASURES,
     MIN_TEMPO,
-    MIN_TIME_SIGNATURE_DENOMINATOR,
     MIN_TIME_SIGNATURE_NUMERATOR,
     TEMPO,
+    TIME_SIGNATURE,
     TIME_SIGNATURE_DENOMINATOR,
+    TIME_SIGNATURE_DENOMINATOR_OPTIONS,
     TIME_SIGNATURE_NUMERATOR,
 )
 from musak.config.models import RhythmConfig
+from musak.core.notation.rhythm_serializer import phrases_to_score_data
 from musak.core.rhythm.schema import (
     NoteValue,
     RhythmConfigResponse,
@@ -26,16 +28,15 @@ from musak.core.rhythm.schema import (
     RhythmResponse,
 )
 from musak.core.schemas.common import FieldGroupSchema, FieldSchema
+from musak.modules.elements.misc import is_power_of_two
+from musak.modules.elements.note import Note
+from musak.modules.elements.phrase import Phrase
+from musak.modules.rhythm.conversion import phrases_to_midi
 from musak.modules.rhythm.exceptions import RhygenException
 from musak.modules.rhythm.generator import RhythmGenerator
-from musak.modules.rhythm.misc import is_power_of_two
-from musak.modules.rhythm.note import Note
-from musak.modules.rhythm.phrase import Phrase
 from musak.modules.rhythm.settings import GroupSettings, Settings
-from musak.modules.rhythm.time_signature import DEFAULT_TIME_SIGNATURE
 from musak.paths import RHYTHM_CONFIG
-from musak.shared.directory import create_directory
-from musak.shared.exporter import Exporter
+from musak.shared.exporter import midi_to_audio
 from musak.shared.files import load_yaml
 
 note_map: dict[str, NoteValue] = {
@@ -73,6 +74,9 @@ phrase_map: dict[str, list[NoteValue]] = {
 }
 
 settings_map: dict[str, NoteValue | list[NoteValue]] = {**note_map, **phrase_map}
+
+NOTE_KEYS: tuple[str, ...] = tuple(note_map)
+PHRASE_KEYS: tuple[str, ...] = tuple(phrase_map)
 
 _NOTE_LABELS = {
     "whole_note": "\U0001d15d",
@@ -198,8 +202,14 @@ class RhythmService:
             label="Tempo",
             fields=[
                 FieldSchema(
+                    name="melodic",
+                    type="boolean",
+                    label="Melodic (piano)",
+                    default=MELODIC,
+                ),
+                FieldSchema(
                     name="tempo",
-                    type="integer",
+                    type="slider",
                     label="Tempo",
                     default=defaults.get("tempo", TEMPO),
                     min=MIN_TEMPO,
@@ -213,7 +223,7 @@ class RhythmService:
             fields=[
                 FieldSchema(
                     name="groups",
-                    type="integer",
+                    type="slider",
                     label="Groups",
                     default=defaults.get("groups", GROUPS),
                     min=MIN_GROUPS,
@@ -221,7 +231,7 @@ class RhythmService:
                 ),
                 FieldSchema(
                     name="measures",
-                    type="integer",
+                    type="slider",
                     label="Measures",
                     default=defaults.get("measures", MEASURES),
                     min=MIN_MEASURES,
@@ -235,7 +245,7 @@ class RhythmService:
             fields=[
                 FieldSchema(
                     name="time_signature_numerator",
-                    type="integer",
+                    type="slider",
                     label="Numerator",
                     default=defaults.get("time_signature_numerator", TIME_SIGNATURE_NUMERATOR),
                     min=MIN_TIME_SIGNATURE_NUMERATOR,
@@ -243,11 +253,10 @@ class RhythmService:
                 ),
                 FieldSchema(
                     name="time_signature_denominator",
-                    type="integer",
+                    type="slider",
                     label="Denominator",
                     default=defaults.get("time_signature_denominator", TIME_SIGNATURE_DENOMINATOR),
-                    min=MIN_TIME_SIGNATURE_DENOMINATOR,
-                    max=MAX_TIME_SIGNATURE_DENOMINATOR,
+                    options=list(TIME_SIGNATURE_DENOMINATOR_OPTIONS),
                 ),
             ],
         )
@@ -321,7 +330,19 @@ class RhythmService:
         custom_phrases_group = FieldGroupSchema(
             label="Custom phrases",
             fields=[
-                FieldSchema(name="custom_phrases", type="text", label="", default=""),
+                FieldSchema(
+                    name="custom_phrases",
+                    type="text",
+                    label="",
+                    default="",
+                    placeholder="[4,8,8][-4,4]",
+                    tooltip=(
+                        "Each [...] is one phrase.\n"
+                        "Numbers are note denominators: 1=whole, 2=half, 4=quarter, etc.\n"
+                        "Negative values are rests (e.g. -4 = quarter rest).\n"
+                        "Dotted notes use (numerator:denominator) syntax, e.g. (3:8) = dotted quarter."
+                    ),
+                ),
             ],
         )
 
@@ -341,11 +362,15 @@ class RhythmService:
 
     def _build_settings(self, request: RhythmRequest) -> tuple[Settings, bool]:
         config = _load_config()
-        default_group_settings = GroupSettings.model_validate(config.default_group.model_dump())
+        notes, phrases = self._collect_notes_phrases(request)
+        if notes or phrases:
+            default_group_settings = GroupSettings.model_validate({"notes": notes, "phrases": phrases})
+        else:
+            default_group_settings = GroupSettings.model_validate(config.default_group.model_dump())
         time_signature = request.time_signature
         time_signature_error = not is_power_of_two(time_signature[1])
         if time_signature_error:
-            time_signature = DEFAULT_TIME_SIGNATURE
+            time_signature = TIME_SIGNATURE
 
         return (
             Settings(
@@ -365,28 +390,38 @@ class RhythmService:
         return notes, phrases
 
     def generate(self, request: RhythmRequest) -> RhythmResponse:
-        settings, time_signature_error = self._build_settings(request)
-        notes, phrases = self._collect_notes_phrases(request)
-
-        if notes or phrases:
-            settings.default_group_settings = GroupSettings.model_validate({"notes": notes, "phrases": phrases})
+        try:
+            settings, time_signature_error = self._build_settings(request)
+        except ValueError as exception:
+            return RhythmResponse(exception=str(exception))
 
         try:
-            score = RhythmGenerator(settings)()
+            generator = RhythmGenerator(settings)
+            phrase_list = generator()
         except RhygenException as exception:
             return RhythmResponse(
                 exception=str(exception),
                 time_signature_error=time_signature_error,
             )
 
-        uuid64, directory = create_directory()
-        image_path, _, audio_path = Exporter("rhythm").export(score, directory)
+        score_data = phrases_to_score_data(
+            phrase_list,
+            time_signature=settings.time_signature,
+            tempo=settings.tempo,
+            max_notes_per_measure=generator.max_notes_per_measure,
+        )
+
+        midi_file = phrases_to_midi(
+            phrase_list,
+            time_signature=settings.time_signature,
+            tempo=settings.tempo,
+            melodic=request.melodic,
+        )
+        audio_data = midi_to_audio(midi_file)
 
         return RhythmResponse(
-            directory=uuid64,
-            image_source=f"../{image_path}",
-            audio_source=audio_path.name,
-            score=str(score),
+            audio_data=audio_data,
+            score_data=score_data,
             exception=None,
             time_signature_error=time_signature_error,
         )

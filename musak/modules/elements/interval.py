@@ -1,7 +1,7 @@
 from typing import NamedTuple
 
-from musak.modules.chords.auxiliary import get_note_name
-from musak.modules.chords.constants import INTERVAL_NAMES
+from musak.modules.elements.constants import INTERVAL_NAMES
+from musak.modules.elements.names import get_note_name
 
 
 class Interval(NamedTuple):
@@ -15,11 +15,8 @@ class Interval(NamedTuple):
         return ""
 
     def __str__(self) -> str:
-        return "{base_note} {name} ({interval})".format(
-            interval=self.interval,
-            base_note=self.get_base_note_name(),
-            name=self.name,
-        )
+        base_note = self.get_base_note_name()
+        return f"{base_note} {self.name} ({self.interval})"
 
     @property
     def name(self) -> str:

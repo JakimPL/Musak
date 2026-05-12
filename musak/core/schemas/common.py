@@ -5,11 +5,15 @@ from pydantic import BaseModel
 
 class FieldSchema(BaseModel):
     name: str
-    type: Literal["integer", "boolean", "text"]
+    type: Literal["integer", "boolean", "text", "slider"]
     label: str
     default: Any
     min: Optional[int] = None
     max: Optional[int] = None
+    options: Optional[list[int]] = None
+    format: Optional[str] = None
+    placeholder: Optional[str] = None
+    tooltip: Optional[str] = None
 
 
 class FieldGroupSchema(BaseModel):
