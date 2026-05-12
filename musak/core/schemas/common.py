@@ -10,6 +10,7 @@ class FieldSchema(BaseModel):
     default: Any
     min: Optional[int] = None
     max: Optional[int] = None
+    format: Optional[str] = None
 
 
 class FieldGroupSchema(BaseModel):

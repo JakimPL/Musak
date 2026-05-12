@@ -1,10 +1,23 @@
 /**
  * Renders a form from a config schema JSON object.
- * Schema shape: { groups: [{ label, fields: [{ name, type, label, default, min, max }] }] }
+ * Schema shape: { groups: [{ label, fields: [{ name, type, label, default, min, max, format }] }] }
  *
  * @param {HTMLElement} container - The element to render fields into
  * @param {Object} schema - Config schema from GET /api/.../config
  */
+
+const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+
+function midiToNoteName(midi) {
+    const octave = Math.floor(midi / 12) - 1;
+    return NOTE_NAMES[midi % 12] + octave;
+}
+
+function formatValue(value, format) {
+    if (format === 'note') return midiToNoteName(Number(value));
+    return value;
+}
+
 export function renderForm(container, schema) {
     container.innerHTML = '';
 
@@ -57,7 +70,7 @@ function createField(field) {
 
         const valueSpan = document.createElement('span');
         valueSpan.className = 'float-right font-bold tabular-nums';
-        valueSpan.textContent = field.default;
+        valueSpan.textContent = formatValue(field.default, field.format);
         lbl.textContent = field.label + ' ';
         lbl.appendChild(valueSpan);
 
@@ -71,7 +84,7 @@ function createField(field) {
         if (field.max !== null && field.max !== undefined) input.max = field.max;
         input.className = 'form-slider';
         input.setAttribute('aria-label', field.label);
-        input.addEventListener('input', () => { valueSpan.textContent = input.value; });
+        input.addEventListener('input', () => { valueSpan.textContent = formatValue(input.value, field.format); });
 
         wrapper.appendChild(lbl);
         wrapper.appendChild(input);

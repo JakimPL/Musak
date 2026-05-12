@@ -3,8 +3,8 @@ from typing import Final
 SEQUENTIAL: Final[bool] = False
 
 TEMPO: Final[int] = 120
-MIN_TEMPO: Final[int] = 30
-MAX_TEMPO: Final[int] = 300
+MIN_TEMPO: Final[int] = 60
+MAX_TEMPO: Final[int] = 240
 
 GROUPS: Final[int] = 1
 MIN_GROUPS: Final[int] = 1
