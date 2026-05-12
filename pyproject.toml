@@ -26,12 +26,15 @@ dev = [
     "pytest-cov",
 ]
 
+[dependency-groups]
+model = ["music21>=9.1", "numpy>=2.0", "torch>=2.5"]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["musak"]
+packages = ["musak", "musak_model"]
 
 [tool.black]
 line-length = 120
@@ -40,7 +43,7 @@ target-version = ["py313"]
 [tool.isort]
 profile = "black"
 line_length = 120
-known_first_party = ["musak"]
+known_first_party = ["musak", "musak_model"]
 
 [tool.pytest.ini_options]
 addopts = "--import-mode=importlib"
@@ -50,7 +53,7 @@ show_missing = true
 
 [tool.mypy]
 python_version = "3.13"
-files = ["musak"]
+files = ["musak", "musak_model"]
 exclude = ["tests"]
 explicit_package_bases = true
 ignore_missing_imports = true
