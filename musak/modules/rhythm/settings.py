@@ -4,10 +4,13 @@ from collections.abc import Sequence
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from musak.modules.rhythm.misc import is_power_of_two
-from musak.modules.rhythm.note import Note, NoteType
-from musak.modules.rhythm.phrase import Phrase, PhraseType
-from musak.modules.rhythm.time_signature import DEFAULT_TIME_SIGNATURE, TimeSignatureType
+from musak.modules.elements.misc import is_power_of_two
+from musak.modules.elements.note import Note, NoteType
+from musak.modules.elements.phrase import Phrase, PhraseType
+from musak.modules.elements.time_signature import (
+    DEFAULT_TIME_SIGNATURE,
+    TimeSignatureType,
+)
 
 
 class GroupSettings(BaseModel):

@@ -23,7 +23,7 @@ from musak.core.intervals.schema import (
 from musak.core.schemas.common import FieldGroupSchema, FieldSchema
 from musak.modules.chords.exporter import to_abjad
 from musak.modules.chords.generator import get_random_interval
-from musak.modules.chords.interval import Interval
+from musak.modules.elements.interval import Interval
 from musak.paths import INTERVALS_CONFIG
 from musak.shared.directory import create_directory
 from musak.shared.exporter import Exporter

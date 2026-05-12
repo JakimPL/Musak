@@ -7,9 +7,12 @@ from functools import cached_property
 
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
-from musak.modules.rhythm.exceptions import EmptyScoreException
-from musak.modules.rhythm.note import Note, NoteType
-from musak.modules.rhythm.time_signature import DEFAULT_TIME_SIGNATURE, TimeSignatureType
+from musak.modules.elements.exceptions import EmptyScoreException
+from musak.modules.elements.note import Note, NoteType
+from musak.modules.elements.time_signature import (
+    DEFAULT_TIME_SIGNATURE,
+    TimeSignatureType,
+)
 
 
 class Phrase(BaseModel):
@@ -49,7 +52,11 @@ class Phrase(BaseModel):
     def __len__(self) -> int:
         return len(self.notes)
 
-    def find_invalid_beat(self, time_signature: TimeSignatureType = DEFAULT_TIME_SIGNATURE) -> int:
+    def find_invalid_beat(
+        self,
+        *,
+        time_signature: TimeSignatureType = DEFAULT_TIME_SIGNATURE,
+    ) -> int:
         if not self.notes:
             raise EmptyScoreException("an empty phrase")
 

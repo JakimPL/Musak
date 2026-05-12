@@ -7,7 +7,7 @@ from music21.note import Note, Rest
 from music21.stream.base import Stream
 from music21.tempo import MetronomeMark
 
-from musak.modules.chords.constants import (
+from musak.modules.elements.constants import (
     DEFAULT_SEQUENTIAL,
     DEFAULT_TEMPO,
     HALF_DURATION,

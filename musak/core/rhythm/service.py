@@ -26,13 +26,13 @@ from musak.core.rhythm.schema import (
     RhythmResponse,
 )
 from musak.core.schemas.common import FieldGroupSchema, FieldSchema
+from musak.modules.elements.misc import is_power_of_two
+from musak.modules.elements.note import Note
+from musak.modules.elements.phrase import Phrase
+from musak.modules.elements.time_signature import DEFAULT_TIME_SIGNATURE
 from musak.modules.rhythm.exceptions import RhygenException
 from musak.modules.rhythm.generator import RhythmGenerator
-from musak.modules.rhythm.misc import is_power_of_two
-from musak.modules.rhythm.note import Note
-from musak.modules.rhythm.phrase import Phrase
 from musak.modules.rhythm.settings import GroupSettings, Settings
-from musak.modules.rhythm.time_signature import DEFAULT_TIME_SIGNATURE
 from musak.paths import RHYTHM_CONFIG
 from musak.shared.directory import create_directory
 from musak.shared.exporter import Exporter

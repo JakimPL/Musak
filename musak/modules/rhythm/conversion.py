@@ -1,12 +1,13 @@
 import abjad
 
-from musak.modules.rhythm.constants import DEFAULT_TEMPO, QUARTER_NOTE
-from musak.modules.rhythm.exceptions import EmptyScoreException, InvalidBeatException
-from musak.modules.rhythm.phrase import Phrase
-from musak.modules.rhythm.time_signature import (
+from musak.modules.elements.constants import DEFAULT_TEMPO, QUARTER_NOTE
+from musak.modules.elements.exceptions import EmptyScoreException
+from musak.modules.elements.phrase import Phrase
+from musak.modules.elements.time_signature import (
     DEFAULT_TIME_SIGNATURE,
     TimeSignatureType,
 )
+from musak.modules.rhythm.exceptions import InvalidBeatException
 
 
 def to_abjad_string(
@@ -16,13 +17,9 @@ def to_abjad_string(
 ) -> str:
     invalid_beat = phrase.find_invalid_beat(time_signature=time_signature)
     if invalid_beat:
-        raise InvalidBeatException("invalid beat no. {beat}".format(beat=invalid_beat))
+        raise InvalidBeatException(f"invalid beat no. {invalid_beat}")
 
-    abjad_string = ""
-    for note in phrase.notes:
-        abjad_string += "{note} ".format(note=note)
-
-    return abjad_string
+    return " ".join(str(note) for note in phrase.notes)
 
 
 def to_abjad_score(
