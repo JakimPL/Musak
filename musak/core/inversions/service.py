@@ -20,6 +20,7 @@ from musak.core.inversions.schema import (
     InversionRequest,
     InversionResponse,
 )
+from musak.core.notation.chord_serializer import inversion_to_score_data
 from musak.core.schemas.common import FieldGroupSchema, FieldSchema
 from musak.modules.chords.exporter import to_abjad
 from musak.modules.chords.generator import generate_all_inversions, get_random_chord_inversion
@@ -144,22 +145,21 @@ class InversionService:
             lowest_note=request.lowest_note,
             highest_note=request.highest_note,
         )
-        score = to_abjad(
-            chord_inversion.chord,
-            tempo=request.tempo,
-            sequential=request.sequential,
-        )
+        score_data = inversion_to_score_data(chord_inversion, tempo=request.tempo)
+        abjad_score = to_abjad(chord_inversion.chord, tempo=request.tempo, sequential=request.sequential)
 
         uuid64, directory = create_directory()
         self._write_chord_info(chord_inversion, directory)
-        Exporter("chord").export(score, directory)
+        exporter = Exporter("chord")
+        midi_path = exporter.export_midi(abjad_score, directory=directory)
+        exporter.export_audio(midi_path, directory / "chord.wav")
 
         inversions_numbers = {chord_type: len(inv_list) for chord_type, inv_list in inversions.items()}
 
         return InversionResponse(
             directory=uuid64,
             audio_source="chord.mp3",
-            image_source="chord.png",
+            score_data=score_data,
             chord_info="chord.json",
             chord_types=list(chords.keys()),
             inversions_numbers=inversions_numbers,

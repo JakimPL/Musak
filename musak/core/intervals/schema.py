@@ -1,6 +1,7 @@
 from pydantic import BaseModel
 
 from musak.config.defaults import HIGHEST_NOTE, LOWEST_NOTE, SEQUENTIAL, TEMPO
+from musak.core.notation.schema import ScoreData
 from musak.core.schemas.common import ConfigResponse
 
 
@@ -15,7 +16,7 @@ class IntervalRequest(BaseModel):
 class IntervalResponse(BaseModel):
     directory: str
     audio_source: str
-    image_source: str
+    score_data: ScoreData
     interval_info: str
     intervals: dict[str, int]
 

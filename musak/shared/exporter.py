@@ -39,12 +39,6 @@ class Exporter:
 
     @staticmethod
     def _make_transparent(path: pathlib.Path) -> None:
-        """Post-process a LilyPond PNG: remap luminance to alpha channel.
-
-        Maps white (lum=255) → fully transparent, black (lum=0) → fully opaque.
-        The RGB channels are set to black so the image renders correctly with
-        CSS ``invert()`` in dark mode.
-        """
         tmp = path.with_name(path.stem + "._tmp.png")
         try:
             subprocess.run(
@@ -109,32 +103,6 @@ class Exporter:
 
         return png_path, midi_path
 
-    def export_score(
-        self,
-        score: abjad.Score | abjad.LilyPondFile,
-        *,
-        directory: pathlib.Path | None = None,
-    ) -> pathlib.Path:
-        directory = directory or pathlib.Path.cwd()
-        original_path = directory / f"{self.name}_uncropped.png"
-        path = directory / f"{self.name}.png"
-
-        try:
-            abjad.persist.as_png(
-                score,
-                str(original_path),
-                resolution=RESOLUTION,
-                flags="--png -dcrop",
-            )
-        except AttributeError:
-            pass
-
-        cropped_path = original_path.with_name(f"{original_path.stem}.cropped.png")
-        cropped_path.rename(path)
-        Exporter._make_transparent(path)
-
-        return path
-
     def export_midi(
         self,
         score: abjad.Score | abjad.LilyPondFile,
@@ -149,7 +117,6 @@ class Exporter:
         abjad.persist.as_midi(ly_file, str(original_path), remove_ly=False)
 
         original_path.rename(path)
-
         return path
 
     def export_audio(
@@ -157,12 +124,18 @@ class Exporter:
         midi_path: pathlib.Path,
         audio_path: pathlib.Path,
     ) -> pathlib.Path:
-        self.to_audio(self.soundfont_path, midi_path, audio_path, out_type=self.audio_format)
+        self.to_audio(
+            self.soundfont_path,
+            midi_path,
+            audio_path,
+            out_type=self.audio_format,
+        )
         if self.convert_to_mp3:
             mp3_path = audio_path.with_suffix(".mp3")
             sound = pydub.AudioSegment.from_wav(str(audio_path))
             sound.export(str(mp3_path), format="mp3")
             return mp3_path
+
         return audio_path
 
     def export(

@@ -1,6 +1,7 @@
 from pydantic import BaseModel
 
 from musak.config.defaults import HIGHEST_NOTE, LOWEST_NOTE, SEQUENTIAL, TEMPO
+from musak.core.notation.schema import ScoreData
 from musak.core.schemas.common import ConfigResponse
 
 
@@ -15,7 +16,7 @@ class InversionRequest(BaseModel):
 class InversionResponse(BaseModel):
     directory: str
     audio_source: str
-    image_source: str
+    score_data: ScoreData
     chord_info: str
     chord_types: list[str]
     inversions_numbers: dict[str, int]
