@@ -80,6 +80,7 @@ async def submit(request: Request) -> RhythmResponse:
                 )
             ),
         ),
+        melodic=form_str(form, "melodic") == "on",
         notes=notes,
         phrases=phrases,
         custom_phrases=form_str(form, "custom_phrases"),

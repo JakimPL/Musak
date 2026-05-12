@@ -2,6 +2,8 @@ from typing import Final
 
 SEQUENTIAL: Final[bool] = False
 
+MELODIC: Final[bool] = False
+
 TEMPO: Final[int] = 120
 MIN_TEMPO: Final[int] = 60
 MAX_TEMPO: Final[int] = 240

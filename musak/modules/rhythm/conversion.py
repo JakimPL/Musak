@@ -3,8 +3,10 @@ from fractions import Fraction
 
 import mido
 
-from musak.config.defaults import TEMPO, TIME_SIGNATURE
+from musak.config.defaults import MELODIC, TEMPO, TIME_SIGNATURE
 from musak.modules.elements.constants import (
+    MIDI_MELODIC_CHANNEL,
+    MIDI_MELODIC_NOTE,
     MIDI_PERCUSSION_CHANNEL,
     MIDI_PERCUSSION_NOTE,
     MIDI_TICKS_PER_BEAT,
@@ -29,6 +31,7 @@ def phrases_to_midi(
     *,
     time_signature: TimeSignatureType = TIME_SIGNATURE,
     tempo: int = TEMPO,
+    melodic: bool = MELODIC,
 ) -> mido.MidiFile:
     if not phrases:
         raise EmptyScoreException("an empty score")
@@ -46,35 +49,18 @@ def phrases_to_midi(
     track.append(mido.MetaMessage("set_tempo", tempo=_tempo_to_us(tempo), time=0))
     track.append(mido.MetaMessage("time_signature", numerator=num, denominator=den, time=0))
 
+    channel = MIDI_MELODIC_CHANNEL if melodic else MIDI_PERCUSSION_CHANNEL
+    note = MIDI_MELODIC_NOTE if melodic else MIDI_PERCUSSION_NOTE
+
     for phrase in phrases:
-        for note in phrase.notes:
-            ticks = _note_ticks(note.duration)
-            if note.pause:
-                track.append(
-                    mido.Message(
-                        "note_on", channel=MIDI_PERCUSSION_CHANNEL, note=MIDI_PERCUSSION_NOTE, velocity=0, time=0
-                    )
-                )
-                track.append(
-                    mido.Message(
-                        "note_off", channel=MIDI_PERCUSSION_CHANNEL, note=MIDI_PERCUSSION_NOTE, velocity=0, time=ticks
-                    )
-                )
+        for n in phrase.notes:
+            ticks = _note_ticks(n.duration)
+            if n.pause:
+                track.append(mido.Message("note_on", channel=channel, note=note, velocity=0, time=0))
+                track.append(mido.Message("note_off", channel=channel, note=note, velocity=0, time=ticks))
             else:
-                track.append(
-                    mido.Message(
-                        "note_on",
-                        channel=MIDI_PERCUSSION_CHANNEL,
-                        note=MIDI_PERCUSSION_NOTE,
-                        velocity=MIDI_VELOCITY,
-                        time=0,
-                    )
-                )
-                track.append(
-                    mido.Message(
-                        "note_off", channel=MIDI_PERCUSSION_CHANNEL, note=MIDI_PERCUSSION_NOTE, velocity=0, time=ticks
-                    )
-                )
+                track.append(mido.Message("note_on", channel=channel, note=note, velocity=MIDI_VELOCITY, time=0))
+                track.append(mido.Message("note_off", channel=channel, note=note, velocity=0, time=ticks))
 
     return mid
 
@@ -85,7 +71,8 @@ def save_midi(
     *,
     time_signature: TimeSignatureType = TIME_SIGNATURE,
     tempo: int = TEMPO,
+    melodic: bool = MELODIC,
 ) -> pathlib.Path:
-    mid = phrases_to_midi(phrases, time_signature=time_signature, tempo=tempo)
+    mid = phrases_to_midi(phrases, time_signature=time_signature, tempo=tempo, melodic=melodic)
     mid.save(str(path))
     return path

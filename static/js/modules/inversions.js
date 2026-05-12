@@ -2,7 +2,7 @@ import { Score } from '../score.js';
 import { ChordInfo } from '../chord_info.js';
 import { getPath } from '../path.js';
 import { renderScore } from '../shared/notation.js';
-import { playSound, playAgain } from '../play.js';
+import { playSound, playAgain, stopSound } from '../play.js';
 import { postForm, loadJSON } from '../shared/api.js';
 import { renderForm } from './form.js';
 
@@ -158,6 +158,7 @@ async function onSubmit(event) {
 
     if (!submitLock) {
         clearError();
+        stopSound();
         lockSubmitButton();
         const form = document.getElementById('settings_form');
         const apiUrl = form.dataset.apiUrl;

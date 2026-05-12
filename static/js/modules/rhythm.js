@@ -1,5 +1,5 @@
 import { getPath } from '../path.js';
-import { playAgain } from '../play.js';
+import { playAgain, stopSound } from '../play.js';
 import { postForm, loadJSON } from '../shared/api.js';
 import { renderForm } from './form.js';
 import { renderScore } from '../shared/notation.js';
@@ -34,6 +34,7 @@ async function onSubmit(event) {
     event.preventDefault();
 
     if (!submitLock) {
+        stopSound();
         lockSubmitButton();
         const form = document.getElementById('settings_form');
         const apiUrl = form.dataset.apiUrl;

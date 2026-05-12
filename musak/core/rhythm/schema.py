@@ -8,6 +8,7 @@ from musak.config.defaults import (
     MAX_MEASURES,
     MAX_TEMPO,
     MEASURES,
+    MELODIC,
     MIN_GROUPS,
     MIN_MEASURES,
     MIN_TEMPO,
@@ -25,6 +26,7 @@ class RhythmRequest(BaseModel):
     groups: int = Field(default=GROUPS, ge=MIN_GROUPS, le=MAX_GROUPS)
     measures: int = Field(default=MEASURES, ge=MIN_MEASURES, le=MAX_MEASURES)
     time_signature: tuple[int, int] = Field(default=TIME_SIGNATURE)
+    melodic: bool = Field(default=MELODIC)
     notes: list[NoteValue] = Field(default_factory=list)
     phrases: list[list[NoteValue]] = Field(default_factory=list)
     custom_phrases: str = Field(default="")

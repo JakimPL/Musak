@@ -9,6 +9,7 @@ from musak.config.defaults import (
     MAX_TIME_SIGNATURE_DENOMINATOR,
     MAX_TIME_SIGNATURE_NUMERATOR,
     MEASURES,
+    MELODIC,
     MIN_GROUPS,
     MIN_MEASURES,
     MIN_TEMPO,
@@ -199,6 +200,12 @@ class RhythmService:
         tempo_group = FieldGroupSchema(
             label="Tempo",
             fields=[
+                FieldSchema(
+                    name="melodic",
+                    type="boolean",
+                    label="Melodic (piano)",
+                    default=MELODIC,
+                ),
                 FieldSchema(
                     name="tempo",
                     type="slider",
@@ -396,6 +403,7 @@ class RhythmService:
             directory / "rhythm.mid",
             time_signature=settings.time_signature,
             tempo=settings.tempo,
+            melodic=request.melodic,
         )
         audio_path = Exporter("rhythm").export_audio(midi_path, directory / "rhythm.wav")
 
