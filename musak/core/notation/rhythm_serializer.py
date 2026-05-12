@@ -84,6 +84,7 @@ def phrases_to_score_data(
     *,
     time_signature: TimeSignatureType,
     tempo: int,
+    max_notes_per_measure: int | None = None,
 ) -> ScoreData:
     rows: list[list[StaveData]] = []
     for phrase in phrases:
@@ -93,4 +94,4 @@ def phrases_to_score_data(
             for measure_index, measure in enumerate(measures)
         ]
         rows.append(row)
-    return ScoreData(rows=rows, tempo=tempo)
+    return ScoreData(rows=rows, tempo=tempo, max_notes_per_measure=max_notes_per_measure)

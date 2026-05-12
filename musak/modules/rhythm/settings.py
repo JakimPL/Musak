@@ -12,7 +12,7 @@ from musak.modules.elements.time_signature import TimeSignatureType
 
 
 class GroupSettings(BaseModel):
-    model_config = ConfigDict(arbitrary_types_allowed=True, validate_assignment=True)
+    model_config = ConfigDict(arbitrary_types_allowed=True, frozen=True)
 
     notes: list[Note] = []
     phrases: list[Phrase] = []
@@ -22,6 +22,7 @@ class GroupSettings(BaseModel):
     def _coerce_notes(cls, v: Sequence[NoteType] | None) -> list[Note]:
         if v is None:
             return []
+
         result: list[Note] = []
         for note in v:
             result.append(Note.model_validate(note))
@@ -33,6 +34,7 @@ class GroupSettings(BaseModel):
     def _coerce_phrases(cls, v: Sequence[PhraseType] | None) -> list[Phrase]:
         if v is None:
             return []
+
         result: list[Phrase] = []
         for phrase in v:
             result.append(Phrase.model_validate(phrase))
@@ -51,7 +53,7 @@ class GroupSettings(BaseModel):
 
 
 class Settings(BaseModel):
-    model_config = ConfigDict(arbitrary_types_allowed=True, validate_assignment=True)
+    model_config = ConfigDict(arbitrary_types_allowed=True, frozen=True)
 
     time_signature: TimeSignatureType = TIME_SIGNATURE
     tempo: int = Field(gt=0)
@@ -77,6 +79,3 @@ class Settings(BaseModel):
 
     def group_settings(self, group_id: int) -> GroupSettings:
         return self.group_settings_map.get(group_id, self.default_group_settings)
-
-    def set_group(self, group_id: int, group_settings: GroupSettings) -> None:
-        self.group_settings_map[group_id] = group_settings

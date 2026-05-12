@@ -69,3 +69,4 @@ class ScoreData(BaseModel):
 
     rows: list[list[StaveData]]
     tempo: Annotated[int, Field(gt=0)] | None = None
+    max_notes_per_measure: int | None = None

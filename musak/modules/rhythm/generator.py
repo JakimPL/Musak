@@ -1,3 +1,4 @@
+import math
 import random
 from fractions import Fraction
 
@@ -74,3 +75,18 @@ class RhythmGenerator:
     @property
     def cache(self) -> list[Phrase] | None:
         return self._cache
+
+    @property
+    def shortest_note_duration(self) -> Fraction:
+        all_phrases = [
+            phrase
+            for group_id in range(self.settings.groups)
+            for phrase in self.settings.group_settings(group_id).get_all_phrases()
+        ]
+
+        return min(phrase.length for phrase in all_phrases)
+
+    @property
+    def max_notes_per_measure(self) -> int:
+        measure_length = Fraction(*self.settings.time_signature)
+        return math.ceil(measure_length / self.shortest_note_duration)

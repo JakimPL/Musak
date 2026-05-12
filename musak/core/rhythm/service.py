@@ -343,7 +343,11 @@ class RhythmService:
 
     def _build_settings(self, request: RhythmRequest) -> tuple[Settings, bool]:
         config = _load_config()
-        default_group_settings = GroupSettings.model_validate(config.default_group.model_dump())
+        notes, phrases = self._collect_notes_phrases(request)
+        if notes or phrases:
+            default_group_settings = GroupSettings.model_validate({"notes": notes, "phrases": phrases})
+        else:
+            default_group_settings = GroupSettings.model_validate(config.default_group.model_dump())
         time_signature = request.time_signature
         time_signature_error = not is_power_of_two(time_signature[1])
         if time_signature_error:
@@ -368,13 +372,10 @@ class RhythmService:
 
     def generate(self, request: RhythmRequest) -> RhythmResponse:
         settings, time_signature_error = self._build_settings(request)
-        notes, phrases = self._collect_notes_phrases(request)
-
-        if notes or phrases:
-            settings.default_group_settings = GroupSettings.model_validate({"notes": notes, "phrases": phrases})
 
         try:
-            phrase_list = RhythmGenerator(settings)()
+            generator = RhythmGenerator(settings)
+            phrase_list = generator()
         except RhygenException as exception:
             return RhythmResponse(
                 exception=str(exception),
@@ -387,6 +388,7 @@ class RhythmService:
             phrase_list,
             time_signature=settings.time_signature,
             tempo=settings.tempo,
+            max_notes_per_measure=generator.max_notes_per_measure,
         )
 
         midi_path = save_rhythm_midi(

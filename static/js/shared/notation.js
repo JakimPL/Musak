@@ -3,6 +3,9 @@ import { Renderer, Stave, StaveNote, Voice, Formatter, Dot, Beam } from 'https:/
 const STAVE_HEIGHT = 140;
 const STAVE_PADDING = 40;
 const NOTE_WIDTH = 55;
+const MAX_NOTES_PER_MEASURE = 16;
+const NOTE_SPACING = 18;
+const FIRST_STAVE_OVERHEAD = 70;
 const REST_PLACEHOLDER_KEY = 'b/4';
 const DEFAULT_WIDTH = 400;
 const STAVE_X_OFFSET = 20;
@@ -21,13 +24,14 @@ function buildStaveNote(noteData, clef) {
 }
 
 function drawVoice(voiceData, stave, staveData, context) {
-    const staveWidth = stave.getWidth();
     const vfNotes = voiceData.notes.map(noteData => buildStaveNote(noteData, staveData.clef));
     const numBeats = staveData.time_signature ? staveData.time_signature[0] : DEFAULT_NUM_BEATS;
     const beatValue = staveData.time_signature ? staveData.time_signature[1] : DEFAULT_BEAT_VALUE;
     const voice = new Voice({ num_beats: numBeats, beat_value: beatValue }).setStrict(false);
     voice.addTickables(vfNotes);
-    const formatWidth = Math.min(staveWidth - STAVE_PADDING, vfNotes.length * NOTE_WIDTH);
+    const formatWidth = staveData.time_signature
+        ? stave.getNoteEndX() - stave.getNoteStartX()
+        : Math.min(stave.getWidth() - STAVE_PADDING, vfNotes.length * NOTE_WIDTH);
     new Formatter().joinVoices([voice]).format([voice], formatWidth);
     const nonRestNotes = vfNotes.filter((_, i) => !voiceData.notes[i].duration.endsWith('r'));
     const beams = Beam.generateBeams(nonRestNotes);
@@ -56,18 +60,40 @@ function drawStave(staveData, context, x, y, width, showClef) {
  */
 export function renderScore(scoreData, containerElement) {
     containerElement.innerHTML = '';
-    const width = containerElement.clientWidth || DEFAULT_WIDTH;
+    const containerWidth = containerElement.clientWidth || DEFAULT_WIDTH;
     const rows = scoreData.rows;
+
+    const hasTimeSig = rows.some(row => row.some(stave => stave.time_signature));
+    let naturalWidth = containerWidth;
+    if (hasTimeSig) {
+        const maxStaves = Math.max(...rows.map(r => r.length));
+        const maxNotes = scoreData.max_notes_per_measure ?? MAX_NOTES_PER_MEASURE;
+        const normalMeasureWidth = STAVE_PADDING + maxNotes * NOTE_SPACING;
+        const firstMeasureWidth = normalMeasureWidth + FIRST_STAVE_OVERHEAD;
+        const required = 2 * STAVE_X_OFFSET + firstMeasureWidth + (maxStaves - 1) * normalMeasureWidth;
+        naturalWidth = Math.max(containerWidth, required);
+    }
+
     const totalHeight = rows.length * STAVE_HEIGHT;
     const renderer = new Renderer(containerElement, Renderer.Backends.SVG);
-    renderer.resize(width, totalHeight);
+    renderer.resize(naturalWidth, totalHeight);
     const context = renderer.getContext();
     rows.forEach((row, rowIndex) => {
         const y = rowIndex * STAVE_HEIGHT + STAVE_Y_OFFSET;
-        const staveWidth = (width - 2 * STAVE_X_OFFSET) / row.length;
+        const staveWidth = (naturalWidth - 2 * STAVE_X_OFFSET) / row.length;
         row.forEach((staveData, colIndex) => {
             const x = STAVE_X_OFFSET + colIndex * staveWidth;
             drawStave(staveData, context, x, y, staveWidth, colIndex === 0);
         });
     });
+
+    if (naturalWidth > containerWidth) {
+        const svg = containerElement.querySelector('svg');
+        if (svg) {
+            const scale = containerWidth / naturalWidth;
+            svg.setAttribute('viewBox', `0 0 ${naturalWidth} ${totalHeight}`);
+            svg.setAttribute('width', containerWidth);
+            svg.setAttribute('height', Math.round(totalHeight * scale));
+        }
+    }
 }
