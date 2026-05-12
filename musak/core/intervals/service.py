@@ -68,7 +68,7 @@ class IntervalService:
             fields=[
                 FieldSchema(
                     name="tempo",
-                    type="integer",
+                    type="slider",
                     label="Tempo",
                     default=defaults.get("tempo", TEMPO),
                     min=MIN_TEMPO,

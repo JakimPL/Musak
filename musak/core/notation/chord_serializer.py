@@ -16,7 +16,7 @@ from musak.modules.elements.inversion import ChordInversion
 from musak.modules.elements.names import midi_to_vexflow_key
 
 MIDDLE_C: Final[int] = 60
-WIDE_SPAN_THRESHOLD: Final[int] = 24
+WIDE_SPAN_THRESHOLD: Final[int] = 30
 
 
 def _select_clef(midi_notes: list[int]) -> Clef:

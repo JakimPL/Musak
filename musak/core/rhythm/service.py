@@ -201,7 +201,7 @@ class RhythmService:
             fields=[
                 FieldSchema(
                     name="tempo",
-                    type="integer",
+                    type="slider",
                     label="Tempo",
                     default=defaults.get("tempo", TEMPO),
                     min=MIN_TEMPO,
@@ -215,7 +215,7 @@ class RhythmService:
             fields=[
                 FieldSchema(
                     name="groups",
-                    type="integer",
+                    type="slider",
                     label="Groups",
                     default=defaults.get("groups", GROUPS),
                     min=MIN_GROUPS,
@@ -223,7 +223,7 @@ class RhythmService:
                 ),
                 FieldSchema(
                     name="measures",
-                    type="integer",
+                    type="slider",
                     label="Measures",
                     default=defaults.get("measures", MEASURES),
                     min=MIN_MEASURES,
@@ -237,7 +237,7 @@ class RhythmService:
             fields=[
                 FieldSchema(
                     name="time_signature_numerator",
-                    type="integer",
+                    type="slider",
                     label="Numerator",
                     default=defaults.get("time_signature_numerator", TIME_SIGNATURE_NUMERATOR),
                     min=MIN_TIME_SIGNATURE_NUMERATOR,
@@ -245,7 +245,7 @@ class RhythmService:
                 ),
                 FieldSchema(
                     name="time_signature_denominator",
-                    type="integer",
+                    type="slider",
                     label="Denominator",
                     default=defaults.get("time_signature_denominator", TIME_SIGNATURE_DENOMINATOR),
                     min=MIN_TIME_SIGNATURE_DENOMINATOR,

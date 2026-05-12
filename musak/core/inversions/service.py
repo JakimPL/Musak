@@ -23,7 +23,10 @@ from musak.core.inversions.schema import (
 from musak.core.notation.chord_serializer import inversion_to_score_data
 from musak.core.schemas.common import FieldGroupSchema, FieldSchema
 from musak.modules.chords.exporter import save_midi
-from musak.modules.chords.generator import generate_all_inversions, get_random_chord_inversion
+from musak.modules.chords.generator import (
+    generate_all_inversions,
+    get_random_chord_inversion,
+)
 from musak.paths import INVERSIONS_CONFIG
 from musak.shared.directory import create_directory
 from musak.shared.exporter import Exporter
@@ -79,7 +82,7 @@ class InversionService:
             fields=[
                 FieldSchema(
                     name="tempo",
-                    type="integer",
+                    type="slider",
                     label="Tempo",
                     default=defaults.get("tempo", TEMPO),
                     min=MIN_TEMPO,
