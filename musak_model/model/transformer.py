@@ -19,7 +19,7 @@ class SinusoidalPositionEmbedding(nn.Module):
         self.register_buffer("_encoding", encoding.unsqueeze(0))
 
     def forward(self, sequence_length: int) -> Tensor:
-        encoding: Tensor = self._encoding  # type: ignore[assignment]
+        encoding = cast(Tensor, self._encoding)
         return encoding[:, :sequence_length]
 
 
