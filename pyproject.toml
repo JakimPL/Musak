@@ -27,7 +27,14 @@ dev = [
 ]
 
 [dependency-groups]
-model = ["music21>=9.1", "numpy>=2.0", "torch>=2.5"]
+model = [
+    "altair>=5.0",
+    "marimo>=0.23",
+    "music21>=9.1",
+    "numpy>=2.0",
+    "pandas>=2.0",
+    "torch>=2.5",
+]
 
 [build-system]
 requires = ["hatchling"]
@@ -54,7 +61,7 @@ show_missing = true
 [tool.mypy]
 python_version = "3.13"
 files = ["musak", "musak_model"]
-exclude = ["tests"]
+exclude = ["notebooks", "tests"]
 explicit_package_bases = true
 ignore_missing_imports = true
 strict = true

@@ -104,6 +104,20 @@ VALID_TIME_SIGNATURES: Final[tuple[tuple[int, int], ...]] = (
 )
 
 
+_ACCIDENTAL_SYMBOLS: Final[dict[int, str]] = {-1: "b", 0: "", 1: "#"}
+_DURATION_ABBREVIATIONS: Final[dict[DurationClass, str]] = {
+    DurationClass.WHOLE: "1",
+    DurationClass.HALF: "2",
+    DurationClass.DOTTED_HALF: "2.",
+    DurationClass.QUARTER: "4",
+    DurationClass.DOTTED_QUARTER: "4.",
+    DurationClass.EIGHTH: "8",
+    DurationClass.DOTTED_EIGHTH: "8.",
+    DurationClass.SIXTEENTH: "16",
+    DurationClass.TRIPLET_EIGHTH: "8t",
+}
+
+
 class NoteToken(BaseModel):
     model_config = ConfigDict(frozen=True)
 
@@ -113,6 +127,15 @@ class NoteToken(BaseModel):
     octave_offset: int
     duration: DurationClass
 
+    def __repr__(self) -> str:
+        accidental = _ACCIDENTAL_SYMBOLS[self.accidental]
+        register = f"[{self.octave_offset:+d}]" if self.octave_offset != 0 else ""
+        duration = _DURATION_ABBREVIATIONS[self.duration]
+        return f"{self.degree}{accidental}{register}/{duration}"
+
+    def __str__(self) -> str:
+        return repr(self)
+
 
 class RestToken(BaseModel):
     model_config = ConfigDict(frozen=True)
@@ -120,17 +143,35 @@ class RestToken(BaseModel):
     kind: Literal["rest"] = "rest"
     duration: DurationClass
 
+    def __repr__(self) -> str:
+        return f"r/{_DURATION_ABBREVIATIONS[self.duration]}"
+
+    def __str__(self) -> str:
+        return repr(self)
+
 
 class BarToken(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     kind: Literal["bar"] = "bar"
 
+    def __repr__(self) -> str:
+        return "|"
+
+    def __str__(self) -> str:
+        return repr(self)
+
 
 class EndToken(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     kind: Literal["end"] = "end"
+
+    def __repr__(self) -> str:
+        return "‖"
+
+    def __str__(self) -> str:
+        return repr(self)
 
 
 Token = NoteToken | RestToken | BarToken | EndToken
