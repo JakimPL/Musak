@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from musak_model.data.converter import pitch_to_degree
 from musak_model.data.quantizer import quantize_duration
 from musak_model.data.schema import (
@@ -8,6 +10,7 @@ from musak_model.data.schema import (
     ParsedRest,
     ParsedScore,
     Segment,
+    SegmentMetadata,
 )
 from musak_model.tokens.schema import (
     BarToken,
@@ -19,20 +22,17 @@ from musak_model.tokens.schema import (
     Token,
 )
 
-_DEFAULT_WINDOW_BARS: int = 8
-_DEFAULT_STRIDE_BARS: int = 4
-
 _BAR_TOKEN: BarToken = BarToken()
 _END_TOKEN: EndToken = EndToken()
 
 
 def segment_score(
     score: ParsedScore,
-    source_file: str,
+    source_file: Path,
     *,
     scale_type: ScaleType,
-    window_bars: int = _DEFAULT_WINDOW_BARS,
-    stride_bars: int = _DEFAULT_STRIDE_BARS,
+    window_bars: int,
+    stride_bars: int,
     difficulty_level: int | None = None,
 ) -> list[Segment]:
     right_hand_tokens = _tokenize_hand(score.right_hand_bars, score=score, hand=Hand.RIGHT, scale_type=scale_type)
@@ -148,7 +148,7 @@ def _create_windows(
     right_hand_tokens: list[list[Token]],
     left_hand_tokens: list[list[Token]],
     score: ParsedScore,
-    source_file: str,
+    source_file: Path,
     *,
     scale_type: ScaleType,
     window_bars: int,
@@ -167,13 +167,15 @@ def _create_windows(
             Segment(
                 right_hand_tokens=right_window,
                 left_hand_tokens=left_window,
-                key_root=score.key_root,
-                scale_type=scale_type,
-                time_numerator=score.time_numerator,
-                time_denominator=score.time_denominator,
-                bar_count=window_bars,
-                source_file=source_file,
-                difficulty_level=difficulty_level,
+                metadata=SegmentMetadata(
+                    key_root=score.key_root,
+                    scale_type=scale_type,
+                    time_numerator=score.time_numerator,
+                    time_denominator=score.time_denominator,
+                    bar_count=window_bars,
+                    source_file=source_file,
+                    difficulty_level=difficulty_level,
+                ),
             )
         )
 

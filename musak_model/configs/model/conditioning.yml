@@ -1,0 +1,4 @@
+num_difficulty_levels: 6
+num_scale_types: 9
+num_time_signatures: 5
+cfg_dropout_probability: 0.1

@@ -1,0 +1,4 @@
+out_channels: 256
+kernel_sizes: [3, 5]
+num_layers: 3
+dropout: 0.1

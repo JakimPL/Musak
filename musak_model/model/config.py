@@ -4,46 +4,46 @@ from pydantic import BaseModel, ConfigDict, Field
 class CNNConfig(BaseModel):
     model_config = ConfigDict(frozen=True)
 
-    out_channels: int = 256
-    kernel_sizes: tuple[int, ...] = (3, 5)
-    num_layers: int = 3
-    dropout: float = Field(default=0.1, ge=0.0, lt=1.0)
+    out_channels: int = Field(ge=1)
+    kernel_sizes: tuple[int, ...] = Field(min_length=1)
+    num_layers: int = Field(ge=1)
+    dropout: float = Field(ge=0.0, lt=1.0)
 
 
 class GRUConfig(BaseModel):
     model_config = ConfigDict(frozen=True)
 
-    hidden_size: int = 256
-    num_layers: int = 2
-    dropout: float = Field(default=0.1, ge=0.0, lt=1.0)
-    bidirectional: bool = False
+    hidden_size: int = Field(ge=1)
+    num_layers: int = Field(ge=1)
+    dropout: float = Field(ge=0.0, lt=1.0)
+    bidirectional: bool
 
 
 class TransformerConfig(BaseModel):
     model_config = ConfigDict(frozen=True)
 
-    hidden_size: int = 512
-    num_heads: int = 8
-    num_layers: int = 6
-    feedforward_size: int = 2048
-    dropout: float = Field(default=0.1, ge=0.0, lt=1.0)
-    max_sequence_length: int = 1024
+    hidden_size: int = Field(ge=1)
+    num_heads: int = Field(ge=1)
+    num_layers: int = Field(ge=1)
+    feedforward_size: int = Field(ge=1)
+    dropout: float = Field(ge=0.0, lt=1.0)
+    max_sequence_length: int = Field(ge=1)
 
 
 class ConditioningConfig(BaseModel):
     model_config = ConfigDict(frozen=True)
 
-    num_difficulty_levels: int = 6
-    num_scale_types: int = 9
-    num_time_signatures: int = 5
-    cfg_dropout_probability: float = Field(default=0.1, ge=0.0, lt=1.0)
+    num_difficulty_levels: int = Field(ge=1)
+    num_scale_types: int = Field(ge=1)
+    num_time_signatures: int = Field(ge=1)
+    cfg_dropout_probability: float = Field(ge=0.0, lt=1.0)
 
 
 class ModelConfig(BaseModel):
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(arbitrary_types_allowed=True, frozen=True)
 
-    vocab_size: int
-    cnn: CNNConfig = CNNConfig()
-    gru: GRUConfig = GRUConfig()
-    transformer: TransformerConfig = TransformerConfig()
-    conditioning: ConditioningConfig = ConditioningConfig()
+    vocab_size: int = Field(ge=1)
+    cnn: CNNConfig
+    gru: GRUConfig
+    transformer: TransformerConfig
+    conditioning: ConditioningConfig

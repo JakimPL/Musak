@@ -1,11 +1,11 @@
 from fractions import Fraction
 
+from musak_model.common.elements import DOTTED_DURATION_VALUES
 from musak_model.data.converter import pitch_to_degree
 from musak_model.data.schema import (
     DifficultyFeatures,
     ParsedBar,
     ParsedChord,
-    ParsedEvent,
     ParsedNote,
     ParsedScore,
     Segment,
@@ -19,16 +19,13 @@ from musak_model.tokens.schema import (
     Token,
 )
 
-_DOTTED_DURATION_CLASSES: frozenset[DurationClass] = frozenset(
-    {
-        DurationClass.DOTTED_HALF,
-        DurationClass.DOTTED_QUARTER,
-        DurationClass.DOTTED_EIGHTH,
-    }
-)
 
-
-def extract_difficulty_features(segment: Segment, *, score: ParsedScore, scale_type: ScaleType) -> DifficultyFeatures:
+def extract_difficulty_features(
+    segment: Segment,
+    *,
+    score: ParsedScore,
+    scale_type: ScaleType,
+) -> DifficultyFeatures:
     window_bars_right = _select_window_bars(score.right_hand_bars, bar_count=segment.bar_count)
     window_bars_left = _select_window_bars(score.left_hand_bars, bar_count=segment.bar_count)
 
@@ -43,7 +40,11 @@ def extract_difficulty_features(segment: Segment, *, score: ParsedScore, scale_t
     )
 
 
-def _select_window_bars(bars: list[ParsedBar], *, bar_count: int) -> list[ParsedBar]:
+def _select_window_bars(
+    bars: list[ParsedBar],
+    *,
+    bar_count: int,
+) -> list[ParsedBar]:
     return bars[:bar_count]
 
 
@@ -64,11 +65,14 @@ def _collect_pitches(bar: ParsedBar) -> list[int]:
     return pitches
 
 
-def _notes_per_beat(bars: list[ParsedBar], *, score: ParsedScore) -> float:
+def _notes_per_beat(
+    bars: list[ParsedBar],
+    *,
+    score: ParsedScore,
+) -> float:
     beat_duration = Fraction(1, score.time_denominator)
     total_beats = len(bars) * Fraction(score.time_numerator, score.time_denominator) / beat_duration
     note_count = sum(1 for bar in bars for event in bar.events if isinstance(event, (ParsedNote, ParsedChord)))
-
     return float(note_count / total_beats) if total_beats > 0 else 0.0
 
 
@@ -102,7 +106,12 @@ def _rhythm_vector(tokens: list[Token]) -> list[Fraction]:
     return rhythm
 
 
-def _has_accidentals(bars: list[ParsedBar], *, score: ParsedScore, scale_type: ScaleType) -> bool:
+def _has_accidentals(
+    bars: list[ParsedBar],
+    *,
+    score: ParsedScore,
+    scale_type: ScaleType,
+) -> bool:
     for bar in bars:
         for event in bar.events:
             if isinstance(event, ParsedNote):
@@ -125,16 +134,14 @@ def _has_accidentals(bars: list[ParsedBar], *, score: ParsedScore, scale_type: S
                     )
                     if pitch_degree.accidental != 0:
                         return True
+
     return False
 
 
 def _has_dotted_notes(segment: Segment) -> bool:
+    dotted_durations = frozenset(DurationClass(val) for val in DOTTED_DURATION_VALUES)
     for token in segment.right_hand_tokens + segment.left_hand_tokens:
-        if isinstance(token, NoteToken) and token.duration in _DOTTED_DURATION_CLASSES:
+        if isinstance(token, NoteToken) and token.duration in dotted_durations:
             return True
 
     return False
-
-
-def _note_events(bar: ParsedBar) -> list[ParsedEvent]:
-    return [event for event in bar.events if isinstance(event, (ParsedNote, ParsedChord))]

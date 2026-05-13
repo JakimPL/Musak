@@ -8,6 +8,7 @@ from music21 import note
 from music21.meter.base import TimeSignature
 from music21.stream.base import Measure, Part, Score
 
+from musak_model.common.elements import PITCHES_PER_OCTAVE
 from musak_model.data.schema import (
     ParsedBar,
     ParsedChord,
@@ -55,7 +56,7 @@ def _detect_key(score: object) -> tuple[int, str]:
     if tonic is None:
         raise ValueError("key signature has no tonic")
 
-    return tonic.midi % 12, key_signature.mode
+    return tonic.midi % PITCHES_PER_OCTAVE, key_signature.mode
 
 
 def _detect_time_signature(score: object) -> tuple[int, int]:
@@ -80,7 +81,6 @@ def _extract_hands(score: object) -> tuple[list[ParsedBar], list[ParsedBar]]:
 
     right_hand_bars = _extract_bars(parts[_TREBLE_PART_INDEX])
     left_hand_bars = _extract_bars(parts[_BASS_PART_INDEX])
-
     return right_hand_bars, left_hand_bars
 
 
@@ -109,10 +109,12 @@ def _parse_measure(measure: object) -> ParsedBar:
                     beat_offset=beat_offset,
                 )
             )
+
         elif isinstance(element, note.Rest):
             events.append(ParsedRest(duration=duration, beat_offset=beat_offset))
+
         elif isinstance(element, chord.Chord):
-            midi_pitches = [p.midi for p in element.pitches]
+            midi_pitches = [pitch.midi for pitch in element.pitches]
             events.append(
                 ParsedChord(
                     midi_pitches=midi_pitches,
