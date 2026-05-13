@@ -1,19 +1,26 @@
+from fractions import Fraction
 from pathlib import Path
 
 import pytest
 
+from musak_model.data.config import SegmentationConfig
 from musak_model.data.schema import Segment, SegmentMetadata
-from musak_model.tokens.schema import BarToken, DurationClass, EndToken, Hand, NoteToken, ScaleType, Token
-from musak_model.training import ingestion
-from musak_model.training.ingestion import split as ingestion_split
+from musak_model.tokens.config import TokenizationConfig
+from musak_model.tokens.duration_vocabulary import DurationVocabulary
+from musak_model.tokens.schema import BarToken, EndToken, Hand, NoteToken, ScaleType, Token
+from musak_model.tokens.vocabulary import TokenVocabulary
+from musak_model.training.ingestion.config import IngestionConfig
+from musak_model.training.ingestion.split import _build_bar_positions_from_tokens, _encode_segment_hands, build_split
 
 
 def _note() -> NoteToken:
+    duration_vocabulary = DurationVocabulary(TokenizationConfig(shortest_duration=16, max_tuplets=(3,), max_dots=1))
+    quarter_duration_id = duration_vocabulary.fraction_to_id(Fraction(1, 4))
     return NoteToken(
         degree=1,
         accidental=0,
         octave_offset=0,
-        duration=DurationClass.QUARTER,
+        duration_id=quarter_duration_id,
     )
 
 
@@ -34,10 +41,9 @@ def _segment(source_file: Path) -> Segment:
     )
 
 
-def _ingestion_config(*, split_seed: int, validation_fraction: float) -> ingestion.IngestionConfig:
-    return ingestion.IngestionConfig(
-        window_bars=8,
-        stride_bars=4,
+def _ingestion_config(*, split_seed: int, validation_fraction: float) -> IngestionConfig:
+    return IngestionConfig(
+        segmentation=SegmentationConfig(window_bars=8, stride_bars=4),
         validation_fraction=validation_fraction,
         split_seed=split_seed,
         difficulty_labels=None,
@@ -52,17 +58,17 @@ def test_build_ingestion_split_is_deterministic(tmp_path: Path, monkeypatch: pyt
     def fake_process_file(
         path: Path,
         *,
-        window_bars: int,
-        stride_bars: int,
+        segmentation: SegmentationConfig,
         difficulty_labels: dict[str, int] | None,
+        duration_vocabulary: DurationVocabulary | None = None,
     ) -> list[Segment]:
         return [_segment(path)]
 
     monkeypatch.setattr("musak_model.training.ingestion.split.process_file", fake_process_file)
 
     config = _ingestion_config(split_seed=123, validation_fraction=0.25)
-    split_a = ingestion.build_split(tmp_path, config=config)
-    split_b = ingestion.build_split(tmp_path, config=config)
+    split_a = build_split(tmp_path, config=config)
+    split_b = build_split(tmp_path, config=config)
 
     assert [sample.source_file for sample in split_a.validation] == [
         sample.source_file for sample in split_b.validation
@@ -80,9 +86,9 @@ def test_build_ingestion_split_collects_invalid_file_errors(tmp_path: Path, monk
     def fake_process_file(
         path: Path,
         *,
-        window_bars: int,
-        stride_bars: int,
+        segmentation: SegmentationConfig,
         difficulty_labels: dict[str, int] | None,
+        duration_vocabulary: DurationVocabulary | None = None,
     ) -> list[Segment]:
         if path.name == "bad.mxl":
             raise ValueError("parse failed")
@@ -91,7 +97,7 @@ def test_build_ingestion_split_collects_invalid_file_errors(tmp_path: Path, monk
     monkeypatch.setattr("musak_model.training.ingestion.split.process_file", fake_process_file)
 
     config = _ingestion_config(split_seed=7, validation_fraction=0.5)
-    split = ingestion.build_split(tmp_path, config=config)
+    split = build_split(tmp_path, config=config)
 
     assert len(split.invalid_files) == 1
     assert split.invalid_files[0].file.endswith("bad.mxl")
@@ -103,15 +109,18 @@ def test_build_ingestion_split_collects_invalid_file_errors(tmp_path: Path, monk
 def test_build_bar_positions_from_tokens_assigns_end_to_last_bar() -> None:
     tokens: list[Token] = [_note(), BarToken(), _note(), BarToken(), EndToken()]
 
-    bar_positions = ingestion_split._build_bar_positions_from_tokens(tokens)
+    bar_positions = _build_bar_positions_from_tokens(tokens)
 
     assert bar_positions == [0, 0, 1, 1, 1]
 
 
 def test_encode_segment_hands_returns_both_hands() -> None:
     segment = _segment(Path("piece.mxl"))
+    token_vocabulary = TokenVocabulary(
+        DurationVocabulary(TokenizationConfig(shortest_duration=16, max_tuplets=(3,), max_dots=1))
+    )
 
-    samples = ingestion_split._encode_segment_hands(segment)
+    samples = _encode_segment_hands(segment, token_vocabulary=token_vocabulary)
 
     assert len(samples) == 2
     assert {sample.hand for sample in samples} == {Hand.RIGHT, Hand.LEFT}
@@ -123,8 +132,9 @@ def test_load_ingestion_config_reads_yaml(tmp_path: Path) -> None:
     config_path.write_text(
         "\n".join(
             [
-                "window_bars: 8",
-                "stride_bars: 4",
+                "segmentation:",
+                "  window_bars: 8",
+                "  stride_bars: 4",
                 "validation_fraction: 0.25",
                 "split_seed: 99",
                 "difficulty_labels:",
@@ -133,20 +143,16 @@ def test_load_ingestion_config_reads_yaml(tmp_path: Path) -> None:
         )
     )
 
-    config = ingestion.IngestionConfig.load_config(config_path)
+    config = IngestionConfig.load(config_path)
 
-    assert config.window_bars == 8
-    assert config.stride_bars == 4
-    assert config.validation_fraction == 0.25
-    assert config.split_seed == 99
-    assert config.difficulty_labels == {"sample": 3}
+    assert config.segmentation.window_bars == 8
+    assert config.segmentation.stride_bars == 4
 
 
 def test_ingestion_config_rejects_invalid_validation_fraction() -> None:
     with pytest.raises(ValueError, match="validation_fraction"):
-        ingestion.IngestionConfig(
-            window_bars=8,
-            stride_bars=4,
+        IngestionConfig(
+            segmentation=SegmentationConfig(window_bars=8, stride_bars=4),
             validation_fraction=1.0,
             split_seed=17,
             difficulty_labels=None,

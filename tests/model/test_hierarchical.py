@@ -16,10 +16,22 @@ H: Final[int] = 32  # hidden size (small for speed)
 def _small_config() -> ModelConfig:
     return ModelConfig(
         vocab_size=VOCAB,
-        cnn=CNNConfig(out_channels=H, kernel_sizes=[3], num_layers=1),
-        gru=GRUConfig(hidden_size=H, num_layers=1),
-        transformer=TransformerConfig(hidden_size=H, num_heads=2, num_layers=1, ffn_dim=64),
-        conditioning=ConditioningConfig(),
+        cnn=CNNConfig(out_channels=H, kernel_sizes=(3,), num_layers=1, dropout=0.0),
+        gru=GRUConfig(hidden_size=H, num_layers=1, dropout=0.0, bidirectional=False),
+        transformer=TransformerConfig(
+            hidden_size=H,
+            num_heads=2,
+            num_layers=1,
+            feedforward_size=64,
+            dropout=0.0,
+            max_sequence_length=128,
+        ),
+        conditioning=ConditioningConfig(
+            num_difficulty_levels=6,
+            num_scale_types=9,
+            num_time_signatures=5,
+            cfg_dropout_probability=0.0,
+        ),
     )
 
 
@@ -241,7 +253,7 @@ class TestBarGRUEncoder:
         ids=lambda c: c.label,
     )
     def test_output_shape(self, case: GRUShapeCase) -> None:
-        gru = BarGRUEncoder(GRUConfig(hidden_size=H))
+        gru = BarGRUEncoder(GRUConfig(hidden_size=H, num_layers=1, dropout=0.0, bidirectional=False))
         x = torch.randn(case.batch, case.seq_len, H)
         lengths = torch.tensor([case.seq_len] * case.batch) if case.use_lengths else None
         out = gru(x, lengths=lengths)
@@ -249,7 +261,7 @@ class TestBarGRUEncoder:
 
     def test_packed_ignores_padding(self) -> None:
         torch.manual_seed(42)
-        gru = BarGRUEncoder(GRUConfig(hidden_size=H))
+        gru = BarGRUEncoder(GRUConfig(hidden_size=H, num_layers=1, dropout=0.0, bidirectional=False))
         gru.eval()
 
         real_tokens = torch.randn(1, 3, H)

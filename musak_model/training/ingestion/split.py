@@ -7,8 +7,10 @@ from music21.exceptions21 import Music21Exception
 from musak_model.common.files import collect_musicxml_files
 from musak_model.data.pipeline import process_file
 from musak_model.data.schema import Segment
+from musak_model.tokens.config import TokenizationConfig
+from musak_model.tokens.duration_vocabulary import DurationVocabulary
 from musak_model.tokens.schema import BarToken, EndToken, Hand, Token
-from musak_model.tokens.vocabulary import encode
+from musak_model.tokens.vocabulary import TokenVocabulary, encode
 from musak_model.training.ingestion.config import IngestionConfig
 from musak_model.training.ingestion.schema import EncodedExercise, IngestionErrorRecord, IngestionSplit
 
@@ -38,14 +40,16 @@ def build_split(
     train_samples: list[EncodedExercise] = []
     validation_samples: list[EncodedExercise] = []
     invalid_files: list[IngestionErrorRecord] = []
+    duration_vocabulary = DurationVocabulary(TokenizationConfig.load())
+    token_vocabulary = TokenVocabulary(duration_vocabulary)
 
     for file_path in file_paths:
         try:
             segments = process_file(
                 file_path,
-                window_bars=config.window_bars,
-                stride_bars=config.stride_bars,
+                segmentation=config.segmentation,
                 difficulty_labels=config.difficulty_labels,
+                duration_vocabulary=duration_vocabulary,
             )
         except _FILE_PROCESSING_ERRORS as exception:
             invalid_files.append(
@@ -57,7 +61,7 @@ def build_split(
             )
             continue
 
-        encoded_samples = _encode_segments(segments)
+        encoded_samples = _encode_segments(segments, token_vocabulary=token_vocabulary)
         if file_path in validation_files:
             validation_samples.extend(encoded_samples)
         else:
@@ -90,17 +94,27 @@ def _validation_count(*, total_files: int, validation_fraction: float) -> int:
     return count
 
 
-def _encode_segments(segments: list[Segment]) -> list[EncodedExercise]:
+def _encode_segments(segments: list[Segment], *, token_vocabulary: TokenVocabulary) -> list[EncodedExercise]:
     encoded_samples: list[EncodedExercise] = []
     for segment in segments:
-        encoded_samples.extend(_encode_segment_hands(segment))
+        encoded_samples.extend(_encode_segment_hands(segment, token_vocabulary=token_vocabulary))
 
     return encoded_samples
 
 
-def _encode_segment_hands(segment: Segment) -> list[EncodedExercise]:
-    right_hand = _encode_hand_segment(segment=segment, tokens=segment.right_hand_tokens, hand=Hand.RIGHT)
-    left_hand = _encode_hand_segment(segment=segment, tokens=segment.left_hand_tokens, hand=Hand.LEFT)
+def _encode_segment_hands(segment: Segment, *, token_vocabulary: TokenVocabulary) -> list[EncodedExercise]:
+    right_hand = _encode_hand_segment(
+        segment=segment,
+        tokens=segment.right_hand_tokens,
+        hand=Hand.RIGHT,
+        token_vocabulary=token_vocabulary,
+    )
+    left_hand = _encode_hand_segment(
+        segment=segment,
+        tokens=segment.left_hand_tokens,
+        hand=Hand.LEFT,
+        token_vocabulary=token_vocabulary,
+    )
     return [right_hand, left_hand]
 
 
@@ -109,8 +123,9 @@ def _encode_hand_segment(
     segment: Segment,
     tokens: list[Token],
     hand: Hand,
+    token_vocabulary: TokenVocabulary,
 ) -> EncodedExercise:
-    token_ids = encode(tokens)
+    token_ids = encode(tokens, vocabulary=token_vocabulary)
     bar_positions = _build_bar_positions_from_tokens(tokens)
     return EncodedExercise(
         token_ids=token_ids,

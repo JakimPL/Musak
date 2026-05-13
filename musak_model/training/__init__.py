@@ -1,5 +1,5 @@
 from musak_model.training.ingestion import (
-    CONFIG_PATH,
+    INGESTION_CONFIG_PATH,
     EncodedExercise,
     IngestionConfig,
     IngestionErrorRecord,
@@ -9,7 +9,7 @@ from musak_model.training.ingestion import (
 
 __all__ = [
     "EncodedExercise",
-    "CONFIG_PATH",
+    "INGESTION_CONFIG_PATH",
     "IngestionConfig",
     "IngestionErrorRecord",
     "IngestionSplit",

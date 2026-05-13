@@ -1,11 +1,11 @@
+from fractions import Fraction
+
 from musak_model.data.schema import Segment
+from musak_model.tokens.duration_vocabulary import DurationVocabulary
 from musak_model.tokens.schema import (
-    DOUBLED_DURATIONS,
-    HALVED_DURATIONS,
     MAX_OCTAVE_OFFSET,
     MIN_OCTAVE_OFFSET,
     BarToken,
-    DurationClass,
     EndToken,
     NoteToken,
     RestToken,
@@ -23,12 +23,12 @@ def shift_register(
     return segment.model_copy(update={"right_hand_tokens": shifted_right, "left_hand_tokens": shifted_left})
 
 
-def halve_durations(segment: Segment) -> Segment:
-    return _remap_durations(segment, duration_map=HALVED_DURATIONS)
+def halve_durations(segment: Segment, *, duration_vocabulary: DurationVocabulary) -> Segment:
+    return _remap_durations(segment, duration_vocabulary=duration_vocabulary, factor=Fraction(1, 2))
 
 
-def double_durations(segment: Segment) -> Segment:
-    return _remap_durations(segment, duration_map=DOUBLED_DURATIONS)
+def double_durations(segment: Segment, *, duration_vocabulary: DurationVocabulary) -> Segment:
+    return _remap_durations(segment, duration_vocabulary=duration_vocabulary, factor=Fraction(2, 1))
 
 
 def _shift_tokens(
@@ -63,37 +63,76 @@ def _shift_token(
 def _remap_durations(
     segment: Segment,
     *,
-    duration_map: dict[DurationClass, DurationClass],
+    duration_vocabulary: DurationVocabulary,
+    factor: Fraction,
 ) -> Segment:
-    remapped_right = _remap_tokens(segment.right_hand_tokens, duration_map=duration_map)
-    remapped_left = _remap_tokens(segment.left_hand_tokens, duration_map=duration_map)
+    remapped_right = _remap_tokens(
+        segment.right_hand_tokens,
+        duration_vocabulary=duration_vocabulary,
+        factor=factor,
+    )
+    remapped_left = _remap_tokens(
+        segment.left_hand_tokens,
+        duration_vocabulary=duration_vocabulary,
+        factor=factor,
+    )
     return segment.model_copy(update={"right_hand_tokens": remapped_right, "left_hand_tokens": remapped_left})
 
 
 def _remap_tokens(
     tokens: list[Token],
     *,
-    duration_map: dict[DurationClass, DurationClass],
+    duration_vocabulary: DurationVocabulary,
+    factor: Fraction,
 ) -> list[Token]:
-    return [_remap_token_duration(token, duration_map=duration_map) for token in tokens]
+    return [
+        _remap_token_duration(
+            token,
+            duration_vocabulary=duration_vocabulary,
+            factor=factor,
+        )
+        for token in tokens
+    ]
 
 
 def _remap_token_duration(
     token: Token,
     *,
-    duration_map: dict[DurationClass, DurationClass],
+    duration_vocabulary: DurationVocabulary,
+    factor: Fraction,
 ) -> Token:
     if isinstance(token, NoteToken):
-        if token.duration not in duration_map:
-            raise ValueError(f"duration {token.duration.value} has no mapping in the given duration map")
-        return token.model_copy(update={"duration": duration_map[token.duration]})
+        remapped_duration_id = _remap_duration_id(
+            token.duration_id,
+            duration_vocabulary=duration_vocabulary,
+            factor=factor,
+        )
+        return token.model_copy(update={"duration_id": remapped_duration_id})
 
     if isinstance(token, RestToken):
-        if token.duration not in duration_map:
-            raise ValueError(f"duration {token.duration.value} has no mapping in the given duration map")
-        return token.model_copy(update={"duration": duration_map[token.duration]})
+        remapped_duration_id = _remap_duration_id(
+            token.duration_id,
+            duration_vocabulary=duration_vocabulary,
+            factor=factor,
+        )
+        return token.model_copy(update={"duration_id": remapped_duration_id})
 
     if isinstance(token, (BarToken, EndToken)):
         return token
 
     raise ValueError(f"unexpected token type: {type(token)}")
+
+
+def _remap_duration_id(
+    duration_id: int,
+    *,
+    duration_vocabulary: DurationVocabulary,
+    factor: Fraction,
+) -> int:
+    source_fraction = duration_vocabulary.id_to_fraction(duration_id)
+    target_fraction = source_fraction * factor
+    candidate_duration_id, candidate_fraction = duration_vocabulary.find_closest(target_fraction)
+    if candidate_fraction != target_fraction:
+        raise ValueError(f"duration {source_fraction} has no exact mapping for factor {factor}")
+
+    return candidate_duration_id

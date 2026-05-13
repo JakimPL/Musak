@@ -30,12 +30,13 @@ def parse_score(path: Path) -> ParsedScore:
     if not isinstance(raw, Score):
         raise ValueError(f"expected a Score, got {type(raw).__name__}")
 
-    key_root, mode = _detect_key(raw)
+    key_root, key_fifths, mode = _detect_key(raw)
     time_numerator, time_denominator = _detect_time_signature(raw)
     right_hand_bars, left_hand_bars = _extract_hands(raw)
 
     return ParsedScore(
         key_root=key_root,
+        key_fifths=key_fifths,
         mode=mode,
         time_numerator=time_numerator,
         time_denominator=time_denominator,
@@ -44,7 +45,7 @@ def parse_score(path: Path) -> ParsedScore:
     )
 
 
-def _detect_key(score: object) -> tuple[int, str]:
+def _detect_key(score: object) -> tuple[int, int, str]:
     if not isinstance(score, Score):
         raise TypeError(f"expected Score, got {type(score).__name__}")
 
@@ -56,7 +57,7 @@ def _detect_key(score: object) -> tuple[int, str]:
     if tonic is None:
         raise ValueError("key signature has no tonic")
 
-    return tonic.midi % PITCHES_PER_OCTAVE, key_signature.mode
+    return tonic.midi % PITCHES_PER_OCTAVE, key_signature.sharps, key_signature.mode
 
 
 def _detect_time_signature(score: object) -> tuple[int, int]:

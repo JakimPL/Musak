@@ -1,10 +1,8 @@
 from fractions import Fraction
 
-from musak_model.tokens.schema import DURATION_FRACTIONS, DurationClass
+from musak_model.tokens.duration_vocabulary import DurationVocabulary
 
 
-def quantize_duration(duration: Fraction) -> DurationClass:
-    return min(
-        DURATION_FRACTIONS,
-        key=lambda duration_class: abs(DURATION_FRACTIONS[duration_class] - duration),
-    )
+def quantize_duration_to_id(duration: Fraction, *, vocabulary: DurationVocabulary) -> int:
+    duration_id, _ = vocabulary.find_closest(duration)
+    return duration_id

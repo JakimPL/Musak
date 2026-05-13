@@ -1,46 +1,7 @@
 from enum import StrEnum
-from fractions import Fraction
 from typing import Final, Literal
 
-from pydantic import BaseModel, ConfigDict
-
-
-class DurationClass(StrEnum):
-    WHOLE = "whole"
-    HALF = "half"
-    DOTTED_HALF = "dotted_half"
-    QUARTER = "quarter"
-    DOTTED_QUARTER = "dotted_quarter"
-    EIGHTH = "eighth"
-    DOTTED_EIGHTH = "dotted_eighth"
-    SIXTEENTH = "sixteenth"
-    TRIPLET_EIGHTH = "triplet_eighth"
-
-
-DURATION_FRACTIONS: Final[dict[DurationClass, Fraction]] = {
-    DurationClass.WHOLE: Fraction(1, 1),
-    DurationClass.HALF: Fraction(1, 2),
-    DurationClass.DOTTED_HALF: Fraction(3, 4),
-    DurationClass.QUARTER: Fraction(1, 4),
-    DurationClass.DOTTED_QUARTER: Fraction(3, 8),
-    DurationClass.EIGHTH: Fraction(1, 8),
-    DurationClass.DOTTED_EIGHTH: Fraction(3, 16),
-    DurationClass.SIXTEENTH: Fraction(1, 16),
-    DurationClass.TRIPLET_EIGHTH: Fraction(1, 12),
-}
-
-HALVED_DURATIONS: Final[dict[DurationClass, DurationClass]] = {
-    DurationClass.WHOLE: DurationClass.HALF,
-    DurationClass.HALF: DurationClass.QUARTER,
-    DurationClass.DOTTED_HALF: DurationClass.DOTTED_QUARTER,
-    DurationClass.QUARTER: DurationClass.EIGHTH,
-    DurationClass.DOTTED_QUARTER: DurationClass.DOTTED_EIGHTH,
-    DurationClass.EIGHTH: DurationClass.SIXTEENTH,
-}
-
-DOUBLED_DURATIONS: Final[dict[DurationClass, DurationClass]] = {
-    shorter: longer for longer, shorter in HALVED_DURATIONS.items()
-}
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ScaleType(StrEnum):
@@ -81,6 +42,7 @@ MAX_ACCIDENTAL: Final[int] = 1
 
 MIN_OCTAVE_OFFSET: Final[int] = -2
 MAX_OCTAVE_OFFSET: Final[int] = 2
+MIN_DURATION_ID: Final[int] = 0
 
 RIGHT_HAND_HOME_OCTAVE: Final[int] = 4
 LEFT_HAND_HOME_OCTAVE: Final[int] = 3
@@ -105,17 +67,6 @@ VALID_TIME_SIGNATURES: Final[tuple[tuple[int, int], ...]] = (
 
 
 _ACCIDENTAL_SYMBOLS: Final[dict[int, str]] = {-1: "b", 0: "", 1: "#"}
-_DURATION_ABBREVIATIONS: Final[dict[DurationClass, str]] = {
-    DurationClass.WHOLE: "1",
-    DurationClass.HALF: "2",
-    DurationClass.DOTTED_HALF: "2.",
-    DurationClass.QUARTER: "4",
-    DurationClass.DOTTED_QUARTER: "4.",
-    DurationClass.EIGHTH: "8",
-    DurationClass.DOTTED_EIGHTH: "8.",
-    DurationClass.SIXTEENTH: "16",
-    DurationClass.TRIPLET_EIGHTH: "8t",
-}
 
 
 class NoteToken(BaseModel):
@@ -125,13 +76,12 @@ class NoteToken(BaseModel):
     degree: int
     accidental: int
     octave_offset: int
-    duration: DurationClass
+    duration_id: int = Field(ge=MIN_DURATION_ID)
 
     def __repr__(self) -> str:
         accidental = _ACCIDENTAL_SYMBOLS[self.accidental]
         register = f"[{self.octave_offset:+d}]" if self.octave_offset != 0 else ""
-        duration = _DURATION_ABBREVIATIONS[self.duration]
-        return f"{self.degree}{accidental}{register}/{duration}"
+        return f"{self.degree}{accidental}{register}/d{self.duration_id}"
 
     def __str__(self) -> str:
         return repr(self)
@@ -141,10 +91,10 @@ class RestToken(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     kind: Literal["rest"] = "rest"
-    duration: DurationClass
+    duration_id: int = Field(ge=MIN_DURATION_ID)
 
     def __repr__(self) -> str:
-        return f"r/{_DURATION_ABBREVIATIONS[self.duration]}"
+        return f"r/d{self.duration_id}"
 
     def __str__(self) -> str:
         return repr(self)

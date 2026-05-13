@@ -91,6 +91,7 @@ class ParsedScore(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True, frozen=True)
 
     key_root: int
+    key_fifths: int
     mode: str
     time_numerator: int
     time_denominator: int
@@ -102,6 +103,15 @@ class ParsedScore(BaseModel):
     def check_mode(cls, value: str) -> str:
         if value not in VALID_MODES:
             raise ValueError(f"mode must be one of {VALID_MODES}")
+
+        return value
+
+    @field_validator("key_fifths")
+    @classmethod
+    def check_key_fifths(cls, value: int) -> int:
+        # MusicXML and music21 allow -7 (Cb) to +7 (C#)
+        if not -7 <= value <= 7:
+            raise ValueError("key_fifths must be in [-7, 7]")
 
         return value
 

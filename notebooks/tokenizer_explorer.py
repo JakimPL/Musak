@@ -66,6 +66,7 @@ def _(mo, mxl_files):
 
 @app.cell
 def _(file_picker, mo, stride_slider, window_slider):
+    from musak_model.data.config import SegmentationConfig
     from musak_model.data.pipeline import process_file
 
     selected_path = file_picker.value
@@ -73,8 +74,10 @@ def _(file_picker, mo, stride_slider, window_slider):
     with mo.status.spinner(title="Parsing & tokenizing…"):
         segments = process_file(
             selected_path,
-            window_bars=window_slider.value,
-            stride_bars=stride_slider.value,
+            segmentation=SegmentationConfig(
+                window_bars=window_slider.value,
+                stride_bars=stride_slider.value,
+            ),
         )
 
     mo.callout(
@@ -215,7 +218,6 @@ def _(mo, segments):
     import altair as alt
     import pandas as pd
 
-    from musak_model.tokens.schema import DurationClass
     from musak_model.tokens.schema import NoteToken as NT
 
     all_tokens = [token for seg in segments for token in seg.right_hand_tokens + seg.left_hand_tokens]
@@ -223,9 +225,9 @@ def _(mo, segments):
     duration_counts: Counter[str] = Counter()
     for _token in all_tokens:
         if isinstance(_token, NT):
-            duration_counts[_token.duration.value] += 1
+            duration_counts[str(_token.duration_id)] += 1
 
-    ordered_durations = [dc.value for dc in DurationClass]
+    ordered_durations = sorted(duration_counts.keys(), key=int)
     rows = [{"duration": dur, "count": duration_counts.get(dur, 0)} for dur in ordered_durations]
     df = pd.DataFrame(rows)
 
@@ -233,16 +235,15 @@ def _(mo, segments):
         alt.Chart(df)
         .mark_bar()
         .encode(
-            x=alt.X("duration:N", sort=ordered_durations, title="Duration class"),
+            x=alt.X("duration:N", sort=ordered_durations, title="Duration id"),
             y=alt.Y("count:Q", title="Token count"),
             tooltip=["duration", "count"],
         )
-        .properties(title="Duration distribution across all segments", height=250)
+        .properties(title="Duration-id distribution across all segments", height=250)
     )
     chart
     return (
         Counter,
-        DurationClass,
         NT,
         all_tokens,
         alt,

@@ -1,6 +1,5 @@
 from fractions import Fraction
 
-from musak_model.common.elements import DOTTED_DURATION_VALUES
 from musak_model.data.converter import pitch_to_degree
 from musak_model.data.schema import (
     DifficultyFeatures,
@@ -10,9 +9,8 @@ from musak_model.data.schema import (
     ParsedScore,
     Segment,
 )
+from musak_model.tokens.duration_vocabulary import DurationVocabulary
 from musak_model.tokens.schema import (
-    DURATION_FRACTIONS,
-    DurationClass,
     Hand,
     NoteToken,
     ScaleType,
@@ -25,6 +23,7 @@ def extract_difficulty_features(
     *,
     score: ParsedScore,
     scale_type: ScaleType,
+    duration_vocabulary: DurationVocabulary,
 ) -> DifficultyFeatures:
     window_bars_right = _select_window_bars(score.right_hand_bars, bar_count=segment.bar_count)
     window_bars_left = _select_window_bars(score.left_hand_bars, bar_count=segment.bar_count)
@@ -33,10 +32,10 @@ def extract_difficulty_features(
         max_right_hand_span_semitones=_max_hand_span(window_bars_right),
         max_left_hand_span_semitones=_max_hand_span(window_bars_left),
         notes_per_beat=_notes_per_beat(window_bars_right + window_bars_left, score=score),
-        rhythmic_diversity=_rhythmic_diversity(segment),
-        voice_independence=_voice_independence(segment),
+        rhythmic_diversity=_rhythmic_diversity(segment, duration_vocabulary=duration_vocabulary),
+        voice_independence=_voice_independence(segment, duration_vocabulary=duration_vocabulary),
         has_accidentals=_has_accidentals(window_bars_right + window_bars_left, score=score, scale_type=scale_type),
-        has_dotted_notes=_has_dotted_notes(segment),
+        has_dotted_notes=_has_dotted_notes(segment, duration_vocabulary=duration_vocabulary),
     )
 
 
@@ -76,19 +75,19 @@ def _notes_per_beat(
     return float(note_count / total_beats) if total_beats > 0 else 0.0
 
 
-def _rhythmic_diversity(segment: Segment) -> float:
+def _rhythmic_diversity(segment: Segment, *, duration_vocabulary: DurationVocabulary) -> float:
     all_tokens = segment.right_hand_tokens + segment.left_hand_tokens
-    durations_present: set[DurationClass] = set()
+    durations_present: set[int] = set()
     for token in all_tokens:
         if isinstance(token, NoteToken):
-            durations_present.add(token.duration)
+            durations_present.add(token.duration_id)
 
-    return len(durations_present) / len(DurationClass)
+    return len(durations_present) / duration_vocabulary.vocab_size()
 
 
-def _voice_independence(segment: Segment) -> float:
-    right_rhythm = _rhythm_vector(segment.right_hand_tokens)
-    left_rhythm = _rhythm_vector(segment.left_hand_tokens)
+def _voice_independence(segment: Segment, *, duration_vocabulary: DurationVocabulary) -> float:
+    right_rhythm = _rhythm_vector(segment.right_hand_tokens, duration_vocabulary=duration_vocabulary)
+    left_rhythm = _rhythm_vector(segment.left_hand_tokens, duration_vocabulary=duration_vocabulary)
 
     if len(right_rhythm) != len(left_rhythm) or not right_rhythm:
         return 0.0
@@ -97,11 +96,11 @@ def _voice_independence(segment: Segment) -> float:
     return 1.0 - matching / len(right_rhythm)
 
 
-def _rhythm_vector(tokens: list[Token]) -> list[Fraction]:
+def _rhythm_vector(tokens: list[Token], *, duration_vocabulary: DurationVocabulary) -> list[Fraction]:
     rhythm: list[Fraction] = []
     for token in tokens:
         if isinstance(token, NoteToken):
-            rhythm.append(DURATION_FRACTIONS[token.duration])
+            rhythm.append(duration_vocabulary.id_to_fraction(token.duration_id))
 
     return rhythm
 
@@ -118,6 +117,7 @@ def _has_accidentals(
                 pitch_degree = pitch_to_degree(
                     event.midi_pitch,
                     key_root=score.key_root,
+                    key_fifths=score.key_fifths,
                     scale_type=scale_type,
                     hand=Hand.RIGHT,
                 )
@@ -129,6 +129,7 @@ def _has_accidentals(
                     pitch_degree = pitch_to_degree(
                         midi_pitch,
                         key_root=score.key_root,
+                        key_fifths=score.key_fifths,
                         scale_type=scale_type,
                         hand=Hand.RIGHT,
                     )
@@ -138,10 +139,9 @@ def _has_accidentals(
     return False
 
 
-def _has_dotted_notes(segment: Segment) -> bool:
-    dotted_durations = frozenset(DurationClass(val) for val in DOTTED_DURATION_VALUES)
+def _has_dotted_notes(segment: Segment, *, duration_vocabulary: DurationVocabulary) -> bool:
     for token in segment.right_hand_tokens + segment.left_hand_tokens:
-        if isinstance(token, NoteToken) and token.duration in dotted_durations:
+        if isinstance(token, NoteToken) and duration_vocabulary.is_dotted_id(token.duration_id):
             return True
 
     return False
