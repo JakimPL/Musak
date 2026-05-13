@@ -35,6 +35,7 @@ def _segment(source_file: Path) -> Segment:
             time_numerator=4,
             time_denominator=4,
             bar_count=2,
+            window_start_bar=0,
             source_file=source_file,
             difficulty_level=2,
         ),

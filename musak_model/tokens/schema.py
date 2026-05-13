@@ -6,25 +6,25 @@ from pydantic import BaseModel, ConfigDict, Field
 
 class ScaleType(StrEnum):
     MAJOR = "major"
-    NATURAL_MINOR = "natural_minor"
     HARMONIC_MINOR = "harmonic_minor"
     MELODIC_MINOR = "melodic_minor"
     DORIAN = "dorian"
     PHRYGIAN = "phrygian"
     LYDIAN = "lydian"
     MIXOLYDIAN = "mixolydian"
+    AEOLIAN = "aeolian"
     LOCRIAN = "locrian"
 
 
 SCALE_INTERVALS: Final[dict[ScaleType, tuple[int, ...]]] = {
     ScaleType.MAJOR: (0, 2, 4, 5, 7, 9, 11),
-    ScaleType.NATURAL_MINOR: (0, 2, 3, 5, 7, 8, 10),
     ScaleType.HARMONIC_MINOR: (0, 2, 3, 5, 7, 8, 11),
     ScaleType.MELODIC_MINOR: (0, 2, 3, 5, 7, 9, 11),
     ScaleType.DORIAN: (0, 2, 3, 5, 7, 9, 10),
     ScaleType.PHRYGIAN: (0, 1, 3, 5, 7, 8, 10),
     ScaleType.LYDIAN: (0, 2, 4, 6, 7, 9, 11),
     ScaleType.MIXOLYDIAN: (0, 2, 4, 5, 7, 9, 10),
+    ScaleType.AEOLIAN: (0, 2, 3, 5, 7, 8, 10),
     ScaleType.LOCRIAN: (0, 1, 3, 5, 6, 8, 10),
 }
 

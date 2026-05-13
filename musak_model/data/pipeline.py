@@ -12,7 +12,7 @@ from musak_model.tokens.schema import ScaleType
 
 _MODE_TO_SCALE_TYPE: dict[str, ScaleType] = {
     "major": ScaleType.MAJOR,
-    "minor": ScaleType.NATURAL_MINOR,
+    "minor": ScaleType.HARMONIC_MINOR,
 }
 
 

@@ -28,7 +28,7 @@ def _small_config() -> ModelConfig:
         ),
         conditioning=ConditioningConfig(
             num_difficulty_levels=6,
-            num_scale_types=9,
+            num_scale_types=2,
             num_time_signatures=5,
             cfg_dropout_probability=0.0,
         ),

@@ -225,6 +225,7 @@ def _create_windows(
                     time_numerator=score.time_numerator,
                     time_denominator=score.time_denominator,
                     bar_count=segmentation.window_bars,
+                    window_start_bar=start,
                     source_file=source_file,
                     difficulty_level=difficulty_level,
                 ),

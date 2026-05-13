@@ -25,8 +25,16 @@ def extract_difficulty_features(
     scale_type: ScaleType,
     duration_vocabulary: DurationVocabulary,
 ) -> DifficultyFeatures:
-    window_bars_right = _select_window_bars(score.right_hand_bars, bar_count=segment.bar_count)
-    window_bars_left = _select_window_bars(score.left_hand_bars, bar_count=segment.bar_count)
+    window_bars_right = _select_window_bars(
+        score.right_hand_bars,
+        start=segment.metadata.window_start_bar,
+        bar_count=segment.bar_count,
+    )
+    window_bars_left = _select_window_bars(
+        score.left_hand_bars,
+        start=segment.metadata.window_start_bar,
+        bar_count=segment.bar_count,
+    )
 
     return DifficultyFeatures(
         max_right_hand_span_semitones=_max_hand_span(window_bars_right),
@@ -42,9 +50,10 @@ def extract_difficulty_features(
 def _select_window_bars(
     bars: list[ParsedBar],
     *,
+    start: int,
     bar_count: int,
 ) -> list[ParsedBar]:
-    return bars[:bar_count]
+    return bars[start : start + bar_count]
 
 
 def _max_hand_span(bars: list[ParsedBar]) -> int:

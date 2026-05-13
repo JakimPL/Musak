@@ -1,15 +1,19 @@
 from fractions import Fraction
 from pathlib import Path
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from musak_model.common.elements import PITCHES_PER_OCTAVE, VALID_MODES
 from musak_model.common.validators import is_power_of_two
 from musak_model.tokens.schema import (
+    MAX_ACCIDENTAL,
     MAX_DEGREE,
     MAX_DIFFICULTY_LEVEL,
+    MAX_OCTAVE_OFFSET,
+    MIN_ACCIDENTAL,
     MIN_DEGREE,
     MIN_DIFFICULTY_LEVEL,
+    MIN_OCTAVE_OFFSET,
     ScaleType,
     Token,
 )
@@ -18,62 +22,30 @@ from musak_model.tokens.schema import (
 class ParsedNote(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True, frozen=True)
 
-    midi_pitch: int
-    duration: Fraction
-    beat_offset: Fraction
-
-    @field_validator("midi_pitch")
-    @classmethod
-    def check_midi_pitch(cls, value: int) -> int:
-        if not 0 <= value <= 127:
-            raise ValueError("midi_pitch must be in [0, 127]")
-
-        return value
-
-    @field_validator("duration", "beat_offset")
-    @classmethod
-    def check_positive_fraction(cls, value: Fraction) -> Fraction:
-        if value <= 0:
-            raise ValueError("duration and beat_offset must be positive")
-
-        return value
+    midi_pitch: int = Field(ge=0, le=127)
+    duration: Fraction = Field(gt=0)
+    beat_offset: Fraction = Field(gt=0)
 
 
 class ParsedRest(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True, frozen=True)
 
-    duration: Fraction
-    beat_offset: Fraction
-
-    @field_validator("duration", "beat_offset")
-    @classmethod
-    def check_positive_fraction(cls, value: Fraction) -> Fraction:
-        if value <= 0:
-            raise ValueError("duration and beat_offset must be positive")
-
-        return value
+    duration: Fraction = Field(gt=0)
+    beat_offset: Fraction = Field(gt=0)
 
 
 class ParsedChord(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True, frozen=True)
 
     midi_pitches: list[int]
-    duration: Fraction
-    beat_offset: Fraction
+    duration: Fraction = Field(gt=0)
+    beat_offset: Fraction = Field(gt=0)
 
     @field_validator("midi_pitches")
     @classmethod
     def check_midi_pitches(cls, value: list[int]) -> list[int]:
         if not all(0 <= pitch <= 127 for pitch in value):
             raise ValueError("all midi_pitches must be in [0, 127]")
-
-        return value
-
-    @field_validator("duration", "beat_offset")
-    @classmethod
-    def check_positive_fraction(cls, value: Fraction) -> Fraction:
-        if value <= 0:
-            raise ValueError("duration and beat_offset must be positive")
 
         return value
 
@@ -90,10 +62,10 @@ class ParsedBar(BaseModel):
 class ParsedScore(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True, frozen=True)
 
-    key_root: int
-    key_fifths: int
+    key_root: int = Field(ge=0, lt=PITCHES_PER_OCTAVE)
+    key_fifths: int = Field(ge=-7, le=7)
     mode: str
-    time_numerator: int
+    time_numerator: int = Field(gt=0)
     time_denominator: int
     right_hand_bars: list[ParsedBar]
     left_hand_bars: list[ParsedBar]
@@ -103,31 +75,6 @@ class ParsedScore(BaseModel):
     def check_mode(cls, value: str) -> str:
         if value not in VALID_MODES:
             raise ValueError(f"mode must be one of {VALID_MODES}")
-
-        return value
-
-    @field_validator("key_fifths")
-    @classmethod
-    def check_key_fifths(cls, value: int) -> int:
-        # MusicXML and music21 allow -7 (Cb) to +7 (C#)
-        if not -7 <= value <= 7:
-            raise ValueError("key_fifths must be in [-7, 7]")
-
-        return value
-
-    @field_validator("key_root")
-    @classmethod
-    def check_key_root(cls, value: int) -> int:
-        if not 0 <= value < PITCHES_PER_OCTAVE:
-            raise ValueError(f"key_root must be in [0, {PITCHES_PER_OCTAVE - 1}]")
-
-        return value
-
-    @field_validator("time_numerator")
-    @classmethod
-    def check_time_numerator(cls, value: int) -> int:
-        if value <= 0:
-            raise ValueError("time_numerator must be positive")
 
         return value
 
@@ -143,17 +90,9 @@ class ParsedScore(BaseModel):
 class PitchDegree(BaseModel):
     model_config = ConfigDict(frozen=True)
 
-    degree: int
-    accidental: int
-    octave_offset: int
-
-    @field_validator("degree")
-    @classmethod
-    def check_degree(cls, value: int) -> int:
-        if not MIN_DEGREE <= value <= MAX_DEGREE:
-            raise ValueError(f"degree must be in [{MIN_DEGREE}, {MAX_DEGREE}]")
-
-        return value
+    degree: int = Field(ge=MIN_DEGREE, le=MAX_DEGREE)
+    accidental: int = Field(ge=MIN_ACCIDENTAL, le=MAX_ACCIDENTAL)
+    octave_offset: int = Field(ge=MIN_OCTAVE_OFFSET, le=MAX_OCTAVE_OFFSET)
 
 
 class DifficultyFeatures(BaseModel):
@@ -171,52 +110,21 @@ class DifficultyFeatures(BaseModel):
 class SegmentMetadata(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True, frozen=True)
 
-    key_root: int
+    key_root: int = Field(ge=0, lt=PITCHES_PER_OCTAVE)
     scale_type: ScaleType
-    time_numerator: int
+    time_numerator: int = Field(gt=0)
     time_denominator: int
-    bar_count: int
+    bar_count: int = Field(ge=0)
+    window_start_bar: int = Field(ge=0)
     source_file: Path
-    difficulty_level: int | None = None
+    difficulty_level: int | None = Field(None, ge=MIN_DIFFICULTY_LEVEL, le=MAX_DIFFICULTY_LEVEL)
     difficulty_features: DifficultyFeatures | None = None
-
-    @field_validator("key_root")
-    @classmethod
-    def check_key_root(cls, value: int) -> int:
-        if not 0 <= value < PITCHES_PER_OCTAVE:
-            raise ValueError(f"key_root must be in [0, {PITCHES_PER_OCTAVE - 1}]")
-
-        return value
-
-    @field_validator("time_numerator")
-    @classmethod
-    def check_time_numerator(cls, value: int) -> int:
-        if value <= 0:
-            raise ValueError("time_numerator must be positive")
-
-        return value
 
     @field_validator("time_denominator")
     @classmethod
     def check_time_denominator(cls, value: int) -> int:
         if not is_power_of_two(value):
             raise ValueError("time_denominator must be a power of two")
-
-        return value
-
-    @field_validator("bar_count")
-    @classmethod
-    def check_bar_count(cls, value: int) -> int:
-        if value < 0:
-            raise ValueError("bar_count must be non-negative")
-
-        return value
-
-    @field_validator("difficulty_level")
-    @classmethod
-    def check_difficulty_level(cls, value: int | None) -> int | None:
-        if value is not None and not MIN_DIFFICULTY_LEVEL <= value <= MAX_DIFFICULTY_LEVEL:
-            raise ValueError(f"difficulty_level must be in [{MIN_DIFFICULTY_LEVEL}, {MAX_DIFFICULTY_LEVEL}]")
 
         return value
 
