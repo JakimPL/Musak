@@ -73,7 +73,7 @@ class TestNoteToToken:
             scale_type=ScaleType.MAJOR,
             expected_degree=1,
             expected_accidental=0,
-            expected_octave_offset=0,
+            expected_octave_offset=-1,
             expected_duration_id=DurationVocabulary(
                 TokenizationConfig(shortest_duration=16, max_tuplets=(3,), max_dots=1)
             ).fraction_to_id(Fraction(1, 4)),
@@ -85,7 +85,7 @@ class TestNoteToToken:
             scale_type=ScaleType.MAJOR,
             expected_degree=1,
             expected_accidental=1,
-            expected_octave_offset=0,
+            expected_octave_offset=-1,
             expected_duration_id=DurationVocabulary(
                 TokenizationConfig(shortest_duration=16, max_tuplets=(3,), max_dots=1)
             ).fraction_to_id(Fraction(1, 4)),
@@ -117,7 +117,7 @@ class TestNoteToToken:
             scale_type=ScaleType.HARMONIC_MINOR,
             expected_degree=7,
             expected_accidental=0,
-            expected_octave_offset=0,
+            expected_octave_offset=-1,
             expected_duration_id=DurationVocabulary(
                 TokenizationConfig(shortest_duration=16, max_tuplets=(3,), max_dots=1)
             ).fraction_to_id(Fraction(1, 4)),
@@ -218,9 +218,14 @@ def test_unified_stream_adds_join_suffixes_for_chord_notes() -> None:
         time_numerator=4,
         time_denominator=4,
         right_hand_bars=[
-            ParsedBar(events=[ParsedChord(midi_pitches=[60, 64, 67], duration=Fraction(1, 4), beat_offset=Fraction(0))])
+            ParsedBar(
+                time_numerator=4,
+                time_denominator=4,
+                key_fifths=0,
+                events=[ParsedChord(midi_pitches=[60, 64, 67], duration=Fraction(1, 4), beat_offset=Fraction(0))],
+            )
         ],
-        left_hand_bars=[ParsedBar(events=[])],
+        left_hand_bars=[ParsedBar(time_numerator=4, time_denominator=4, key_fifths=0, events=[])],
     )
 
     tokenized_bars = _tokenize_unified_stream(
@@ -243,13 +248,16 @@ def test_unified_stream_rejects_overlapping_non_chord_notes() -> None:
         time_denominator=4,
         right_hand_bars=[
             ParsedBar(
+                time_numerator=4,
+                time_denominator=4,
+                key_fifths=0,
                 events=[
                     ParsedNote(midi_pitch=60, duration=Fraction(1, 4), beat_offset=Fraction(0)),
                     ParsedNote(midi_pitch=64, duration=Fraction(1, 4), beat_offset=Fraction(1, 8)),
-                ]
+                ],
             )
         ],
-        left_hand_bars=[ParsedBar(events=[])],
+        left_hand_bars=[ParsedBar(time_numerator=4, time_denominator=4, key_fifths=0, events=[])],
     )
 
     with pytest.raises(ValueError, match="overlapping events"):

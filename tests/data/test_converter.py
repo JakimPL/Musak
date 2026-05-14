@@ -19,13 +19,13 @@ class DegreeTestCase:
 
 
 TEST_CASES = [
-    DegreeTestCase(60, 0, 0, ScaleType.MAJOR, Hand.RIGHT, 1, 0, 0),  # C major tonic
-    DegreeTestCase(61, 0, 0, ScaleType.MAJOR, Hand.RIGHT, 1, 1, 0),  # C# in C major
-    DegreeTestCase(61, 3, -3, ScaleType.MAJOR, Hand.RIGHT, 7, -1, 0),  # Db in Eb major
-    DegreeTestCase(62, 2, 2, ScaleType.MAJOR, Hand.RIGHT, 1, 0, 0),  # D major tonic
-    DegreeTestCase(61, 7, 1, ScaleType.MAJOR, Hand.RIGHT, 4, 1, 0),  # C# in G major
-    DegreeTestCase(66, 10, -2, ScaleType.MAJOR, Hand.RIGHT, 6, -1, 0),  # Gb in Bb major
-    DegreeTestCase(60, 0, 0, ScaleType.MAJOR, Hand.RIGHT, 1, 0, 0),  # C4 RH
+    DegreeTestCase(60, 0, 0, ScaleType.MAJOR, Hand.RIGHT, 1, 0, -1),  # C major tonic
+    DegreeTestCase(61, 0, 0, ScaleType.MAJOR, Hand.RIGHT, 1, 1, -1),  # C# in C major
+    DegreeTestCase(61, 3, -3, ScaleType.MAJOR, Hand.RIGHT, 7, -1, -1),  # Db in Eb major
+    DegreeTestCase(62, 2, 2, ScaleType.MAJOR, Hand.RIGHT, 1, 0, -1),  # D major tonic
+    DegreeTestCase(61, 7, 1, ScaleType.MAJOR, Hand.RIGHT, 4, 1, -1),  # C# in G major
+    DegreeTestCase(66, 10, -2, ScaleType.MAJOR, Hand.RIGHT, 6, -1, -1),  # Gb in Bb major
+    DegreeTestCase(60, 0, 0, ScaleType.MAJOR, Hand.RIGHT, 1, 0, -1),  # C4 RH
     DegreeTestCase(60, 0, 0, ScaleType.MAJOR, Hand.LEFT, 1, 0, 1),  # C4 LH
 ]
 

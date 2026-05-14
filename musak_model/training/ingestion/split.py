@@ -5,6 +5,7 @@ from typing import Final
 from music21.exceptions21 import Music21Exception
 
 from musak_model.common.files import collect_musicxml_files
+from musak_model.data.config import SegmentationConfig
 from musak_model.data.pipeline import process_file
 from musak_model.data.schema import Segment
 from musak_model.tokens.config import TokenizationConfig
@@ -26,6 +27,7 @@ def build_split(
     source_dir: Path,
     *,
     config: IngestionConfig,
+    segmentation: SegmentationConfig,
 ) -> IngestionSplit:
     """Build deterministic train/validation split from MusicXML files."""
     file_paths = collect_musicxml_files(source_dir)
@@ -47,7 +49,7 @@ def build_split(
         try:
             segments = process_file(
                 file_path,
-                segmentation=config.segmentation,
+                segmentation=segmentation,
                 difficulty_labels=config.difficulty_labels,
                 duration_vocabulary=duration_vocabulary,
             )
@@ -97,6 +99,8 @@ def _validation_count(*, total_files: int, validation_fraction: float) -> int:
 def _encode_segments(segments: list[Segment], *, token_vocabulary: TokenVocabulary) -> list[EncodedExercise]:
     encoded_samples: list[EncodedExercise] = []
     for segment in segments:
+        if not segment.metadata.eligible_for_training:
+            continue
         encoded_samples.append(_encode_segment(segment, token_vocabulary=token_vocabulary))
 
     return encoded_samples

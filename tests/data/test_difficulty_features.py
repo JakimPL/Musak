@@ -72,17 +72,27 @@ def _segment_with_tokens(
 
 class TestMaxHandSpan:
     def test_single_note_no_span(self) -> None:
-        bars = [ParsedBar(events=[ParsedNote(midi_pitch=60, duration=Fraction(1, 4), beat_offset=Fraction(1, 4))])]
+        bars = [
+            ParsedBar(
+                time_numerator=4,
+                time_denominator=4,
+                key_fifths=0,
+                events=[ParsedNote(midi_pitch=60, duration=Fraction(1, 4), beat_offset=Fraction(1, 4))],
+            )
+        ]
         span = _max_hand_span(bars)
         assert span == 0
 
     def test_two_notes_octave_apart(self) -> None:
         bars = [
             ParsedBar(
+                time_numerator=4,
+                time_denominator=4,
+                key_fifths=0,
                 events=[
                     ParsedNote(midi_pitch=60, duration=Fraction(1, 4), beat_offset=Fraction(1, 8)),
                     ParsedNote(midi_pitch=72, duration=Fraction(1, 4), beat_offset=Fraction(1, 4)),
-                ]
+                ],
             )
         ]
         span = _max_hand_span(bars)
@@ -91,13 +101,16 @@ class TestMaxHandSpan:
     def test_chord_span(self) -> None:
         bars = [
             ParsedBar(
+                time_numerator=4,
+                time_denominator=4,
+                key_fifths=0,
                 events=[
                     ParsedChord(
                         midi_pitches=[60, 64, 67],
                         duration=Fraction(1, 4),
                         beat_offset=Fraction(1, 4),
                     )
-                ]
+                ],
             )
         ]
         span = _max_hand_span(bars)
@@ -105,12 +118,20 @@ class TestMaxHandSpan:
 
     def test_multiple_bars_max_span(self) -> None:
         bars = [
-            ParsedBar(events=[ParsedNote(midi_pitch=60, duration=Fraction(1, 4), beat_offset=Fraction(1, 4))]),
             ParsedBar(
+                time_numerator=4,
+                time_denominator=4,
+                key_fifths=0,
+                events=[ParsedNote(midi_pitch=60, duration=Fraction(1, 4), beat_offset=Fraction(1, 4))],
+            ),
+            ParsedBar(
+                time_numerator=4,
+                time_denominator=4,
+                key_fifths=0,
                 events=[
                     ParsedNote(midi_pitch=60, duration=Fraction(1, 4), beat_offset=Fraction(1, 8)),
                     ParsedNote(midi_pitch=80, duration=Fraction(1, 4), beat_offset=Fraction(1, 4)),
-                ]
+                ],
             ),
         ]
         span = _max_hand_span(bars)
@@ -119,28 +140,12 @@ class TestMaxHandSpan:
 
 class TestNotesPerBeat:
     def test_single_note_in_4_4_time(self) -> None:
-        bars = [ParsedBar(events=[ParsedNote(midi_pitch=60, duration=Fraction(1, 4), beat_offset=Fraction(1, 4))])]
-        score = ParsedScore(
-            key_root=0,
-            key_fifths=0,
-            mode="major",
-            time_numerator=4,
-            time_denominator=4,
-            right_hand_bars=bars,
-            left_hand_bars=[],
-        )
-        npb = _notes_per_beat(bars, score=score)
-        assert npb == 0.25
-
-    def test_four_notes_in_4_4_time(self) -> None:
         bars = [
             ParsedBar(
-                events=[
-                    ParsedNote(midi_pitch=60, duration=Fraction(1, 4), beat_offset=Fraction(1, 8)),
-                    ParsedNote(midi_pitch=62, duration=Fraction(1, 4), beat_offset=Fraction(1, 4)),
-                    ParsedNote(midi_pitch=64, duration=Fraction(1, 4), beat_offset=Fraction(2, 4)),
-                    ParsedNote(midi_pitch=65, duration=Fraction(1, 4), beat_offset=Fraction(3, 4)),
-                ]
+                time_numerator=4,
+                time_denominator=4,
+                key_fifths=0,
+                events=[ParsedNote(midi_pitch=60, duration=Fraction(1, 4), beat_offset=Fraction(1, 4))],
             )
         ]
         score = ParsedScore(
@@ -152,7 +157,33 @@ class TestNotesPerBeat:
             right_hand_bars=bars,
             left_hand_bars=[],
         )
-        npb = _notes_per_beat(bars, score=score)
+        npb = _notes_per_beat(bars)
+        assert npb == 0.25
+
+    def test_four_notes_in_4_4_time(self) -> None:
+        bars = [
+            ParsedBar(
+                time_numerator=4,
+                time_denominator=4,
+                key_fifths=0,
+                events=[
+                    ParsedNote(midi_pitch=60, duration=Fraction(1, 4), beat_offset=Fraction(1, 8)),
+                    ParsedNote(midi_pitch=62, duration=Fraction(1, 4), beat_offset=Fraction(1, 4)),
+                    ParsedNote(midi_pitch=64, duration=Fraction(1, 4), beat_offset=Fraction(2, 4)),
+                    ParsedNote(midi_pitch=65, duration=Fraction(1, 4), beat_offset=Fraction(3, 4)),
+                ],
+            )
+        ]
+        score = ParsedScore(
+            key_root=0,
+            key_fifths=0,
+            mode="major",
+            time_numerator=4,
+            time_denominator=4,
+            right_hand_bars=bars,
+            left_hand_bars=[],
+        )
+        npb = _notes_per_beat(bars)
         assert npb == 1.0
 
 
@@ -238,11 +269,14 @@ class TestHasAccidentals:
     def test_no_accidentals_in_c_major(self) -> None:
         bars = [
             ParsedBar(
+                time_numerator=4,
+                time_denominator=4,
+                key_fifths=0,
                 events=[
                     ParsedNote(midi_pitch=60, duration=Fraction(1, 4), beat_offset=Fraction(1, 8)),  # C
                     ParsedNote(midi_pitch=64, duration=Fraction(1, 4), beat_offset=Fraction(1, 4)),  # E
                     ParsedNote(midi_pitch=67, duration=Fraction(1, 4), beat_offset=Fraction(2, 4)),  # G
-                ]
+                ],
             )
         ]
         score = ParsedScore(
@@ -261,9 +295,12 @@ class TestHasAccidentals:
     def test_accidental_detected_in_chromatic_note(self) -> None:
         bars = [
             ParsedBar(
+                time_numerator=4,
+                time_denominator=4,
+                key_fifths=0,
                 events=[
                     ParsedNote(midi_pitch=61, duration=Fraction(1, 4), beat_offset=Fraction(1, 4)),  # C#
-                ]
+                ],
             )
         ]
         score = ParsedScore(
@@ -361,9 +398,14 @@ class TestExtractDifficultyFeaturesIntegration:
             time_numerator=4,
             time_denominator=4,
             right_hand_bars=[
-                ParsedBar(events=[ParsedNote(midi_pitch=60, duration=Fraction(1, 4), beat_offset=Fraction(1, 4))])
+                ParsedBar(
+                    time_numerator=4,
+                    time_denominator=4,
+                    key_fifths=0,
+                    events=[ParsedNote(midi_pitch=60, duration=Fraction(1, 4), beat_offset=Fraction(1, 4))],
+                )
             ],
-            left_hand_bars=[ParsedBar(events=[])],
+            left_hand_bars=[ParsedBar(time_numerator=4, time_denominator=4, key_fifths=0, events=[])],
         )
 
         features = extract_difficulty_features(

@@ -13,6 +13,7 @@ def _():
 
     from musak_model.tokens.vocabulary import VOCAB_SIZE
     from notebooks.utils import (
+        PitchSpelling,
         default_duration_vocabulary,
         parsed_score_piano_roll_dataframe,
         piano_roll_dataframe,
@@ -24,6 +25,7 @@ def _():
 
     return (
         Path,
+        PitchSpelling,
         VOCAB_SIZE,
         alt,
         default_duration_vocabulary,
@@ -68,9 +70,17 @@ def _(initial_browser_path, mo):
     )
     window_slider = mo.ui.slider(start=1, stop=32, step=1, value=8, label="Window bars")
     stride_slider = mo.ui.slider(start=1, stop=16, step=1, value=4, label="Stride bars")
-    browser_output = mo.vstack([file_browser, mo.hstack([window_slider, stride_slider], gap=2)], gap=2)
+    bpm_slider = mo.ui.slider(start=30, stop=240, step=1, value=60, label="BPM")
+    prefer_flats_checkbox = mo.ui.checkbox(value=False, label="Prefer flats")
+    browser_output = mo.vstack(
+        [
+            file_browser,
+            mo.hstack([window_slider, stride_slider, bpm_slider, prefer_flats_checkbox], gap=2),
+        ],
+        gap=2,
+    )
     browser_output
-    return file_browser, stride_slider, window_slider
+    return bpm_slider, file_browser, prefer_flats_checkbox, stride_slider, window_slider
 
 
 @app.cell
@@ -176,7 +186,15 @@ def _(mo, segment):
             {"Property": "Unified tokens", "Value": str(len(segment.tokens))},
             {"Property": "RH tokens", "Value": str(len(segment.right_hand_tokens))},
             {"Property": "LH tokens", "Value": str(len(segment.left_hand_tokens))},
-            {"Property": "Difficulty level", "Value": str(segment.difficulty_level or "unlabeled")},
+            {
+                "Property": "Difficulty level",
+                "Value": str(segment.difficulty_level) if segment.difficulty_level is not None else "unlabeled",
+            },
+            {"Property": "Eligible for training", "Value": str(segment.metadata.eligible_for_training)},
+            {
+                "Property": "Ineligibility reasons",
+                "Value": ", ".join(segment.metadata.ineligibility_reasons) or "-",
+            },
         ]
         if features is not None:
             rows.extend(
@@ -208,34 +226,108 @@ def _(duration_vocabulary, mo, segment, token_rows):
 
 @app.cell
 def _(
-    alt, duration_vocabulary, mo, parsed_score_piano_roll_dataframe, piano_roll_dataframe, processing_result, segment
+    PitchSpelling,
+    alt,
+    bpm_slider,
+    duration_vocabulary,
+    mo,
+    parsed_score_piano_roll_dataframe,
+    piano_roll_dataframe,
+    prefer_flats_checkbox,
+    processing_result,
+    segment,
 ):
+    pitch_spelling = PitchSpelling.FLATS if prefer_flats_checkbox.value else PitchSpelling.SHARPS
     if segment is not None:
-        piano_roll_df = piano_roll_dataframe(segment, duration_vocabulary=duration_vocabulary)
+        piano_roll_df = piano_roll_dataframe(
+            segment,
+            duration_vocabulary=duration_vocabulary,
+            pitch_spelling=pitch_spelling,
+            bpm=bpm_slider.value,
+        )
         piano_roll_title = "Decoded segment piano roll"
+        measure_duration = segment.time_numerator / segment.time_denominator
+        bar_domain = [segment.metadata.window_start_bar + 1, segment.metadata.window_start_bar + segment.bar_count + 1]
+        seconds_domain = [0.0, segment.bar_count * measure_duration * 4 * 60 / bpm_slider.value]
     elif processing_result is not None and processing_result.parsed_score is not None:
-        piano_roll_df = parsed_score_piano_roll_dataframe(processing_result.parsed_score)
+        parsed_score = processing_result.parsed_score
+        piano_roll_df = parsed_score_piano_roll_dataframe(
+            parsed_score,
+            pitch_spelling=pitch_spelling,
+            bpm=bpm_slider.value,
+        )
         piano_roll_title = "Parsed score piano roll"
+        parsed_bar_count = max(len(parsed_score.right_hand_bars), len(parsed_score.left_hand_bars))
+        measure_duration = parsed_score.time_numerator / parsed_score.time_denominator
+        bar_domain = [1, parsed_bar_count + 1]
+        seconds_domain = [0.0, parsed_bar_count * measure_duration * 4 * 60 / bpm_slider.value]
     else:
         piano_roll_df = None
         piano_roll_title = ""
+        bar_domain = [0, 1]
+        seconds_domain = [0.0, 1.0]
 
     if piano_roll_df is None:
         piano_roll_output = mo.md("")
     elif piano_roll_df.empty:
         piano_roll_output = mo.callout("No note events decoded for this score.", kind="warn")
     else:
-        chart = (
+        sharp_pitch_names = ["C-", "C#", "D-", "D#", "E-", "F-", "F#", "G-", "G#", "A-", "A#", "B-"]
+        flat_pitch_names = ["C-", "Db", "D-", "Eb", "E-", "F-", "Gb", "G-", "Ab", "A-", "Bb", "B-"]
+        pitch_names = flat_pitch_names if prefer_flats_checkbox.value else sharp_pitch_names
+        pitch_label_expression = f"{pitch_names}[datum.value % 12] + floor(datum.value / 12 - 1)"
+        y_domain = [
+            max(0, float(piano_roll_df["midi_pitch"].min()) - 1),
+            min(127, float(piano_roll_df["midi_pitch"].max()) + 1),
+        ]
+        note_bars = (
             alt.Chart(piano_roll_df)
             .mark_bar()
             .encode(
-                x=alt.X("start:Q", title="Start"),
-                x2="end:Q",
-                y=alt.Y("midi_pitch:Q", title="MIDI pitch"),
+                x=alt.X(
+                    "bar_start:Q",
+                    title="Bars",
+                    axis=alt.Axis(grid=True),
+                    scale=alt.Scale(domain=bar_domain),
+                ),
+                x2="bar_end:Q",
+                y=alt.Y(
+                    "midi_pitch:Q",
+                    title="Pitch",
+                    axis=alt.Axis(labelExpr=pitch_label_expression),
+                    scale=alt.Scale(domain=y_domain),
+                ),
                 color=alt.Color("hand:N", title="Hand"),
-                tooltip=["hand", "midi_pitch", "start", "duration"],
+                tooltip=[
+                    alt.Tooltip("hand:N", title="Hand"),
+                    alt.Tooltip("pitch:N", title="Pitch"),
+                    alt.Tooltip("midi_pitch:Q", title="MIDI"),
+                    alt.Tooltip("bar_start:Q", title="Bar start", format=".3f"),
+                    alt.Tooltip("bar_end:Q", title="Bar end", format=".3f"),
+                    alt.Tooltip("start_seconds:Q", title="Start (s)", format=".3f"),
+                    alt.Tooltip("duration_fraction:N", title="Duration"),
+                    alt.Tooltip("duration_seconds:Q", title="Duration (s)", format=".3f"),
+                    alt.Tooltip("token:N", title="Token"),
+                    alt.Tooltip("token_index:Q", title="Token index"),
+                ],
             )
-            .properties(width="container", height=360, title=piano_roll_title)
+        )
+        seconds_axis = (
+            alt.Chart(piano_roll_df)
+            .mark_rule(opacity=0)
+            .encode(
+                x=alt.X(
+                    "start_seconds:Q",
+                    title="Time (s)",
+                    axis=alt.Axis(orient="top", grid=False),
+                    scale=alt.Scale(domain=seconds_domain),
+                )
+            )
+        )
+        chart = (
+            alt.layer(note_bars, seconds_axis)
+            .resolve_scale(x="independent")
+            .properties(width="container", height=400, title=piano_roll_title)
         )
         piano_roll_output = mo.ui.altair_chart(chart)
     piano_roll_output

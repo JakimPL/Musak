@@ -49,7 +49,7 @@ def extract_difficulty_features(
     return DifficultyFeatures(
         max_right_hand_span_semitones=_max_hand_span(window_bars_right),
         max_left_hand_span_semitones=_max_hand_span(window_bars_left),
-        notes_per_beat=_notes_per_beat(window_bars_right + window_bars_left, score=score),
+        notes_per_beat=_notes_per_beat(window_bars_right + window_bars_left),
         rhythmic_diversity=_rhythmic_diversity(segment, duration_vocabulary=duration_vocabulary),
         voice_independence=_voice_independence(segment, duration_vocabulary=duration_vocabulary),
         has_accidentals=_has_accidentals(window_bars_right + window_bars_left, score=score, scale_type=scale_type),
@@ -85,11 +85,8 @@ def _collect_pitches(bar: ParsedBar) -> list[int]:
 
 def _notes_per_beat(
     bars: list[ParsedBar],
-    *,
-    score: ParsedScore,
 ) -> float:
-    beat_duration = Fraction(1, score.time_denominator)
-    total_beats = len(bars) * Fraction(score.time_numerator, score.time_denominator) / beat_duration
+    total_beats = sum(bar.time_numerator for bar in bars)
     note_count = sum(1 for bar in bars for event in bar.events if isinstance(event, (ParsedNote, ParsedChord)))
     return float(note_count / total_beats) if total_beats > 0 else 0.0
 

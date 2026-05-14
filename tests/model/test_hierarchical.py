@@ -5,8 +5,10 @@ import pytest
 import torch
 from torch import Tensor
 
+from musak_model.conditioning.config import ConditioningConfig, DifficultyConfig
+from musak_model.conditioning.time_signature import TimeSignatureVocabularyConfig
 from musak_model.model import HierarchicalAutoregressiveModel
-from musak_model.model.config import CNNConfig, ConditioningConfig, GRUConfig, ModelConfig, TransformerConfig
+from musak_model.model.config import CNNConfig, GRUConfig, ModelConfig, TransformerConfig
 from musak_model.model.gru import BarGRUEncoder
 
 VOCAB: Final[int] = 64
@@ -27,9 +29,8 @@ def _small_config() -> ModelConfig:
             max_sequence_length=128,
         ),
         conditioning=ConditioningConfig(
-            num_difficulty_levels=6,
-            num_scale_types=2,
-            num_time_signatures=5,
+            difficulty=DifficultyConfig(max_level=5),
+            time_signature=TimeSignatureVocabularyConfig(max_denominator=4, relative_numerator_range=2),
             cfg_dropout_probability=0.0,
         ),
     )

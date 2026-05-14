@@ -1,0 +1,6 @@
+difficulty:
+  max_level: 5
+time_signature:
+  max_denominator: 16
+  relative_numerator_range: 2
+cfg_dropout_probability: 0.1

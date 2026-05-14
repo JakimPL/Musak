@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from fractions import Fraction
 from pathlib import Path
 from typing import Final
@@ -37,6 +39,6 @@ class TokenizationConfig(BaseModel):
         return Fraction(1, self.shortest_duration)
 
     @classmethod
-    def load(cls, path: Path = TOKENIZATION_CONFIG_PATH) -> "TokenizationConfig":
+    def load(cls, path: Path = TOKENIZATION_CONFIG_PATH) -> TokenizationConfig:
         parsed = load_yaml_config(path)
         return cls.model_validate(parsed)

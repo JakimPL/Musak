@@ -5,8 +5,10 @@ from typing import Any
 
 import pytest
 
+from musak_model.conditioning.config import ConditioningConfig, DifficultyConfig
+from musak_model.conditioning.time_signature import TimeSignatureVocabularyConfig
 from musak_model.data.schema import SegmentMetadata
-from musak_model.model.config import CNNConfig, ConditioningConfig, GRUConfig, ModelConfig, TransformerConfig
+from musak_model.model.config import CNNConfig, GRUConfig, ModelConfig, TransformerConfig
 from musak_model.tokens.schema import ScaleType
 from musak_model.training.config import TrainingConfig
 from musak_model.training.ingestion.schema import EncodedExercise, IngestionErrorRecord, IngestionSplit
@@ -79,9 +81,8 @@ def _model_config() -> ModelConfig:
             max_sequence_length=64,
         ),
         conditioning=ConditioningConfig(
-            num_difficulty_levels=6,
-            num_scale_types=9,
-            num_time_signatures=5,
+            difficulty=DifficultyConfig(max_level=5),
+            time_signature=TimeSignatureVocabularyConfig(max_denominator=4, relative_numerator_range=2),
             cfg_dropout_probability=0.0,
         ),
     )

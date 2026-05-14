@@ -48,9 +48,14 @@ def test_chord_tokenization_preserves_all_chord_pitches() -> None:
 def test_unified_stream_adds_join_suffixes_for_chord_notes() -> None:
     score = _score(
         right_hand_bars=[
-            ParsedBar(events=[ParsedChord(midi_pitches=[60, 64, 67], duration=Fraction(1, 4), beat_offset=Fraction(0))])
+            ParsedBar(
+                time_numerator=4,
+                time_denominator=4,
+                key_fifths=0,
+                events=[ParsedChord(midi_pitches=[60, 64, 67], duration=Fraction(1, 4), beat_offset=Fraction(0))],
+            )
         ],
-        left_hand_bars=[ParsedBar(events=[])],
+        left_hand_bars=[ParsedBar(time_numerator=4, time_denominator=4, key_fifths=0, events=[])],
     )
 
     tokenized_bars = _tokenize_unified_stream(
@@ -67,13 +72,16 @@ def test_unified_stream_rejects_overlapping_non_chord_notes() -> None:
     score = _score(
         right_hand_bars=[
             ParsedBar(
+                time_numerator=4,
+                time_denominator=4,
+                key_fifths=0,
                 events=[
                     ParsedNote(midi_pitch=60, duration=Fraction(1, 4), beat_offset=Fraction(0)),
                     ParsedNote(midi_pitch=64, duration=Fraction(1, 4), beat_offset=Fraction(1, 8)),
-                ]
+                ],
             )
         ],
-        left_hand_bars=[ParsedBar(events=[])],
+        left_hand_bars=[ParsedBar(time_numerator=4, time_denominator=4, key_fifths=0, events=[])],
     )
 
     with pytest.raises(ValueError, match="overlapping events"):

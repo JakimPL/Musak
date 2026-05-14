@@ -5,6 +5,7 @@ import torch
 from torch import Tensor
 from torch.utils.data import DataLoader, Dataset
 
+from musak_model.conditioning.time_signature import TimeSignatureVocabulary
 from musak_model.training.conditioning import difficulty_level_to_id, scale_type_to_id, time_signature_to_id
 from musak_model.training.ingestion.schema import EncodedExercise, IngestionSplit
 
@@ -36,9 +37,19 @@ class TrainingBatch:
 
 
 class EncodedExerciseDataset(Dataset[TrainingExample]):
-    def __init__(self, samples: list[EncodedExercise], *, include_conditioning: bool = True) -> None:
+    def __init__(
+        self,
+        samples: list[EncodedExercise],
+        *,
+        time_signature_vocabulary: TimeSignatureVocabulary,
+        include_conditioning: bool = True,
+    ) -> None:
         self._examples = [
-            _to_training_example(sample, include_conditioning=include_conditioning)
+            _to_training_example(
+                sample,
+                include_conditioning=include_conditioning,
+                time_signature_vocabulary=time_signature_vocabulary,
+            )
             for sample in samples
             if len(sample.token_ids) >= 2
         ]
@@ -56,10 +67,19 @@ def build_dataloaders(
     batch_size: int,
     shuffle_train: bool,
     num_workers: int,
+    time_signature_vocabulary: TimeSignatureVocabulary,
     include_conditioning: bool = True,
 ) -> tuple[DataLoader[TrainingBatch], DataLoader[TrainingBatch]]:
-    train_dataset = EncodedExerciseDataset(split.train, include_conditioning=include_conditioning)
-    validation_dataset = EncodedExerciseDataset(split.validation, include_conditioning=include_conditioning)
+    train_dataset = EncodedExerciseDataset(
+        split.train,
+        include_conditioning=include_conditioning,
+        time_signature_vocabulary=time_signature_vocabulary,
+    )
+    validation_dataset = EncodedExerciseDataset(
+        split.validation,
+        include_conditioning=include_conditioning,
+        time_signature_vocabulary=time_signature_vocabulary,
+    )
     train_loader = DataLoader(
         train_dataset,
         batch_size=batch_size,
@@ -109,13 +129,23 @@ def collate_training_examples(examples: list[TrainingExample]) -> TrainingBatch:
     )
 
 
-def _to_training_example(sample: EncodedExercise, *, include_conditioning: bool) -> TrainingExample:
+def _to_training_example(
+    sample: EncodedExercise,
+    *,
+    include_conditioning: bool,
+    time_signature_vocabulary: TimeSignatureVocabulary,
+) -> TrainingExample:
     token_ids = torch.tensor(sample.token_ids, dtype=torch.long)
     bar_positions = torch.tensor(sample.bar_positions, dtype=torch.long)
     difficulty_id = difficulty_level_to_id(sample.difficulty_level) if include_conditioning else None
     scale_type_id = scale_type_to_id(sample.scale_type) if include_conditioning else 0
     time_signature_id = (
-        time_signature_to_id((sample.time_numerator, sample.time_denominator)) if include_conditioning else 0
+        time_signature_to_id(
+            (sample.time_numerator, sample.time_denominator),
+            vocabulary=time_signature_vocabulary,
+        )
+        if include_conditioning
+        else 0
     )
     return TrainingExample(
         input_token_ids=token_ids[:-1],

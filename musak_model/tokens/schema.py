@@ -65,7 +65,7 @@ MIN_OCTAVE_OFFSET: Final[int] = -2
 MAX_OCTAVE_OFFSET: Final[int] = 2
 MIN_DURATION_ID: Final[int] = 0
 
-RIGHT_HAND_HOME_OCTAVE: Final[int] = 4
+RIGHT_HAND_HOME_OCTAVE: Final[int] = 5
 LEFT_HAND_HOME_OCTAVE: Final[int] = 3
 
 HAND_HOME_OCTAVES: Final[dict[Hand, int]] = {
@@ -73,19 +73,7 @@ HAND_HOME_OCTAVES: Final[dict[Hand, int]] = {
     Hand.LEFT: LEFT_HAND_HOME_OCTAVE,
 }
 
-MIN_DIFFICULTY_LEVEL: Final[int] = 1
-MAX_DIFFICULTY_LEVEL: Final[int] = 6
-
-VALID_BAR_COUNTS: Final[tuple[int, ...]] = (4, 8, 12, 16, 24, 32)
-
-VALID_TIME_SIGNATURES: Final[tuple[tuple[int, int], ...]] = (
-    (2, 4),
-    (3, 4),
-    (4, 4),
-    (3, 8),
-    (6, 8),
-)
-
+MIN_DIFFICULTY_LEVEL: Final[int] = 0
 
 _ACCIDENTAL_SYMBOLS: Final[dict[int, str]] = {-1: TEXT_FLAT_SYMBOL, 0: "", 1: TEXT_SHARP_SYMBOL}
 _TEXT_ACCIDENTAL_SYMBOLS: Final[dict[int, str]] = {-1: TEXT_FLAT_SYMBOL, 0: "", 1: TEXT_SHARP_SYMBOL}

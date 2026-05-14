@@ -32,7 +32,11 @@ def parse_score(path: Path) -> ParsedScore:
 
     key_root, key_fifths, mode = _detect_key(raw)
     time_numerator, time_denominator = _detect_time_signature(raw)
-    right_hand_bars, left_hand_bars = _extract_hands(raw)
+    right_hand_bars, left_hand_bars = _extract_hands(
+        raw,
+        default_time_signature=(time_numerator, time_denominator),
+        default_key_fifths=key_fifths,
+    )
 
     return ParsedScore(
         key_root=key_root,
@@ -72,7 +76,12 @@ def _detect_time_signature(score: object) -> tuple[int, int]:
     return int(first.numerator), int(first.denominator)
 
 
-def _extract_hands(score: object) -> tuple[list[ParsedBar], list[ParsedBar]]:
+def _extract_hands(
+    score: object,
+    *,
+    default_time_signature: tuple[int, int],
+    default_key_fifths: int,
+) -> tuple[list[ParsedBar], list[ParsedBar]]:
     if not isinstance(score, Score):
         raise TypeError(f"expected Score, got {type(score).__name__}")
 
@@ -80,23 +89,53 @@ def _extract_hands(score: object) -> tuple[list[ParsedBar], list[ParsedBar]]:
     if len(parts) < 2:
         raise ValueError(f"expected at least 2 parts (hands), found {len(parts)}")
 
-    right_hand_bars = _extract_bars(parts[_TREBLE_PART_INDEX])
-    left_hand_bars = _extract_bars(parts[_BASS_PART_INDEX])
+    right_hand_bars = _extract_bars(
+        parts[_TREBLE_PART_INDEX],
+        default_time_signature=default_time_signature,
+        default_key_fifths=default_key_fifths,
+    )
+    left_hand_bars = _extract_bars(
+        parts[_BASS_PART_INDEX],
+        default_time_signature=default_time_signature,
+        default_key_fifths=default_key_fifths,
+    )
     return right_hand_bars, left_hand_bars
 
 
-def _extract_bars(part: object) -> list[ParsedBar]:
+def _extract_bars(
+    part: object,
+    *,
+    default_time_signature: tuple[int, int],
+    default_key_fifths: int,
+) -> list[ParsedBar]:
     if not isinstance(part, Part):
         raise TypeError(f"expected Part, got {type(part).__name__}")
 
     measures = list(part.getElementsByClass(Measure))
-    return [_parse_measure(measure) for measure in measures]
+    return [
+        _parse_measure(
+            measure,
+            default_time_signature=default_time_signature,
+            default_key_fifths=default_key_fifths,
+        )
+        for measure in measures
+    ]
 
 
-def _parse_measure(measure: object) -> ParsedBar:
+def _parse_measure(
+    measure: object,
+    *,
+    default_time_signature: tuple[int, int],
+    default_key_fifths: int,
+) -> ParsedBar:
     if not isinstance(measure, Measure):
         raise TypeError(f"expected Measure, got {type(measure).__name__}")
 
+    time_numerator, time_denominator = _measure_time_signature(
+        measure,
+        default_time_signature=default_time_signature,
+    )
+    key_fifths = _measure_key_fifths(measure, default_key_fifths=default_key_fifths)
     events: list[ParsedEvent] = []
     for element in measure.flatten().notesAndRests:
         beat_offset = _to_fraction(element.offset) * _QUARTER_NOTE_FRACTION
@@ -124,7 +163,37 @@ def _parse_measure(measure: object) -> ParsedBar:
                 )
             )
 
-    return ParsedBar(events=events)
+    return ParsedBar(
+        time_numerator=time_numerator,
+        time_denominator=time_denominator,
+        key_fifths=key_fifths,
+        events=events,
+    )
+
+
+def _measure_time_signature(measure: Measure, *, default_time_signature: tuple[int, int]) -> tuple[int, int]:
+    local_time_signatures = list(measure.getElementsByClass(TimeSignature))
+    if local_time_signatures:
+        first = local_time_signatures[0]
+        return int(first.numerator), int(first.denominator)
+
+    time_signature = measure.getContextByClass(TimeSignature)
+    if isinstance(time_signature, TimeSignature):
+        return int(time_signature.numerator), int(time_signature.denominator)
+
+    return default_time_signature
+
+
+def _measure_key_fifths(measure: Measure, *, default_key_fifths: int) -> int:
+    local_key_signatures = list(measure.getElementsByClass(m21_key.KeySignature))
+    if local_key_signatures:
+        return int(local_key_signatures[0].sharps)
+
+    key_signature = measure.getContextByClass(m21_key.KeySignature)
+    if isinstance(key_signature, m21_key.KeySignature):
+        return int(key_signature.sharps)
+
+    return default_key_fifths
 
 
 def _to_fraction(value: float | Fraction) -> Fraction:

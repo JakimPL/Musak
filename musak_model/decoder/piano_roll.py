@@ -26,6 +26,8 @@ class PianoRollEvent(BaseModel):
     midi_pitch: int = Field(ge=0, le=127)
     start: Fraction = Field(ge=0)
     duration: Fraction = Field(gt=0)
+    token_index: int | None = None
+    token_text: str | None = None
 
     @property
     def end(self) -> Fraction:
@@ -105,7 +107,7 @@ def tokens_to_piano_roll_events(
     cursor = Fraction(0)
     events: list[PianoRollEvent] = []
 
-    for token in tokens:
+    for token_index, token in enumerate(tokens):
         if isinstance(token, HandToken):
             active_hand = token.hand
             continue
@@ -129,6 +131,8 @@ def tokens_to_piano_roll_events(
                 midi_pitch=_token_to_midi_pitch(token, metadata=metadata, hand=active_hand),
                 start=bar_index * measure_duration + cursor,
                 duration=duration,
+                token_index=token_index,
+                token_text=token.to_text(duration_vocabulary=duration_vocabulary),
             )
             events.append(event)
             cursor += duration

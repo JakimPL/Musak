@@ -1,3 +1,4 @@
+from enum import StrEnum
 from fractions import Fraction
 from pathlib import Path
 
@@ -8,7 +9,6 @@ from musak_model.common.validators import is_power_of_two
 from musak_model.tokens.schema import (
     MAX_ACCIDENTAL,
     MAX_DEGREE,
-    MAX_DIFFICULTY_LEVEL,
     MAX_OCTAVE_OFFSET,
     MIN_ACCIDENTAL,
     MIN_DEGREE,
@@ -56,7 +56,18 @@ ParsedEvent = ParsedNote | ParsedRest | ParsedChord
 class ParsedBar(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True, frozen=True)
 
+    time_numerator: int = Field(gt=0)
+    time_denominator: int
+    key_fifths: int = Field(ge=-7, le=7)
     events: list[ParsedEvent]
+
+    @field_validator("time_denominator")
+    @classmethod
+    def check_time_denominator(cls, value: int) -> int:
+        if not is_power_of_two(value):
+            raise ValueError("time_denominator must be a power of two")
+
+        return value
 
 
 class ParsedScore(BaseModel):
@@ -107,6 +118,11 @@ class DifficultyFeatures(BaseModel):
     has_dotted_notes: bool
 
 
+class SegmentIneligibilityReason(StrEnum):
+    MIXED_TIME_SIGNATURE = "mixed_time_signature"
+    KEY_SIGNATURE_CHANGE = "key_signature_change"
+
+
 class SegmentMetadata(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True, frozen=True)
 
@@ -117,8 +133,10 @@ class SegmentMetadata(BaseModel):
     bar_count: int = Field(ge=0)
     window_start_bar: int = Field(ge=0)
     source_file: Path
-    difficulty_level: int | None = Field(None, ge=MIN_DIFFICULTY_LEVEL, le=MAX_DIFFICULTY_LEVEL)
+    difficulty_level: int | None = Field(None, ge=MIN_DIFFICULTY_LEVEL)
     difficulty_features: DifficultyFeatures | None = None
+    eligible_for_training: bool = True
+    ineligibility_reasons: tuple[SegmentIneligibilityReason, ...] = Field(default_factory=tuple)
 
     @field_validator("time_denominator")
     @classmethod

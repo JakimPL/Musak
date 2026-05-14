@@ -20,18 +20,18 @@ class PitchToDegreeCase:
 
 class TestPitchToDegreeMAJOR:
     MAJOR_CASES = [
-        PitchToDegreeCase(60, 0, 0, ScaleType.MAJOR, Hand.RIGHT, 1, 0, 0),  # C
-        PitchToDegreeCase(62, 0, 0, ScaleType.MAJOR, Hand.RIGHT, 2, 0, 0),  # D
-        PitchToDegreeCase(64, 0, 0, ScaleType.MAJOR, Hand.RIGHT, 3, 0, 0),  # E
-        PitchToDegreeCase(65, 0, 0, ScaleType.MAJOR, Hand.RIGHT, 4, 0, 0),  # F
-        PitchToDegreeCase(67, 0, 0, ScaleType.MAJOR, Hand.RIGHT, 5, 0, 0),  # G
-        PitchToDegreeCase(69, 0, 0, ScaleType.MAJOR, Hand.RIGHT, 6, 0, 0),  # A
-        PitchToDegreeCase(71, 0, 0, ScaleType.MAJOR, Hand.RIGHT, 7, 0, 0),  # B
-        PitchToDegreeCase(61, 0, 0, ScaleType.MAJOR, Hand.RIGHT, 1, 1, 0),  # C#
-        PitchToDegreeCase(63, 0, 0, ScaleType.MAJOR, Hand.RIGHT, 2, 1, 0),  # D#
-        PitchToDegreeCase(61, 7, 1, ScaleType.MAJOR, Hand.RIGHT, 4, 1, 0),  # C# in G major (F#=degree 4)
-        PitchToDegreeCase(66, 10, -2, ScaleType.MAJOR, Hand.RIGHT, 6, -1, 0),  # Gb in Bb major (degree 6 = A -> Ab)
-        PitchToDegreeCase(60, 0, 0, ScaleType.MAJOR, Hand.RIGHT, 1, 0, 0),  # C4 RH (octave 4 - 4 = 0)
+        PitchToDegreeCase(60, 0, 0, ScaleType.MAJOR, Hand.RIGHT, 1, 0, -1),  # C
+        PitchToDegreeCase(62, 0, 0, ScaleType.MAJOR, Hand.RIGHT, 2, 0, -1),  # D
+        PitchToDegreeCase(64, 0, 0, ScaleType.MAJOR, Hand.RIGHT, 3, 0, -1),  # E
+        PitchToDegreeCase(65, 0, 0, ScaleType.MAJOR, Hand.RIGHT, 4, 0, -1),  # F
+        PitchToDegreeCase(67, 0, 0, ScaleType.MAJOR, Hand.RIGHT, 5, 0, -1),  # G
+        PitchToDegreeCase(69, 0, 0, ScaleType.MAJOR, Hand.RIGHT, 6, 0, -1),  # A
+        PitchToDegreeCase(71, 0, 0, ScaleType.MAJOR, Hand.RIGHT, 7, 0, -1),  # B
+        PitchToDegreeCase(61, 0, 0, ScaleType.MAJOR, Hand.RIGHT, 1, 1, -1),  # C#
+        PitchToDegreeCase(63, 0, 0, ScaleType.MAJOR, Hand.RIGHT, 2, 1, -1),  # D#
+        PitchToDegreeCase(61, 7, 1, ScaleType.MAJOR, Hand.RIGHT, 4, 1, -1),  # C# in G major (F#=degree 4)
+        PitchToDegreeCase(66, 10, -2, ScaleType.MAJOR, Hand.RIGHT, 6, -1, -1),  # Gb in Bb major (degree 6 = A -> Ab)
+        PitchToDegreeCase(60, 0, 0, ScaleType.MAJOR, Hand.RIGHT, 1, 0, -1),  # C4 RH (octave 4 - 5 = -1)
         PitchToDegreeCase(60, 0, 0, ScaleType.MAJOR, Hand.LEFT, 1, 0, 1),  # C4 LH (octave 4 - 3 = 1)
         PitchToDegreeCase(48, 0, 0, ScaleType.MAJOR, Hand.LEFT, 1, 0, 0),  # C3 LH (octave 3 - 3 = 0)
     ]
@@ -142,7 +142,7 @@ class TestPitchToDegreeEdgeCases:
             key_root=0,
             key_fifths=0,
             scale_type=ScaleType.MAJOR,
-            hand=Hand.RIGHT,
+            hand=Hand.LEFT,
         )
         assert result.octave_offset < 0
 

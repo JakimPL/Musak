@@ -16,7 +16,7 @@ def chord_event(*, midi_pitches: list[int], duration: Fraction, beat_offset: Fra
 
 
 def bar(events: list[ParsedEvent]) -> ParsedBar:
-    return ParsedBar(events=events)
+    return ParsedBar(time_numerator=4, time_denominator=4, key_fifths=0, events=events)
 
 
 def parsed_score(

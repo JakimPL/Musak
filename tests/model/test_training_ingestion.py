@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 from musak_model.data.config import SegmentationConfig
-from musak_model.data.schema import Segment, SegmentMetadata
+from musak_model.data.schema import Segment, SegmentIneligibilityReason, SegmentMetadata
 from musak_model.tokens.config import TokenizationConfig
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import BarToken, EndToken, NoteToken, ScaleType, Token
@@ -43,13 +43,27 @@ def _segment(source_file: Path) -> Segment:
     )
 
 
+def _ineligible_segment(source_file: Path) -> Segment:
+    segment = _segment(source_file)
+    metadata = segment.metadata.model_copy(
+        update={
+            "eligible_for_training": False,
+            "ineligibility_reasons": (SegmentIneligibilityReason.MIXED_TIME_SIGNATURE,),
+        }
+    )
+    return segment.model_copy(update={"metadata": metadata})
+
+
 def _ingestion_config(*, split_seed: int, validation_fraction: float) -> IngestionConfig:
     return IngestionConfig(
-        segmentation=SegmentationConfig(window_bars=8, stride_bars=4),
         validation_fraction=validation_fraction,
         split_seed=split_seed,
         difficulty_labels=None,
     )
+
+
+def _segmentation_config() -> SegmentationConfig:
+    return SegmentationConfig(window_bars=8, stride_bars=4)
 
 
 def test_build_ingestion_split_is_deterministic(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -69,8 +83,8 @@ def test_build_ingestion_split_is_deterministic(tmp_path: Path, monkeypatch: pyt
     monkeypatch.setattr("musak_model.training.ingestion.split.process_file", fake_process_file)
 
     config = _ingestion_config(split_seed=123, validation_fraction=0.25)
-    split_a = build_split(tmp_path, config=config)
-    split_b = build_split(tmp_path, config=config)
+    split_a = build_split(tmp_path, config=config, segmentation=_segmentation_config())
+    split_b = build_split(tmp_path, config=config, segmentation=_segmentation_config())
 
     assert [sample.source_file for sample in split_a.validation] == [
         sample.source_file for sample in split_b.validation
@@ -99,7 +113,7 @@ def test_build_ingestion_split_collects_invalid_file_errors(tmp_path: Path, monk
     monkeypatch.setattr("musak_model.training.ingestion.split.process_file", fake_process_file)
 
     config = _ingestion_config(split_seed=7, validation_fraction=0.5)
-    split = build_split(tmp_path, config=config)
+    split = build_split(tmp_path, config=config, segmentation=_segmentation_config())
 
     assert len(split.invalid_files) == 1
     assert split.invalid_files[0].file.endswith("bad.mxl")
@@ -128,14 +142,36 @@ def test_encode_segment_returns_unified_sample() -> None:
     assert len(sample.token_ids) == len(sample.bar_positions)
 
 
+def test_build_ingestion_split_filters_ineligible_segments(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    file_path = tmp_path / "piece.mxl"
+    file_path.write_text("score")
+
+    def fake_process_file(
+        path: Path,
+        *,
+        segmentation: SegmentationConfig,
+        difficulty_labels: dict[str, int] | None,
+        duration_vocabulary: DurationVocabulary | None = None,
+    ) -> list[Segment]:
+        return [_segment(path), _ineligible_segment(path)]
+
+    monkeypatch.setattr("musak_model.training.ingestion.split.process_file", fake_process_file)
+
+    config = _ingestion_config(split_seed=123, validation_fraction=0.0)
+    split = build_split(tmp_path, config=config, segmentation=_segmentation_config())
+
+    assert len(split.train) == 1
+    assert split.invalid_files == []
+
+
 def test_load_ingestion_config_reads_yaml(tmp_path: Path) -> None:
     config_path = tmp_path / "ingestion.yml"
     config_path.write_text(
         "\n".join(
             [
-                "segmentation:",
-                "  window_bars: 8",
-                "  stride_bars: 4",
                 "validation_fraction: 0.25",
                 "split_seed: 99",
                 "difficulty_labels:",
@@ -146,14 +182,14 @@ def test_load_ingestion_config_reads_yaml(tmp_path: Path) -> None:
 
     config = IngestionConfig.load(config_path)
 
-    assert config.segmentation.window_bars == 8
-    assert config.segmentation.stride_bars == 4
+    assert config.validation_fraction == 0.25
+    assert config.split_seed == 99
+    assert config.difficulty_labels == {"sample": 3}
 
 
 def test_ingestion_config_rejects_invalid_validation_fraction() -> None:
     with pytest.raises(ValueError, match="validation_fraction"):
         IngestionConfig(
-            segmentation=SegmentationConfig(window_bars=8, stride_bars=4),
             validation_fraction=1.0,
             split_seed=17,
             difficulty_labels=None,

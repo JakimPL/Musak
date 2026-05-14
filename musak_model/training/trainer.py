@@ -7,6 +7,9 @@ from torch import Tensor
 from torch.optim import AdamW
 from torch.utils.data import DataLoader
 
+from musak_model.conditioning.config import CONDITIONING_CONFIG_PATH
+from musak_model.conditioning.time_signature import TimeSignatureVocabulary
+from musak_model.data.config import SegmentationConfig
 from musak_model.model import HierarchicalAutoregressiveModel
 from musak_model.model.config import ModelConfig
 from musak_model.tokens.vocabulary import build_default_token_vocabulary
@@ -175,19 +178,26 @@ def train_stage_one(
     source_dir: Path,
     *,
     ingestion_config: IngestionConfig,
+    segmentation_config: SegmentationConfig,
     training_config: TrainingConfig,
     model_config: ModelConfig | None = None,
+    conditioning_config_path: Path = CONDITIONING_CONFIG_PATH,
 ) -> TrainingResult:
-    split = build_split(source_dir, config=ingestion_config)
+    split = build_split(source_dir, config=ingestion_config, segmentation=segmentation_config)
+    vocabulary = build_default_token_vocabulary()
+    resolved_model_config = model_config or ModelConfig.load(
+        vocab_size=vocabulary.vocab_size,
+        conditioning_config_path=conditioning_config_path,
+    )
+    time_signature_vocabulary = TimeSignatureVocabulary(resolved_model_config.conditioning.time_signature)
     train_loader, validation_loader = build_dataloaders(
         split,
         batch_size=training_config.batch_size,
         shuffle_train=True,
         num_workers=training_config.num_workers,
         include_conditioning=training_config.use_conditioning,
+        time_signature_vocabulary=time_signature_vocabulary,
     )
-    vocabulary = build_default_token_vocabulary()
-    resolved_model_config = model_config or ModelConfig.load(vocab_size=vocabulary.vocab_size)
     model = HierarchicalAutoregressiveModel(resolved_model_config)
     tracker = build_training_tracker(training_config=training_config)
     with tracker:
