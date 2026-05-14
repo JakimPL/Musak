@@ -129,9 +129,15 @@ def _(mo, process_score_safely, selected_path, stride_slider, window_slider):
             )
 
         if processing_result.succeeded:
+            segment_count = len(processing_result.segments)
+            eligible_count = sum(segment.metadata.eligible_for_training for segment in processing_result.segments)
+            callout_kind = "warn" if segment_count > 0 and eligible_count == 0 else "success"
             processing_output = mo.callout(
-                f"{processing_result.path.name}: {len(processing_result.segments)} segment(s) produced",
-                kind="success",
+                (
+                    f"{processing_result.path.name}: {segment_count} segment(s) produced, "
+                    f"{eligible_count} eligible for training"
+                ),
+                kind=callout_kind,
             )
         else:
             processing_output = mo.callout(

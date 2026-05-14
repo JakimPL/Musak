@@ -1,6 +1,7 @@
+from music21 import chord
 from music21 import key as m21_key
 from music21.meter.base import TimeSignature
-from music21.note import Note
+from music21.note import Note, Rest
 from music21.stream.base import Measure, Part, Score
 
 from musak_model.data.parser import _detect_key, _parse_measure
@@ -18,6 +19,25 @@ def test_parse_measure_captures_effective_time_and_key_signature() -> None:
     assert parsed.time_numerator == 3
     assert parsed.time_denominator == 4
     assert parsed.key_fifths == 2
+    assert len(parsed.events) == 1
+
+
+def test_parse_measure_skips_non_positive_duration_events() -> None:
+    measure = Measure()
+    zero_note = Note("C4")
+    zero_note.duration.quarterLength = 0
+    zero_chord = chord.Chord(["E4", "G4"])
+    zero_chord.duration.quarterLength = 0
+    negative_rest = Rest()
+    negative_rest.duration.quarterLength = -1
+    measure.insert(0, TimeSignature("4/4"))
+    measure.insert(0, zero_note)
+    measure.insert(0, zero_chord)
+    measure.insert(0, negative_rest)
+    measure.insert(0, Note("D4", quarterLength=1))
+
+    parsed = _parse_measure(measure, default_time_signature=(4, 4), default_key_fifths=0)
+
     assert len(parsed.events) == 1
 
 

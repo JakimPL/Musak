@@ -9,6 +9,7 @@ from music21.meter.base import TimeSignature
 from music21.stream.base import Measure, Part, Score
 
 from musak_model.common.elements import PITCHES_PER_OCTAVE
+from musak_model.data.hand_selection import select_piano_hand_parts
 from musak_model.data.schema import (
     ParsedBar,
     ParsedChord,
@@ -22,8 +23,6 @@ from musak_model.tokens.schema import ScaleType
 _QUARTER_NOTE_FRACTION: Final[Fraction] = Fraction(1, 4)
 _TRIPLET_DENOMINATOR_LIMIT: Final[int] = 12
 
-_TREBLE_PART_INDEX: Final[int] = 0
-_BASS_PART_INDEX: Final[int] = 1
 _DEFAULT_KEY_FIFTHS: Final[int] = 0
 _DEFAULT_SCALE_TYPE: Final[ScaleType] = ScaleType.MAJOR
 
@@ -116,17 +115,15 @@ def _extract_hands(
     if not isinstance(score, Score):
         raise TypeError(f"expected Score, got {type(score).__name__}")
 
-    parts = [part for part in score.parts if isinstance(part, Part)]
-    if len(parts) < 2:
-        raise ValueError(f"expected at least 2 parts (hands), found {len(parts)}")
+    hand_parts = select_piano_hand_parts(score)
 
     right_hand_bars = _extract_bars(
-        parts[_TREBLE_PART_INDEX],
+        hand_parts.right,
         default_time_signature=default_time_signature,
         default_key_fifths=default_key_fifths,
     )
     left_hand_bars = _extract_bars(
-        parts[_BASS_PART_INDEX],
+        hand_parts.left,
         default_time_signature=default_time_signature,
         default_key_fifths=default_key_fifths,
     )
@@ -171,6 +168,8 @@ def _parse_measure(
     for element in measure.flatten().notesAndRests:
         beat_offset = _to_fraction(element.offset) * _QUARTER_NOTE_FRACTION
         duration = _to_fraction(element.duration.quarterLength) * _QUARTER_NOTE_FRACTION
+        if duration <= 0:
+            continue
 
         if isinstance(element, note.Note):
             events.append(

@@ -54,6 +54,12 @@ R 6♯↑1(1:4) 3(1:4) ~ L r(1:8) 1↓1(1:8) | ‖
 
 Text serialization must use true duration fractions, not duration vocabulary IDs. Parsing text back into tokens converts `(NUM:DEN)` through the active duration vocabulary and should raise a tokenizer-specific error when the duration is unsupported.
 
+## MusicXML Piano Part Policy
+
+The parser accepts only two-part piano scores for the sight-reading model. A score must contain exactly two parts. Parts with no explicit instrument are accepted as piano-compatible; parts with an explicit piano MIDI program are accepted; parts with an explicit non-piano instrument are rejected.
+
+Right and left hand assignment is based on pitch center, not part order or part name. The part with the higher median MIDI pitch is the right hand, and the other part is the left hand. Scores with an empty pitched part or identical pitch centers are rejected as ambiguous.
+
 ## Running
 
 ```bash
