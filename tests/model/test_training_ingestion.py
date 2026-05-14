@@ -15,8 +15,7 @@ from musak_model.training.ingestion.split import _build_bar_positions_from_token
 from tests.data.fixtures import bar, note_event, parsed_score
 
 
-def _note() -> NoteToken:
-    duration_vocabulary = DurationVocabulary(TokenizationConfig(shortest_duration=16, allowed_tuplets=(3,), max_dots=1))
+def _note(duration_vocabulary: DurationVocabulary) -> NoteToken:
     quarter_duration_id = duration_vocabulary.fraction_to_id(Fraction(1, 4))
     return NoteToken(
         degree=1,
@@ -26,8 +25,14 @@ def _note() -> NoteToken:
     )
 
 
-def _segment(source_file: Path) -> Segment:
-    tokens: list[Token] = [_note(), BarToken(), _note(), BarToken(), EndToken()]
+def _segment(source_file: Path, *, duration_vocabulary: DurationVocabulary) -> Segment:
+    tokens: list[Token] = [
+        _note(duration_vocabulary),
+        BarToken(),
+        _note(duration_vocabulary),
+        BarToken(),
+        EndToken(),
+    ]
     return Segment(
         tokens=tokens,
         right_hand_tokens=tokens,
@@ -45,8 +50,8 @@ def _segment(source_file: Path) -> Segment:
     )
 
 
-def _ineligible_segment(source_file: Path) -> Segment:
-    segment = _segment(source_file)
+def _ineligible_segment(source_file: Path, *, duration_vocabulary: DurationVocabulary) -> Segment:
+    segment = _segment(source_file, duration_vocabulary=duration_vocabulary)
     metadata = segment.metadata.model_copy(
         update={
             "eligible_for_training": False,
@@ -68,7 +73,12 @@ def _segmentation_config() -> SegmentationConfig:
     return SegmentationConfig(window_bars=8, stride_bars=4)
 
 
-def test_build_ingestion_split_is_deterministic(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_build_ingestion_split_is_deterministic(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    duration_vocabulary: DurationVocabulary,
+    tokenization_config: TokenizationConfig,
+) -> None:
     file_paths = [tmp_path / f"piece_{index}.mxl" for index in range(4)]
     for file_path in file_paths:
         file_path.write_text("score")
@@ -80,13 +90,24 @@ def test_build_ingestion_split_is_deterministic(tmp_path: Path, monkeypatch: pyt
         difficulty_labels: dict[str, int] | None,
         duration_vocabulary: DurationVocabulary | None = None,
     ) -> list[Segment]:
-        return [_segment(path)]
+        assert duration_vocabulary is not None
+        return [_segment(path, duration_vocabulary=duration_vocabulary)]
 
     monkeypatch.setattr("musak_model.training.ingestion.split.process_file", fake_process_file)
 
     config = _ingestion_config(split_seed=123, validation_fraction=0.25)
-    split_a = build_split(tmp_path, config=config, segmentation=_segmentation_config())
-    split_b = build_split(tmp_path, config=config, segmentation=_segmentation_config())
+    split_a = build_split(
+        tmp_path,
+        config=config,
+        segmentation=_segmentation_config(),
+        tokenization_config=tokenization_config,
+    )
+    split_b = build_split(
+        tmp_path,
+        config=config,
+        segmentation=_segmentation_config(),
+        tokenization_config=tokenization_config,
+    )
 
     assert [sample.source_file for sample in split_a.validation] == [
         sample.source_file for sample in split_b.validation
@@ -95,7 +116,11 @@ def test_build_ingestion_split_is_deterministic(tmp_path: Path, monkeypatch: pyt
     assert split_a.invalid_files == []
 
 
-def test_build_ingestion_split_collects_invalid_file_errors(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_build_ingestion_split_collects_invalid_file_errors(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    tokenization_config: TokenizationConfig,
+) -> None:
     good_file = tmp_path / "good.mxl"
     bad_file = tmp_path / "bad.mxl"
     good_file.write_text("score")
@@ -110,12 +135,18 @@ def test_build_ingestion_split_collects_invalid_file_errors(tmp_path: Path, monk
     ) -> list[Segment]:
         if path.name == "bad.mxl":
             raise ValueError("parse failed")
-        return [_segment(path)]
+        assert duration_vocabulary is not None
+        return [_segment(path, duration_vocabulary=duration_vocabulary)]
 
     monkeypatch.setattr("musak_model.training.ingestion.split.process_file", fake_process_file)
 
     config = _ingestion_config(split_seed=7, validation_fraction=0.5)
-    split = build_split(tmp_path, config=config, segmentation=_segmentation_config())
+    split = build_split(
+        tmp_path,
+        config=config,
+        segmentation=_segmentation_config(),
+        tokenization_config=tokenization_config,
+    )
 
     assert len(split.invalid_files) == 1
     assert split.invalid_files[0].file.endswith("bad.mxl")
@@ -124,20 +155,25 @@ def test_build_ingestion_split_collects_invalid_file_errors(tmp_path: Path, monk
     assert all(sample.source_file.name == "good.mxl" for sample in split.train + split.validation)
 
 
-def test_build_bar_positions_from_tokens_assigns_end_to_last_bar() -> None:
-    tokens: list[Token] = [_note(), BarToken(), _note(), BarToken(), EndToken()]
+def test_build_bar_positions_from_tokens_assigns_end_to_last_bar(duration_vocabulary: DurationVocabulary) -> None:
+    tokens: list[Token] = [
+        _note(duration_vocabulary),
+        BarToken(),
+        _note(duration_vocabulary),
+        BarToken(),
+        EndToken(),
+    ]
 
     bar_positions = _build_bar_positions_from_tokens(tokens)
 
     assert bar_positions == [0, 0, 1, 1, 1]
 
 
-def test_encode_segment_returns_unified_sample() -> None:
-    segment = _segment(Path("piece.mxl"))
-    token_vocabulary = TokenVocabulary(
-        DurationVocabulary(TokenizationConfig(shortest_duration=16, allowed_tuplets=(3,), max_dots=1))
-    )
-
+def test_encode_segment_returns_unified_sample(
+    duration_vocabulary: DurationVocabulary,
+    token_vocabulary: TokenVocabulary,
+) -> None:
+    segment = _segment(Path("piece.mxl"), duration_vocabulary=duration_vocabulary)
     sample = _encode_segment(segment, token_vocabulary=token_vocabulary)
 
     assert sample.hand is None
@@ -147,6 +183,8 @@ def test_encode_segment_returns_unified_sample() -> None:
 def test_build_ingestion_split_filters_ineligible_segments(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    duration_vocabulary: DurationVocabulary,
+    tokenization_config: TokenizationConfig,
 ) -> None:
     file_path = tmp_path / "piece.mxl"
     file_path.write_text("score")
@@ -158,12 +196,21 @@ def test_build_ingestion_split_filters_ineligible_segments(
         difficulty_labels: dict[str, int] | None,
         duration_vocabulary: DurationVocabulary | None = None,
     ) -> list[Segment]:
-        return [_segment(path), _ineligible_segment(path)]
+        assert duration_vocabulary is not None
+        return [
+            _segment(path, duration_vocabulary=duration_vocabulary),
+            _ineligible_segment(path, duration_vocabulary=duration_vocabulary),
+        ]
 
     monkeypatch.setattr("musak_model.training.ingestion.split.process_file", fake_process_file)
 
     config = _ingestion_config(split_seed=123, validation_fraction=0.0)
-    split = build_split(tmp_path, config=config, segmentation=_segmentation_config())
+    split = build_split(
+        tmp_path,
+        config=config,
+        segmentation=_segmentation_config(),
+        tokenization_config=tokenization_config,
+    )
 
     assert len(split.train) == 1
     assert split.invalid_files == []
@@ -172,6 +219,7 @@ def test_build_ingestion_split_filters_ineligible_segments(
 def test_build_ingestion_split_prefers_encoded_artifacts(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    tokenization_config: TokenizationConfig,
 ) -> None:
     dataset_root = tmp_path / "PDMX"
     source_path = dataset_root / "piece.mxl"
@@ -186,9 +234,8 @@ def test_build_ingestion_split_prefers_encoded_artifacts(
     process_dataset(
         dataset_root,
         processed_root=processed_root,
-        dataset_name="PDMX",
         segmentation=SegmentationConfig(window_bars=1, stride_bars=1),
-        tokenization_config=TokenizationConfig.load(),
+        tokenization_config=tokenization_config,
         stage="all",
         overwrite=True,
     )
@@ -206,6 +253,53 @@ def test_build_ingestion_split_prefers_encoded_artifacts(
             processed_root=processed_root,
         ),
         segmentation=SegmentationConfig(window_bars=1, stride_bars=1),
+        tokenization_config=tokenization_config,
+    )
+
+    assert len(split.train) == 1
+    assert split.invalid_files == []
+
+
+def test_build_ingestion_split_ignores_encoded_artifacts_without_matching_snapshot(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    tokenization_config: TokenizationConfig,
+) -> None:
+    dataset_root = tmp_path / "PDMX"
+    source_path = dataset_root / "piece.mxl"
+    source_path.parent.mkdir(parents=True)
+    source_path.write_text("score")
+    processed_root = tmp_path / "processed"
+    score = parsed_score(
+        right_hand_bars=[bar([note_event(midi_pitch=72, duration=Fraction(1, 4), beat_offset=Fraction(0))])],
+        left_hand_bars=[bar([note_event(midi_pitch=48, duration=Fraction(1, 4), beat_offset=Fraction(0))])],
+    )
+    monkeypatch.setattr("musak_model.processing.dataset.parse_score", lambda path: score)
+    result = process_dataset(
+        dataset_root,
+        processed_root=processed_root,
+        segmentation=SegmentationConfig(window_bars=1, stride_bars=1),
+        tokenization_config=tokenization_config,
+        stage="all",
+        overwrite=True,
+    )
+    assert result.tokenizer_snapshot_path is not None
+    result.tokenizer_snapshot_path.unlink()
+    monkeypatch.setattr(
+        "musak_model.training.ingestion.split.process_file",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("raw processing should not run")),
+    )
+
+    split = build_split(
+        dataset_root,
+        config=IngestionConfig(
+            validation_fraction=0.0,
+            split_seed=17,
+            difficulty_labels=None,
+            processed_root=processed_root,
+        ),
+        segmentation=SegmentationConfig(window_bars=1, stride_bars=1),
+        tokenization_config=tokenization_config,
     )
 
     assert len(split.train) == 1
@@ -215,6 +309,7 @@ def test_build_ingestion_split_prefers_encoded_artifacts(
 def test_build_ingestion_split_falls_back_to_parsed_artifacts(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    tokenization_config: TokenizationConfig,
 ) -> None:
     dataset_root = tmp_path / "PDMX"
     source_path = dataset_root / "piece.mxl"
@@ -229,9 +324,8 @@ def test_build_ingestion_split_falls_back_to_parsed_artifacts(
     process_dataset(
         dataset_root,
         processed_root=processed_root,
-        dataset_name="PDMX",
         segmentation=SegmentationConfig(window_bars=1, stride_bars=1),
-        tokenization_config=TokenizationConfig.load(),
+        tokenization_config=tokenization_config,
         stage="parsed",
         overwrite=True,
     )
@@ -249,6 +343,7 @@ def test_build_ingestion_split_falls_back_to_parsed_artifacts(
             processed_root=processed_root,
         ),
         segmentation=SegmentationConfig(window_bars=1, stride_bars=1),
+        tokenization_config=tokenization_config,
     )
 
     assert len(split.train) == 1

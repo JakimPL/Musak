@@ -60,6 +60,42 @@ The parser accepts only two-part piano scores for the sight-reading model. A sco
 
 Right and left hand assignment is based on pitch center, not part order or part name. The part with the higher median MIDI pitch is the right hand, and the other part is the left hand. Scores with an empty pitched part or identical pitch centers are rejected as ambiguous.
 
+## Dataset Processing and Training
+
+Dataset roots and processed artifacts follow one directory rule:
+
+```text
+<data-dir> -> <processed-dir>/<data-dir.name>
+```
+
+For example, processing `data/PDMX` with the default processed root writes to `processed/PDMX`. Pass the dataset root (`data/PDMX`), not an internal folder such as `data/PDMX/mxl`.
+
+```bash
+uv run python scripts/process_dataset.py --data-dir data/PDMX --processed-dir processed
+```
+
+The processed layout is:
+
+```text
+processed/PDMX/
+  parsed.csv
+  parsed/
+  encoded/<tokenizer_hash>/
+    tokenizer.json
+    encoded.csv
+    data-00000.jsonl
+```
+
+Training can work from raw MusicXML, parsed JSON, or encoded JSONL:
+
+```bash
+uv run python scripts/train_stage_one.py --data-dir data/PDMX --processed-dir processed
+```
+
+When `--processed-dir` is provided, training first looks for encoded artifacts under `processed/PDMX/encoded/<tokenizer_hash>`. Encoded artifacts are reused only when `tokenizer.json` matches the active tokenization config. If matching encoded data is unavailable, training falls back to parsed artifacts, and then to raw MusicXML.
+
+Parsed artifacts can be re-tokenized with a different tokenization config. Encoded artifacts cannot; they are already tokenized and are selected by tokenizer hash. Paths stored in manifests are relative to the dataset or processed artifact directory and are informational, not a replacement for passing `--data-dir` and `--processed-dir`.
+
 ## Running
 
 ```bash

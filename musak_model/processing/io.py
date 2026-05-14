@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 from pydantic import BaseModel
 
 from musak_model.data.schema import ParsedScore
+from musak_model.processing.snapshot import TokenizerSnapshot
 
 if TYPE_CHECKING:
     from musak_model.training.ingestion.schema import EncodedExercise
@@ -24,6 +25,10 @@ def write_json_model(
 
 def load_parsed_score_json(path: Path) -> ParsedScore:
     return ParsedScore.model_validate_json(path.read_text(encoding="utf-8"))
+
+
+def load_tokenizer_snapshot_json(path: Path) -> TokenizerSnapshot:
+    return TokenizerSnapshot.model_validate_json(path.read_text(encoding="utf-8"))
 
 
 def append_jsonl(model: BaseModel, path: Path) -> int:

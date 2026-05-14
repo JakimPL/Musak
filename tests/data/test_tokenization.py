@@ -6,13 +6,8 @@ import pytest
 
 from musak_model.data.schema import ParsedBar, ParsedChord, ParsedNote, ParsedScore, SegmentMetadata
 from musak_model.data.segmenter import _chord_to_tokens, _note_to_token, _tokenize_unified_stream
-from musak_model.tokens.config import TokenizationConfig
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import Hand, HandToken, JoinWithPreviousToken, NoteToken, ScaleType
-
-
-def _vocabulary() -> DurationVocabulary:
-    return DurationVocabulary(TokenizationConfig(shortest_duration=16, allowed_tuplets=(3,), max_dots=1))
 
 
 def _parsed_score() -> ParsedScore:
@@ -40,7 +35,7 @@ class NoteTokenCase:
     expected_degree: int | None = None
     expected_accidental: int | None = None
     expected_octave_offset: int | None = None
-    expected_duration_id: int | None = None
+    expected_duration: Fraction | None = None
 
 
 @dataclass(frozen=True)
@@ -51,7 +46,7 @@ class ChordTokenCase:
     hand: Hand
     scale_type: ScaleType
     expected_degree: int | None = None
-    expected_duration_id: int | None = None
+    expected_duration: Fraction | None = None
 
 
 @dataclass(frozen=True)
@@ -61,7 +56,7 @@ class NoteDurationCase:
     beat_offset: Fraction
     hand: Hand
     scale_type: ScaleType
-    expected_duration_id: int
+    expected_duration: Fraction
 
 
 class TestNoteToToken:
@@ -74,9 +69,7 @@ class TestNoteToToken:
             expected_degree=1,
             expected_accidental=0,
             expected_octave_offset=-1,
-            expected_duration_id=DurationVocabulary(
-                TokenizationConfig(shortest_duration=16, allowed_tuplets=(3,), max_dots=1)
-            ).fraction_to_id(Fraction(1, 4)),
+            expected_duration=Fraction(1, 4),
         ),
         NoteTokenCase(
             note=ParsedNote(midi_pitch=61, duration=Fraction(1, 4), beat_offset=Fraction(1, 4)),
@@ -86,9 +79,7 @@ class TestNoteToToken:
             expected_degree=1,
             expected_accidental=1,
             expected_octave_offset=-1,
-            expected_duration_id=DurationVocabulary(
-                TokenizationConfig(shortest_duration=16, allowed_tuplets=(3,), max_dots=1)
-            ).fraction_to_id(Fraction(1, 4)),
+            expected_duration=Fraction(1, 4),
         ),
         NoteTokenCase(
             note=ParsedNote(midi_pitch=60, duration=Fraction(1, 4), beat_offset=Fraction(1, 4)),
@@ -98,9 +89,7 @@ class TestNoteToToken:
             expected_degree=1,
             expected_accidental=0,
             expected_octave_offset=1,
-            expected_duration_id=DurationVocabulary(
-                TokenizationConfig(shortest_duration=16, allowed_tuplets=(3,), max_dots=1)
-            ).fraction_to_id(Fraction(1, 4)),
+            expected_duration=Fraction(1, 4),
         ),
         NoteTokenCase(
             note=ParsedNote(midi_pitch=68, duration=Fraction(1, 4), beat_offset=Fraction(1, 4)),
@@ -118,24 +107,25 @@ class TestNoteToToken:
             expected_degree=7,
             expected_accidental=0,
             expected_octave_offset=-1,
-            expected_duration_id=DurationVocabulary(
-                TokenizationConfig(shortest_duration=16, allowed_tuplets=(3,), max_dots=1)
-            ).fraction_to_id(Fraction(1, 4)),
+            expected_duration=Fraction(1, 4),
         ),
     ]
 
     @pytest.mark.parametrize("case", CASES)
-    def test_note_to_token(self, case: NoteTokenCase) -> None:
-        vocab = _vocabulary()
+    def test_note_to_token(self, case: NoteTokenCase, duration_vocabulary: DurationVocabulary) -> None:
         token = _note_to_token(
-            case.note, score=case.score, hand=case.hand, scale_type=case.scale_type, duration_vocabulary=vocab
+            case.note,
+            score=case.score,
+            hand=case.hand,
+            scale_type=case.scale_type,
+            duration_vocabulary=duration_vocabulary,
         )
 
         assert isinstance(token, NoteToken)
         assert token.degree == case.expected_degree
         assert token.accidental == case.expected_accidental
         assert token.octave_offset == case.expected_octave_offset
-        assert token.duration_id == case.expected_duration_id
+        assert token.duration_id == duration_vocabulary.fraction_to_id(case.expected_duration)
 
 
 class TestChordToTokens:
@@ -162,15 +152,12 @@ class TestChordToTokens:
             beat_offset=Fraction(1, 4),
             hand=Hand.RIGHT,
             scale_type=ScaleType.MAJOR,
-            expected_duration_id=DurationVocabulary(
-                TokenizationConfig(shortest_duration=16, allowed_tuplets=(3,), max_dots=1)
-            ).fraction_to_id(Fraction(3, 8)),
+            expected_duration=Fraction(3, 8),
         ),
     ]
 
     @pytest.mark.parametrize("case", CHORD_CASES)
-    def test_chord_to_tokens(self, case: ChordTokenCase) -> None:
-        vocab = _vocabulary()
+    def test_chord_to_tokens(self, case: ChordTokenCase, duration_vocabulary: DurationVocabulary) -> None:
         score = _parsed_score()
 
         chord = ParsedChord(
@@ -183,18 +170,18 @@ class TestChordToTokens:
             score=score,
             hand=case.hand,
             scale_type=case.scale_type,
-            duration_vocabulary=vocab,
+            duration_vocabulary=duration_vocabulary,
         )
         note_tokens = [token for token in tokens if isinstance(token, NoteToken)]
 
         if case.expected_degree is not None:
             assert any(token.degree == case.expected_degree for token in note_tokens)
-        if case.expected_duration_id is not None:
-            assert all(token.duration_id == case.expected_duration_id for token in note_tokens)
+        if case.expected_duration is not None:
+            expected_duration_id = duration_vocabulary.fraction_to_id(case.expected_duration)
+            assert all(token.duration_id == expected_duration_id for token in note_tokens)
 
 
-def test_chord_to_tokens_preserves_all_chord_pitches() -> None:
-    vocab = _vocabulary()
+def test_chord_to_tokens_preserves_all_chord_pitches(duration_vocabulary: DurationVocabulary) -> None:
     score = _parsed_score()
     chord = ParsedChord(midi_pitches=[60, 64, 67], duration=Fraction(1, 4), beat_offset=Fraction(0, 1))
 
@@ -203,14 +190,13 @@ def test_chord_to_tokens_preserves_all_chord_pitches() -> None:
         score=score,
         hand=Hand.RIGHT,
         scale_type=ScaleType.MAJOR,
-        duration_vocabulary=vocab,
+        duration_vocabulary=duration_vocabulary,
     )
 
     assert [token.degree for token in tokens if isinstance(token, NoteToken)] == [1, 3, 5]
 
 
-def test_unified_stream_adds_join_suffixes_for_chord_notes() -> None:
-    vocab = _vocabulary()
+def test_unified_stream_adds_join_suffixes_for_chord_notes(duration_vocabulary: DurationVocabulary) -> None:
     score = ParsedScore(
         key_root=0,
         key_fifths=0,
@@ -231,15 +217,14 @@ def test_unified_stream_adds_join_suffixes_for_chord_notes() -> None:
     tokenized_bars = _tokenize_unified_stream(
         score=score,
         scale_type=ScaleType.MAJOR,
-        duration_vocabulary=vocab,
+        duration_vocabulary=duration_vocabulary,
     )
 
     assert isinstance(tokenized_bars[0][0], HandToken)
     assert sum(isinstance(token, JoinWithPreviousToken) for token in tokenized_bars[0]) == 2
 
 
-def test_unified_stream_rejects_overlapping_non_chord_notes() -> None:
-    vocab = _vocabulary()
+def test_unified_stream_rejects_overlapping_non_chord_notes(duration_vocabulary: DurationVocabulary) -> None:
     score = ParsedScore(
         key_root=0,
         key_fifths=0,
@@ -261,12 +246,38 @@ def test_unified_stream_rejects_overlapping_non_chord_notes() -> None:
     )
 
     with pytest.raises(ValueError, match="overlapping events"):
-        _tokenize_unified_stream(score=score, scale_type=ScaleType.MAJOR, duration_vocabulary=vocab)
+        _tokenize_unified_stream(score=score, scale_type=ScaleType.MAJOR, duration_vocabulary=duration_vocabulary)
+
+
+def test_unified_stream_rejects_overlap_smaller_than_shortest_supported_duration(
+    duration_vocabulary: DurationVocabulary,
+) -> None:
+    score = ParsedScore(
+        key_root=0,
+        key_fifths=0,
+        scale_type=ScaleType.MAJOR,
+        time_numerator=4,
+        time_denominator=4,
+        right_hand_bars=[
+            ParsedBar(
+                time_numerator=4,
+                time_denominator=4,
+                key_fifths=0,
+                events=[
+                    ParsedNote(midi_pitch=60, duration=Fraction(1, 4), beat_offset=Fraction(0)),
+                    ParsedNote(midi_pitch=64, duration=Fraction(1, 4), beat_offset=Fraction(1, 32)),
+                ],
+            )
+        ],
+        left_hand_bars=[ParsedBar(time_numerator=4, time_denominator=4, key_fifths=0, events=[])],
+    )
+
+    with pytest.raises(ValueError, match="overlapping events"):
+        _tokenize_unified_stream(score=score, scale_type=ScaleType.MAJOR, duration_vocabulary=duration_vocabulary)
 
 
 class TestTokenizationWithDifferentKeys:
-    def test_note_in_c_major_stays_same(self) -> None:
-        vocab = _vocabulary()
+    def test_note_in_c_major_stays_same(self, duration_vocabulary: DurationVocabulary) -> None:
         score = ParsedScore(
             key_root=0,  # C
             key_fifths=0,
@@ -279,7 +290,11 @@ class TestTokenizationWithDifferentKeys:
 
         note = ParsedNote(midi_pitch=60, duration=Fraction(1, 4), beat_offset=Fraction(1, 4))
         token = _note_to_token(
-            note, score=score, hand=Hand.RIGHT, scale_type=ScaleType.MAJOR, duration_vocabulary=vocab
+            note,
+            score=score,
+            hand=Hand.RIGHT,
+            scale_type=ScaleType.MAJOR,
+            duration_vocabulary=duration_vocabulary,
         )
 
         assert token.degree == 1
@@ -294,9 +309,7 @@ class TestTokenizationEdgeCases:
             beat_offset=Fraction(1, 4),
             hand=Hand.RIGHT,
             scale_type=ScaleType.MAJOR,
-            expected_duration_id=DurationVocabulary(
-                TokenizationConfig(shortest_duration=16, allowed_tuplets=(3,), max_dots=1)
-            ).fraction_to_id(Fraction(3, 8)),
+            expected_duration=Fraction(3, 8),
         ),
         NoteDurationCase(
             midi_pitch=60,
@@ -304,15 +317,12 @@ class TestTokenizationEdgeCases:
             beat_offset=Fraction(1, 4),
             hand=Hand.RIGHT,
             scale_type=ScaleType.MAJOR,
-            expected_duration_id=DurationVocabulary(
-                TokenizationConfig(shortest_duration=16, allowed_tuplets=(3,), max_dots=1)
-            ).fraction_to_id(Fraction(1, 12)),
+            expected_duration=Fraction(1, 12),
         ),
     ]
 
     @pytest.mark.parametrize("case", NOTE_DURATION_CASES)
-    def test_note_duration_tokenization(self, case: NoteDurationCase) -> None:
-        vocab = _vocabulary()
+    def test_note_duration_tokenization(self, case: NoteDurationCase, duration_vocabulary: DurationVocabulary) -> None:
         score = _parsed_score()
 
         note = ParsedNote(
@@ -325,7 +335,7 @@ class TestTokenizationEdgeCases:
             score=score,
             hand=case.hand,
             scale_type=case.scale_type,
-            duration_vocabulary=vocab,
+            duration_vocabulary=duration_vocabulary,
         )
 
-        assert token.duration_id == case.expected_duration_id
+        assert token.duration_id == duration_vocabulary.fraction_to_id(case.expected_duration)

@@ -114,6 +114,9 @@ class SegmentIneligibilityReason(StrEnum):
     MIXED_TIME_SIGNATURE = "mixed_time_signature"
     KEY_SIGNATURE_CHANGE = "key_signature_change"
     TOKENIZATION_ERROR = "tokenization_error"
+    AMBIGUOUS_SIMULTANEOUS_DURATION = "ambiguous_simultaneous_duration"
+    QUANTIZATION_ERROR = "quantization_error"
+    QUANTIZATION_COLLISION = "quantization_collision"
 
 
 class SegmentMetadata(BaseModel):

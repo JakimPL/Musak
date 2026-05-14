@@ -22,23 +22,18 @@ from musak_model.data.schema import (
     Segment,
     SegmentMetadata,
 )
-from musak_model.tokens.config import TokenizationConfig
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import BarToken, EndToken, NoteToken, ScaleType
 
 
-def _vocabulary() -> DurationVocabulary:
-    return DurationVocabulary(TokenizationConfig(shortest_duration=16, allowed_tuplets=(3,), max_dots=1))
-
-
 def _segment_with_tokens(
+    duration_vocabulary: DurationVocabulary,
     right_tokens: list[NoteToken | BarToken | EndToken] | None = None,
     left_tokens: list[NoteToken | BarToken | EndToken] | None = None,
     *,
     window_start_bar: int = 0,
 ) -> Segment:
-    vocab = _vocabulary()
-    quarter_id = vocab.fraction_to_id(Fraction(1, 4))
+    quarter_id = duration_vocabulary.fraction_to_id(Fraction(1, 4))
 
     if right_tokens is None:
         right_tokens = [
@@ -188,46 +183,46 @@ class TestNotesPerBeat:
 
 
 class TestRhythmicDiversity:
-    def test_single_duration_zero_diversity(self) -> None:
-        vocab = _vocabulary()
-        quarter_id = vocab.fraction_to_id(Fraction(1, 4))
+    def test_single_duration_zero_diversity(self, duration_vocabulary: DurationVocabulary) -> None:
+        quarter_id = duration_vocabulary.fraction_to_id(Fraction(1, 4))
 
         segment = _segment_with_tokens(
+            duration_vocabulary,
             right_tokens=[
                 NoteToken(degree=1, accidental=0, octave_offset=0, duration_id=quarter_id),
                 NoteToken(degree=2, accidental=0, octave_offset=0, duration_id=quarter_id),
                 BarToken(),
                 EndToken(),
-            ]
+            ],
         )
 
-        diversity = _rhythmic_diversity(segment, duration_vocabulary=vocab)
-        assert diversity == pytest.approx(1.0 / vocab.vocabulary_size())
+        diversity = _rhythmic_diversity(segment, duration_vocabulary=duration_vocabulary)
+        assert diversity == pytest.approx(1.0 / duration_vocabulary.vocabulary_size())
 
-    def test_multiple_durations_higher_diversity(self) -> None:
-        vocab = _vocabulary()
-        quarter_id = vocab.fraction_to_id(Fraction(1, 4))
-        eighth_id = vocab.fraction_to_id(Fraction(1, 8))
+    def test_multiple_durations_higher_diversity(self, duration_vocabulary: DurationVocabulary) -> None:
+        quarter_id = duration_vocabulary.fraction_to_id(Fraction(1, 4))
+        eighth_id = duration_vocabulary.fraction_to_id(Fraction(1, 8))
 
         segment = _segment_with_tokens(
+            duration_vocabulary,
             right_tokens=[
                 NoteToken(degree=1, accidental=0, octave_offset=0, duration_id=quarter_id),
                 NoteToken(degree=2, accidental=0, octave_offset=0, duration_id=eighth_id),
                 BarToken(),
                 EndToken(),
-            ]
+            ],
         )
 
-        diversity = _rhythmic_diversity(segment, duration_vocabulary=vocab)
-        assert diversity == pytest.approx(2.0 / vocab.vocabulary_size())
+        diversity = _rhythmic_diversity(segment, duration_vocabulary=duration_vocabulary)
+        assert diversity == pytest.approx(2.0 / duration_vocabulary.vocabulary_size())
 
 
 class TestVoiceIndependence:
-    def test_identical_rhythm_zero_independence(self) -> None:
-        vocab = _vocabulary()
-        quarter_id = vocab.fraction_to_id(Fraction(1, 4))
+    def test_identical_rhythm_zero_independence(self, duration_vocabulary: DurationVocabulary) -> None:
+        quarter_id = duration_vocabulary.fraction_to_id(Fraction(1, 4))
 
         segment = _segment_with_tokens(
+            duration_vocabulary,
             right_tokens=[
                 NoteToken(degree=1, accidental=0, octave_offset=0, duration_id=quarter_id),
                 BarToken(),
@@ -240,15 +235,15 @@ class TestVoiceIndependence:
             ],
         )
 
-        independence = _voice_independence(segment, duration_vocabulary=vocab)
+        independence = _voice_independence(segment, duration_vocabulary=duration_vocabulary)
         assert independence == 0.0
 
-    def test_different_rhythms_nonzero_independence(self) -> None:
-        vocab = _vocabulary()
-        quarter_id = vocab.fraction_to_id(Fraction(1, 4))
-        eighth_id = vocab.fraction_to_id(Fraction(1, 8))
+    def test_different_rhythms_nonzero_independence(self, duration_vocabulary: DurationVocabulary) -> None:
+        quarter_id = duration_vocabulary.fraction_to_id(Fraction(1, 4))
+        eighth_id = duration_vocabulary.fraction_to_id(Fraction(1, 8))
 
         segment = _segment_with_tokens(
+            duration_vocabulary,
             right_tokens=[
                 NoteToken(degree=1, accidental=0, octave_offset=0, duration_id=quarter_id),
                 BarToken(),
@@ -261,7 +256,7 @@ class TestVoiceIndependence:
             ],
         )
 
-        independence = _voice_independence(segment, duration_vocabulary=vocab)
+        independence = _voice_independence(segment, duration_vocabulary=duration_vocabulary)
         assert independence > 0.0
 
 
@@ -318,52 +313,55 @@ class TestHasAccidentals:
 
 
 class TestHasDottedNotes:
-    def test_no_dotted_notes(self) -> None:
-        vocab = _vocabulary()
-        half_id = vocab.fraction_to_id(Fraction(1, 2))
+    def test_no_dotted_notes(self, duration_vocabulary: DurationVocabulary) -> None:
+        half_id = duration_vocabulary.fraction_to_id(Fraction(1, 2))
 
         segment = _segment_with_tokens(
+            duration_vocabulary,
             right_tokens=[
                 NoteToken(degree=1, accidental=0, octave_offset=0, duration_id=half_id),
                 BarToken(),
                 EndToken(),
-            ]
+            ],
         )
 
-        has_dotted = _has_dotted_notes(segment, duration_vocabulary=vocab)
+        has_dotted = _has_dotted_notes(segment, duration_vocabulary=duration_vocabulary)
         assert has_dotted is False
 
-    def test_dotted_note_detected(self) -> None:
-        vocab = _vocabulary()
-        dotted_quarter_id = vocab.fraction_to_id(Fraction(3, 8))
+    def test_dotted_note_detected(self, duration_vocabulary: DurationVocabulary) -> None:
+        dotted_quarter_id = duration_vocabulary.fraction_to_id(Fraction(3, 8))
 
         segment = _segment_with_tokens(
+            duration_vocabulary,
             right_tokens=[
                 NoteToken(degree=1, accidental=0, octave_offset=0, duration_id=dotted_quarter_id),
                 BarToken(),
                 EndToken(),
-            ]
+            ],
         )
 
-        has_dotted = _has_dotted_notes(segment, duration_vocabulary=vocab)
+        has_dotted = _has_dotted_notes(segment, duration_vocabulary=duration_vocabulary)
         assert has_dotted is True
 
-    def test_duration_membership_helper_uses_explicit_fraction_set(self) -> None:
-        vocab = _vocabulary()
-        eighth_id = vocab.fraction_to_id(Fraction(1, 8))
+    def test_duration_membership_helper_uses_explicit_fraction_set(
+        self,
+        duration_vocabulary: DurationVocabulary,
+    ) -> None:
+        eighth_id = duration_vocabulary.fraction_to_id(Fraction(1, 8))
 
         segment = _segment_with_tokens(
+            duration_vocabulary,
             right_tokens=[
                 NoteToken(degree=1, accidental=0, octave_offset=0, duration_id=eighth_id),
                 BarToken(),
                 EndToken(),
-            ]
+            ],
         )
 
         assert (
             _has_note_duration_in(
                 segment,
-                duration_vocabulary=vocab,
+                duration_vocabulary=duration_vocabulary,
                 durations=frozenset({Fraction(1, 8)}),
             )
             is True
@@ -371,7 +369,7 @@ class TestHasDottedNotes:
         assert (
             _has_note_duration_in(
                 segment,
-                duration_vocabulary=vocab,
+                duration_vocabulary=duration_vocabulary,
                 durations=DOTTED_LIKE_DURATIONS,
             )
             is False
@@ -379,16 +377,16 @@ class TestHasDottedNotes:
 
 
 class TestExtractDifficultyFeaturesIntegration:
-    def test_all_features_computed(self) -> None:
-        vocab = _vocabulary()
-        quarter_id = vocab.fraction_to_id(Fraction(1, 4))
+    def test_all_features_computed(self, duration_vocabulary: DurationVocabulary) -> None:
+        quarter_id = duration_vocabulary.fraction_to_id(Fraction(1, 4))
 
         segment = _segment_with_tokens(
+            duration_vocabulary,
             right_tokens=[
                 NoteToken(degree=1, accidental=0, octave_offset=0, duration_id=quarter_id),
                 BarToken(),
                 EndToken(),
-            ]
+            ],
         )
 
         score = ParsedScore(
@@ -409,7 +407,7 @@ class TestExtractDifficultyFeaturesIntegration:
         )
 
         features = extract_difficulty_features(
-            segment, score=score, scale_type=ScaleType.MAJOR, duration_vocabulary=vocab
+            segment, score=score, scale_type=ScaleType.MAJOR, duration_vocabulary=duration_vocabulary
         )
 
         assert hasattr(features, "max_right_hand_span_semitones")

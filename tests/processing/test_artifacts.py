@@ -63,11 +63,10 @@ def test_encoded_jsonl_round_trip(tmp_path: Path) -> None:
     assert load_encoded_jsonl(path) == [sample]
 
 
-def test_tokenizer_snapshot_hash_changes_with_tokenization_config() -> None:
-    first_config = TokenizationConfig(shortest_duration=16, allowed_tuplets=(3,), max_dots=1)
+def test_tokenizer_snapshot_hash_changes_with_tokenization_config(tokenization_config: TokenizationConfig) -> None:
     second_config = TokenizationConfig(shortest_duration=32, allowed_tuplets=(3,), max_dots=1)
 
-    first_snapshot = _snapshot(first_config)
+    first_snapshot = _snapshot(tokenization_config)
     second_snapshot = _snapshot(second_config)
 
     assert first_snapshot.tokenizer_hash != second_snapshot.tokenizer_hash

@@ -1,3 +1,4 @@
+from musak_model.decoder.encoded import encoded_exercise_to_segment
 from musak_model.decoder.music21 import segment_to_music21_score, write_segment
 from musak_model.decoder.piano_roll import (
     PianoRollEvent,
@@ -8,6 +9,7 @@ from musak_model.decoder.piano_roll import (
 
 __all__ = [
     "PianoRollEvent",
+    "encoded_exercise_to_segment",
     "parsed_score_to_piano_roll_events",
     "segment_to_music21_score",
     "segment_to_piano_roll_events",

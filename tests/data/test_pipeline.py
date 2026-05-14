@@ -4,7 +4,6 @@ from pathlib import Path
 from musak_model.data.config import SegmentationConfig
 from musak_model.data.pipeline import segment_parsed_score
 from musak_model.data.schema import ParsedBar, ParsedNote, ParsedScore, SegmentIneligibilityReason
-from musak_model.tokens.config import TokenizationConfig
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import ScaleType
 
@@ -13,11 +12,9 @@ def _empty_bar() -> ParsedBar:
     return ParsedBar(time_numerator=4, time_denominator=4, key_fifths=0, events=[])
 
 
-def _duration_vocabulary() -> DurationVocabulary:
-    return DurationVocabulary(TokenizationConfig(shortest_duration=16, allowed_tuplets=(3,), max_dots=1))
-
-
-def test_segment_parsed_score_keeps_recoverable_segments_when_feature_extraction_fails() -> None:
+def test_segment_parsed_score_keeps_recoverable_segments_when_feature_extraction_fails(
+    duration_vocabulary: DurationVocabulary,
+) -> None:
     bad_register_bar = ParsedBar(
         time_numerator=4,
         time_denominator=4,
@@ -38,7 +35,7 @@ def test_segment_parsed_score_keeps_recoverable_segments_when_feature_extraction
         score,
         Path("piece.mxl"),
         segmentation=SegmentationConfig(window_bars=1, stride_bars=1),
-        duration_vocabulary=_duration_vocabulary(),
+        duration_vocabulary=duration_vocabulary,
     )
 
     assert [segment.metadata.eligible_for_training for segment in segments] == [True, False, True]

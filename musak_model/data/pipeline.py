@@ -3,6 +3,7 @@ from pathlib import Path
 from pydantic import ValidationError
 
 from musak_model.common.files import collect_musicxml_files
+from musak_model.data.cleaning import clean_parsed_score
 from musak_model.data.config import SegmentationConfig
 from musak_model.data.labeler import extract_difficulty_features
 from musak_model.data.parser import parse_score
@@ -40,7 +41,7 @@ def process_file(
     difficulty_labels: dict[str, int] | None = None,
     duration_vocabulary: DurationVocabulary | None = None,
 ) -> list[Segment]:
-    score = parse_score(path)
+    score = clean_parsed_score(parse_score(path))
     return segment_parsed_score(
         score,
         path,

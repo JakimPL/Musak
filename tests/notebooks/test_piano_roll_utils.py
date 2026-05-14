@@ -2,19 +2,21 @@ from fractions import Fraction
 from pathlib import Path
 
 from musak_model.data.schema import ParsedBar, ParsedNote, ParsedScore, Segment, SegmentMetadata
+from musak_model.decoder import encoded_exercise_to_segment
+from musak_model.processing.io import append_jsonl, write_json_model
+from musak_model.processing.snapshot import build_tokenizer_snapshot
 from musak_model.tokens.config import TokenizationConfig
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import Hand, HandToken, NoteToken, ScaleType
+from musak_model.tokens.vocabulary import TokenVocabulary
+from musak_model.training.ingestion.schema import EncodedExercise
+from notebooks.utils.encoded import load_encoded_shard
 from notebooks.utils.piano_roll import (
     PitchSpelling,
     midi_pitch_name,
     parsed_score_piano_roll_dataframe,
     piano_roll_dataframe,
 )
-
-
-def _duration_vocabulary() -> DurationVocabulary:
-    return DurationVocabulary(TokenizationConfig(shortest_duration=16, allowed_tuplets=(3,), max_dots=1))
 
 
 def test_midi_pitch_name_uses_scientific_pitch_octaves() -> None:
@@ -24,8 +26,7 @@ def test_midi_pitch_name_uses_scientific_pitch_octaves() -> None:
     assert midi_pitch_name(58, pitch_spelling=PitchSpelling.FLATS) == "Bb3"
 
 
-def test_segment_piano_roll_dataframe_includes_axis_and_token_fields() -> None:
-    duration_vocabulary = _duration_vocabulary()
+def test_segment_piano_roll_dataframe_includes_axis_and_token_fields(duration_vocabulary: DurationVocabulary) -> None:
     quarter_id = duration_vocabulary.fraction_to_id(Fraction(1, 4))
     segment = Segment(
         tokens=[
@@ -87,3 +88,40 @@ def test_parsed_score_piano_roll_dataframe_uses_pitch_spelling_without_token_fie
     assert row["duration_fraction"] == "1:4"
     assert row["duration_seconds"] == 1.0
     assert row["token"] is None
+
+
+def test_load_encoded_shard_rebuilds_token_vocabulary(
+    tmp_path: Path,
+    tokenization_config: TokenizationConfig,
+    duration_vocabulary: DurationVocabulary,
+    token_vocabulary: TokenVocabulary,
+) -> None:
+    snapshot = build_tokenizer_snapshot(
+        tokenization_config,
+        duration_vocabulary=duration_vocabulary,
+        token_vocabulary=token_vocabulary,
+    )
+    shard_path = tmp_path / "encoded" / snapshot.tokenizer_hash / "data-00000.jsonl"
+    write_json_model(snapshot, shard_path.parent / "tokenizer.json", overwrite=True)
+    sample = EncodedExercise(
+        token_ids=token_vocabulary.encode([HandToken(hand=Hand.RIGHT)]),
+        bar_positions=[0],
+        metadata=SegmentMetadata(
+            key_root=0,
+            scale_type=ScaleType.MAJOR,
+            time_numerator=4,
+            time_denominator=4,
+            bar_count=1,
+            window_start_bar=0,
+            source_file=Path("piece.mxl"),
+        ),
+    )
+    append_jsonl(sample, shard_path)
+
+    shard = load_encoded_shard(shard_path)
+
+    assert shard.snapshot.tokenizer_hash == snapshot.tokenizer_hash
+    assert shard.samples == [sample]
+    assert encoded_exercise_to_segment(shard.samples[0], token_vocabulary=shard.token_vocabulary).tokens == [
+        HandToken(hand=Hand.RIGHT)
+    ]

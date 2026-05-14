@@ -9,13 +9,13 @@ class ProcessedDatasetPaths:
     root: Path
 
     @classmethod
-    def from_roots(
+    def from_dataset_root(
         cls,
         *,
         processed_root: Path,
-        dataset_name: str,
+        dataset_root: Path,
     ) -> ProcessedDatasetPaths:
-        return cls(root=processed_root / dataset_name)
+        return cls(root=processed_root / dataset_root.name)
 
     @property
     def parsed_dir(self) -> Path:
@@ -26,7 +26,10 @@ class ProcessedDatasetPaths:
         return self.root / "parsed.csv"
 
     def parsed_score_path(self, source_id_value: str) -> Path:
-        return self.parsed_dir / f"{source_id_value}.json"
+        if source_id_value == "":
+            raise ValueError("source_id_value must not be empty")
+
+        return self.parsed_dir / source_id_value[0] / f"{source_id_value}.json"
 
     def encoded_dir(self, tokenizer_hash_value: str) -> Path:
         return self.root / "encoded" / tokenizer_hash_value

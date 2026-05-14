@@ -8,6 +8,7 @@ from zipfile import BadZipFile
 from music21.exceptions21 import Music21Exception
 from pydantic import BaseModel, ConfigDict, ValidationError
 
+from musak_model.data.cleaning import clean_parsed_score
 from musak_model.data.config import SegmentationConfig
 from musak_model.data.parser import parse_score
 from musak_model.data.pipeline import segment_parsed_score
@@ -46,7 +47,7 @@ def process_score_safely(
     stride_bars: int,
 ) -> ProcessingResult:
     try:
-        parsed_score = parse_score(path)
+        parsed_score = clean_parsed_score(parse_score(path))
     except _PROCESSING_ERRORS as exception:
         return ProcessingResult(
             path=path,
@@ -74,3 +75,33 @@ def process_score_safely(
         )
 
     return ProcessingResult(path=path, parsed_score=parsed_score, segments=segments)
+
+
+def segment_parsed_score_safely(
+    parsed_score: ParsedScore,
+    path: Path,
+    *,
+    window_bars: int,
+    stride_bars: int,
+) -> ProcessingResult:
+    try:
+        segments = segment_parsed_score(
+            parsed_score,
+            path,
+            segmentation=SegmentationConfig(window_bars=window_bars, stride_bars=stride_bars),
+        )
+    except _PROCESSING_ERRORS as exception:
+        return ProcessingResult(
+            path=path,
+            parsed_score=parsed_score,
+            segments=[],
+            error_type=type(exception).__name__,
+            error_message=str(exception),
+            traceback_text="".join(traceback.format_exception(exception)),
+        )
+
+    return ProcessingResult(path=path, parsed_score=parsed_score, segments=segments)
+
+
+def encoded_segments_result(path: Path, *, segments: list[Segment]) -> ProcessingResult:
+    return ProcessingResult(path=path, parsed_score=None, segments=segments)

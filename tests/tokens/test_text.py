@@ -4,7 +4,6 @@ from fractions import Fraction
 
 import pytest
 
-from musak_model.tokens.config import TokenizationConfig
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import (
     BarToken,
@@ -23,11 +22,6 @@ from musak_model.tokens.text import (
     tokens_from_text,
     tokens_to_text,
 )
-
-
-@pytest.fixture
-def duration_vocabulary() -> DurationVocabulary:
-    return DurationVocabulary(TokenizationConfig(shortest_duration=16, allowed_tuplets=(3,), max_dots=1))
 
 
 def _duration_id(duration_vocabulary: DurationVocabulary, duration: Fraction) -> int:

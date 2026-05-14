@@ -12,7 +12,9 @@ from musak_model.data.config import SegmentationConfig
 from musak_model.model import HierarchicalAutoregressiveModel
 from musak_model.model.config import ModelConfig
 from musak_model.paths import CONDITIONING_CONFIG_PATH
-from musak_model.tokens.vocabulary import build_default_token_vocabulary
+from musak_model.tokens.config import TokenizationConfig
+from musak_model.tokens.duration import DurationVocabulary
+from musak_model.tokens.vocabulary import TokenVocabulary
 from musak_model.training.checkpoint import load_checkpoint, save_checkpoint
 from musak_model.training.config import TrainingConfig
 from musak_model.training.dataset import TrainingBatch, build_dataloaders
@@ -180,11 +182,17 @@ def train_stage_one(
     ingestion_config: IngestionConfig,
     segmentation_config: SegmentationConfig,
     training_config: TrainingConfig,
+    tokenization_config: TokenizationConfig,
     model_config: ModelConfig | None = None,
     conditioning_config_path: Path = CONDITIONING_CONFIG_PATH,
 ) -> TrainingResult:
-    split = build_split(source_dir, config=ingestion_config, segmentation=segmentation_config)
-    vocabulary = build_default_token_vocabulary()
+    split = build_split(
+        source_dir,
+        config=ingestion_config,
+        segmentation=segmentation_config,
+        tokenization_config=tokenization_config,
+    )
+    vocabulary = TokenVocabulary(DurationVocabulary(tokenization_config))
     resolved_model_config = model_config or ModelConfig.load(
         vocabulary_size=vocabulary.vocabulary_size,
         conditioning_config_path=conditioning_config_path,

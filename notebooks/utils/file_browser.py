@@ -19,6 +19,19 @@ class FileSelection:
 
 
 def selected_musicxml_file(file_browser: Any) -> FileSelection:
+    return selected_file(
+        file_browser,
+        supported_suffixes=SUPPORTED_MUSICXML_SUFFIXES,
+        description="MusicXML",
+    )
+
+
+def selected_file(
+    file_browser: Any,
+    *,
+    supported_suffixes: frozenset[str],
+    description: str,
+) -> FileSelection:
     value_repr = repr(getattr(file_browser, "value", None))
 
     try:
@@ -33,7 +46,7 @@ def selected_musicxml_file(file_browser: Any) -> FileSelection:
     if selected_path is None:
         return FileSelection(
             path=None,
-            message="No file is selected. Open folders with the file browser, then select a MusicXML file.",
+            message=f"No file is selected. Open folders with the file browser, then select a {description} file.",
             value_repr=value_repr,
         )
 
@@ -52,11 +65,11 @@ def selected_musicxml_file(file_browser: Any) -> FileSelection:
             value_repr=value_repr,
         )
 
-    if path.suffix.lower() not in SUPPORTED_MUSICXML_SUFFIXES:
-        suffixes = ", ".join(sorted(SUPPORTED_MUSICXML_SUFFIXES))
+    if path.suffix.lower() not in supported_suffixes:
+        suffixes = ", ".join(sorted(supported_suffixes))
         return FileSelection(
             path=None,
-            message=f"Selected file is not a supported MusicXML file ({suffixes}): {path}",
+            message=f"Selected file is not a supported {description} file ({suffixes}): {path}",
             value_repr=value_repr,
         )
 

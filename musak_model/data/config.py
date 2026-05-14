@@ -18,3 +18,37 @@ class SegmentationConfig(BaseModel):
     def load(cls, path: Path = SEGMENTATION_CONFIG_PATH) -> SegmentationConfig:
         parsed = load_yaml_config(path)
         return cls.model_validate(parsed)
+
+
+def load_segmentation_config(
+    path: Path,
+    *,
+    window_bars: int | None = None,
+    stride_bars: int | None = None,
+) -> SegmentationConfig:
+    config = SegmentationConfig.load(path)
+    return config.model_copy(
+        update={
+            key: value
+            for key, value in {
+                "window_bars": window_bars,
+                "stride_bars": stride_bars,
+            }.items()
+            if value is not None
+        }
+    )
+
+
+def load_difficulty_labels(path: Path | None) -> dict[str, int] | None:
+    if path is None:
+        return None
+
+    parsed = load_yaml_config(path)
+    labels: dict[str, int] = {}
+    for key, value in parsed.items():
+        if not isinstance(key, str) or not isinstance(value, int):
+            raise ValueError("difficulty labels must be a mapping of file stem to integer difficulty level")
+
+        labels[key] = value
+
+    return labels

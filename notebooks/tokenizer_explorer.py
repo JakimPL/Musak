@@ -12,31 +12,46 @@ def _():
     import marimo as mo
 
     from musak_model.common.elements import MIDI_MAX_PITCH
+    from musak_model.paths import DEFAULT_DATA_DIR, DEFAULT_PROCESSED_ROOT
+    from musak_model.processing.io import load_parsed_score_json
     from musak_model.tokens.vocabulary import build_default_token_vocabulary
     from notebooks.utils import (
         PitchSpelling,
         default_duration_vocabulary,
+        encoded_sample_to_segment,
+        encoded_segments_result,
+        load_encoded_shard,
         parsed_score_piano_roll_dataframe,
         piano_roll_dataframe,
         process_score_safely,
         score_summary,
+        segment_parsed_score_safely,
+        selected_file,
         selected_musicxml_file,
         token_rows,
     )
 
     return (
         MIDI_MAX_PITCH,
+        DEFAULT_DATA_DIR,
+        DEFAULT_PROCESSED_ROOT,
         Path,
         PitchSpelling,
         alt,
         build_default_token_vocabulary,
         default_duration_vocabulary,
+        encoded_sample_to_segment,
+        encoded_segments_result,
+        load_encoded_shard,
+        load_parsed_score_json,
         mo,
         parsed_score_piano_roll_dataframe,
         piano_roll_dataframe,
         process_score_safely,
         score_summary,
+        selected_file,
         selected_musicxml_file,
+        segment_parsed_score_safely,
         token_rows,
     )
 
@@ -54,16 +69,39 @@ def _(build_default_token_vocabulary, mo):
 
 
 @app.cell
-def _(Path, default_duration_vocabulary):
-    data_root = Path("data")
+def _(DEFAULT_DATA_DIR, DEFAULT_PROCESSED_ROOT, Path, default_duration_vocabulary):
+    def _existing_directory(path: Path) -> Path:
+        current = path
+        while not current.exists() or not current.is_dir():
+            if current == current.parent:
+                return DEFAULT_DATA_DIR
+            current = current.parent
+        return current
+
+    data_root = DEFAULT_DATA_DIR
     pdmx_root = data_root / "PDMX" / "mxl"
     initial_browser_path = pdmx_root if pdmx_root.exists() else data_root
+    processed_browser_path = _existing_directory(DEFAULT_PROCESSED_ROOT)
     duration_vocabulary = default_duration_vocabulary()
-    return duration_vocabulary, initial_browser_path
+    return (
+        duration_vocabulary,
+        initial_browser_path,
+        processed_browser_path,
+    )
 
 
 @app.cell
-def _(initial_browser_path, mo):
+def _(initial_browser_path, mo, processed_browser_path):
+    source_mode = mo.ui.radio(
+        options={
+            "Raw MusicXML": "raw",
+            "Parsed JSON": "parsed",
+            "Encoded JSONL": "encoded",
+        },
+        value="Raw MusicXML",
+        inline=True,
+        label="Source",
+    )
     file_browser = mo.ui.file_browser(
         initial_path=initial_browser_path,
         filetypes=[".mxl", ".musicxml", ".xml"],
@@ -71,42 +109,93 @@ def _(initial_browser_path, mo):
         multiple=False,
         label="MusicXML file",
     )
+    parsed_browser = mo.ui.file_browser(
+        initial_path=processed_browser_path,
+        filetypes=[".json"],
+        selection_mode="file",
+        multiple=False,
+        label="Parsed score JSON",
+    )
+    encoded_browser = mo.ui.file_browser(
+        initial_path=processed_browser_path,
+        filetypes=[".jsonl"],
+        selection_mode="file",
+        multiple=False,
+        label="Encoded shard JSONL",
+    )
     window_slider = mo.ui.slider(start=1, stop=32, step=1, value=8, label="Window bars")
     stride_slider = mo.ui.slider(start=1, stop=16, step=1, value=4, label="Stride bars")
     bpm_slider = mo.ui.slider(start=30, stop=240, step=1, value=60, label="BPM")
     prefer_flats_checkbox = mo.ui.checkbox(value=False, label="Prefer flats")
-    browser_output = mo.vstack(
-        [
-            file_browser,
-            mo.hstack([window_slider, stride_slider, bpm_slider, prefer_flats_checkbox], gap=2),
-        ],
-        gap=2,
-    )
-    browser_output
     return (
         bpm_slider,
+        encoded_browser,
         file_browser,
+        parsed_browser,
         prefer_flats_checkbox,
+        source_mode,
         stride_slider,
         window_slider,
     )
 
 
 @app.cell
-def _(file_browser, selected_musicxml_file):
-    selected_file = selected_musicxml_file(file_browser)
-    selected_path = selected_file.path
-    return selected_file, selected_path
+def _(
+    bpm_slider,
+    encoded_browser,
+    file_browser,
+    mo,
+    parsed_browser,
+    prefer_flats_checkbox,
+    source_mode,
+    stride_slider,
+    window_slider,
+):
+    active_browser = {
+        "raw": file_browser,
+        "parsed": parsed_browser,
+        "encoded": encoded_browser,
+    }[source_mode.value]
+    browser_output = mo.vstack(
+        [
+            source_mode,
+            active_browser,
+            mo.hstack([window_slider, stride_slider, bpm_slider, prefer_flats_checkbox], gap=2),
+        ],
+        gap=2,
+    )
+    browser_output
+    return
 
 
 @app.cell
-def _(mo, selected_file):
+def _(encoded_browser, file_browser, parsed_browser, selected_file, selected_musicxml_file, source_mode):
+    if source_mode.value == "raw":
+        active_selection = selected_musicxml_file(file_browser)
+    elif source_mode.value == "parsed":
+        active_selection = selected_file(
+            parsed_browser,
+            supported_suffixes=frozenset({".json"}),
+            description="parsed score JSON",
+        )
+    else:
+        active_selection = selected_file(
+            encoded_browser,
+            supported_suffixes=frozenset({".jsonl"}),
+            description="encoded JSONL",
+        )
+    selected_path = active_selection.path
+    return active_selection, selected_path
+
+
+@app.cell
+def _(active_selection, mo):
     selection_output = None
-    if selected_file.path is None:
+    if active_selection.path is None:
         selection_output = mo.vstack(
             [
-                mo.callout(selected_file.message or "No file selected.", kind="warn"),
-                mo.md(f"Current browser value: `{selected_file.value_repr}`"),
+                mo.callout(active_selection.message or "No file selected.", kind="warn"),
+                mo.md(f"Current browser value: `{active_selection.value_repr}`"),
             ],
             gap=1,
         )
@@ -116,11 +205,26 @@ def _(mo, selected_file):
 
 
 @app.cell
-def _(mo, process_score_safely, selected_path, stride_slider, window_slider):
+def _(
+    duration_vocabulary,
+    encoded_sample_to_segment,
+    encoded_segments_result,
+    load_encoded_shard,
+    load_parsed_score_json,
+    mo,
+    process_score_safely,
+    selected_path,
+    segment_parsed_score_safely,
+    source_mode,
+    stride_slider,
+    window_slider,
+):
     if selected_path is None:
+        encoded_shard = None
         processing_result = None
         processing_output = mo.md("")
-    else:
+    elif source_mode.value == "raw":
+        encoded_shard = None
         with mo.status.spinner(title="Parsing and tokenizing selected file..."):
             processing_result = process_score_safely(
                 selected_path,
@@ -144,8 +248,37 @@ def _(mo, process_score_safely, selected_path, stride_slider, window_slider):
                 f"{processing_result.path.name}: {processing_result.error_type}: {processing_result.error_message}",
                 kind="danger",
             )
+    elif source_mode.value == "parsed":
+        encoded_shard = None
+        with mo.status.spinner(title="Loading parsed score..."):
+            loaded_parsed_score = load_parsed_score_json(selected_path)
+            processing_result = segment_parsed_score_safely(
+                loaded_parsed_score,
+                selected_path,
+                window_bars=window_slider.value,
+                stride_bars=stride_slider.value,
+            )
+        if processing_result.succeeded:
+            processing_output = mo.callout(
+                f"{selected_path.name}: parsed score loaded, {len(processing_result.segments)} segment(s) produced",
+                kind="success",
+            )
+        else:
+            processing_output = mo.callout(
+                f"{processing_result.path.name}: {processing_result.error_type}: {processing_result.error_message}",
+                kind="danger",
+            )
+    else:
+        with mo.status.spinner(title="Loading encoded shard..."):
+            encoded_shard = load_encoded_shard(selected_path)
+        segments = [encoded_sample_to_segment(sample, shard=encoded_shard) for sample in encoded_shard.samples]
+        processing_result = encoded_segments_result(selected_path, segments=segments)
+        processing_output = mo.callout(
+            f"{selected_path.name}: {len(encoded_shard.samples)} encoded sample(s) loaded",
+            kind="success",
+        )
     processing_output
-    return (processing_result,)
+    return encoded_shard, processing_result
 
 
 @app.cell
@@ -266,15 +399,18 @@ def _(
         bar_domain = [segment.metadata.window_start_bar + 1, segment.metadata.window_start_bar + segment.bar_count + 1]
         seconds_domain = [0.0, segment.bar_count * measure_duration * 4 * 60 / bpm_slider.value]
     elif processing_result is not None and processing_result.parsed_score is not None:
-        parsed_score = processing_result.parsed_score
+        piano_roll_parsed_score = processing_result.parsed_score
         piano_roll_df = parsed_score_piano_roll_dataframe(
-            parsed_score,
+            piano_roll_parsed_score,
             pitch_spelling=pitch_spelling,
             bpm=bpm_slider.value,
         )
         piano_roll_title = "Parsed score piano roll"
-        parsed_bar_count = max(len(parsed_score.right_hand_bars), len(parsed_score.left_hand_bars))
-        measure_duration = parsed_score.time_numerator / parsed_score.time_denominator
+        parsed_bar_count = max(
+            len(piano_roll_parsed_score.right_hand_bars),
+            len(piano_roll_parsed_score.left_hand_bars),
+        )
+        measure_duration = piano_roll_parsed_score.time_numerator / piano_roll_parsed_score.time_denominator
         bar_domain = [1, parsed_bar_count + 1]
         seconds_domain = [0.0, parsed_bar_count * measure_duration * 4 * 60 / bpm_slider.value]
     else:

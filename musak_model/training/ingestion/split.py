@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 from random import Random
 from typing import Final
@@ -8,10 +9,10 @@ from musak_model.common.files import collect_musicxml_files
 from musak_model.data.config import SegmentationConfig
 from musak_model.data.pipeline import process_file, segment_parsed_score
 from musak_model.data.schema import Segment
-from musak_model.processing.io import load_encoded_jsonl, load_parsed_score_json
+from musak_model.processing.io import load_encoded_jsonl, load_parsed_score_json, load_tokenizer_snapshot_json
 from musak_model.processing.manifest import ParsedManifestField, ParsedManifestStatus, read_parsed_manifest
 from musak_model.processing.paths import ProcessedDatasetPaths
-from musak_model.processing.snapshot import build_tokenizer_snapshot
+from musak_model.processing.snapshot import TokenizerSnapshot, build_tokenizer_snapshot
 from musak_model.tokens.config import TokenizationConfig
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import BarToken, EndToken, Hand, Token
@@ -19,9 +20,11 @@ from musak_model.tokens.vocabulary import TokenVocabulary, encode
 from musak_model.training.ingestion.config import IngestionConfig
 from musak_model.training.ingestion.schema import EncodedExercise, IngestionErrorRecord, IngestionSplit
 
+_LOGGER = logging.getLogger(__name__)
 _FILE_PROCESSING_ERRORS: Final[tuple[type[Exception], ...]] = (
     Music21Exception,
     OSError,
+    OverflowError,
     TypeError,
     ValueError,
 )
@@ -32,9 +35,9 @@ def build_split(
     *,
     config: IngestionConfig,
     segmentation: SegmentationConfig,
+    tokenization_config: TokenizationConfig,
 ) -> IngestionSplit:
     """Build deterministic train/validation split from MusicXML files."""
-    tokenization_config = TokenizationConfig.load()
     duration_vocabulary = DurationVocabulary(tokenization_config)
     token_vocabulary = TokenVocabulary(duration_vocabulary)
 
@@ -101,7 +104,7 @@ def _build_split_from_processed_artifacts(
     if config.processed_root is None:
         return None
 
-    paths = ProcessedDatasetPaths.from_roots(processed_root=config.processed_root, dataset_name=source_dir.name)
+    paths = ProcessedDatasetPaths.from_dataset_root(processed_root=config.processed_root, dataset_root=source_dir)
     parsed_rows = read_parsed_manifest(paths.parsed_manifest_path)
     if not parsed_rows:
         return None
@@ -135,7 +138,7 @@ def _build_split_from_processed_artifacts(
         token_vocabulary=token_vocabulary,
     )
     encoded_path = paths.encoded_jsonl_path(snapshot.tokenizer_hash)
-    if encoded_path.exists():
+    if encoded_path.exists() and _encoded_artifacts_match(paths=paths, expected_snapshot=snapshot):
         return _split_encoded_samples(
             load_encoded_jsonl(encoded_path),
             validation_keys=validation_keys,
@@ -160,6 +163,29 @@ def _build_split_from_processed_artifacts(
         )
 
     return None
+
+
+def _encoded_artifacts_match(*, paths: ProcessedDatasetPaths, expected_snapshot: TokenizerSnapshot) -> bool:
+    encoded_manifest_path = paths.encoded_manifest_path(expected_snapshot.tokenizer_hash)
+    if not encoded_manifest_path.exists():
+        _LOGGER.warning("Ignoring encoded artifacts without encoded manifest: %s", encoded_manifest_path)
+        return False
+
+    snapshot_path = paths.tokenizer_snapshot_path(expected_snapshot.tokenizer_hash)
+    if not snapshot_path.exists():
+        _LOGGER.warning("Ignoring encoded artifacts without tokenizer snapshot: %s", snapshot_path)
+        return False
+
+    snapshot = load_tokenizer_snapshot_json(snapshot_path)
+    if snapshot != expected_snapshot:
+        _LOGGER.warning(
+            "Ignoring encoded artifacts with tokenizer snapshot mismatch: expected %s, found %s",
+            expected_snapshot.tokenizer_hash,
+            snapshot.tokenizer_hash,
+        )
+        return False
+
+    return True
 
 
 def _split_encoded_samples(
@@ -195,13 +221,14 @@ def _split_from_parsed_scores(
     train_samples: list[EncodedExercise] = []
     validation_samples: list[EncodedExercise] = []
     for row in parsed_rows:
-        source_path = source_dir / row[ParsedManifestField.SOURCE_PATH]
+        relative_source_path = Path(row[ParsedManifestField.SOURCE_PATH])
+        source_path = source_dir / relative_source_path
         parsed_path = paths.root / row[ParsedManifestField.PARSED_PATH]
         try:
             score = load_parsed_score_json(parsed_path)
             segments = segment_parsed_score(
                 score,
-                source_path,
+                relative_source_path,
                 segmentation=segmentation,
                 difficulty_labels=difficulty_labels,
                 duration_vocabulary=duration_vocabulary,

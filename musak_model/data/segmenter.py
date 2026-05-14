@@ -6,7 +6,7 @@ from pydantic import ValidationError
 
 from musak_model.data.config import SegmentationConfig
 from musak_model.data.converter import pitch_to_degree
-from musak_model.data.quantizer import quantize_duration_to_id
+from musak_model.data.quantizer import quantize_duration
 from musak_model.data.schema import (
     ParsedBar,
     ParsedChord,
@@ -35,6 +35,12 @@ _BAR_TOKEN: BarToken = BarToken()
 _END_TOKEN: EndToken = EndToken()
 _JOIN_WITH_PREVIOUS_TOKEN: JoinWithPreviousToken = JoinWithPreviousToken()
 _TOKENIZATION_ERRORS: tuple[type[Exception], ...] = (ValueError, ValidationError)
+
+
+class TokenizationIneligibilityError(ValueError):
+    def __init__(self, message: str, *, reason: SegmentIneligibilityReason) -> None:
+        super().__init__(message)
+        self.reason = reason
 
 
 class _TimedTokenGroup(NamedTuple):
@@ -113,11 +119,11 @@ def _tokenize_hand_safely(
                 )
             )
             tokenized_bars.append(_BarTokenization(tokens=tokens))
-        except _TOKENIZATION_ERRORS:
+        except _TOKENIZATION_ERRORS as exception:
             tokenized_bars.append(
                 _BarTokenization(
                     tokens=[],
-                    ineligibility_reasons=frozenset({SegmentIneligibilityReason.TOKENIZATION_ERROR}),
+                    ineligibility_reasons=_ineligibility_reasons_for_exception(exception),
                 )
             )
 
@@ -178,11 +184,11 @@ def _tokenize_unified_stream_safely(
                 measure_duration=_bar_measure_duration(score.left_hand_bars[bar_index]),
             )
             tokenized_bars.append(_BarTokenization(tokens=_merge_hand_groups(right_groups + left_groups)))
-        except _TOKENIZATION_ERRORS:
+        except _TOKENIZATION_ERRORS as exception:
             tokenized_bars.append(
                 _BarTokenization(
                     tokens=[],
-                    ineligibility_reasons=frozenset({SegmentIneligibilityReason.TOKENIZATION_ERROR}),
+                    ineligibility_reasons=_ineligibility_reasons_for_exception(exception),
                 )
             )
 
@@ -232,6 +238,14 @@ def _normalize_bar_events(
     duration_vocabulary: DurationVocabulary,
     measure_duration: Fraction,
 ) -> list[_TimedTokenGroup]:
+    _raise_for_ambiguous_simultaneous_durations(bar=bar, bar_index=bar_index, hand=hand)
+    _raise_for_quantization_grid_integrity(
+        bar=bar,
+        bar_index=bar_index,
+        hand=hand,
+        duration_vocabulary=duration_vocabulary,
+        measure_duration=measure_duration,
+    )
     cursor = Fraction(0, 1)
     groups: list[_TimedTokenGroup] = []
 
@@ -249,9 +263,7 @@ def _normalize_bar_events(
                     bar_index=bar_index,
                     offset=cursor,
                     hand=hand,
-                    tokens=[
-                        RestToken(duration_id=quantize_duration_to_id(rest_duration, vocabulary=duration_vocabulary))
-                    ],
+                    tokens=[RestToken(duration_id=_exact_duration_id(rest_duration, vocabulary=duration_vocabulary))],
                 )
             )
 
@@ -283,9 +295,7 @@ def _normalize_bar_events(
                 offset=cursor,
                 hand=hand,
                 tokens=[
-                    RestToken(
-                        duration_id=quantize_duration_to_id(measure_duration - cursor, vocabulary=duration_vocabulary)
-                    )
+                    RestToken(duration_id=_exact_duration_id(measure_duration - cursor, vocabulary=duration_vocabulary))
                 ],
             )
         )
@@ -297,6 +307,93 @@ def _event_sort_key(event: ParsedEvent) -> tuple[Fraction, int]:
     return event.beat_offset, _lowest_pitch(event)
 
 
+def _raise_for_ambiguous_simultaneous_durations(*, bar: ParsedBar, bar_index: int, hand: Hand) -> None:
+    durations_by_offset: dict[Fraction, set[Fraction]] = {}
+    for event in bar.events:
+        if isinstance(event, ParsedNote | ParsedChord):
+            durations_by_offset.setdefault(event.beat_offset, set()).add(event.duration)
+
+    for beat_offset, durations in durations_by_offset.items():
+        if len(durations) > 1:
+            raise TokenizationIneligibilityError(
+                (
+                    f"ambiguous simultaneous note durations in {hand.value} hand at bar {bar_index}, "
+                    f"offset {beat_offset}: {sorted(durations)}"
+                ),
+                reason=SegmentIneligibilityReason.AMBIGUOUS_SIMULTANEOUS_DURATION,
+            )
+
+
+def _raise_for_quantization_grid_integrity(
+    *,
+    bar: ParsedBar,
+    bar_index: int,
+    hand: Hand,
+    duration_vocabulary: DurationVocabulary,
+    measure_duration: Fraction,
+) -> None:
+    cursor = Fraction(0)
+    quantized_cursor = Fraction(0)
+    seen_pitch_onsets: dict[tuple[Fraction, int], Fraction] = {}
+    for event in sorted(bar.events, key=_event_sort_key):
+        if event.beat_offset < cursor:
+            raise ValueError(
+                f"overlapping events in {hand.value} hand at bar {bar_index}: "
+                f"event starts at {event.beat_offset}, previous event ends at {cursor}"
+            )
+
+        if event.beat_offset > cursor:
+            rest_duration = event.beat_offset - cursor
+            quantized_cursor += _exact_duration(
+                rest_duration,
+                vocabulary=duration_vocabulary,
+                bar_index=bar_index,
+                hand=hand,
+                context="rest",
+            )
+
+        if quantized_cursor != event.beat_offset:
+            raise TokenizationIneligibilityError(
+                (
+                    f"quantization would warp {hand.value} hand time grid at bar {bar_index}: "
+                    f"event starts at {event.beat_offset}, quantized cursor is {quantized_cursor}"
+                ),
+                reason=SegmentIneligibilityReason.QUANTIZATION_ERROR,
+            )
+
+        for midi_pitch in _event_pitches(event):
+            collision_key = (quantized_cursor, midi_pitch)
+            previous_offset = seen_pitch_onsets.get(collision_key)
+            if previous_offset is not None and previous_offset != event.beat_offset:
+                raise TokenizationIneligibilityError(
+                    (
+                        f"quantization collision in {hand.value} hand at bar {bar_index}: "
+                        f"pitch {midi_pitch} maps offsets {previous_offset} and {event.beat_offset} "
+                        f"to {quantized_cursor}"
+                    ),
+                    reason=SegmentIneligibilityReason.QUANTIZATION_COLLISION,
+                )
+            seen_pitch_onsets[collision_key] = event.beat_offset
+
+        quantized_cursor += _exact_duration(
+            event.duration,
+            vocabulary=duration_vocabulary,
+            bar_index=bar_index,
+            hand=hand,
+            context="event",
+        )
+        cursor = event.beat_offset + event.duration
+
+    if cursor < measure_duration:
+        _exact_duration(
+            measure_duration - cursor,
+            vocabulary=duration_vocabulary,
+            bar_index=bar_index,
+            hand=hand,
+            context="trailing rest",
+        )
+
+
 def _lowest_pitch(event: ParsedEvent) -> int:
     if isinstance(event, ParsedNote):
         return event.midi_pitch
@@ -305,6 +402,16 @@ def _lowest_pitch(event: ParsedEvent) -> int:
         return min(event.midi_pitches)
 
     return -1
+
+
+def _event_pitches(event: ParsedEvent) -> tuple[int, ...]:
+    if isinstance(event, ParsedNote):
+        return (event.midi_pitch,)
+
+    if isinstance(event, ParsedChord):
+        return tuple(event.midi_pitches)
+
+    return ()
 
 
 def _tokens_from_bar_groups(groups: list[_TimedTokenGroup]) -> list[Token]:
@@ -390,14 +497,7 @@ def _tokenize_event(
         ]
 
     if isinstance(event, ParsedRest):
-        return [
-            RestToken(
-                duration_id=quantize_duration_to_id(
-                    event.duration,
-                    vocabulary=duration_vocabulary,
-                )
-            )
-        ]
+        return [RestToken(duration_id=_exact_duration_id(event.duration, vocabulary=duration_vocabulary))]
 
     if isinstance(event, ParsedChord):
         return _chord_to_tokens(
@@ -426,7 +526,7 @@ def _note_to_token(
         scale_type=scale_type,
         hand=hand,
     )
-    duration_id = quantize_duration_to_id(event.duration, vocabulary=duration_vocabulary)
+    duration_id = _exact_duration_id(event.duration, vocabulary=duration_vocabulary)
     return NoteToken(
         degree=pitch_degree.degree,
         accidental=pitch_degree.accidental,
@@ -554,3 +654,42 @@ def _flatten_bars(bar_token_lists: list[list[Token]]) -> list[Token]:
 
     tokens.append(_END_TOKEN)
     return tokens
+
+
+def _ineligibility_reasons_for_exception(exception: Exception) -> frozenset[SegmentIneligibilityReason]:
+    if isinstance(exception, TokenizationIneligibilityError):
+        return frozenset({exception.reason})
+
+    return frozenset({SegmentIneligibilityReason.TOKENIZATION_ERROR})
+
+
+def _exact_duration_id(duration: Fraction, *, vocabulary: DurationVocabulary) -> int:
+    quantized = quantize_duration(duration, vocabulary=vocabulary)
+    if not quantized.exact:
+        raise TokenizationIneligibilityError(
+            f"unsupported duration {duration}: closest supported duration is {quantized.quantized}",
+            reason=SegmentIneligibilityReason.QUANTIZATION_ERROR,
+        )
+
+    return quantized.duration_id
+
+
+def _exact_duration(
+    duration: Fraction,
+    *,
+    vocabulary: DurationVocabulary,
+    bar_index: int,
+    hand: Hand,
+    context: str,
+) -> Fraction:
+    quantized = quantize_duration(duration, vocabulary=vocabulary)
+    if not quantized.exact:
+        raise TokenizationIneligibilityError(
+            (
+                f"unsupported {context} duration in {hand.value} hand at bar {bar_index}: "
+                f"{duration} would quantize to {quantized.quantized}"
+            ),
+            reason=SegmentIneligibilityReason.QUANTIZATION_ERROR,
+        )
+
+    return quantized.quantized
