@@ -8,14 +8,12 @@ class DurationVocabulary:
         self._config = config
         self._fractions: list[Fraction] = []
         self._fraction_to_id: dict[Fraction, int] = {}
-        self._dotted_fractions: set[Fraction] = set()
         self._generate_durations()
 
     def _generate_durations(self) -> None:
         durations_set = self._generate_base_durations()
         durations_set.update(self._generate_tuplet_variants(durations_set))
-        self._dotted_fractions = self._generate_dotted_variants(durations_set)
-        durations_set.update(self._dotted_fractions)
+        durations_set.update(self._generate_dotted_variants(durations_set))
         self._build_sorted_mapping(durations_set)
 
     def _build_sorted_mapping(self, durations_set: set[Fraction]) -> None:
@@ -67,12 +65,6 @@ class DurationVocabulary:
 
     def all_fractions(self) -> tuple[Fraction, ...]:
         return tuple(self._fractions)
-
-    def dotted_fractions(self) -> frozenset[Fraction]:
-        return frozenset(self._dotted_fractions)
-
-    def is_dotted_id(self, duration_id: int) -> bool:
-        return self.id_to_fraction(duration_id) in self._dotted_fractions
 
     def vocab_size(self) -> int:
         return len(self._fractions)

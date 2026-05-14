@@ -4,8 +4,10 @@ from pathlib import Path
 import pytest
 
 from musak_model.data.labeler import (
+    DOTTED_LIKE_DURATIONS,
     _has_accidentals,
     _has_dotted_notes,
+    _has_note_duration_in,
     _max_hand_span,
     _notes_per_beat,
     _rhythmic_diversity,
@@ -21,7 +23,7 @@ from musak_model.data.schema import (
     SegmentMetadata,
 )
 from musak_model.tokens.config import TokenizationConfig
-from musak_model.tokens.duration_vocabulary import DurationVocabulary
+from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import BarToken, EndToken, Hand, NoteToken, ScaleType
 
 
@@ -292,7 +294,7 @@ class TestHasDottedNotes:
         )
 
         has_dotted = _has_dotted_notes(segment, duration_vocabulary=vocab)
-        assert isinstance(has_dotted, bool)
+        assert has_dotted is False
 
     def test_dotted_note_detected(self) -> None:
         vocab = _vocabulary()
@@ -308,6 +310,35 @@ class TestHasDottedNotes:
 
         has_dotted = _has_dotted_notes(segment, duration_vocabulary=vocab)
         assert has_dotted is True
+
+    def test_duration_membership_helper_uses_explicit_fraction_set(self) -> None:
+        vocab = _vocabulary()
+        eighth_id = vocab.fraction_to_id(Fraction(1, 8))
+
+        segment = _segment_with_tokens(
+            right_tokens=[
+                NoteToken(degree=1, accidental=0, octave_offset=0, duration_id=eighth_id),
+                BarToken(),
+                EndToken(),
+            ]
+        )
+
+        assert (
+            _has_note_duration_in(
+                segment,
+                duration_vocabulary=vocab,
+                durations=frozenset({Fraction(1, 8)}),
+            )
+            is True
+        )
+        assert (
+            _has_note_duration_in(
+                segment,
+                duration_vocabulary=vocab,
+                durations=DOTTED_LIKE_DURATIONS,
+            )
+            is False
+        )
 
 
 class TestExtractDifficultyFeaturesIntegration:

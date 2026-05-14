@@ -7,7 +7,7 @@ from musak_model.data.parser import parse_score
 from musak_model.data.schema import ParsedScore, Segment
 from musak_model.data.segmenter import segment_score
 from musak_model.tokens.config import TokenizationConfig
-from musak_model.tokens.duration_vocabulary import DurationVocabulary
+from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import ScaleType
 
 _MODE_TO_SCALE_TYPE: dict[str, ScaleType] = {
@@ -44,14 +44,31 @@ def process_file(
     difficulty_labels: dict[str, int] | None = None,
     duration_vocabulary: DurationVocabulary | None = None,
 ) -> list[Segment]:
-    resolved_duration_vocabulary = duration_vocabulary or DurationVocabulary(TokenizationConfig.load())
     score = parse_score(path)
+    return segment_parsed_score(
+        score,
+        path,
+        segmentation=segmentation,
+        difficulty_labels=difficulty_labels,
+        duration_vocabulary=duration_vocabulary,
+    )
+
+
+def segment_parsed_score(
+    score: ParsedScore,
+    source_file: Path,
+    *,
+    segmentation: SegmentationConfig,
+    difficulty_labels: dict[str, int] | None = None,
+    duration_vocabulary: DurationVocabulary | None = None,
+) -> list[Segment]:
+    resolved_duration_vocabulary = duration_vocabulary or DurationVocabulary(TokenizationConfig.load())
     scale_type = _resolve_scale_type(score.mode)
-    difficulty_level = _resolve_difficulty_level(path, difficulty_labels=difficulty_labels)
+    difficulty_level = _resolve_difficulty_level(source_file, difficulty_labels=difficulty_labels)
 
     segments = segment_score(
         score,
-        path,
+        source_file,
         scale_type=scale_type,
         duration_vocabulary=resolved_duration_vocabulary,
         segmentation=segmentation,

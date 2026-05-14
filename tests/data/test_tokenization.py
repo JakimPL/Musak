@@ -7,7 +7,7 @@ import pytest
 from musak_model.data.schema import ParsedBar, ParsedChord, ParsedNote, ParsedScore, SegmentMetadata
 from musak_model.data.segmenter import _chord_to_tokens, _note_to_token, _tokenize_unified_stream
 from musak_model.tokens.config import TokenizationConfig
-from musak_model.tokens.duration_vocabulary import DurationVocabulary
+from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import Hand, HandToken, JoinWithPreviousToken, NoteToken, ScaleType
 
 

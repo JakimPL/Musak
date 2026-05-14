@@ -9,12 +9,22 @@ from musak_model.data.schema import (
     ParsedScore,
     Segment,
 )
-from musak_model.tokens.duration_vocabulary import DurationVocabulary
+from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import (
     Hand,
     NoteToken,
     ScaleType,
     Token,
+)
+
+DOTTED_LIKE_DURATIONS: frozenset[Fraction] = frozenset(
+    {
+        Fraction(3, 4),
+        Fraction(3, 8),
+        Fraction(3, 16),
+        Fraction(3, 32),
+        Fraction(3, 64),
+    }
 )
 
 
@@ -149,8 +159,17 @@ def _has_accidentals(
 
 
 def _has_dotted_notes(segment: Segment, *, duration_vocabulary: DurationVocabulary) -> bool:
+    return _has_note_duration_in(segment, duration_vocabulary=duration_vocabulary, durations=DOTTED_LIKE_DURATIONS)
+
+
+def _has_note_duration_in(
+    segment: Segment,
+    *,
+    duration_vocabulary: DurationVocabulary,
+    durations: frozenset[Fraction],
+) -> bool:
     for token in segment.right_hand_tokens + segment.left_hand_tokens:
-        if isinstance(token, NoteToken) and duration_vocabulary.is_dotted_id(token.duration_id):
+        if isinstance(token, NoteToken) and duration_vocabulary.id_to_fraction(token.duration_id) in durations:
             return True
 
     return False

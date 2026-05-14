@@ -1,6 +1,6 @@
 from fractions import Fraction
 
-from musak_model.tokens.duration_vocabulary import DurationVocabulary
+from musak_model.tokens.duration import DurationVocabulary
 
 
 def quantize_duration_to_id(duration: Fraction, *, vocabulary: DurationVocabulary) -> int:

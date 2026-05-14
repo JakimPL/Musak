@@ -1,3 +1,4 @@
+__marimo__/
 __pycache__/
 .idea/
 .mypy_cache/
@@ -7,8 +8,16 @@ soundfont/
 *.egg-info/
 *.pyc
 
+*.txt
+*.json
+
 *.png
+
 *.wav
+*.flac
+*.mp3
+*.ogg
+
 *.mid
 *.midi
 *.xml

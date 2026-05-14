@@ -15,7 +15,7 @@ from musak_model.data.schema import (
     Segment,
     SegmentMetadata,
 )
-from musak_model.tokens.duration_vocabulary import DurationVocabulary
+from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import (
     BarToken,
     EndToken,

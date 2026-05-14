@@ -6,7 +6,7 @@ import pytest
 from musak_model.data.config import SegmentationConfig
 from musak_model.data.schema import Segment, SegmentMetadata
 from musak_model.tokens.config import TokenizationConfig
-from musak_model.tokens.duration_vocabulary import DurationVocabulary
+from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import BarToken, EndToken, NoteToken, ScaleType, Token
 from musak_model.tokens.vocabulary import TokenVocabulary
 from musak_model.training.ingestion.config import IngestionConfig

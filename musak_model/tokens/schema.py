@@ -1,7 +1,28 @@
+from __future__ import annotations
+
 from enum import StrEnum
-from typing import Final, Literal
+from typing import TYPE_CHECKING, Final, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
+
+from musak_model.tokens.symbols import (
+    BAR_SYMBOL,
+    DURATION_CLOSE_SYMBOL,
+    DURATION_OPEN_SYMBOL,
+    DURATION_SEPARATOR_SYMBOL,
+    END_SYMBOL,
+    JOIN_WITH_PREVIOUS_SYMBOL,
+    LEFT_HAND_SYMBOL,
+    OCTAVE_DOWN_SYMBOL,
+    OCTAVE_UP_SYMBOL,
+    REST_SYMBOL,
+    RIGHT_HAND_SYMBOL,
+    TEXT_FLAT_SYMBOL,
+    TEXT_SHARP_SYMBOL,
+)
+
+if TYPE_CHECKING:
+    from musak_model.tokens.duration import DurationVocabulary
 
 
 class ScaleType(StrEnum):
@@ -66,7 +87,26 @@ VALID_TIME_SIGNATURES: Final[tuple[tuple[int, int], ...]] = (
 )
 
 
-_ACCIDENTAL_SYMBOLS: Final[dict[int, str]] = {-1: "b", 0: "", 1: "#"}
+_ACCIDENTAL_SYMBOLS: Final[dict[int, str]] = {-1: TEXT_FLAT_SYMBOL, 0: "", 1: TEXT_SHARP_SYMBOL}
+_TEXT_ACCIDENTAL_SYMBOLS: Final[dict[int, str]] = {-1: TEXT_FLAT_SYMBOL, 0: "", 1: TEXT_SHARP_SYMBOL}
+
+
+def _duration_text(duration_id: int, *, duration_vocabulary: DurationVocabulary) -> str:
+    duration = duration_vocabulary.id_to_fraction(duration_id)
+    return (
+        f"{DURATION_OPEN_SYMBOL}{duration.numerator}"
+        f"{DURATION_SEPARATOR_SYMBOL}{duration.denominator}{DURATION_CLOSE_SYMBOL}"
+    )
+
+
+def _octave_offset_text(octave_offset: int) -> str:
+    if octave_offset > 0:
+        return f"{OCTAVE_UP_SYMBOL}{octave_offset}"
+
+    if octave_offset < 0:
+        return f"{OCTAVE_DOWN_SYMBOL}{abs(octave_offset)}"
+
+    return ""
 
 
 class NoteToken(BaseModel):
@@ -77,6 +117,12 @@ class NoteToken(BaseModel):
     accidental: int
     octave_offset: int
     duration_id: int = Field(ge=MIN_DURATION_ID)
+
+    def to_text(self, *, duration_vocabulary: DurationVocabulary) -> str:
+        accidental = _TEXT_ACCIDENTAL_SYMBOLS[self.accidental]
+        octave_offset = _octave_offset_text(self.octave_offset)
+        duration = _duration_text(self.duration_id, duration_vocabulary=duration_vocabulary)
+        return f"{self.degree}{accidental}{octave_offset}{duration}"
 
     def __repr__(self) -> str:
         accidental = _ACCIDENTAL_SYMBOLS[self.accidental]
@@ -93,8 +139,11 @@ class RestToken(BaseModel):
     kind: Literal["rest"] = "rest"
     duration_id: int = Field(ge=MIN_DURATION_ID)
 
+    def to_text(self, *, duration_vocabulary: DurationVocabulary) -> str:
+        return f"{REST_SYMBOL}{_duration_text(self.duration_id, duration_vocabulary=duration_vocabulary)}"
+
     def __repr__(self) -> str:
-        return f"r/d{self.duration_id}"
+        return f"{REST_SYMBOL}/d{self.duration_id}"
 
     def __str__(self) -> str:
         return repr(self)
@@ -105,6 +154,9 @@ class HandToken(BaseModel):
 
     kind: Literal["hand"] = "hand"
     hand: Hand
+
+    def to_text(self, *, duration_vocabulary: DurationVocabulary) -> str:
+        return RIGHT_HAND_SYMBOL if self.hand == Hand.RIGHT else LEFT_HAND_SYMBOL
 
     def __repr__(self) -> str:
         return f"<{self.hand.value}>"
@@ -118,8 +170,11 @@ class JoinWithPreviousToken(BaseModel):
 
     kind: Literal["join_previous"] = "join_previous"
 
+    def to_text(self, *, duration_vocabulary: DurationVocabulary) -> str:
+        return JOIN_WITH_PREVIOUS_SYMBOL
+
     def __repr__(self) -> str:
-        return "~"
+        return JOIN_WITH_PREVIOUS_SYMBOL
 
     def __str__(self) -> str:
         return repr(self)
@@ -130,8 +185,11 @@ class BarToken(BaseModel):
 
     kind: Literal["bar"] = "bar"
 
+    def to_text(self, *, duration_vocabulary: DurationVocabulary) -> str:
+        return BAR_SYMBOL
+
     def __repr__(self) -> str:
-        return "|"
+        return BAR_SYMBOL
 
     def __str__(self) -> str:
         return repr(self)
@@ -142,8 +200,11 @@ class EndToken(BaseModel):
 
     kind: Literal["end"] = "end"
 
+    def to_text(self, *, duration_vocabulary: DurationVocabulary) -> str:
+        return END_SYMBOL
+
     def __repr__(self) -> str:
-        return "‖"
+        return END_SYMBOL
 
     def __str__(self) -> str:
         return repr(self)

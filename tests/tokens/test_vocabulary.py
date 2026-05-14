@@ -3,7 +3,7 @@ from fractions import Fraction
 import pytest
 
 from musak_model.tokens.config import TokenizationConfig
-from musak_model.tokens.duration_vocabulary import DurationVocabulary
+from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import Hand, HandToken, JoinWithPreviousToken, NoteToken
 from musak_model.tokens.vocabulary import TokenVocabulary
 
