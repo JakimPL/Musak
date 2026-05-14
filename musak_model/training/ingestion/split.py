@@ -97,9 +97,21 @@ def _validation_count(*, total_files: int, validation_fraction: float) -> int:
 def _encode_segments(segments: list[Segment], *, token_vocabulary: TokenVocabulary) -> list[EncodedExercise]:
     encoded_samples: list[EncodedExercise] = []
     for segment in segments:
-        encoded_samples.extend(_encode_segment_hands(segment, token_vocabulary=token_vocabulary))
+        encoded_samples.append(_encode_segment(segment, token_vocabulary=token_vocabulary))
 
     return encoded_samples
+
+
+def _encode_segment(segment: Segment, *, token_vocabulary: TokenVocabulary) -> EncodedExercise:
+    tokens = segment.tokens if segment.tokens else segment.right_hand_tokens + segment.left_hand_tokens
+    token_ids = encode(tokens, vocabulary=token_vocabulary)
+    bar_positions = _build_bar_positions_from_tokens(tokens)
+    return EncodedExercise(
+        token_ids=token_ids,
+        bar_positions=bar_positions,
+        hand=None,
+        metadata=segment.metadata,
+    )
 
 
 def _encode_segment_hands(segment: Segment, *, token_vocabulary: TokenVocabulary) -> list[EncodedExercise]:

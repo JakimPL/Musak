@@ -24,14 +24,14 @@ class ParsedNote(BaseModel):
 
     midi_pitch: int = Field(ge=0, le=127)
     duration: Fraction = Field(gt=0)
-    beat_offset: Fraction = Field(gt=0)
+    beat_offset: Fraction = Field(ge=0)
 
 
 class ParsedRest(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True, frozen=True)
 
     duration: Fraction = Field(gt=0)
-    beat_offset: Fraction = Field(gt=0)
+    beat_offset: Fraction = Field(ge=0)
 
 
 class ParsedChord(BaseModel):
@@ -39,7 +39,7 @@ class ParsedChord(BaseModel):
 
     midi_pitches: list[int]
     duration: Fraction = Field(gt=0)
-    beat_offset: Fraction = Field(gt=0)
+    beat_offset: Fraction = Field(ge=0)
 
     @field_validator("midi_pitches")
     @classmethod
@@ -132,8 +132,9 @@ class SegmentMetadata(BaseModel):
 class Segment(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True, frozen=True)
 
-    right_hand_tokens: list[Token]
-    left_hand_tokens: list[Token]
+    tokens: list[Token] = Field(default_factory=list)
+    right_hand_tokens: list[Token] = Field(default_factory=list)
+    left_hand_tokens: list[Token] = Field(default_factory=list)
     metadata: SegmentMetadata
 
     @property

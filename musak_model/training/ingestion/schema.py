@@ -11,7 +11,7 @@ class EncodedExercise(BaseModel):
 
     token_ids: list[int]
     bar_positions: list[int]
-    hand: Hand
+    hand: Hand | None = None
     metadata: SegmentMetadata
 
     @property

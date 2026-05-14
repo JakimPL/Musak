@@ -237,10 +237,31 @@ class TestForwardBehaviour:
         model = HierarchicalAutoregressiveModel(_small_config())
         token_ids = torch.randint(0, VOCAB, (2, 16))
         bar_positions = _uniform_bar_positions(2, 16, 2)
-        logits = model(token_ids, bar_positions=bar_positions)
+        logits = model(
+            token_ids,
+            bar_positions=bar_positions,
+            difficulty_ids=torch.zeros(2, dtype=torch.long),
+            scale_type_ids=torch.zeros(2, dtype=torch.long),
+            time_signature_ids=torch.zeros(2, dtype=torch.long),
+        )
         logits.sum().backward()
         params_without_grad = [name for name, p in model.named_parameters() if p.grad is None]
         assert params_without_grad == [], f"No gradient for: {params_without_grad}"
+
+    def test_future_tokens_do_not_change_earlier_logits(self) -> None:
+        torch.manual_seed(0)
+        model = HierarchicalAutoregressiveModel(_small_config())
+        model.eval()
+        token_ids = torch.randint(0, VOCAB, (2, 16))
+        changed_token_ids = token_ids.clone()
+        changed_token_ids[:, 13] = (changed_token_ids[:, 13] + 1) % VOCAB
+        bar_positions = _uniform_bar_positions(2, 16, 2)
+
+        with torch.no_grad():
+            original_logits = model(token_ids, bar_positions=bar_positions)
+            changed_logits = model(changed_token_ids, bar_positions=bar_positions)
+
+        assert torch.allclose(original_logits[:, :13], changed_logits[:, :13], atol=1e-6)
 
 
 class TestBarGRUEncoder:

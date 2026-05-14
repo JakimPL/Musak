@@ -12,6 +12,9 @@ from musak_model.tokens.schema import (
     MIN_OCTAVE_OFFSET,
     BarToken,
     EndToken,
+    Hand,
+    HandToken,
+    JoinWithPreviousToken,
     NoteToken,
     RestToken,
     Token,
@@ -19,6 +22,7 @@ from musak_model.tokens.schema import (
 
 _BAR_TOKEN: Final[BarToken] = BarToken()
 _END_TOKEN: Final[EndToken] = EndToken()
+_JOIN_WITH_PREVIOUS_TOKEN: Final[JoinWithPreviousToken] = JoinWithPreviousToken()
 
 _DEGREE_COUNT: Final[int] = MAX_DEGREE - MIN_DEGREE + 1
 _ACCIDENTAL_COUNT: Final[int] = MAX_ACCIDENTAL - MIN_ACCIDENTAL + 1
@@ -33,7 +37,10 @@ class TokenVocabulary:
         self._rest_count = self._duration_count
         self._bar_token_id = self._note_count + self._rest_count
         self._end_token_id = self._bar_token_id + 1
-        self._vocab_size = self._end_token_id + 1
+        self._right_hand_token_id = self._end_token_id + 1
+        self._left_hand_token_id = self._right_hand_token_id + 1
+        self._join_with_previous_token_id = self._left_hand_token_id + 1
+        self._vocab_size = self._join_with_previous_token_id + 1
 
     @property
     def vocab_size(self) -> int:
@@ -47,6 +54,18 @@ class TokenVocabulary:
     def end_token_id(self) -> int:
         return self._end_token_id
 
+    @property
+    def right_hand_token_id(self) -> int:
+        return self._right_hand_token_id
+
+    @property
+    def left_hand_token_id(self) -> int:
+        return self._left_hand_token_id
+
+    @property
+    def join_with_previous_token_id(self) -> int:
+        return self._join_with_previous_token_id
+
     def token_to_id(self, token: Token) -> int:
         if isinstance(token, NoteToken):
             return self._note_token_to_id(token)
@@ -59,6 +78,12 @@ class TokenVocabulary:
 
         if isinstance(token, EndToken):
             return self._end_token_id
+
+        if isinstance(token, HandToken):
+            return self._right_hand_token_id if token.hand == Hand.RIGHT else self._left_hand_token_id
+
+        if isinstance(token, JoinWithPreviousToken):
+            return self._join_with_previous_token_id
 
         raise ValueError(f"unexpected token type: {type(token)}")
 
@@ -76,7 +101,16 @@ class TokenVocabulary:
         if token_id == self._bar_token_id:
             return _BAR_TOKEN
 
-        return _END_TOKEN
+        if token_id == self._end_token_id:
+            return _END_TOKEN
+
+        if token_id == self._right_hand_token_id:
+            return HandToken(hand=Hand.RIGHT)
+
+        if token_id == self._left_hand_token_id:
+            return HandToken(hand=Hand.LEFT)
+
+        return _JOIN_WITH_PREVIOUS_TOKEN
 
     def encode(self, tokens: list[Token]) -> list[int]:
         return [self.token_to_id(token) for token in tokens]

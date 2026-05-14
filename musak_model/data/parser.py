@@ -99,7 +99,7 @@ def _parse_measure(measure: object) -> ParsedBar:
 
     events: list[ParsedEvent] = []
     for element in measure.flatten().notesAndRests:
-        beat_offset = _to_fraction(element.offset)
+        beat_offset = _to_fraction(element.offset) * _QUARTER_NOTE_FRACTION
         duration = _to_fraction(element.duration.quarterLength) * _QUARTER_NOTE_FRACTION
 
         if isinstance(element, note.Note):

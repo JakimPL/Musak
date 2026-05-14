@@ -30,6 +30,7 @@ def parsed_score(
 ) -> ParsedScore:
     return ParsedScore(
         key_root=key_root,
+        key_fifths=0,
         mode=mode,
         time_numerator=time_numerator,
         time_denominator=time_denominator,

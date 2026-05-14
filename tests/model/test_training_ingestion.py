@@ -7,10 +7,10 @@ from musak_model.data.config import SegmentationConfig
 from musak_model.data.schema import Segment, SegmentMetadata
 from musak_model.tokens.config import TokenizationConfig
 from musak_model.tokens.duration_vocabulary import DurationVocabulary
-from musak_model.tokens.schema import BarToken, EndToken, Hand, NoteToken, ScaleType, Token
+from musak_model.tokens.schema import BarToken, EndToken, NoteToken, ScaleType, Token
 from musak_model.tokens.vocabulary import TokenVocabulary
 from musak_model.training.ingestion.config import IngestionConfig
-from musak_model.training.ingestion.split import _build_bar_positions_from_tokens, _encode_segment_hands, build_split
+from musak_model.training.ingestion.split import _build_bar_positions_from_tokens, _encode_segment, build_split
 
 
 def _note() -> NoteToken:
@@ -27,6 +27,7 @@ def _note() -> NoteToken:
 def _segment(source_file: Path) -> Segment:
     tokens: list[Token] = [_note(), BarToken(), _note(), BarToken(), EndToken()]
     return Segment(
+        tokens=tokens,
         right_hand_tokens=tokens,
         left_hand_tokens=tokens,
         metadata=SegmentMetadata(
@@ -74,7 +75,7 @@ def test_build_ingestion_split_is_deterministic(tmp_path: Path, monkeypatch: pyt
     assert [sample.source_file for sample in split_a.validation] == [
         sample.source_file for sample in split_b.validation
     ]
-    assert len(split_a.train) + len(split_a.validation) == 8
+    assert len(split_a.train) + len(split_a.validation) == 4
     assert split_a.invalid_files == []
 
 
@@ -115,17 +116,16 @@ def test_build_bar_positions_from_tokens_assigns_end_to_last_bar() -> None:
     assert bar_positions == [0, 0, 1, 1, 1]
 
 
-def test_encode_segment_hands_returns_both_hands() -> None:
+def test_encode_segment_returns_unified_sample() -> None:
     segment = _segment(Path("piece.mxl"))
     token_vocabulary = TokenVocabulary(
         DurationVocabulary(TokenizationConfig(shortest_duration=16, max_tuplets=(3,), max_dots=1))
     )
 
-    samples = _encode_segment_hands(segment, token_vocabulary=token_vocabulary)
+    sample = _encode_segment(segment, token_vocabulary=token_vocabulary)
 
-    assert len(samples) == 2
-    assert {sample.hand for sample in samples} == {Hand.RIGHT, Hand.LEFT}
-    assert all(len(sample.token_ids) == len(sample.bar_positions) for sample in samples)
+    assert sample.hand is None
+    assert len(sample.token_ids) == len(sample.bar_positions)
 
 
 def test_load_ingestion_config_reads_yaml(tmp_path: Path) -> None:

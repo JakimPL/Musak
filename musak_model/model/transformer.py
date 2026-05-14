@@ -51,19 +51,38 @@ class CausalTransformerDecoder(nn.Module):
             max_length=config.max_sequence_length,
         )
 
-    def forward(self, target_embeddings: Tensor, bar_context: Tensor) -> Tensor:
+    def forward(
+        self,
+        target_embeddings: Tensor,
+        memory_context: Tensor,
+        *,
+        target_padding_mask: Tensor | None = None,
+        memory_padding_mask: Tensor | None = None,
+        memory_attention_mask: Tensor | None = None,
+    ) -> Tensor:
         # target_embeddings: (batch, target_seq, hidden) — token sequence being generated
-        # bar_context:       (batch, num_bars, hidden)   — bar-level latents from GRU
+        # memory_context:    (batch, memory_seq, hidden) — conditioning and completed-bar latents
         sequence_length = target_embeddings.size(1)
-        positional = self._position_embedding(sequence_length)
+        positional = self._position_embedding(sequence_length).to(device=target_embeddings.device)
         target = target_embeddings + positional
 
         causal_mask = self._causal_mask(sequence_length, device=target.device)
-        return cast(Tensor, self._decoder(target, bar_context, tgt_mask=causal_mask, tgt_is_causal=True))
+        return cast(
+            Tensor,
+            self._decoder(
+                target,
+                memory_context,
+                tgt_mask=causal_mask,
+                memory_mask=memory_attention_mask,
+                tgt_key_padding_mask=target_padding_mask,
+                memory_key_padding_mask=memory_padding_mask,
+                tgt_is_causal=True,
+            ),
+        )
 
     @staticmethod
     def _causal_mask(size: int, *, device: torch.device) -> Tensor:
-        return torch.triu(torch.full((size, size), float("-inf"), device=device), diagonal=1)
+        return torch.triu(torch.ones((size, size), dtype=torch.bool, device=device), diagonal=1)
 
     @property
     def hidden_size(self) -> int:

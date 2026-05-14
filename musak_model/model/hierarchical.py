@@ -7,7 +7,7 @@ from torch.nn.utils.rnn import pad_sequence
 
 from musak_model.model.cnn import LocalConvEncoder
 from musak_model.model.config import ModelConfig
-from musak_model.model.gru import BarGRUEncoder
+from musak_model.model.gru import BarGRUEncoder, BarPrefixGRUEncoder
 from musak_model.model.transformer import CausalTransformerDecoder
 
 
@@ -20,19 +20,19 @@ class HierarchicalAutoregressiveModel(nn.Module):
         self._to_local_hidden = nn.Linear(config.transformer.hidden_size, config.cnn.out_channels)
         self._local_encoder = LocalConvEncoder(config.cnn)
         self._to_bar_hidden = nn.Linear(config.cnn.out_channels, config.gru.hidden_size)
+        self._bar_prefix_encoder = BarPrefixGRUEncoder(config.gru)
         self._bar_encoder = BarGRUEncoder(config.gru)
+        self._bar_prefix_to_transformer_hidden = nn.Linear(config.gru.hidden_size, config.transformer.hidden_size)
         self._bar_to_transformer_hidden = nn.Linear(config.gru.hidden_size, config.transformer.hidden_size)
         self._decoder = CausalTransformerDecoder(config.transformer)
         self._lm_head = nn.Linear(config.transformer.hidden_size, config.vocab_size)
 
         self._difficulty_embedding = nn.Embedding(
-            config.conditioning.num_difficulty_levels + 1, config.transformer.hidden_size
+            config.conditioning.num_difficulty_levels, config.transformer.hidden_size
         )
-        self._scale_type_embedding = nn.Embedding(
-            config.conditioning.num_scale_types + 1, config.transformer.hidden_size
-        )
+        self._scale_type_embedding = nn.Embedding(config.conditioning.num_scale_types, config.transformer.hidden_size)
         self._time_signature_embedding = nn.Embedding(
-            config.conditioning.num_time_signatures + 1, config.transformer.hidden_size
+            config.conditioning.num_time_signatures, config.transformer.hidden_size
         )
         self._conditioning_norm = nn.LayerNorm(config.transformer.hidden_size)
 
@@ -44,11 +44,16 @@ class HierarchicalAutoregressiveModel(nn.Module):
         difficulty_ids: Tensor | None = None,
         scale_type_ids: Tensor | None = None,
         time_signature_ids: Tensor | None = None,
+        token_padding_mask: Tensor | None = None,
     ) -> Tensor:
         token_embeddings = self._token_embedding(token_ids)
         local_embeddings = self._local_encoder(self._to_local_hidden(token_embeddings))
         bar_embeddings = self._to_bar_hidden(local_embeddings)
-        bar_context = self._encode_bars(bar_embeddings=bar_embeddings, bar_positions=bar_positions)
+        bar_prefixes, bar_context, bar_memory_padding_mask = self._encode_bar_representations(
+            bar_embeddings=bar_embeddings,
+            bar_positions=bar_positions,
+        )
+        transformer_bar_prefixes = self._bar_prefix_to_transformer_hidden(bar_prefixes)
         transformer_bar_context = self._bar_to_transformer_hidden(bar_context)
 
         conditioning_prefix = self._build_conditioning_prefix(
@@ -60,8 +65,159 @@ class HierarchicalAutoregressiveModel(nn.Module):
         )
 
         memory_context = torch.cat([conditioning_prefix, transformer_bar_context], dim=1)
-        decoded_embeddings = self._decoder(token_embeddings, memory_context)
+        target_padding_mask = self._build_target_padding_mask(
+            bar_positions=bar_positions,
+            token_padding_mask=token_padding_mask,
+        )
+        memory_padding_mask = self._build_memory_padding_mask(
+            bar_memory_padding_mask=bar_memory_padding_mask,
+        )
+        memory_attention_mask = self._build_memory_attention_mask(
+            bar_positions=bar_positions,
+            num_bar_memory=transformer_bar_context.size(1),
+        )
+        decoded_embeddings = self._decoder(
+            token_embeddings + transformer_bar_prefixes,
+            memory_context,
+            target_padding_mask=target_padding_mask,
+            memory_padding_mask=memory_padding_mask,
+            memory_attention_mask=memory_attention_mask,
+        )
         return cast(Tensor, self._lm_head(decoded_embeddings))
+
+    def _encode_bar_representations(
+        self,
+        *,
+        bar_embeddings: Tensor,
+        bar_positions: Tensor,
+    ) -> tuple[Tensor, Tensor, Tensor]:
+        self._validate_bar_input_shapes(bar_embeddings=bar_embeddings, bar_positions=bar_positions)
+
+        bar_groups, group_batch_indices, group_token_indices = self._collect_bar_groups_with_indices(
+            bar_embeddings=bar_embeddings,
+            bar_positions=bar_positions,
+        )
+        lengths = torch.tensor([group.size(0) for group in bar_groups], dtype=torch.long)
+        padded_groups = pad_sequence(bar_groups, batch_first=True)
+
+        all_prefixes = self._bar_prefix_encoder(padded_groups, lengths=lengths)
+        all_bar_vectors = self._bar_encoder(padded_groups, lengths=lengths)
+        bar_prefixes = self._scatter_prefix_outputs(
+            all_prefixes=all_prefixes,
+            group_batch_indices=group_batch_indices,
+            group_token_indices=group_token_indices,
+            output_shape=bar_embeddings.shape,
+        )
+        per_batch_vectors = self._split_vectors_per_item(
+            all_bar_vectors=all_bar_vectors,
+            group_batch_indices=group_batch_indices,
+            batch_size=bar_embeddings.size(0),
+        )
+        bar_context = self._pad_and_stack_to_batch(per_batch_vectors)
+        bar_memory_padding_mask = self._build_bar_memory_padding_mask(
+            per_batch_vectors=per_batch_vectors,
+            max_bars=bar_context.size(1),
+            device=bar_embeddings.device,
+        )
+        return bar_prefixes, bar_context, bar_memory_padding_mask
+
+    def _collect_bar_groups_with_indices(
+        self,
+        *,
+        bar_embeddings: Tensor,
+        bar_positions: Tensor,
+    ) -> tuple[list[Tensor], Tensor, list[Tensor]]:
+        batch_size = bar_embeddings.size(0)
+        hidden_size = bar_embeddings.size(-1)
+        groups: list[Tensor] = []
+        group_batches: list[int] = []
+        group_token_indices: list[Tensor] = []
+
+        for batch_index in range(batch_size):
+            positions = bar_positions[batch_index]
+            valid_bar_indices = torch.unique(positions[positions >= 0], sorted=True)
+            for bar_index in valid_bar_indices.tolist():
+                token_indices = torch.nonzero(positions == int(bar_index), as_tuple=False).squeeze(1)
+                groups.append(bar_embeddings[batch_index, token_indices])
+                group_batches.append(batch_index)
+                group_token_indices.append(token_indices)
+
+        present_batches = set(group_batches)
+        for batch_index in range(batch_size):
+            if batch_index in present_batches:
+                continue
+            groups.append(torch.zeros(1, hidden_size, device=bar_embeddings.device, dtype=bar_embeddings.dtype))
+            group_batches.append(batch_index)
+            group_token_indices.append(torch.empty(0, dtype=torch.long, device=bar_embeddings.device))
+
+        group_batch_indices = torch.tensor(group_batches, dtype=torch.long, device=bar_embeddings.device)
+        return groups, group_batch_indices, group_token_indices
+
+    def _scatter_prefix_outputs(
+        self,
+        *,
+        all_prefixes: Tensor,
+        group_batch_indices: Tensor,
+        group_token_indices: list[Tensor],
+        output_shape: torch.Size,
+    ) -> Tensor:
+        output = torch.zeros(output_shape, device=all_prefixes.device, dtype=all_prefixes.dtype)
+        for group_index, token_indices in enumerate(group_token_indices):
+            if token_indices.numel() == 0:
+                continue
+            batch_index = int(group_batch_indices[group_index].item())
+            output[batch_index, token_indices] = all_prefixes[group_index, : token_indices.numel()]
+
+        return output
+
+    def _build_bar_memory_padding_mask(
+        self,
+        *,
+        per_batch_vectors: list[Tensor],
+        max_bars: int,
+        device: torch.device,
+    ) -> Tensor:
+        bar_counts = torch.tensor([vectors.size(0) for vectors in per_batch_vectors], dtype=torch.long, device=device)
+        bar_indices = torch.arange(max_bars, device=device).unsqueeze(0)
+        return bar_indices >= bar_counts.unsqueeze(1)
+
+    def _build_target_padding_mask(
+        self,
+        *,
+        bar_positions: Tensor,
+        token_padding_mask: Tensor | None,
+    ) -> Tensor:
+        inferred_padding_mask = bar_positions < 0
+        if token_padding_mask is None:
+            return inferred_padding_mask
+
+        if token_padding_mask.shape != bar_positions.shape:
+            token_padding_shape = tuple(token_padding_mask.shape)
+            bar_positions_shape = tuple(bar_positions.shape)
+            raise ValueError(
+                f"token_padding_mask shape {token_padding_shape} does not match "
+                f"bar_positions shape {bar_positions_shape}"
+            )
+
+        return inferred_padding_mask | token_padding_mask.to(device=bar_positions.device, dtype=torch.bool)
+
+    def _build_memory_padding_mask(self, *, bar_memory_padding_mask: Tensor) -> Tensor:
+        condition_padding_mask = torch.zeros(
+            bar_memory_padding_mask.size(0),
+            1,
+            dtype=torch.bool,
+            device=bar_memory_padding_mask.device,
+        )
+        return torch.cat([condition_padding_mask, bar_memory_padding_mask], dim=1)
+
+    def _build_memory_attention_mask(self, *, bar_positions: Tensor, num_bar_memory: int) -> Tensor:
+        batch_size, sequence_length = bar_positions.shape
+        condition_mask = torch.zeros(batch_size, sequence_length, 1, dtype=torch.bool, device=bar_positions.device)
+        bar_indices = torch.arange(num_bar_memory, device=bar_positions.device).view(1, 1, num_bar_memory)
+        visible_bars = (bar_indices < bar_positions.unsqueeze(-1)) & (bar_positions.unsqueeze(-1) >= 0)
+        bar_mask = ~visible_bars
+        memory_mask = torch.cat([condition_mask, bar_mask], dim=2)
+        return memory_mask.repeat_interleave(self._config.transformer.num_heads, dim=0)
 
     def _encode_bars(self, *, bar_embeddings: Tensor, bar_positions: Tensor) -> Tensor:
         self._validate_bar_input_shapes(bar_embeddings=bar_embeddings, bar_positions=bar_positions)
@@ -253,6 +409,13 @@ class HierarchicalAutoregressiveModel(nn.Module):
         scale_type_ids: Tensor | None,
         time_signature_ids: Tensor | None,
     ) -> Tensor:
+        conditioning = torch.zeros(
+            batch_size,
+            self._config.transformer.hidden_size,
+            dtype=self._difficulty_embedding.weight.dtype,
+            device=device,
+        )
+
         difficulty_indices = self._to_optional_indices(
             input_ids=difficulty_ids,
             batch_size=batch_size,
@@ -275,11 +438,14 @@ class HierarchicalAutoregressiveModel(nn.Module):
             name="time_signature_ids",
         )
 
-        conditioning = (
-            self._difficulty_embedding(difficulty_indices)
-            + self._scale_type_embedding(scale_type_indices)
-            + self._time_signature_embedding(time_signature_indices)
-        )
+        if difficulty_indices is not None:
+            conditioning = conditioning + self._difficulty_embedding(difficulty_indices)
+
+        if scale_type_indices is not None:
+            conditioning = conditioning + self._scale_type_embedding(scale_type_indices)
+
+        if time_signature_indices is not None:
+            conditioning = conditioning + self._time_signature_embedding(time_signature_indices)
 
         normalized_conditioning = cast(Tensor, self._conditioning_norm(conditioning))
         return normalized_conditioning.unsqueeze(1)
@@ -292,9 +458,9 @@ class HierarchicalAutoregressiveModel(nn.Module):
         device: torch.device,
         max_valid_id: int,
         name: str,
-    ) -> Tensor:
+    ) -> Tensor | None:
         if input_ids is None:
-            return torch.zeros(batch_size, dtype=torch.long, device=device)
+            return None
 
         if input_ids.ndim != 1:
             raise ValueError(f"{name} must be 1D tensor, got {input_ids.ndim}D")
@@ -308,4 +474,4 @@ class HierarchicalAutoregressiveModel(nn.Module):
         if torch.any(input_ids >= max_valid_id):
             raise ValueError(f"{name} contains values outside range [0, {max_valid_id - 1}]")
 
-        return input_ids.to(device=device, dtype=torch.long) + 1
+        return input_ids.to(device=device, dtype=torch.long)

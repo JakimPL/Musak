@@ -100,6 +100,31 @@ class RestToken(BaseModel):
         return repr(self)
 
 
+class HandToken(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    kind: Literal["hand"] = "hand"
+    hand: Hand
+
+    def __repr__(self) -> str:
+        return f"<{self.hand.value}>"
+
+    def __str__(self) -> str:
+        return repr(self)
+
+
+class JoinWithPreviousToken(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    kind: Literal["join_previous"] = "join_previous"
+
+    def __repr__(self) -> str:
+        return "~"
+
+    def __str__(self) -> str:
+        return repr(self)
+
+
 class BarToken(BaseModel):
     model_config = ConfigDict(frozen=True)
 
@@ -124,4 +149,4 @@ class EndToken(BaseModel):
         return repr(self)
 
 
-Token = NoteToken | RestToken | BarToken | EndToken
+Token = NoteToken | RestToken | HandToken | JoinWithPreviousToken | BarToken | EndToken

@@ -9,9 +9,9 @@ from musak_model.model.config import CNNConfig
 class ResidualConvBlock(nn.Module):
     def __init__(self, *, channels: int, kernel_size: int, dropout: float) -> None:
         super().__init__()
-        padding = kernel_size // 2
-        self._conv1 = nn.Conv1d(channels, channels, kernel_size=kernel_size, padding=padding)
-        self._conv2 = nn.Conv1d(channels, channels, kernel_size=kernel_size, padding=padding)
+        self._left_padding = kernel_size - 1
+        self._conv1 = nn.Conv1d(channels, channels, kernel_size=kernel_size)
+        self._conv2 = nn.Conv1d(channels, channels, kernel_size=kernel_size)
         self._norm1 = nn.LayerNorm(channels)
         self._norm2 = nn.LayerNorm(channels)
         self._dropout = nn.Dropout(dropout)
@@ -21,10 +21,10 @@ class ResidualConvBlock(nn.Module):
 
         # (batch, channels, seq) — transpose in/out
         out = self._norm1(embeddings.transpose(1, 2)).transpose(1, 2)
-        out = F.gelu(self._conv1(out))  # pylint: disable=not-callable
+        out = F.gelu(self._conv1(F.pad(out, (self._left_padding, 0))))  # pylint: disable=not-callable
         out = self._dropout(out)
         out = self._norm2(out.transpose(1, 2)).transpose(1, 2)
-        out = self._conv2(out)
+        out = self._conv2(F.pad(out, (self._left_padding, 0)))
         out = self._dropout(out)
         return F.gelu(out + residual)  # pylint: disable=not-callable
 
