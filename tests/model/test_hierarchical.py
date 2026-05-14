@@ -17,7 +17,7 @@ H: Final[int] = 32  # hidden size (small for speed)
 
 def _small_config() -> ModelConfig:
     return ModelConfig(
-        vocab_size=VOCAB,
+        vocabulary_size=VOCAB,
         cnn=CNNConfig(out_channels=H, kernel_sizes=(3,), num_layers=1, dropout=0.0),
         gru=GRUConfig(hidden_size=H, num_layers=1, dropout=0.0, bidirectional=False),
         transformer=TransformerConfig(

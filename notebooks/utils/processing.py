@@ -2,19 +2,30 @@ from __future__ import annotations
 
 import traceback
 from pathlib import Path
+from xml.etree.ElementTree import ParseError
+from zipfile import BadZipFile
 
-from pydantic import BaseModel, ConfigDict
+from music21.exceptions21 import Music21Exception
+from pydantic import BaseModel, ConfigDict, ValidationError
 
 from musak_model.data.config import SegmentationConfig
 from musak_model.data.parser import parse_score
 from musak_model.data.pipeline import segment_parsed_score
 from musak_model.data.schema import ParsedScore, Segment
 
-_PROCESSING_ERRORS = (Exception,)
+_PROCESSING_ERRORS: tuple[type[Exception], ...] = (
+    Music21Exception,
+    OSError,
+    ParseError,
+    BadZipFile,
+    TypeError,
+    ValueError,
+    ValidationError,
+)
 
 
 class ProcessingResult(BaseModel):
-    model_config = ConfigDict(arbitrary_types_allowed=True, frozen=True)
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid", frozen=True)
 
     path: Path
     parsed_score: ParsedScore | None = None
@@ -28,7 +39,12 @@ class ProcessingResult(BaseModel):
         return self.error_type is None
 
 
-def process_score_safely(path: Path, *, window_bars: int, stride_bars: int) -> ProcessingResult:
+def process_score_safely(
+    path: Path,
+    *,
+    window_bars: int,
+    stride_bars: int,
+) -> ProcessingResult:
     try:
         parsed_score = parse_score(path)
     except _PROCESSING_ERRORS as exception:

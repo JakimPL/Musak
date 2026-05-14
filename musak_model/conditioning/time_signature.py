@@ -29,7 +29,7 @@ class TimeSignatureVocabulary:
         }
 
     @property
-    def vocab_size(self) -> int:
+    def vocabulary_size(self) -> int:
         return len(self._time_signatures)
 
     def time_signature_to_id(self, time_signature: tuple[int, int]) -> int:
@@ -39,8 +39,8 @@ class TimeSignatureVocabulary:
             raise ValueError(f"unsupported time signature: {time_signature}") from exception
 
     def id_to_time_signature(self, time_signature_id: int) -> tuple[int, int]:
-        if not 0 <= time_signature_id < self.vocab_size:
-            raise KeyError(f"time_signature_id must be in [0, {self.vocab_size - 1}]")
+        if not 0 <= time_signature_id < self.vocabulary_size:
+            raise KeyError(f"time_signature_id must be in [0, {self.vocabulary_size - 1}]")
 
         return self._time_signatures[time_signature_id]
 
@@ -66,5 +66,5 @@ class TimeSignatureVocabulary:
             "TimeSignatureVocabulary("
             f"max_denominator={self._config.max_denominator}, "
             f"relative_numerator_range={self._config.relative_numerator_range}, "
-            f"size={self.vocab_size})"
+            f"size={self.vocabulary_size})"
         )

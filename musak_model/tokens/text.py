@@ -5,6 +5,7 @@ from collections.abc import Sequence
 from fractions import Fraction
 from typing import Final
 
+from musak_model.common.ratios import format_ratio
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import (
     MAX_OCTAVE_OFFSET,
@@ -171,6 +172,7 @@ def _duration_id(
         return duration_vocabulary.fraction_to_id(duration)
     except KeyError as exception:
         raise UnsupportedTokenDurationError(
-            f"duration {duration.numerator}:{duration.denominator} in {token_text!r} is not supported "
+            f"duration {format_ratio(duration, separator=DURATION_SEPARATOR_SYMBOL)} "
+            f"in {token_text!r} is not supported "
             "by the active duration vocabulary"
         ) from exception

@@ -1,17 +1,16 @@
+from __future__ import annotations
+
 from pathlib import Path
-from typing import Final
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from musak_model.common.files import load_yaml_config
-from musak_model.conditioning.config import CONDITIONING_CONFIG_PATH, ConditioningConfig
-from musak_model.paths import CONFIGS_DIR
-
-MODEL_CONFIG_DIR: Final[Path] = CONFIGS_DIR / "model"
+from musak_model.conditioning.config import ConditioningConfig
+from musak_model.paths import CONDITIONING_CONFIG_PATH, MODEL_CONFIG_DIR
 
 
 class CNNConfig(BaseModel):
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
     out_channels: int = Field(ge=1)
     kernel_sizes: tuple[int, ...] = Field(min_length=1)
@@ -20,7 +19,7 @@ class CNNConfig(BaseModel):
 
 
 class GRUConfig(BaseModel):
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
     hidden_size: int = Field(ge=1)
     num_layers: int = Field(ge=1)
@@ -29,7 +28,7 @@ class GRUConfig(BaseModel):
 
 
 class TransformerConfig(BaseModel):
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
     hidden_size: int = Field(ge=1)
     num_heads: int = Field(ge=1)
@@ -40,9 +39,9 @@ class TransformerConfig(BaseModel):
 
 
 class ModelConfig(BaseModel):
-    model_config = ConfigDict(arbitrary_types_allowed=True, frozen=True)
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid", frozen=True)
 
-    vocab_size: int = Field(ge=1)
+    vocabulary_size: int = Field(ge=1)
     cnn: CNNConfig
     gru: GRUConfig
     transformer: TransformerConfig
@@ -52,12 +51,12 @@ class ModelConfig(BaseModel):
     def load(
         cls,
         *,
-        vocab_size: int,
+        vocabulary_size: int,
         config_dir: Path = MODEL_CONFIG_DIR,
         conditioning_config_path: Path = CONDITIONING_CONFIG_PATH,
-    ) -> "ModelConfig":
+    ) -> ModelConfig:
         return cls(
-            vocab_size=vocab_size,
+            vocabulary_size=vocabulary_size,
             cnn=CNNConfig.model_validate(load_yaml_config(config_dir / "cnn.yml")),
             gru=GRUConfig.model_validate(load_yaml_config(config_dir / "gru.yml")),
             transformer=TransformerConfig.model_validate(load_yaml_config(config_dir / "transformer.yml")),

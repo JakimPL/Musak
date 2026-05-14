@@ -20,7 +20,7 @@ from musak_model.tokens.schema import (
 
 
 class ParsedNote(BaseModel):
-    model_config = ConfigDict(arbitrary_types_allowed=True, frozen=True)
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid", frozen=True)
 
     midi_pitch: int = Field(ge=0, le=MIDI_MAX_PITCH)
     duration: Fraction = Field(gt=0)
@@ -28,14 +28,14 @@ class ParsedNote(BaseModel):
 
 
 class ParsedRest(BaseModel):
-    model_config = ConfigDict(arbitrary_types_allowed=True, frozen=True)
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid", frozen=True)
 
     duration: Fraction = Field(gt=0)
     beat_offset: Fraction = Field(ge=0)
 
 
 class ParsedChord(BaseModel):
-    model_config = ConfigDict(arbitrary_types_allowed=True, frozen=True)
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid", frozen=True)
 
     midi_pitches: list[int]
     duration: Fraction = Field(gt=0)
@@ -54,7 +54,7 @@ ParsedEvent = ParsedNote | ParsedRest | ParsedChord
 
 
 class ParsedBar(BaseModel):
-    model_config = ConfigDict(arbitrary_types_allowed=True, frozen=True)
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid", frozen=True)
 
     time_numerator: int = Field(gt=0)
     time_denominator: int
@@ -71,7 +71,7 @@ class ParsedBar(BaseModel):
 
 
 class ParsedScore(BaseModel):
-    model_config = ConfigDict(arbitrary_types_allowed=True, frozen=True)
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid", frozen=True)
 
     key_root: int = Field(ge=0, lt=PITCHES_PER_OCTAVE)
     key_fifths: int = Field(ge=-7, le=7)
@@ -91,7 +91,7 @@ class ParsedScore(BaseModel):
 
 
 class PitchDegree(BaseModel):
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, extra="forbid")
 
     degree: int = Field(ge=MIN_DEGREE, le=MAX_DEGREE)
     accidental: int = Field(ge=MIN_ACCIDENTAL, le=MAX_ACCIDENTAL)

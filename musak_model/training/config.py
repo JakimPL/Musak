@@ -1,18 +1,15 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Final
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from musak_model.common.files import load_yaml_config
-from musak_model.paths import CONFIGS_DIR
-
-TRAINING_CONFIG_PATH: Final[Path] = CONFIGS_DIR / "training" / "stage_one.yml"
+from musak_model.paths import TRAINING_CONFIG_PATH
 
 
 class TrainingConfig(BaseModel):
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
     epochs: int = Field(ge=1)
     batch_size: int = Field(ge=1)

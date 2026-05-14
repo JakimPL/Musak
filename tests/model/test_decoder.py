@@ -21,7 +21,7 @@ from musak_model.tokens.schema import (
 
 
 def _duration_vocabulary() -> DurationVocabulary:
-    return DurationVocabulary(TokenizationConfig(shortest_duration=16, max_tuplets=(3,), max_dots=1))
+    return DurationVocabulary(TokenizationConfig(shortest_duration=16, allowed_tuplets=(3,), max_dots=1))
 
 
 def _metadata() -> SegmentMetadata:

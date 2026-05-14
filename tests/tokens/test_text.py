@@ -27,7 +27,7 @@ from musak_model.tokens.text import (
 
 @pytest.fixture
 def duration_vocabulary() -> DurationVocabulary:
-    return DurationVocabulary(TokenizationConfig(shortest_duration=16, max_tuplets=(3,), max_dots=1))
+    return DurationVocabulary(TokenizationConfig(shortest_duration=16, allowed_tuplets=(3,), max_dots=1))
 
 
 def _duration_id(duration_vocabulary: DurationVocabulary, duration: Fraction) -> int:

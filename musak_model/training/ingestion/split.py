@@ -6,8 +6,12 @@ from music21.exceptions21 import Music21Exception
 
 from musak_model.common.files import collect_musicxml_files
 from musak_model.data.config import SegmentationConfig
-from musak_model.data.pipeline import process_file
+from musak_model.data.pipeline import process_file, segment_parsed_score
 from musak_model.data.schema import Segment
+from musak_model.processing.io import load_encoded_jsonl, load_parsed_score_json
+from musak_model.processing.manifest import ParsedManifestField, ParsedManifestStatus, read_parsed_manifest
+from musak_model.processing.paths import ProcessedDatasetPaths
+from musak_model.processing.snapshot import build_tokenizer_snapshot
 from musak_model.tokens.config import TokenizationConfig
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import BarToken, EndToken, Hand, Token
@@ -30,6 +34,21 @@ def build_split(
     segmentation: SegmentationConfig,
 ) -> IngestionSplit:
     """Build deterministic train/validation split from MusicXML files."""
+    tokenization_config = TokenizationConfig.load()
+    duration_vocabulary = DurationVocabulary(tokenization_config)
+    token_vocabulary = TokenVocabulary(duration_vocabulary)
+
+    processed_split = _build_split_from_processed_artifacts(
+        source_dir,
+        config=config,
+        segmentation=segmentation,
+        tokenization_config=tokenization_config,
+        duration_vocabulary=duration_vocabulary,
+        token_vocabulary=token_vocabulary,
+    )
+    if processed_split is not None:
+        return processed_split
+
     file_paths = collect_musicxml_files(source_dir)
     validation_files = set(
         _split_validation_files(
@@ -42,8 +61,6 @@ def build_split(
     train_samples: list[EncodedExercise] = []
     validation_samples: list[EncodedExercise] = []
     invalid_files: list[IngestionErrorRecord] = []
-    duration_vocabulary = DurationVocabulary(TokenizationConfig.load())
-    token_vocabulary = TokenVocabulary(duration_vocabulary)
 
     for file_path in file_paths:
         try:
@@ -65,6 +82,142 @@ def build_split(
 
         encoded_samples = _encode_segments(segments, token_vocabulary=token_vocabulary)
         if file_path in validation_files:
+            validation_samples.extend(encoded_samples)
+        else:
+            train_samples.extend(encoded_samples)
+
+    return IngestionSplit(train=train_samples, validation=validation_samples, invalid_files=invalid_files)
+
+
+def _build_split_from_processed_artifacts(
+    source_dir: Path,
+    *,
+    config: IngestionConfig,
+    segmentation: SegmentationConfig,
+    tokenization_config: TokenizationConfig,
+    duration_vocabulary: DurationVocabulary,
+    token_vocabulary: TokenVocabulary,
+) -> IngestionSplit | None:
+    if config.processed_root is None:
+        return None
+
+    paths = ProcessedDatasetPaths.from_roots(processed_root=config.processed_root, dataset_name=source_dir.name)
+    parsed_rows = read_parsed_manifest(paths.parsed_manifest_path)
+    if not parsed_rows:
+        return None
+
+    invalid_files = [
+        IngestionErrorRecord(
+            file=row[ParsedManifestField.SOURCE_PATH],
+            exception_type=row[ParsedManifestField.ERROR_TYPE],
+            message=row[ParsedManifestField.ERROR_MESSAGE],
+        )
+        for row in parsed_rows
+        if row[ParsedManifestField.STATUS] == ParsedManifestStatus.ERROR.value
+    ]
+    source_paths = [
+        source_dir / row[ParsedManifestField.SOURCE_PATH]
+        for row in parsed_rows
+        if row[ParsedManifestField.STATUS] == ParsedManifestStatus.SUCCESS.value
+    ]
+    validation_keys = {
+        _source_key(path, source_dir=source_dir)
+        for path in _split_validation_files(
+            file_paths=source_paths,
+            validation_fraction=config.validation_fraction,
+            split_seed=config.split_seed,
+        )
+    }
+
+    snapshot = build_tokenizer_snapshot(
+        tokenization_config,
+        duration_vocabulary=duration_vocabulary,
+        token_vocabulary=token_vocabulary,
+    )
+    encoded_path = paths.encoded_jsonl_path(snapshot.tokenizer_hash)
+    if encoded_path.exists():
+        return _split_encoded_samples(
+            load_encoded_jsonl(encoded_path),
+            validation_keys=validation_keys,
+            source_dir=source_dir,
+            invalid_files=invalid_files,
+        )
+
+    parsed_success_rows = [
+        row for row in parsed_rows if row[ParsedManifestField.STATUS] == ParsedManifestStatus.SUCCESS.value
+    ]
+    if parsed_success_rows:
+        return _split_from_parsed_scores(
+            parsed_success_rows,
+            paths=paths,
+            source_dir=source_dir,
+            validation_keys=validation_keys,
+            segmentation=segmentation,
+            difficulty_labels=config.difficulty_labels,
+            duration_vocabulary=duration_vocabulary,
+            token_vocabulary=token_vocabulary,
+            invalid_files=invalid_files,
+        )
+
+    return None
+
+
+def _split_encoded_samples(
+    samples: list[EncodedExercise],
+    *,
+    validation_keys: set[str],
+    source_dir: Path,
+    invalid_files: list[IngestionErrorRecord],
+) -> IngestionSplit:
+    train_samples: list[EncodedExercise] = []
+    validation_samples: list[EncodedExercise] = []
+    for sample in samples:
+        if _source_key(sample.source_file, source_dir=source_dir) in validation_keys:
+            validation_samples.append(sample)
+        else:
+            train_samples.append(sample)
+
+    return IngestionSplit(train=train_samples, validation=validation_samples, invalid_files=invalid_files)
+
+
+def _split_from_parsed_scores(
+    parsed_rows: list[dict[str, str]],
+    *,
+    paths: ProcessedDatasetPaths,
+    source_dir: Path,
+    validation_keys: set[str],
+    segmentation: SegmentationConfig,
+    difficulty_labels: dict[str, int] | None,
+    duration_vocabulary: DurationVocabulary,
+    token_vocabulary: TokenVocabulary,
+    invalid_files: list[IngestionErrorRecord],
+) -> IngestionSplit:
+    train_samples: list[EncodedExercise] = []
+    validation_samples: list[EncodedExercise] = []
+    for row in parsed_rows:
+        source_path = source_dir / row[ParsedManifestField.SOURCE_PATH]
+        parsed_path = paths.root / row[ParsedManifestField.PARSED_PATH]
+        try:
+            score = load_parsed_score_json(parsed_path)
+            segments = segment_parsed_score(
+                score,
+                source_path,
+                segmentation=segmentation,
+                difficulty_labels=difficulty_labels,
+                duration_vocabulary=duration_vocabulary,
+            )
+        except _FILE_PROCESSING_ERRORS as exception:
+            invalid_files.append(
+                IngestionErrorRecord(
+                    file=row[ParsedManifestField.SOURCE_PATH],
+                    exception_type=type(exception).__name__,
+                    message=str(exception),
+                )
+            )
+            continue
+
+        encoded_samples = _encode_segments(segments, token_vocabulary=token_vocabulary)
+        if _source_key(source_path, source_dir=source_dir) in validation_keys:
             validation_samples.extend(encoded_samples)
         else:
             train_samples.extend(encoded_samples)
@@ -94,6 +247,13 @@ def _validation_count(*, total_files: int, validation_fraction: float) -> int:
         count = total_files - 1
 
     return count
+
+
+def _source_key(path: Path, *, source_dir: Path) -> str:
+    try:
+        return path.resolve().relative_to(source_dir.resolve()).as_posix()
+    except ValueError:
+        return path.as_posix()
 
 
 def _encode_segments(segments: list[Segment], *, token_vocabulary: TokenVocabulary) -> list[EncodedExercise]:

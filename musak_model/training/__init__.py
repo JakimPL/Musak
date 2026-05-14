@@ -1,7 +1,7 @@
-from musak_model.training.config import TRAINING_CONFIG_PATH, TrainingConfig
+from musak_model.paths import INGESTION_CONFIG_PATH, TRAINING_CONFIG_PATH
+from musak_model.training.config import TrainingConfig
 from musak_model.training.dataset import EncodedExerciseDataset, TrainingBatch, TrainingExample, build_dataloaders
 from musak_model.training.ingestion import (
-    INGESTION_CONFIG_PATH,
     EncodedExercise,
     IngestionConfig,
     IngestionErrorRecord,

@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Final, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from musak_model.common.ratios import format_ratio
 from musak_model.tokens.symbols import (
     BAR_SYMBOL,
     DURATION_CLOSE_SYMBOL,
@@ -81,10 +82,8 @@ _TEXT_ACCIDENTAL_SYMBOLS: Final[dict[int, str]] = {-1: TEXT_FLAT_SYMBOL, 0: "", 
 
 def _duration_text(duration_id: int, *, duration_vocabulary: DurationVocabulary) -> str:
     duration = duration_vocabulary.id_to_fraction(duration_id)
-    return (
-        f"{DURATION_OPEN_SYMBOL}{duration.numerator}"
-        f"{DURATION_SEPARATOR_SYMBOL}{duration.denominator}{DURATION_CLOSE_SYMBOL}"
-    )
+    duration_text = format_ratio(duration, separator=DURATION_SEPARATOR_SYMBOL)
+    return f"{DURATION_OPEN_SYMBOL}{duration_text}{DURATION_CLOSE_SYMBOL}"
 
 
 def _octave_offset_text(octave_offset: int) -> str:
@@ -98,7 +97,7 @@ def _octave_offset_text(octave_offset: int) -> str:
 
 
 class NoteToken(BaseModel):
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
     kind: Literal["note"] = "note"
     degree: int
@@ -122,7 +121,7 @@ class NoteToken(BaseModel):
 
 
 class RestToken(BaseModel):
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
     kind: Literal["rest"] = "rest"
     duration_id: int = Field(ge=MIN_DURATION_ID)
@@ -138,7 +137,7 @@ class RestToken(BaseModel):
 
 
 class HandToken(BaseModel):
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
     kind: Literal["hand"] = "hand"
     hand: Hand
@@ -154,7 +153,7 @@ class HandToken(BaseModel):
 
 
 class JoinWithPreviousToken(BaseModel):
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
     kind: Literal["join_previous"] = "join_previous"
 
@@ -169,7 +168,7 @@ class JoinWithPreviousToken(BaseModel):
 
 
 class BarToken(BaseModel):
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
     kind: Literal["bar"] = "bar"
 
@@ -184,7 +183,7 @@ class BarToken(BaseModel):
 
 
 class EndToken(BaseModel):
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
     kind: Literal["end"] = "end"
 

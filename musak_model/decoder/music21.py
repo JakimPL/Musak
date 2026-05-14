@@ -7,6 +7,7 @@ from music21.base import Music21Object
 from music21.meter.base import TimeSignature
 
 from musak_model.common.elements import QUARTER_NOTE_DURATION
+from musak_model.common.ratios import format_ratio
 from musak_model.data.schema import Segment
 from musak_model.decoder.piano_roll import PianoRollEvent, segment_to_piano_roll_events
 from musak_model.tokens.duration import DurationVocabulary
@@ -39,7 +40,8 @@ def write_segment(
 
 def _part_from_events(events: list[PianoRollEvent], *, hand: Hand, segment: Segment) -> stream.Part:
     part = stream.Part(id=hand.value)  # type: ignore[no-untyped-call]
-    part.insert(0, TimeSignature(f"{segment.time_numerator}/{segment.time_denominator}"))  # type: ignore[no-untyped-call]
+    time_signature_text = format_ratio((segment.time_numerator, segment.time_denominator))
+    part.insert(0, TimeSignature(time_signature_text))  # type: ignore[no-untyped-call]
     hand_events = [event for event in events if event.hand == hand]
     grouped = _group_events_by_start(hand_events)
 

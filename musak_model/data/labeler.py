@@ -89,7 +89,7 @@ def _rhythmic_diversity(segment: Segment, *, duration_vocabulary: DurationVocabu
         if isinstance(token, NoteToken):
             durations_present.add(token.duration_id)
 
-    return len(durations_present) / duration_vocabulary.vocab_size()
+    return len(durations_present) / duration_vocabulary.vocabulary_size()
 
 
 def _voice_independence(segment: Segment, *, duration_vocabulary: DurationVocabulary) -> float:

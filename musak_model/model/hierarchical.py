@@ -16,7 +16,7 @@ class HierarchicalAutoregressiveModel(nn.Module):
         super().__init__()
         self._config = config
 
-        self._token_embedding = nn.Embedding(config.vocab_size, config.transformer.hidden_size)
+        self._token_embedding = nn.Embedding(config.vocabulary_size, config.transformer.hidden_size)
         self._to_local_hidden = nn.Linear(config.transformer.hidden_size, config.cnn.out_channels)
         self._local_encoder = LocalConvEncoder(config.cnn)
         self._to_bar_hidden = nn.Linear(config.cnn.out_channels, config.gru.hidden_size)
@@ -25,7 +25,7 @@ class HierarchicalAutoregressiveModel(nn.Module):
         self._bar_prefix_to_transformer_hidden = nn.Linear(config.gru.hidden_size, config.transformer.hidden_size)
         self._bar_to_transformer_hidden = nn.Linear(config.gru.hidden_size, config.transformer.hidden_size)
         self._decoder = CausalTransformerDecoder(config.transformer)
-        self._lm_head = nn.Linear(config.transformer.hidden_size, config.vocab_size)
+        self._lm_head = nn.Linear(config.transformer.hidden_size, config.vocabulary_size)
 
         self._difficulty_embedding = nn.Embedding(
             config.conditioning.num_difficulty_levels, config.transformer.hidden_size

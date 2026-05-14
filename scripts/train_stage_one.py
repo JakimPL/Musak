@@ -2,20 +2,23 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
-from typing import Final
 
 import torch
 
 from musak_model.common.files import load_yaml_config
-from musak_model.conditioning.config import CONDITIONING_CONFIG_PATH
-from musak_model.data.config import SEGMENTATION_CONFIG_PATH, SegmentationConfig
-from musak_model.training.config import TRAINING_CONFIG_PATH, TrainingConfig
-from musak_model.training.ingestion.config import INGESTION_CONFIG_PATH, IngestionConfig
+from musak_model.data.config import SegmentationConfig
+from musak_model.paths import (
+    CONDITIONING_CONFIG_PATH,
+    DEFAULT_DATA_DIR,
+    DEFAULT_MLFLOW_DIR,
+    DEFAULT_STAGE_ONE_CHECKPOINT_DIR,
+    INGESTION_CONFIG_PATH,
+    SEGMENTATION_CONFIG_PATH,
+    TRAINING_CONFIG_PATH,
+)
+from musak_model.training.config import TrainingConfig
+from musak_model.training.ingestion.config import IngestionConfig
 from musak_model.training.trainer import TrainingResult, train_stage_one
-
-_DEFAULT_DATA_DIR: Final[Path] = Path("data")
-_DEFAULT_MLFLOW_DIR: Final[Path] = Path("mlruns")
-_DEFAULT_CHECKPOINT_DIR: Final[Path] = Path("checkpoints") / "stage_one"
 
 
 def main() -> None:
@@ -35,14 +38,14 @@ def main() -> None:
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Train the Musak Stage 1 autoregressive model.")
-    parser.add_argument("--data-dir", type=Path, default=_DEFAULT_DATA_DIR)
+    parser.add_argument("--data-dir", type=Path, default=DEFAULT_DATA_DIR)
     parser.add_argument("--ingestion-config", type=Path, default=INGESTION_CONFIG_PATH)
     parser.add_argument("--segmentation-config", type=Path, default=SEGMENTATION_CONFIG_PATH)
     parser.add_argument("--conditioning-config", type=Path, default=CONDITIONING_CONFIG_PATH)
     parser.add_argument("--training-config", type=Path, default=TRAINING_CONFIG_PATH)
     parser.add_argument("--checkpoint-dir", type=Path, default=None)
     parser.add_argument("--resume-checkpoint", type=Path, default=None)
-    parser.add_argument("--mlflow-dir", type=Path, default=_DEFAULT_MLFLOW_DIR)
+    parser.add_argument("--mlflow-dir", type=Path, default=DEFAULT_MLFLOW_DIR)
     parser.add_argument("--disable-mlflow", action="store_true")
     parser.add_argument("--mlflow-experiment-name", type=str, default=None)
     parser.add_argument("--mlflow-run-name", type=str, default=None)
@@ -57,6 +60,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--window-bars", type=int, default=None)
     parser.add_argument("--stride-bars", type=int, default=None)
     parser.add_argument("--difficulty-labels", type=Path, default=None)
+    parser.add_argument("--processed-dir", type=Path, default=None)
     parser.add_argument("--use-conditioning", action="store_true")
     return parser.parse_args()
 
@@ -71,6 +75,7 @@ def _build_ingestion_config(args: argparse.Namespace) -> IngestionConfig:
                 "validation_fraction": args.validation_fraction,
                 "split_seed": args.split_seed,
                 "difficulty_labels": difficulty_labels if difficulty_labels is not None else config.difficulty_labels,
+                "processed_root": args.processed_dir if args.processed_dir is not None else config.processed_root,
             }.items()
             if value is not None
         }
@@ -99,7 +104,7 @@ def _build_training_config(args: argparse.Namespace) -> TrainingConfig:
         "learning_rate": args.learning_rate,
         "weight_decay": args.weight_decay,
         "num_workers": args.num_workers,
-        "checkpoint_dir": args.checkpoint_dir or config.checkpoint_dir or _DEFAULT_CHECKPOINT_DIR,
+        "checkpoint_dir": args.checkpoint_dir or config.checkpoint_dir or DEFAULT_STAGE_ONE_CHECKPOINT_DIR,
         "resume_checkpoint": args.resume_checkpoint if args.resume_checkpoint is not None else config.resume_checkpoint,
         "device": _resolve_device(args.device or config.device),
         "use_conditioning": args.use_conditioning or config.use_conditioning,

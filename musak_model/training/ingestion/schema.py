@@ -7,7 +7,7 @@ from musak_model.tokens.schema import Hand, ScaleType
 
 
 class EncodedExercise(BaseModel):
-    model_config = ConfigDict(arbitrary_types_allowed=True, frozen=True)
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid", frozen=True)
 
     token_ids: list[int]
     bar_positions: list[int]
@@ -40,7 +40,7 @@ class EncodedExercise(BaseModel):
 
 
 class IngestionErrorRecord(BaseModel):
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
     file: str
     exception_type: str
@@ -48,7 +48,7 @@ class IngestionErrorRecord(BaseModel):
 
 
 class IngestionSplit(BaseModel):
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
     train: list[EncodedExercise]
     validation: list[EncodedExercise]

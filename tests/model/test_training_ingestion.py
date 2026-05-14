@@ -5,16 +5,18 @@ import pytest
 
 from musak_model.data.config import SegmentationConfig
 from musak_model.data.schema import Segment, SegmentIneligibilityReason, SegmentMetadata
+from musak_model.processing.dataset import process_dataset
 from musak_model.tokens.config import TokenizationConfig
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import BarToken, EndToken, NoteToken, ScaleType, Token
 from musak_model.tokens.vocabulary import TokenVocabulary
 from musak_model.training.ingestion.config import IngestionConfig
 from musak_model.training.ingestion.split import _build_bar_positions_from_tokens, _encode_segment, build_split
+from tests.data.fixtures import bar, note_event, parsed_score
 
 
 def _note() -> NoteToken:
-    duration_vocabulary = DurationVocabulary(TokenizationConfig(shortest_duration=16, max_tuplets=(3,), max_dots=1))
+    duration_vocabulary = DurationVocabulary(TokenizationConfig(shortest_duration=16, allowed_tuplets=(3,), max_dots=1))
     quarter_duration_id = duration_vocabulary.fraction_to_id(Fraction(1, 4))
     return NoteToken(
         degree=1,
@@ -133,7 +135,7 @@ def test_build_bar_positions_from_tokens_assigns_end_to_last_bar() -> None:
 def test_encode_segment_returns_unified_sample() -> None:
     segment = _segment(Path("piece.mxl"))
     token_vocabulary = TokenVocabulary(
-        DurationVocabulary(TokenizationConfig(shortest_duration=16, max_tuplets=(3,), max_dots=1))
+        DurationVocabulary(TokenizationConfig(shortest_duration=16, allowed_tuplets=(3,), max_dots=1))
     )
 
     sample = _encode_segment(segment, token_vocabulary=token_vocabulary)
@@ -162,6 +164,92 @@ def test_build_ingestion_split_filters_ineligible_segments(
 
     config = _ingestion_config(split_seed=123, validation_fraction=0.0)
     split = build_split(tmp_path, config=config, segmentation=_segmentation_config())
+
+    assert len(split.train) == 1
+    assert split.invalid_files == []
+
+
+def test_build_ingestion_split_prefers_encoded_artifacts(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    dataset_root = tmp_path / "PDMX"
+    source_path = dataset_root / "piece.mxl"
+    source_path.parent.mkdir(parents=True)
+    source_path.write_text("score")
+    processed_root = tmp_path / "processed"
+    score = parsed_score(
+        right_hand_bars=[bar([note_event(midi_pitch=72, duration=Fraction(1, 4), beat_offset=Fraction(0))])],
+        left_hand_bars=[bar([note_event(midi_pitch=48, duration=Fraction(1, 4), beat_offset=Fraction(0))])],
+    )
+    monkeypatch.setattr("musak_model.processing.dataset.parse_score", lambda path: score)
+    process_dataset(
+        dataset_root,
+        processed_root=processed_root,
+        dataset_name="PDMX",
+        segmentation=SegmentationConfig(window_bars=1, stride_bars=1),
+        tokenization_config=TokenizationConfig.load(),
+        stage="all",
+        overwrite=True,
+    )
+    monkeypatch.setattr(
+        "musak_model.training.ingestion.split.process_file",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("raw processing should not run")),
+    )
+
+    split = build_split(
+        dataset_root,
+        config=IngestionConfig(
+            validation_fraction=0.0,
+            split_seed=17,
+            difficulty_labels=None,
+            processed_root=processed_root,
+        ),
+        segmentation=SegmentationConfig(window_bars=1, stride_bars=1),
+    )
+
+    assert len(split.train) == 1
+    assert split.invalid_files == []
+
+
+def test_build_ingestion_split_falls_back_to_parsed_artifacts(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    dataset_root = tmp_path / "PDMX"
+    source_path = dataset_root / "piece.mxl"
+    source_path.parent.mkdir(parents=True)
+    source_path.write_text("score")
+    processed_root = tmp_path / "processed"
+    score = parsed_score(
+        right_hand_bars=[bar([note_event(midi_pitch=72, duration=Fraction(1, 4), beat_offset=Fraction(0))])],
+        left_hand_bars=[bar([note_event(midi_pitch=48, duration=Fraction(1, 4), beat_offset=Fraction(0))])],
+    )
+    monkeypatch.setattr("musak_model.processing.dataset.parse_score", lambda path: score)
+    process_dataset(
+        dataset_root,
+        processed_root=processed_root,
+        dataset_name="PDMX",
+        segmentation=SegmentationConfig(window_bars=1, stride_bars=1),
+        tokenization_config=TokenizationConfig.load(),
+        stage="parsed",
+        overwrite=True,
+    )
+    monkeypatch.setattr(
+        "musak_model.training.ingestion.split.process_file",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("raw processing should not run")),
+    )
+
+    split = build_split(
+        dataset_root,
+        config=IngestionConfig(
+            validation_fraction=0.0,
+            split_seed=17,
+            difficulty_labels=None,
+            processed_root=processed_root,
+        ),
+        segmentation=SegmentationConfig(window_bars=1, stride_bars=1),
+    )
 
     assert len(split.train) == 1
     assert split.invalid_files == []

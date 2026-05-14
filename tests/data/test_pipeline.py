@@ -14,7 +14,7 @@ def _empty_bar() -> ParsedBar:
 
 
 def _duration_vocabulary() -> DurationVocabulary:
-    return DurationVocabulary(TokenizationConfig(shortest_duration=16, max_tuplets=(3,), max_dots=1))
+    return DurationVocabulary(TokenizationConfig(shortest_duration=16, allowed_tuplets=(3,), max_dots=1))
 
 
 def test_segment_parsed_score_keeps_recoverable_segments_when_feature_extraction_fails() -> None:

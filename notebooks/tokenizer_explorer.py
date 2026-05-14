@@ -43,11 +43,11 @@ def _():
 
 @app.cell
 def _(build_default_token_vocabulary, mo):
-    vocab_size = build_default_token_vocabulary().vocab_size
+    vocabulary_size = build_default_token_vocabulary().vocabulary_size
     title_output = mo.md(f"""
     # Tokenizer Explorer
 
-    **Vocabulary size:** {vocab_size}
+    **Vocabulary size:** {vocabulary_size}
     """)
     title_output
     return

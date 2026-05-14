@@ -5,6 +5,7 @@ from typing import Final
 
 import pandas as pd
 
+from musak_model.common.ratios import format_ratio
 from musak_model.data.schema import ParsedScore, Segment
 from musak_model.decoder import PianoRollEvent, parsed_score_to_piano_roll_events, segment_to_piano_roll_events
 from musak_model.tokens.duration import DurationVocabulary
@@ -72,7 +73,7 @@ def _events_to_dataframe(
         duration_seconds = _whole_note_fraction_to_seconds(event.duration, bpm=bpm)
         bar_start = window_start_bar + 1 + event.start / measure_duration
         bar_duration = event.duration / measure_duration
-        duration_text = _fraction_text(event.duration)
+        duration_text = format_ratio(event.duration, separator=":")
         rows.append(
             {
                 "hand": event.hand.value,
@@ -97,7 +98,3 @@ def _events_to_dataframe(
 
 def _whole_note_fraction_to_seconds(duration: Fraction, *, bpm: int) -> float:
     return float(duration * _QUARTERS_PER_WHOLE * _SECONDS_PER_MINUTE / bpm)
-
-
-def _fraction_text(value: Fraction) -> str:
-    return f"{value.numerator}:{value.denominator}"

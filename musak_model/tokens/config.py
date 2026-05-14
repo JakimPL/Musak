@@ -2,36 +2,34 @@ from __future__ import annotations
 
 from fractions import Fraction
 from pathlib import Path
-from typing import Final
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from musak_model.common.files import load_yaml_config
-from musak_model.paths import CONFIGS_DIR
-
-TOKENIZATION_CONFIG_PATH: Final[Path] = CONFIGS_DIR / "tokens" / "tokenization.yml"
+from musak_model.common.validators import is_power_of_two
+from musak_model.paths import TOKENIZATION_CONFIG_PATH
 
 
 class TokenizationConfig(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     shortest_duration: int = Field(gt=0)
-    max_tuplets: tuple[int, ...] = Field(default=(3,), min_length=1)
-    max_dots: int = Field(default=1, ge=0)
+    allowed_tuplets: tuple[int, ...]
+    max_dots: int = Field(ge=0)
 
     @field_validator("shortest_duration")
     @classmethod
     def _validate_shortest_duration_power_of_two(cls, value: int) -> int:
-        if value & (value - 1) != 0:
+        if not is_power_of_two(value):
             raise ValueError("shortest_duration must be a power of 2")
 
         return value
 
-    @field_validator("max_tuplets")
+    @field_validator("allowed_tuplets")
     @classmethod
-    def _validate_max_tuplets(cls, value: tuple[int, ...]) -> tuple[int, ...]:
+    def _validate_allowed_tuplets(cls, value: tuple[int, ...]) -> tuple[int, ...]:
         if not all(tuplet > 1 for tuplet in value):
-            raise ValueError("all tuplet divisors must be > 1")
+            raise ValueError("all allowed tuplet divisors must be > 1")
 
         return value
 

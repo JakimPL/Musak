@@ -24,11 +24,11 @@ from musak_model.data.schema import (
 )
 from musak_model.tokens.config import TokenizationConfig
 from musak_model.tokens.duration import DurationVocabulary
-from musak_model.tokens.schema import BarToken, EndToken, Hand, NoteToken, ScaleType
+from musak_model.tokens.schema import BarToken, EndToken, NoteToken, ScaleType
 
 
 def _vocabulary() -> DurationVocabulary:
-    return DurationVocabulary(TokenizationConfig(shortest_duration=16, max_tuplets=(3,), max_dots=1))
+    return DurationVocabulary(TokenizationConfig(shortest_duration=16, allowed_tuplets=(3,), max_dots=1))
 
 
 def _segment_with_tokens(
@@ -202,7 +202,7 @@ class TestRhythmicDiversity:
         )
 
         diversity = _rhythmic_diversity(segment, duration_vocabulary=vocab)
-        assert diversity == pytest.approx(1.0 / vocab.vocab_size())
+        assert diversity == pytest.approx(1.0 / vocab.vocabulary_size())
 
     def test_multiple_durations_higher_diversity(self) -> None:
         vocab = _vocabulary()
@@ -219,7 +219,7 @@ class TestRhythmicDiversity:
         )
 
         diversity = _rhythmic_diversity(segment, duration_vocabulary=vocab)
-        assert diversity == pytest.approx(2.0 / vocab.vocab_size())
+        assert diversity == pytest.approx(2.0 / vocab.vocabulary_size())
 
 
 class TestVoiceIndependence:

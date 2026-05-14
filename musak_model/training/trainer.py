@@ -7,11 +7,11 @@ from torch import Tensor
 from torch.optim import AdamW
 from torch.utils.data import DataLoader
 
-from musak_model.conditioning.config import CONDITIONING_CONFIG_PATH
 from musak_model.conditioning.time_signature import TimeSignatureVocabulary
 from musak_model.data.config import SegmentationConfig
 from musak_model.model import HierarchicalAutoregressiveModel
 from musak_model.model.config import ModelConfig
+from musak_model.paths import CONDITIONING_CONFIG_PATH
 from musak_model.tokens.vocabulary import build_default_token_vocabulary
 from musak_model.training.checkpoint import load_checkpoint, save_checkpoint
 from musak_model.training.config import TrainingConfig
@@ -23,7 +23,7 @@ from musak_model.training.tracking import NoOpTrainingTracker, TrainingTracker, 
 
 
 class EpochMetrics(BaseModel):
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
     epoch: int
     train_loss: float
@@ -31,7 +31,7 @@ class EpochMetrics(BaseModel):
 
 
 class TrainingResult(BaseModel):
-    model_config = ConfigDict(arbitrary_types_allowed=True, frozen=True)
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid", frozen=True)
 
     metrics: list[EpochMetrics]
     best_checkpoint_path: Path | None
@@ -186,7 +186,7 @@ def train_stage_one(
     split = build_split(source_dir, config=ingestion_config, segmentation=segmentation_config)
     vocabulary = build_default_token_vocabulary()
     resolved_model_config = model_config or ModelConfig.load(
-        vocab_size=vocabulary.vocab_size,
+        vocabulary_size=vocabulary.vocabulary_size,
         conditioning_config_path=conditioning_config_path,
     )
     time_signature_vocabulary = TimeSignatureVocabulary(resolved_model_config.conditioning.time_signature)

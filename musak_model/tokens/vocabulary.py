@@ -32,7 +32,7 @@ _OCTAVE_OFFSET_COUNT: Final[int] = MAX_OCTAVE_OFFSET - MIN_OCTAVE_OFFSET + 1
 class TokenVocabulary:
     def __init__(self, duration_vocabulary: DurationVocabulary) -> None:
         self._duration_vocabulary = duration_vocabulary
-        self._duration_count = duration_vocabulary.vocab_size()
+        self._duration_count = duration_vocabulary.vocabulary_size()
         self._note_count = _DEGREE_COUNT * _ACCIDENTAL_COUNT * _OCTAVE_OFFSET_COUNT * self._duration_count
         self._rest_count = self._duration_count
         self._bar_token_id = self._note_count + self._rest_count
@@ -43,7 +43,7 @@ class TokenVocabulary:
         self._vocab_size = self._join_with_previous_token_id + 1
 
     @property
-    def vocab_size(self) -> int:
+    def vocabulary_size(self) -> int:
         return self._vocab_size
 
     @property

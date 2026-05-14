@@ -9,7 +9,7 @@ from musak_model.tokens.vocabulary import TokenVocabulary
 
 
 def _vocabulary() -> TokenVocabulary:
-    duration_vocabulary = DurationVocabulary(TokenizationConfig(shortest_duration=16, max_tuplets=(3,), max_dots=1))
+    duration_vocabulary = DurationVocabulary(TokenizationConfig(shortest_duration=16, allowed_tuplets=(3,), max_dots=1))
     return TokenVocabulary(duration_vocabulary)
 
 
@@ -23,7 +23,7 @@ def test_structural_tokens_roundtrip() -> None:
 
 
 def test_note_token_roundtrip_still_works() -> None:
-    duration_vocabulary = DurationVocabulary(TokenizationConfig(shortest_duration=16, max_tuplets=(3,), max_dots=1))
+    duration_vocabulary = DurationVocabulary(TokenizationConfig(shortest_duration=16, allowed_tuplets=(3,), max_dots=1))
     vocabulary = TokenVocabulary(duration_vocabulary)
     token = NoteToken(
         degree=1,
@@ -39,4 +39,4 @@ def test_rejects_token_id_outside_extended_vocabulary() -> None:
     vocabulary = _vocabulary()
 
     with pytest.raises(ValueError, match="token_id"):
-        vocabulary.id_to_token(vocabulary.vocab_size)
+        vocabulary.id_to_token(vocabulary.vocabulary_size)

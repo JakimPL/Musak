@@ -20,7 +20,7 @@ from musak_model.tokens.schema import (
 
 
 class PianoRollEvent(BaseModel):
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
     hand: Hand
     midi_pitch: int = Field(ge=0, le=MIDI_MAX_PITCH)
@@ -63,7 +63,14 @@ def parsed_score_to_piano_roll_events(score: ParsedScore) -> list[PianoRollEvent
                         for midi_pitch in parsed_event.midi_pitches
                     )
 
-    return sorted(events, key=lambda event: (event.start, event.hand.value, event.midi_pitch))
+    return sorted(
+        events,
+        key=lambda event: (
+            event.start,
+            event.hand.value,
+            event.midi_pitch,
+        ),
+    )
 
 
 def segment_to_piano_roll_events(
@@ -91,7 +98,14 @@ def segment_to_piano_roll_events(
         duration_vocabulary=duration_vocabulary,
         default_hand=Hand.LEFT,
     )
-    return sorted(right_events + left_events, key=lambda event: (event.start, event.hand.value, event.midi_pitch))
+    return sorted(
+        right_events + left_events,
+        key=lambda event: (
+            event.start,
+            event.hand.value,
+            event.midi_pitch,
+        ),
+    )
 
 
 def tokens_to_piano_roll_events(
@@ -152,7 +166,12 @@ def tokens_to_piano_roll_events(
     return events
 
 
-def _token_to_midi_pitch(token: NoteToken, *, metadata: SegmentMetadata, hand: Hand) -> int:
+def _token_to_midi_pitch(
+    token: NoteToken,
+    *,
+    metadata: SegmentMetadata,
+    hand: Hand,
+) -> int:
     interval = SCALE_INTERVALS[metadata.scale_type][token.degree - 1]
     pitch_class = (metadata.key_root + interval + token.accidental) % PITCHES_PER_OCTAVE
     octave = HAND_HOME_OCTAVES[hand] + token.octave_offset

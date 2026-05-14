@@ -9,11 +9,11 @@ from typing import Final, Protocol, Self
 from pydantic import BaseModel
 
 from musak_model.model.config import ModelConfig
+from musak_model.paths import DEFAULT_MLFLOW_DIR
 from musak_model.training.config import TrainingConfig
 from musak_model.training.ingestion.schema import IngestionErrorRecord, IngestionSplit
 
 _MLFLOW_TRACKING_URI_ENV: Final[str] = "MLFLOW_TRACKING_URI"
-_DEFAULT_MLFLOW_DIR: Final[str] = "mlruns"
 
 
 class TrainingTracker(Protocol):
@@ -191,7 +191,7 @@ def _resolve_tracking_uri(
     if environment_uri:
         return environment_uri
 
-    return str(tracking_root / _DEFAULT_MLFLOW_DIR)
+    return str(tracking_root / DEFAULT_MLFLOW_DIR)
 
 
 def _serializable_dump(model: BaseModel) -> dict[str, object]:

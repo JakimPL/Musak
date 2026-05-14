@@ -14,7 +14,7 @@ from notebooks.utils.piano_roll import (
 
 
 def _duration_vocabulary() -> DurationVocabulary:
-    return DurationVocabulary(TokenizationConfig(shortest_duration=16, max_tuplets=(3,), max_dots=1))
+    return DurationVocabulary(TokenizationConfig(shortest_duration=16, allowed_tuplets=(3,), max_dots=1))
 
 
 def test_midi_pitch_name_uses_scientific_pitch_octaves() -> None:

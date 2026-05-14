@@ -33,7 +33,7 @@ class DurationVocabulary:
     def _generate_tuplet_variants(self, durations_set: set[Fraction]) -> set[Fraction]:
         tuplet_variants: set[Fraction] = set()
         for base_duration in durations_set:
-            for tuplet_divisor in self._config.max_tuplets:
+            for tuplet_divisor in self._config.allowed_tuplets:
                 tuplet_duration = base_duration / tuplet_divisor
                 tuplet_variants.add(tuplet_duration)
 
@@ -66,13 +66,13 @@ class DurationVocabulary:
     def all_fractions(self) -> tuple[Fraction, ...]:
         return tuple(self._fractions)
 
-    def vocab_size(self) -> int:
+    def vocabulary_size(self) -> int:
         return len(self._fractions)
 
     def __repr__(self) -> str:
         config = self._config
         return (
             f"DurationVocabulary(shortest=1/{config.shortest_duration}, "
-            f"tuplets={config.max_tuplets}, dots={config.max_dots}, "
-            f"size={self.vocab_size()})"
+            f"allowed_tuplets={config.allowed_tuplets}, dots={config.max_dots}, "
+            f"size={self.vocabulary_size()})"
         )

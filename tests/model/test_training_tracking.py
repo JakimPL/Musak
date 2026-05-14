@@ -69,7 +69,7 @@ def _training_config(tmp_path: Path, *, enable_mlflow: bool = True, tracking_uri
 
 def _model_config() -> ModelConfig:
     return ModelConfig(
-        vocab_size=32,
+        vocabulary_size=32,
         cnn=CNNConfig(out_channels=16, kernel_sizes=(3,), num_layers=1, dropout=0.0),
         gru=GRUConfig(hidden_size=16, num_layers=1, dropout=0.0, bidirectional=False),
         transformer=TransformerConfig(

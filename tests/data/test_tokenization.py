@@ -12,7 +12,7 @@ from musak_model.tokens.schema import Hand, HandToken, JoinWithPreviousToken, No
 
 
 def _vocabulary() -> DurationVocabulary:
-    return DurationVocabulary(TokenizationConfig(shortest_duration=16, max_tuplets=(3,), max_dots=1))
+    return DurationVocabulary(TokenizationConfig(shortest_duration=16, allowed_tuplets=(3,), max_dots=1))
 
 
 def _parsed_score() -> ParsedScore:
@@ -75,7 +75,7 @@ class TestNoteToToken:
             expected_accidental=0,
             expected_octave_offset=-1,
             expected_duration_id=DurationVocabulary(
-                TokenizationConfig(shortest_duration=16, max_tuplets=(3,), max_dots=1)
+                TokenizationConfig(shortest_duration=16, allowed_tuplets=(3,), max_dots=1)
             ).fraction_to_id(Fraction(1, 4)),
         ),
         NoteTokenCase(
@@ -87,7 +87,7 @@ class TestNoteToToken:
             expected_accidental=1,
             expected_octave_offset=-1,
             expected_duration_id=DurationVocabulary(
-                TokenizationConfig(shortest_duration=16, max_tuplets=(3,), max_dots=1)
+                TokenizationConfig(shortest_duration=16, allowed_tuplets=(3,), max_dots=1)
             ).fraction_to_id(Fraction(1, 4)),
         ),
         NoteTokenCase(
@@ -99,7 +99,7 @@ class TestNoteToToken:
             expected_accidental=0,
             expected_octave_offset=1,
             expected_duration_id=DurationVocabulary(
-                TokenizationConfig(shortest_duration=16, max_tuplets=(3,), max_dots=1)
+                TokenizationConfig(shortest_duration=16, allowed_tuplets=(3,), max_dots=1)
             ).fraction_to_id(Fraction(1, 4)),
         ),
         NoteTokenCase(
@@ -119,7 +119,7 @@ class TestNoteToToken:
             expected_accidental=0,
             expected_octave_offset=-1,
             expected_duration_id=DurationVocabulary(
-                TokenizationConfig(shortest_duration=16, max_tuplets=(3,), max_dots=1)
+                TokenizationConfig(shortest_duration=16, allowed_tuplets=(3,), max_dots=1)
             ).fraction_to_id(Fraction(1, 4)),
         ),
     ]
@@ -163,7 +163,7 @@ class TestChordToTokens:
             hand=Hand.RIGHT,
             scale_type=ScaleType.MAJOR,
             expected_duration_id=DurationVocabulary(
-                TokenizationConfig(shortest_duration=16, max_tuplets=(3,), max_dots=1)
+                TokenizationConfig(shortest_duration=16, allowed_tuplets=(3,), max_dots=1)
             ).fraction_to_id(Fraction(3, 8)),
         ),
     ]
@@ -295,7 +295,7 @@ class TestTokenizationEdgeCases:
             hand=Hand.RIGHT,
             scale_type=ScaleType.MAJOR,
             expected_duration_id=DurationVocabulary(
-                TokenizationConfig(shortest_duration=16, max_tuplets=(3,), max_dots=1)
+                TokenizationConfig(shortest_duration=16, allowed_tuplets=(3,), max_dots=1)
             ).fraction_to_id(Fraction(3, 8)),
         ),
         NoteDurationCase(
@@ -305,7 +305,7 @@ class TestTokenizationEdgeCases:
             hand=Hand.RIGHT,
             scale_type=ScaleType.MAJOR,
             expected_duration_id=DurationVocabulary(
-                TokenizationConfig(shortest_duration=16, max_tuplets=(3,), max_dots=1)
+                TokenizationConfig(shortest_duration=16, allowed_tuplets=(3,), max_dots=1)
             ).fraction_to_id(Fraction(1, 12)),
         ),
     ]

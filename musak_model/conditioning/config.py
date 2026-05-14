@@ -1,16 +1,13 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Final
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from musak_model.common.files import load_yaml_config
 from musak_model.conditioning.time_signature import TimeSignatureVocabulary, TimeSignatureVocabularyConfig
-from musak_model.paths import CONFIGS_DIR
+from musak_model.paths import CONDITIONING_CONFIG_PATH
 from musak_model.tokens.schema import ScaleType
-
-CONDITIONING_CONFIG_PATH: Final[Path] = CONFIGS_DIR / "conditioning" / "conditioning.yml"
 
 
 class DifficultyConfig(BaseModel):
@@ -36,7 +33,7 @@ class ConditioningConfig(BaseModel):
 
     @property
     def num_time_signatures(self) -> int:
-        return TimeSignatureVocabulary(self.time_signature).vocab_size
+        return TimeSignatureVocabulary(self.time_signature).vocabulary_size
 
     @classmethod
     def load(cls, path: Path = CONDITIONING_CONFIG_PATH) -> ConditioningConfig:

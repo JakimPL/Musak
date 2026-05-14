@@ -30,8 +30,17 @@ class ClosestDurationCase:
 class TestDurationVocabularyGeneration:
     CASES = [
         VocabularyGenerationCase(
+            name="base durations without tuplets",
+            config=TokenizationConfig(shortest_duration=4, allowed_tuplets=(), max_dots=0),
+            expected_fractions=(
+                Fraction(1, 1),
+                Fraction(1, 2),
+                Fraction(1, 4),
+            ),
+        ),
+        VocabularyGenerationCase(
             name="base and triplet durations",
-            config=TokenizationConfig(shortest_duration=4, max_tuplets=(3,), max_dots=0),
+            config=TokenizationConfig(shortest_duration=4, allowed_tuplets=(3,), max_dots=0),
             expected_fractions=(
                 Fraction(1, 1),
                 Fraction(1, 2),
@@ -43,7 +52,7 @@ class TestDurationVocabularyGeneration:
         ),
         VocabularyGenerationCase(
             name="single dot expansion",
-            config=TokenizationConfig(shortest_duration=4, max_tuplets=(3,), max_dots=1),
+            config=TokenizationConfig(shortest_duration=4, allowed_tuplets=(3,), max_dots=1),
             expected_fractions=(
                 Fraction(1, 1),
                 Fraction(3, 4),
@@ -58,7 +67,7 @@ class TestDurationVocabularyGeneration:
         ),
         VocabularyGenerationCase(
             name="double dot expansion",
-            config=TokenizationConfig(shortest_duration=4, max_tuplets=(3,), max_dots=2),
+            config=TokenizationConfig(shortest_duration=4, allowed_tuplets=(3,), max_dots=2),
             expected_fractions=(
                 Fraction(1, 1),
                 Fraction(7, 8),
@@ -78,7 +87,7 @@ class TestDurationVocabularyGeneration:
         ),
         VocabularyGenerationCase(
             name="multiple tuplet divisors",
-            config=TokenizationConfig(shortest_duration=8, max_tuplets=(3, 5), max_dots=0),
+            config=TokenizationConfig(shortest_duration=8, allowed_tuplets=(3, 5), max_dots=0),
             expected_fractions=(
                 Fraction(1, 1),
                 Fraction(1, 2),
@@ -101,7 +110,7 @@ class TestDurationVocabularyGeneration:
         vocabulary = DurationVocabulary(case.config)
 
         assert vocabulary.all_fractions() == case.expected_fractions
-        assert vocabulary.vocab_size() == len(case.expected_fractions)
+        assert vocabulary.vocabulary_size() == len(case.expected_fractions)
 
     @pytest.mark.parametrize("case", CASES, ids=str)
     def test_fraction_ids_follow_sorted_vocabulary_order(self, case: VocabularyGenerationCase) -> None:
@@ -115,7 +124,7 @@ class TestDurationVocabularyGeneration:
 class TestDurationVocabularyLookup:
     @pytest.fixture
     def vocabulary(self) -> DurationVocabulary:
-        return DurationVocabulary(TokenizationConfig(shortest_duration=4, max_tuplets=(3,), max_dots=0))
+        return DurationVocabulary(TokenizationConfig(shortest_duration=4, allowed_tuplets=(3,), max_dots=0))
 
     def test_fraction_to_id_and_id_to_fraction_are_inverses(self, vocabulary: DurationVocabulary) -> None:
         for duration in vocabulary.all_fractions():
@@ -141,7 +150,7 @@ class TestDurationVocabularyClosestMatch:
 
     @pytest.fixture
     def vocabulary(self) -> DurationVocabulary:
-        return DurationVocabulary(TokenizationConfig(shortest_duration=4, max_tuplets=(3,), max_dots=0))
+        return DurationVocabulary(TokenizationConfig(shortest_duration=4, allowed_tuplets=(3,), max_dots=0))
 
     @pytest.mark.parametrize("case", CASES, ids=str)
     def test_find_closest_returns_id_and_fraction(

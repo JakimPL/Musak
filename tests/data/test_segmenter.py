@@ -31,7 +31,7 @@ def _score(*, bars: list[ParsedBar]) -> ParsedScore:
 
 
 def _duration_vocabulary() -> DurationVocabulary:
-    return DurationVocabulary(TokenizationConfig(shortest_duration=16, max_tuplets=(3,), max_dots=1))
+    return DurationVocabulary(TokenizationConfig(shortest_duration=16, allowed_tuplets=(3,), max_dots=1))
 
 
 def test_segment_metadata_uses_first_bar_time_signature() -> None:

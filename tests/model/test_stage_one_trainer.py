@@ -52,7 +52,7 @@ class FakeTracker:
 
 def _small_model_config() -> ModelConfig:
     return ModelConfig(
-        vocab_size=VOCAB,
+        vocabulary_size=VOCAB,
         cnn=CNNConfig(out_channels=HIDDEN_SIZE, kernel_sizes=(3,), num_layers=1, dropout=0.0),
         gru=GRUConfig(hidden_size=HIDDEN_SIZE, num_layers=1, dropout=0.0, bidirectional=False),
         transformer=TransformerConfig(
