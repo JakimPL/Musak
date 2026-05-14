@@ -15,7 +15,9 @@ from musak_model.tokens.schema import (
     HandToken,
     JoinWithPreviousToken,
     NoteToken,
+    RestToken,
     ScaleType,
+    StartToken,
 )
 
 
@@ -51,6 +53,21 @@ def test_tokens_to_piano_roll_events_decodes_pitch_and_time(duration_vocabulary:
     ]
 
 
+def test_tokens_to_piano_roll_events_ignores_start_token(duration_vocabulary: DurationVocabulary) -> None:
+    quarter_id = duration_vocabulary.fraction_to_id(Fraction(1, 4))
+    events = tokens_to_piano_roll_events(
+        [
+            StartToken(),
+            NoteToken(degree=1, accidental=0, octave_offset=0, duration_id=quarter_id),
+        ],
+        metadata=_metadata(),
+        duration_vocabulary=duration_vocabulary,
+        default_hand=Hand.RIGHT,
+    )
+
+    assert [(event.midi_pitch, event.start) for event in events] == [(72, Fraction(0))]
+
+
 def test_join_with_previous_token_keeps_chord_notes_at_same_start(duration_vocabulary: DurationVocabulary) -> None:
     quarter_id = duration_vocabulary.fraction_to_id(Fraction(1, 4))
     events = tokens_to_piano_roll_events(
@@ -69,6 +86,29 @@ def test_join_with_previous_token_keeps_chord_notes_at_same_start(duration_vocab
 
     assert [event.start for event in events] == [Fraction(0), Fraction(0), Fraction(0)]
     assert [event.midi_pitch for event in events] == [72, 76, 79]
+
+
+def test_unified_two_hand_decoding_uses_independent_hand_cursors(
+    duration_vocabulary: DurationVocabulary,
+) -> None:
+    quarter_id = duration_vocabulary.fraction_to_id(Fraction(1, 4))
+    events = tokens_to_piano_roll_events(
+        [
+            HandToken(hand=Hand.RIGHT),
+            NoteToken(degree=1, accidental=0, octave_offset=0, duration_id=quarter_id),
+            HandToken(hand=Hand.LEFT),
+            RestToken(duration_id=quarter_id),
+            NoteToken(degree=1, accidental=0, octave_offset=0, duration_id=quarter_id),
+        ],
+        metadata=_metadata(),
+        duration_vocabulary=duration_vocabulary,
+        default_hand=Hand.RIGHT,
+    )
+
+    assert [(event.hand, event.start) for event in events] == [
+        (Hand.RIGHT, Fraction(0)),
+        (Hand.LEFT, Fraction(1, 4)),
+    ]
 
 
 def test_segment_to_music21_score_groups_same_onset_notes_as_chord(duration_vocabulary: DurationVocabulary) -> None:

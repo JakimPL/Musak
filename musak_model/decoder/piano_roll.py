@@ -15,6 +15,7 @@ from musak_model.tokens.schema import (
     JoinWithPreviousToken,
     NoteToken,
     RestToken,
+    StartToken,
     Token,
 )
 
@@ -118,7 +119,7 @@ def tokens_to_piano_roll_events(
     measure_duration = Fraction(metadata.time_numerator, metadata.time_denominator)
     active_hand = default_hand
     bar_index = 0
-    cursor = Fraction(0)
+    cursors = {Hand.RIGHT: Fraction(0), Hand.LEFT: Fraction(0)}
     events: list[PianoRollEvent] = []
 
     for token_index, token in enumerate(tokens):
@@ -126,16 +127,19 @@ def tokens_to_piano_roll_events(
             active_hand = token.hand
             continue
 
+        if isinstance(token, StartToken):
+            continue
+
         if isinstance(token, BarToken):
             bar_index += 1
-            cursor = Fraction(0)
+            cursors = {Hand.RIGHT: Fraction(0), Hand.LEFT: Fraction(0)}
             continue
 
         if isinstance(token, EndToken):
             break
 
         if isinstance(token, RestToken):
-            cursor += duration_vocabulary.id_to_fraction(token.duration_id)
+            cursors[active_hand] += duration_vocabulary.id_to_fraction(token.duration_id)
             continue
 
         if isinstance(token, NoteToken):
@@ -143,13 +147,13 @@ def tokens_to_piano_roll_events(
             event = PianoRollEvent(
                 hand=active_hand,
                 midi_pitch=_token_to_midi_pitch(token, metadata=metadata, hand=active_hand),
-                start=bar_index * measure_duration + cursor,
+                start=bar_index * measure_duration + cursors[active_hand],
                 duration=duration,
                 token_index=token_index,
                 token_text=token.to_text(duration_vocabulary=duration_vocabulary),
             )
             events.append(event)
-            cursor += duration
+            cursors[active_hand] += duration
             continue
 
         if isinstance(token, JoinWithPreviousToken):
@@ -160,7 +164,10 @@ def tokens_to_piano_roll_events(
             joined_start = events[-2].start
             joined_event = previous_event.model_copy(update={"start": joined_start})
             events[-1] = joined_event
-            cursor = max(cursor - joined_event.duration, joined_event.end - bar_index * measure_duration)
+            cursors[active_hand] = max(
+                cursors[active_hand] - joined_event.duration,
+                joined_event.end - bar_index * measure_duration,
+            )
             continue
 
     return events

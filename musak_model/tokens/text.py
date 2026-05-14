@@ -17,6 +17,7 @@ from musak_model.tokens.schema import (
     JoinWithPreviousToken,
     NoteToken,
     RestToken,
+    StartToken,
     Token,
 )
 from musak_model.tokens.symbols import (
@@ -33,6 +34,7 @@ from musak_model.tokens.symbols import (
     OCTAVE_UP_SYMBOL,
     REST_SYMBOL,
     RIGHT_HAND_SYMBOL,
+    START_SYMBOL,
     TEXT_FLAT_SYMBOL,
     TEXT_SHARP_SYMBOL,
 )
@@ -115,6 +117,9 @@ def token_from_text(
 
     if token_text == BAR_SYMBOL:
         return BarToken()
+
+    if token_text == START_SYMBOL:
+        return StartToken()
 
     if token_text == END_SYMBOL:
         return EndToken()

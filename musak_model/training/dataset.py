@@ -6,11 +6,13 @@ from torch import Tensor
 from torch.utils.data import DataLoader, Dataset
 
 from musak_model.conditioning.time_signature import TimeSignatureVocabulary
+from musak_model.tokens.vocabulary import TokenVocabulary
 from musak_model.training.conditioning import difficulty_level_to_id, scale_type_to_id, time_signature_to_id
 from musak_model.training.ingestion.schema import EncodedExercise, IngestionSplit
 
 _PADDING_TOKEN_ID: int = 0
 _PADDING_BAR_POSITION: int = -1
+_START_BAR_POSITION: int = 0
 
 type _TrainingDataLoader = DataLoader[TrainingBatch]
 
@@ -42,6 +44,7 @@ class EncodedExerciseDataset(Dataset[TrainingExample]):
         samples: list[EncodedExercise],
         *,
         time_signature_vocabulary: TimeSignatureVocabulary,
+        token_vocabulary: TokenVocabulary,
         include_conditioning: bool = True,
     ) -> None:
         self._examples = [
@@ -49,9 +52,10 @@ class EncodedExerciseDataset(Dataset[TrainingExample]):
                 sample,
                 include_conditioning=include_conditioning,
                 time_signature_vocabulary=time_signature_vocabulary,
+                token_vocabulary=token_vocabulary,
             )
             for sample in samples
-            if len(sample.token_ids) >= 2
+            if len(sample.token_ids) >= 1
         ]
 
     def __len__(self) -> int:
@@ -68,17 +72,20 @@ def build_dataloaders(
     shuffle_train: bool,
     num_workers: int,
     time_signature_vocabulary: TimeSignatureVocabulary,
+    token_vocabulary: TokenVocabulary,
     include_conditioning: bool = True,
 ) -> tuple[DataLoader[TrainingBatch], DataLoader[TrainingBatch]]:
     train_dataset = EncodedExerciseDataset(
         split.train,
         include_conditioning=include_conditioning,
         time_signature_vocabulary=time_signature_vocabulary,
+        token_vocabulary=token_vocabulary,
     )
     validation_dataset = EncodedExerciseDataset(
         split.validation,
         include_conditioning=include_conditioning,
         time_signature_vocabulary=time_signature_vocabulary,
+        token_vocabulary=token_vocabulary,
     )
     train_loader = DataLoader(
         train_dataset,
@@ -134,9 +141,17 @@ def _to_training_example(
     *,
     include_conditioning: bool,
     time_signature_vocabulary: TimeSignatureVocabulary,
+    token_vocabulary: TokenVocabulary,
 ) -> TrainingExample:
     token_ids = torch.tensor(sample.token_ids, dtype=torch.long)
     bar_positions = torch.tensor(sample.bar_positions, dtype=torch.long)
+    if token_ids.size(0) != bar_positions.size(0):
+        raise ValueError(
+            f"token_ids length {token_ids.size(0)} does not match bar_positions length {bar_positions.size(0)}"
+        )
+
+    input_token_ids = _prepend_start_token(token_ids, token_vocabulary=token_vocabulary)
+    input_bar_positions = _prepend_start_bar_position(bar_positions)
     difficulty_id = difficulty_level_to_id(sample.difficulty_level) if include_conditioning else None
     scale_type_id = scale_type_to_id(sample.scale_type) if include_conditioning else 0
     time_signature_id = (
@@ -148,13 +163,23 @@ def _to_training_example(
         else 0
     )
     return TrainingExample(
-        input_token_ids=token_ids[:-1],
-        target_token_ids=token_ids[1:],
-        bar_positions=bar_positions[:-1],
+        input_token_ids=input_token_ids,
+        target_token_ids=token_ids,
+        bar_positions=input_bar_positions,
         difficulty_id=difficulty_id,
         scale_type_id=scale_type_id,
         time_signature_id=time_signature_id,
     )
+
+
+def _prepend_start_token(token_ids: Tensor, *, token_vocabulary: TokenVocabulary) -> Tensor:
+    start_token = torch.tensor([token_vocabulary.start_token_id], dtype=token_ids.dtype)
+    return torch.cat((start_token, token_ids[:-1]))
+
+
+def _prepend_start_bar_position(bar_positions: Tensor) -> Tensor:
+    start_position = torch.tensor([_START_BAR_POSITION], dtype=bar_positions.dtype)
+    return torch.cat((start_position, bar_positions[:-1]))
 
 
 def _optional_tensor(values: list[int | None]) -> Tensor | None:

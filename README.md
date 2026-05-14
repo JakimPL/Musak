@@ -35,6 +35,7 @@ Hand:      R | L
 Note:      DEGREE ACCIDENTAL? OCTAVE? DURATION
 Rest:      r DURATION
 Join:      ~
+Start:     BOS
 Bar:       |
 End:       ‖
 
@@ -50,7 +51,9 @@ Examples:
 R 6♯↑1(1:4) 3(1:4) ~ L r(1:8) 1↓1(1:8) | ‖
 ```
 
-`6♯↑1(1:4)` means scale degree 6, raised by one semitone, octave offset +1, with duration 1/4. `~` joins the preceding token to the previous note onset, so `n` simultaneous notes are represented with `n - 1` join tokens in the unified stream. This can join notes across `R` and `L` because the unified stream has one musical time cursor.
+`6♯↑1(1:4)` means scale degree 6, raised by one semitone, octave offset +1, with duration 1/4. `~` joins the preceding token to the previous note onset, so `n` simultaneous notes are represented with `n - 1` join tokens in the unified stream. This can join notes across `R` and `L` when they share an onset; decoding keeps independent time cursors for each hand.
+
+`BOS` is the learned beginning-of-sequence token. Encoded dataset artifacts store musical tokens only and end with `‖`; training prepends `BOS` to the model input so the first musical token is learned as `BOS -> first_token`. Generation should seed the model with the tokenizer vocabulary's `start_token_id`.
 
 Text serialization must use true duration fractions, not duration vocabulary IDs. Parsing text back into tokens converts `(NUM:DEN)` through the active duration vocabulary and should raise a tokenizer-specific error when the duration is unsupported.
 
@@ -79,7 +82,7 @@ The processed layout is:
 ```text
 processed/PDMX/
   parsed.csv
-  parsed/
+  parsed/<first_source_hash_char>/<source_hash>.json
   encoded/<tokenizer_hash>/
     tokenizer.json
     encoded.csv

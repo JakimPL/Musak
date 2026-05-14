@@ -1,6 +1,11 @@
 from fractions import Fraction
 
-from musak_model.data.cleaning import clean_parsed_score, deduplicate_simultaneous_pitches, trim_silent_edge_bars
+from musak_model.data.cleaning import (
+    clean_parsed_score,
+    deduplicate_simultaneous_pitches,
+    trim_silent_edge_bars,
+    truncate_overlapping_events,
+)
 from musak_model.data.schema import ParsedChord, ParsedNote
 from tests.data.fixtures import bar, chord_event, note_event, parsed_score, rest_event
 
@@ -123,7 +128,57 @@ def test_deduplicate_simultaneous_pitches_preserves_same_pitch_with_different_du
     assert cleaned.right_hand_bars[0].events == score.right_hand_bars[0].events
 
 
-def test_clean_parsed_score_deduplicates_before_trimming_silent_edges() -> None:
+def test_truncate_overlapping_events_preserves_later_onsets() -> None:
+    score = parsed_score(
+        right_hand_bars=[
+            bar(
+                [
+                    chord_event(midi_pitches=[60, 64], duration=Fraction(1, 2), beat_offset=Fraction(0)),
+                    note_event(midi_pitch=67, duration=Fraction(1, 2), beat_offset=Fraction(1, 4)),
+                    note_event(midi_pitch=69, duration=Fraction(1, 2), beat_offset=Fraction(1, 2)),
+                ]
+            )
+        ],
+        left_hand_bars=[bar([])],
+    )
+
+    cleaned = truncate_overlapping_events(score)
+
+    events = cleaned.right_hand_bars[0].events
+    assert [(event.beat_offset, event.duration) for event in events] == [
+        (Fraction(0), Fraction(1, 4)),
+        (Fraction(1, 4), Fraction(1, 4)),
+        (Fraction(1, 2), Fraction(1, 2)),
+    ]
+    assert isinstance(events[0], ParsedChord)
+    assert isinstance(events[1], ParsedNote)
+    assert isinstance(events[2], ParsedNote)
+
+
+def test_clean_parsed_score_truncates_overlaps_before_deduplicating() -> None:
+    score = parsed_score(
+        right_hand_bars=[
+            bar(
+                [
+                    note_event(midi_pitch=60, duration=Fraction(1, 2), beat_offset=Fraction(0)),
+                    note_event(midi_pitch=60, duration=Fraction(3, 4), beat_offset=Fraction(0)),
+                    note_event(midi_pitch=64, duration=Fraction(1, 2), beat_offset=Fraction(1, 4)),
+                ]
+            )
+        ],
+        left_hand_bars=[bar([])],
+    )
+
+    cleaned = clean_parsed_score(score)
+
+    events = cleaned.right_hand_bars[0].events
+    assert len(events) == 2
+    assert isinstance(events[0], ParsedNote)
+    assert events[0].midi_pitch == 60
+    assert events[0].duration == Fraction(1, 4)
+
+
+def test_clean_parsed_score_deduplicates_and_trims_silent_edges() -> None:
     score = parsed_score(
         right_hand_bars=[
             _rest_bar(),

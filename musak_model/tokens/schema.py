@@ -18,6 +18,7 @@ from musak_model.tokens.symbols import (
     OCTAVE_UP_SYMBOL,
     REST_SYMBOL,
     RIGHT_HAND_SYMBOL,
+    START_SYMBOL,
     TEXT_FLAT_SYMBOL,
     TEXT_SHARP_SYMBOL,
 )
@@ -182,6 +183,21 @@ class BarToken(BaseModel):
         return repr(self)
 
 
+class StartToken(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    kind: Literal["start"] = "start"
+
+    def to_text(self, *, duration_vocabulary: DurationVocabulary) -> str:
+        return START_SYMBOL
+
+    def __repr__(self) -> str:
+        return START_SYMBOL
+
+    def __str__(self) -> str:
+        return repr(self)
+
+
 class EndToken(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -197,4 +213,4 @@ class EndToken(BaseModel):
         return repr(self)
 
 
-Token = NoteToken | RestToken | HandToken | JoinWithPreviousToken | BarToken | EndToken
+Token = NoteToken | RestToken | HandToken | JoinWithPreviousToken | BarToken | StartToken | EndToken

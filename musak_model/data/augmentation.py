@@ -7,8 +7,11 @@ from musak_model.tokens.schema import (
     MIN_OCTAVE_OFFSET,
     BarToken,
     EndToken,
+    HandToken,
+    JoinWithPreviousToken,
     NoteToken,
     RestToken,
+    StartToken,
     Token,
 )
 
@@ -67,7 +70,7 @@ def _shift_token(
 
         return token.model_copy(update={"octave_offset": new_offset})
 
-    if isinstance(token, (RestToken, BarToken, EndToken)):
+    if isinstance(token, (RestToken, HandToken, JoinWithPreviousToken, BarToken, StartToken, EndToken)):
         return token
 
     raise ValueError(f"unexpected token type: {type(token)}")
@@ -135,7 +138,7 @@ def _remap_token_duration(
         )
         return token.model_copy(update={"duration_id": remapped_duration_id})
 
-    if isinstance(token, (BarToken, EndToken)):
+    if isinstance(token, (HandToken, JoinWithPreviousToken, BarToken, StartToken, EndToken)):
         return token
 
     raise ValueError(f"unexpected token type: {type(token)}")

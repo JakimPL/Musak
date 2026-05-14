@@ -12,6 +12,7 @@ RIGHT_HAND_SYMBOL: Final[str] = "R"
 LEFT_HAND_SYMBOL: Final[str] = "L"
 REST_SYMBOL: Final[str] = "r"
 JOIN_WITH_PREVIOUS_SYMBOL: Final[str] = "~"
+START_SYMBOL: Final[str] = "BOS"
 BAR_SYMBOL: Final[str] = "|"
 END_SYMBOL: Final[str] = "‖"
 

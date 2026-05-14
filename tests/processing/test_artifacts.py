@@ -72,6 +72,7 @@ def test_tokenizer_snapshot_hash_changes_with_tokenization_config(tokenization_c
     assert first_snapshot.tokenizer_hash != second_snapshot.tokenizer_hash
     assert first_snapshot.schema_version == TOKENIZER_SCHEMA_VERSION
     assert first_snapshot.vocabulary_size > 0
+    assert first_snapshot.special_token_ids[SpecialTokenSnapshotField.START] < first_snapshot.vocabulary_size
     assert first_snapshot.special_token_ids[SpecialTokenSnapshotField.BAR] < first_snapshot.vocabulary_size
 
 

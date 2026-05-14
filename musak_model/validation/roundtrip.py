@@ -201,12 +201,19 @@ def _nearest_event_errors(
         if not candidates:
             continue
 
-        nearest = min(candidates, key=lambda reference_event: abs(reference_event.start - decoded_event.start))
+        nearest = _nearest_by_onset(candidates, decoded_event)
         remaining_reference.remove(nearest)
         onset_errors.append(abs(nearest.start - decoded_event.start))
         duration_errors.append(abs(nearest.duration - decoded_event.duration))
 
     return onset_errors, duration_errors
+
+
+def _nearest_by_onset(
+    candidates: list[PianoRollEvent],
+    decoded_event: PianoRollEvent,
+) -> PianoRollEvent:
+    return min(candidates, key=lambda reference_event: abs(reference_event.start - decoded_event.start))
 
 
 def _mean(values: list[Fraction]) -> Fraction | None:

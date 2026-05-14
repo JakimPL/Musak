@@ -10,13 +10,15 @@ from musak_model.conditioning.time_signature import TimeSignatureVocabulary, Tim
 from musak_model.data.schema import SegmentMetadata
 from musak_model.model import HierarchicalAutoregressiveModel
 from musak_model.model.config import CNNConfig, GRUConfig, ModelConfig, TransformerConfig
+from musak_model.tokens.config import TokenizationConfig
+from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import ScaleType
+from musak_model.tokens.vocabulary import TokenVocabulary
 from musak_model.training.config import TrainingConfig
 from musak_model.training.dataset import EncodedExerciseDataset, TrainingBatch, collate_training_examples
 from musak_model.training.ingestion.schema import EncodedExercise, IngestionErrorRecord, IngestionSplit
 from musak_model.training.trainer import StageOneTrainer
 
-VOCAB: Final[int] = 32
 HIDDEN_SIZE: Final[int] = 16
 
 
@@ -52,7 +54,7 @@ class FakeTracker:
 
 def _small_model_config() -> ModelConfig:
     return ModelConfig(
-        vocabulary_size=VOCAB,
+        vocabulary_size=_token_vocabulary().vocabulary_size,
         cnn=CNNConfig(out_channels=HIDDEN_SIZE, kernel_sizes=(3,), num_layers=1, dropout=0.0),
         gru=GRUConfig(hidden_size=HIDDEN_SIZE, num_layers=1, dropout=0.0, bidirectional=False),
         transformer=TransformerConfig(
@@ -102,6 +104,7 @@ def _sample(token_ids: list[int], bar_positions: list[int]) -> EncodedExercise:
 
 
 def _loader() -> DataLoader[TrainingBatch]:
+    token_vocabulary = _token_vocabulary()
     dataset = EncodedExerciseDataset(
         [
             _sample([1, 2, 3, 4], [0, 0, 0, 0]),
@@ -110,8 +113,14 @@ def _loader() -> DataLoader[TrainingBatch]:
         time_signature_vocabulary=TimeSignatureVocabulary(
             TimeSignatureVocabularyConfig(max_denominator=4, relative_numerator_range=2)
         ),
+        token_vocabulary=token_vocabulary,
     )
     return DataLoader(dataset, batch_size=2, collate_fn=collate_training_examples)
+
+
+def _token_vocabulary() -> TokenVocabulary:
+    tokenization_config = TokenizationConfig(shortest_duration=16, allowed_tuplets=(3,), max_dots=1)
+    return TokenVocabulary(DurationVocabulary(tokenization_config))
 
 
 def test_trainer_runs_one_epoch_and_writes_checkpoints(tmp_path: Path) -> None:

@@ -205,6 +205,7 @@ def train_stage_one(
         num_workers=training_config.num_workers,
         include_conditioning=training_config.use_conditioning,
         time_signature_vocabulary=time_signature_vocabulary,
+        token_vocabulary=vocabulary,
     )
     model = HierarchicalAutoregressiveModel(resolved_model_config)
     tracker = build_training_tracker(training_config=training_config)

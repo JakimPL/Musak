@@ -17,10 +17,12 @@ from musak_model.tokens.schema import (
     JoinWithPreviousToken,
     NoteToken,
     RestToken,
+    StartToken,
     Token,
 )
 
 _BAR_TOKEN: Final[BarToken] = BarToken()
+_START_TOKEN: Final[StartToken] = StartToken()
 _END_TOKEN: Final[EndToken] = EndToken()
 _JOIN_WITH_PREVIOUS_TOKEN: Final[JoinWithPreviousToken] = JoinWithPreviousToken()
 
@@ -40,7 +42,8 @@ class TokenVocabulary:
         self._right_hand_token_id = self._end_token_id + 1
         self._left_hand_token_id = self._right_hand_token_id + 1
         self._join_with_previous_token_id = self._left_hand_token_id + 1
-        self._vocab_size = self._join_with_previous_token_id + 1
+        self._start_token_id = self._join_with_previous_token_id + 1
+        self._vocab_size = self._start_token_id + 1
 
     @property
     def vocabulary_size(self) -> int:
@@ -66,6 +69,10 @@ class TokenVocabulary:
     def join_with_previous_token_id(self) -> int:
         return self._join_with_previous_token_id
 
+    @property
+    def start_token_id(self) -> int:
+        return self._start_token_id
+
     def token_to_id(self, token: Token) -> int:
         if isinstance(token, NoteToken):
             return self._note_token_to_id(token)
@@ -84,6 +91,9 @@ class TokenVocabulary:
 
         if isinstance(token, JoinWithPreviousToken):
             return self._join_with_previous_token_id
+
+        if isinstance(token, StartToken):
+            return self._start_token_id
 
         raise ValueError(f"unexpected token type: {type(token)}")
 
@@ -110,7 +120,10 @@ class TokenVocabulary:
         if token_id == self._left_hand_token_id:
             return HandToken(hand=Hand.LEFT)
 
-        return _JOIN_WITH_PREVIOUS_TOKEN
+        if token_id == self._join_with_previous_token_id:
+            return _JOIN_WITH_PREVIOUS_TOKEN
+
+        return _START_TOKEN
 
     def encode(self, tokens: list[Token]) -> list[int]:
         return [self.token_to_id(token) for token in tokens]

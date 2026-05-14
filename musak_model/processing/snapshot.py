@@ -33,6 +33,7 @@ class TokenizerSnapshotField(StrEnum):
 
 
 class SpecialTokenSnapshotField(StrEnum):
+    START = "start"
     BAR = "bar"
     END = "end"
     RIGHT_HAND = "right_hand"
@@ -83,6 +84,7 @@ def build_tokenizer_snapshot(
     tokenization_payload = tokenization_config.model_dump(mode="json")
     duration_fractions = [format_ratio(duration) for duration in duration_vocabulary.all_fractions()]
     special_token_ids = {
+        SpecialTokenSnapshotField.START: token_vocabulary.start_token_id,
         SpecialTokenSnapshotField.BAR: token_vocabulary.bar_token_id,
         SpecialTokenSnapshotField.END: token_vocabulary.end_token_id,
         SpecialTokenSnapshotField.RIGHT_HAND: token_vocabulary.right_hand_token_id,

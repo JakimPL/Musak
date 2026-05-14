@@ -2,11 +2,20 @@ from __future__ import annotations
 
 from fractions import Fraction
 
-from musak_model.data.schema import ParsedBar, ParsedChord, ParsedEvent, ParsedNote, ParsedScore
+from musak_model.data.schema import ParsedBar, ParsedChord, ParsedEvent, ParsedNote, ParsedRest, ParsedScore
 
 
 def clean_parsed_score(score: ParsedScore) -> ParsedScore:
-    return trim_silent_edge_bars(deduplicate_simultaneous_pitches(score))
+    return trim_silent_edge_bars(deduplicate_simultaneous_pitches(truncate_overlapping_events(score)))
+
+
+def truncate_overlapping_events(score: ParsedScore) -> ParsedScore:
+    return score.model_copy(
+        update={
+            "right_hand_bars": [_truncate_bar_overlaps(bar) for bar in score.right_hand_bars],
+            "left_hand_bars": [_truncate_bar_overlaps(bar) for bar in score.left_hand_bars],
+        }
+    )
 
 
 def deduplicate_simultaneous_pitches(score: ParsedScore) -> ParsedScore:
@@ -73,6 +82,49 @@ def _deduplicate_bar(bar: ParsedBar) -> ParsedBar:
         return bar
 
     return bar.model_copy(update={"events": events})
+
+
+def _truncate_bar_overlaps(bar: ParsedBar) -> ParsedBar:
+    events = sorted(bar.events, key=_event_sort_key)
+    offsets = sorted({event.beat_offset for event in events})
+    next_offsets = {offset: offsets[index + 1] for index, offset in enumerate(offsets[:-1])}
+    truncated_events: list[ParsedEvent] = []
+
+    for event in events:
+        next_offset = next_offsets.get(event.beat_offset)
+        if next_offset is None or event.beat_offset + event.duration <= next_offset:
+            truncated_events.append(event)
+            continue
+
+        duration = next_offset - event.beat_offset
+        if duration > 0:
+            truncated_events.append(_with_duration(event, duration))
+
+    if truncated_events == bar.events:
+        return bar
+
+    return bar.model_copy(update={"events": truncated_events})
+
+
+def _with_duration(event: ParsedEvent, duration: Fraction) -> ParsedEvent:
+    if isinstance(event, ParsedNote | ParsedRest | ParsedChord):
+        return event.model_copy(update={"duration": duration})
+
+    raise TypeError(f"unsupported parsed event: {type(event).__name__}")
+
+
+def _event_sort_key(event: ParsedEvent) -> tuple[Fraction, int]:
+    return event.beat_offset, _lowest_pitch(event)
+
+
+def _lowest_pitch(event: ParsedEvent) -> int:
+    if isinstance(event, ParsedNote):
+        return event.midi_pitch
+
+    if isinstance(event, ParsedChord):
+        return min(event.midi_pitches)
+
+    return -1
 
 
 def _pitched_event_from_group(

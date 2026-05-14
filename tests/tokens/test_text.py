@@ -13,6 +13,7 @@ from musak_model.tokens.schema import (
     JoinWithPreviousToken,
     NoteToken,
     RestToken,
+    StartToken,
     Token,
 )
 from musak_model.tokens.text import (
@@ -167,6 +168,11 @@ class TestTokenTextDisplay:
             expected_text="|",
         ),
         TokenDisplayCase(
+            name="start",
+            token_factory=lambda vocabulary: StartToken(),
+            expected_text="BOS",
+        ),
+        TokenDisplayCase(
             name="end",
             token_factory=lambda vocabulary: EndToken(),
             expected_text="‖",
@@ -284,6 +290,11 @@ class TestTokenTextParsing:
             name="bar",
             text="|",
             expected_factory=lambda vocabulary: BarToken(),
+        ),
+        TokenParseCase(
+            name="start",
+            text="BOS",
+            expected_factory=lambda vocabulary: StartToken(),
         ),
         TokenParseCase(
             name="end",
