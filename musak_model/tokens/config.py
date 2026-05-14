@@ -30,8 +30,9 @@ class TokenizationConfig(BaseModel):
     @field_validator("max_tuplets")
     @classmethod
     def _validate_max_tuplets(cls, value: tuple[int, ...]) -> tuple[int, ...]:
-        if not all(t > 1 for t in value):
+        if not all(tuplet > 1 for tuplet in value):
             raise ValueError("all tuplet divisors must be > 1")
+
         return value
 
     @property

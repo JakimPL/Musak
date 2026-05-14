@@ -3,8 +3,8 @@ from pathlib import Path
 
 import pytest
 
+from musak_model.common.elements import DOTTED_LIKE_DURATIONS
 from musak_model.data.labeler import (
-    DOTTED_LIKE_DURATIONS,
     _has_accidentals,
     _has_dotted_notes,
     _has_note_duration_in,
@@ -151,7 +151,7 @@ class TestNotesPerBeat:
         score = ParsedScore(
             key_root=0,
             key_fifths=0,
-            mode="major",
+            scale_type=ScaleType.MAJOR,
             time_numerator=4,
             time_denominator=4,
             right_hand_bars=bars,
@@ -177,7 +177,7 @@ class TestNotesPerBeat:
         score = ParsedScore(
             key_root=0,
             key_fifths=0,
-            mode="major",
+            scale_type=ScaleType.MAJOR,
             time_numerator=4,
             time_denominator=4,
             right_hand_bars=bars,
@@ -282,7 +282,7 @@ class TestHasAccidentals:
         score = ParsedScore(
             key_root=0,
             key_fifths=0,
-            mode="major",
+            scale_type=ScaleType.MAJOR,
             time_numerator=4,
             time_denominator=4,
             right_hand_bars=bars,
@@ -306,7 +306,7 @@ class TestHasAccidentals:
         score = ParsedScore(
             key_root=0,
             key_fifths=0,
-            mode="major",
+            scale_type=ScaleType.MAJOR,
             time_numerator=4,
             time_denominator=4,
             right_hand_bars=bars,
@@ -394,7 +394,7 @@ class TestExtractDifficultyFeaturesIntegration:
         score = ParsedScore(
             key_root=0,
             key_fifths=0,
-            mode="major",
+            scale_type=ScaleType.MAJOR,
             time_numerator=4,
             time_denominator=4,
             right_hand_bars=[

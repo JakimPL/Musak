@@ -2,6 +2,8 @@ from fractions import Fraction
 from pathlib import Path
 from typing import NamedTuple
 
+from pydantic import ValidationError
+
 from musak_model.data.config import SegmentationConfig
 from musak_model.data.converter import pitch_to_degree
 from musak_model.data.quantizer import quantize_duration_to_id
@@ -32,6 +34,7 @@ from musak_model.tokens.schema import (
 _BAR_TOKEN: BarToken = BarToken()
 _END_TOKEN: EndToken = EndToken()
 _JOIN_WITH_PREVIOUS_TOKEN: JoinWithPreviousToken = JoinWithPreviousToken()
+_TOKENIZATION_ERRORS: tuple[type[Exception], ...] = (ValueError, ValidationError)
 
 
 class _TimedTokenGroup(NamedTuple):
@@ -39,6 +42,11 @@ class _TimedTokenGroup(NamedTuple):
     offset: Fraction
     hand: Hand
     tokens: list[Token]
+
+
+class _BarTokenization(NamedTuple):
+    tokens: list[Token]
+    ineligibility_reasons: frozenset[SegmentIneligibilityReason] = frozenset()
 
 
 def segment_score(
@@ -50,21 +58,21 @@ def segment_score(
     segmentation: SegmentationConfig,
     difficulty_level: int | None = None,
 ) -> list[Segment]:
-    right_hand_tokens = _tokenize_hand(
+    right_hand_tokens = _tokenize_hand_safely(
         score.right_hand_bars,
         score=score,
         hand=Hand.RIGHT,
         scale_type=scale_type,
         duration_vocabulary=duration_vocabulary,
     )
-    left_hand_tokens = _tokenize_hand(
+    left_hand_tokens = _tokenize_hand_safely(
         score.left_hand_bars,
         score=score,
         hand=Hand.LEFT,
         scale_type=scale_type,
         duration_vocabulary=duration_vocabulary,
     )
-    unified_tokens = _tokenize_unified_stream(
+    unified_tokens = _tokenize_unified_stream_safely(
         score=score,
         scale_type=scale_type,
         duration_vocabulary=duration_vocabulary,
@@ -80,6 +88,40 @@ def segment_score(
         segmentation=segmentation,
         difficulty_level=difficulty_level,
     )
+
+
+def _tokenize_hand_safely(
+    bars: list[ParsedBar],
+    *,
+    score: ParsedScore,
+    hand: Hand,
+    scale_type: ScaleType,
+    duration_vocabulary: DurationVocabulary,
+) -> list[_BarTokenization]:
+    tokenized_bars: list[_BarTokenization] = []
+    for index, bar in enumerate(bars):
+        try:
+            tokens = _tokens_from_bar_groups(
+                _normalize_bar_events(
+                    bar=bar,
+                    bar_index=index,
+                    hand=hand,
+                    score=score,
+                    scale_type=scale_type,
+                    duration_vocabulary=duration_vocabulary,
+                    measure_duration=_bar_measure_duration(bar),
+                )
+            )
+            tokenized_bars.append(_BarTokenization(tokens=tokens))
+        except _TOKENIZATION_ERRORS:
+            tokenized_bars.append(
+                _BarTokenization(
+                    tokens=[],
+                    ineligibility_reasons=frozenset({SegmentIneligibilityReason.TOKENIZATION_ERROR}),
+                )
+            )
+
+    return tokenized_bars
 
 
 def _tokenize_hand(
@@ -104,6 +146,47 @@ def _tokenize_hand(
         )
         for index, bar in enumerate(bars)
     ]
+
+
+def _tokenize_unified_stream_safely(
+    *,
+    score: ParsedScore,
+    scale_type: ScaleType,
+    duration_vocabulary: DurationVocabulary,
+) -> list[_BarTokenization]:
+    total_bars = min(len(score.right_hand_bars), len(score.left_hand_bars))
+    tokenized_bars: list[_BarTokenization] = []
+
+    for bar_index in range(total_bars):
+        try:
+            right_groups = _normalize_bar_events(
+                bar=score.right_hand_bars[bar_index],
+                bar_index=bar_index,
+                hand=Hand.RIGHT,
+                score=score,
+                scale_type=scale_type,
+                duration_vocabulary=duration_vocabulary,
+                measure_duration=_bar_measure_duration(score.right_hand_bars[bar_index]),
+            )
+            left_groups = _normalize_bar_events(
+                bar=score.left_hand_bars[bar_index],
+                bar_index=bar_index,
+                hand=Hand.LEFT,
+                score=score,
+                scale_type=scale_type,
+                duration_vocabulary=duration_vocabulary,
+                measure_duration=_bar_measure_duration(score.left_hand_bars[bar_index]),
+            )
+            tokenized_bars.append(_BarTokenization(tokens=_merge_hand_groups(right_groups + left_groups)))
+        except _TOKENIZATION_ERRORS:
+            tokenized_bars.append(
+                _BarTokenization(
+                    tokens=[],
+                    ineligibility_reasons=frozenset({SegmentIneligibilityReason.TOKENIZATION_ERROR}),
+                )
+            )
+
+    return tokenized_bars
 
 
 def _tokenize_unified_stream(
@@ -376,9 +459,9 @@ def _chord_to_tokens(
 
 
 def _create_windows(
-    right_hand_tokens: list[list[Token]],
-    left_hand_tokens: list[list[Token]],
-    unified_tokens: list[list[Token]],
+    right_hand_tokens: list[_BarTokenization],
+    left_hand_tokens: list[_BarTokenization],
+    unified_tokens: list[_BarTokenization],
     score: ParsedScore,
     source_file: Path,
     *,
@@ -391,14 +474,22 @@ def _create_windows(
 
     for start in range(0, total_bars - segmentation.window_bars + 1, segmentation.stride_bars):
         end = start + segmentation.window_bars
-        right_window = _flatten_bars(right_hand_tokens[start:end])
-        left_window = _flatten_bars(left_hand_tokens[start:end])
-        unified_window = _flatten_bars(unified_tokens[start:end])
+        right_window_bars = right_hand_tokens[start:end]
+        left_window_bars = left_hand_tokens[start:end]
+        unified_window_bars = unified_tokens[start:end]
+        right_window = _flatten_bars([bar.tokens for bar in right_window_bars])
+        left_window = _flatten_bars([bar.tokens for bar in left_window_bars])
+        unified_window = _flatten_bars([bar.tokens for bar in unified_window_bars])
         first_bar = score.right_hand_bars[start]
-        ineligibility_reasons = _segment_ineligibility_reasons(
-            score=score,
-            start=start,
-            end=end,
+        ineligibility_reasons = _merge_ineligibility_reasons(
+            _segment_ineligibility_reasons(
+                score=score,
+                start=start,
+                end=end,
+            ),
+            *(bar.ineligibility_reasons for bar in right_window_bars),
+            *(bar.ineligibility_reasons for bar in left_window_bars),
+            *(bar.ineligibility_reasons for bar in unified_window_bars),
         )
 
         segments.append(
@@ -433,20 +524,26 @@ def _segment_ineligibility_reasons(
     score: ParsedScore,
     start: int,
     end: int,
-) -> tuple[SegmentIneligibilityReason, ...]:
+) -> frozenset[SegmentIneligibilityReason]:
     first_bar = score.right_hand_bars[start]
     first_time_signature = (first_bar.time_numerator, first_bar.time_denominator)
     first_key_fifths = first_bar.key_fifths
-    reasons: list[SegmentIneligibilityReason] = []
+    reasons: set[SegmentIneligibilityReason] = set()
 
     window_bars = score.right_hand_bars[start:end] + score.left_hand_bars[start:end]
     if any((bar.time_numerator, bar.time_denominator) != first_time_signature for bar in window_bars):
-        reasons.append(SegmentIneligibilityReason.MIXED_TIME_SIGNATURE)
+        reasons.add(SegmentIneligibilityReason.MIXED_TIME_SIGNATURE)
 
     if any(bar.key_fifths != first_key_fifths for bar in window_bars):
-        reasons.append(SegmentIneligibilityReason.KEY_SIGNATURE_CHANGE)
+        reasons.add(SegmentIneligibilityReason.KEY_SIGNATURE_CHANGE)
 
-    return tuple(reasons)
+    return frozenset(reasons)
+
+
+def _merge_ineligibility_reasons(
+    *reason_groups: frozenset[SegmentIneligibilityReason],
+) -> frozenset[SegmentIneligibilityReason]:
+    return frozenset().union(*reason_groups)
 
 
 def _flatten_bars(bar_token_lists: list[list[Token]]) -> list[Token]:

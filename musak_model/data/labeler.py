@@ -1,5 +1,6 @@
 from fractions import Fraction
 
+from musak_model.common.elements import DOTTED_LIKE_DURATIONS
 from musak_model.data.converter import pitch_to_degree
 from musak_model.data.schema import (
     DifficultyFeatures,
@@ -15,16 +16,6 @@ from musak_model.tokens.schema import (
     NoteToken,
     ScaleType,
     Token,
-)
-
-DOTTED_LIKE_DURATIONS: frozenset[Fraction] = frozenset(
-    {
-        Fraction(3, 4),
-        Fraction(3, 8),
-        Fraction(3, 16),
-        Fraction(3, 32),
-        Fraction(3, 64),
-    }
 )
 
 
@@ -156,7 +147,11 @@ def _has_accidentals(
 
 
 def _has_dotted_notes(segment: Segment, *, duration_vocabulary: DurationVocabulary) -> bool:
-    return _has_note_duration_in(segment, duration_vocabulary=duration_vocabulary, durations=DOTTED_LIKE_DURATIONS)
+    return _has_note_duration_in(
+        segment,
+        duration_vocabulary=duration_vocabulary,
+        durations=DOTTED_LIKE_DURATIONS,
+    )
 
 
 def _has_note_duration_in(

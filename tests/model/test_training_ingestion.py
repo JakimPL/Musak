@@ -48,7 +48,7 @@ def _ineligible_segment(source_file: Path) -> Segment:
     metadata = segment.metadata.model_copy(
         update={
             "eligible_for_training": False,
-            "ineligibility_reasons": (SegmentIneligibilityReason.MIXED_TIME_SIGNATURE,),
+            "ineligibility_reasons": frozenset({SegmentIneligibilityReason.MIXED_TIME_SIGNATURE}),
         }
     )
     return segment.model_copy(update={"metadata": metadata})

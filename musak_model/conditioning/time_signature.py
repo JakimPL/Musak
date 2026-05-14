@@ -2,17 +2,19 @@ from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from musak_model.common.validators import is_power_of_two
+
 
 class TimeSignatureVocabularyConfig(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     max_denominator: int = Field(gt=0)
-    relative_numerator_range: int = Field(ge=1)
+    relative_numerator_range: float = Field(gt=1)
 
     @field_validator("max_denominator")
     @classmethod
     def _validate_max_denominator_power_of_two(cls, value: int) -> int:
-        if value & (value - 1) != 0:
+        if not is_power_of_two(value):
             raise ValueError("max_denominator must be a power of 2")
 
         return value
@@ -38,7 +40,7 @@ class TimeSignatureVocabulary:
 
     def id_to_time_signature(self, time_signature_id: int) -> tuple[int, int]:
         if not 0 <= time_signature_id < self.vocab_size:
-            raise ValueError(f"time_signature_id must be in [0, {self.vocab_size - 1}]")
+            raise KeyError(f"time_signature_id must be in [0, {self.vocab_size - 1}]")
 
         return self._time_signatures[time_signature_id]
 
@@ -56,7 +58,7 @@ class TimeSignatureVocabulary:
         return tuple(
             (numerator, denominator)
             for denominator in denominators
-            for numerator in range(1, denominator * config.relative_numerator_range)
+            for numerator in range(1, int(denominator * config.relative_numerator_range))
         )
 
     def __repr__(self) -> str:

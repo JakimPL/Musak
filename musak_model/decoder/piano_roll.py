@@ -2,7 +2,7 @@ from fractions import Fraction
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from musak_model.common.elements import MIDI_OCTAVE_OFFSET, PITCHES_PER_OCTAVE
+from musak_model.common.elements import MIDI_MAX_PITCH, MIDI_OCTAVE_OFFSET, PITCHES_PER_OCTAVE
 from musak_model.data.schema import ParsedChord, ParsedNote, ParsedScore, Segment, SegmentMetadata
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import (
@@ -23,7 +23,7 @@ class PianoRollEvent(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     hand: Hand
-    midi_pitch: int = Field(ge=0, le=127)
+    midi_pitch: int = Field(ge=0, le=MIDI_MAX_PITCH)
     start: Fraction = Field(ge=0)
     duration: Fraction = Field(gt=0)
     token_index: int | None = None

@@ -6,12 +6,11 @@ from music21 import chord, note, stream
 from music21.base import Music21Object
 from music21.meter.base import TimeSignature
 
+from musak_model.common.elements import QUARTER_NOTE_DURATION
 from musak_model.data.schema import Segment
 from musak_model.decoder.piano_roll import PianoRollEvent, segment_to_piano_roll_events
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import Hand
-
-_QUARTER_NOTE_DURATION = Fraction(1, 4)
 
 
 def segment_to_music21_score(
@@ -67,4 +66,4 @@ def _group_events_by_start(events: list[PianoRollEvent]) -> dict[Fraction, list[
 
 
 def _fraction_to_quarter_length(value: Fraction) -> Fraction:
-    return value / _QUARTER_NOTE_DURATION
+    return value / QUARTER_NOTE_DURATION

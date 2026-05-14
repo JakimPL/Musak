@@ -1,6 +1,7 @@
 from fractions import Fraction
 
 from musak_model.data.schema import ParsedBar, ParsedChord, ParsedEvent, ParsedNote, ParsedRest, ParsedScore
+from musak_model.tokens.schema import ScaleType
 
 
 def note_event(*, midi_pitch: int, duration: Fraction, beat_offset: Fraction) -> ParsedNote:
@@ -24,14 +25,14 @@ def parsed_score(
     right_hand_bars: list[ParsedBar],
     left_hand_bars: list[ParsedBar],
     key_root: int = 0,
-    mode: str = "major",
+    scale_type: ScaleType = ScaleType.MAJOR,
     time_numerator: int = 4,
     time_denominator: int = 4,
 ) -> ParsedScore:
     return ParsedScore(
         key_root=key_root,
         key_fifths=0,
-        mode=mode,
+        scale_type=scale_type,
         time_numerator=time_numerator,
         time_denominator=time_denominator,
         right_hand_bars=right_hand_bars,

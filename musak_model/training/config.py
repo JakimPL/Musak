@@ -18,11 +18,15 @@ class TrainingConfig(BaseModel):
     batch_size: int = Field(ge=1)
     learning_rate: float = Field(gt=0)
     weight_decay: float = Field(ge=0)
+
     num_workers: int = Field(ge=0)
+    device: str = "cpu"
+
+    use_conditioning: bool = False
+
     checkpoint_dir: Path
     resume_checkpoint: Path | None = None
-    device: str = "cpu"
-    use_conditioning: bool = False
+
     enable_mlflow: bool = True
     mlflow_experiment_name: str = "musak-stage-one"
     mlflow_run_name: str | None = None

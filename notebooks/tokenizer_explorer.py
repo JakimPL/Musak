@@ -11,7 +11,8 @@ def _():
     import altair as alt
     import marimo as mo
 
-    from musak_model.tokens.vocabulary import VOCAB_SIZE
+    from musak_model.common.elements import MIDI_MAX_PITCH
+    from musak_model.tokens.vocabulary import build_default_token_vocabulary
     from notebooks.utils import (
         PitchSpelling,
         default_duration_vocabulary,
@@ -24,10 +25,11 @@ def _():
     )
 
     return (
+        MIDI_MAX_PITCH,
         Path,
         PitchSpelling,
-        VOCAB_SIZE,
         alt,
+        build_default_token_vocabulary,
         default_duration_vocabulary,
         mo,
         parsed_score_piano_roll_dataframe,
@@ -40,11 +42,12 @@ def _():
 
 
 @app.cell
-def _(VOCAB_SIZE, mo):
+def _(build_default_token_vocabulary, mo):
+    vocab_size = build_default_token_vocabulary().vocab_size
     title_output = mo.md(f"""
     # Tokenizer Explorer
 
-    **Vocabulary size:** {VOCAB_SIZE}
+    **Vocabulary size:** {vocab_size}
     """)
     title_output
     return
@@ -80,7 +83,13 @@ def _(initial_browser_path, mo):
         gap=2,
     )
     browser_output
-    return bpm_slider, file_browser, prefer_flats_checkbox, stride_slider, window_slider
+    return (
+        bpm_slider,
+        file_browser,
+        prefer_flats_checkbox,
+        stride_slider,
+        window_slider,
+    )
 
 
 @app.cell
@@ -92,6 +101,7 @@ def _(file_browser, selected_musicxml_file):
 
 @app.cell
 def _(mo, selected_file):
+    selection_output = None
     if selected_file.path is None:
         selection_output = mo.vstack(
             [
@@ -100,8 +110,7 @@ def _(mo, selected_file):
             ],
             gap=1,
         )
-    else:
-        selection_output = mo.callout(f"Selected file: `{selected_file.path}`", kind="neutral")
+
     selection_output
     return
 
@@ -193,7 +202,7 @@ def _(mo, segment):
             {"Property": "Eligible for training", "Value": str(segment.metadata.eligible_for_training)},
             {
                 "Property": "Ineligibility reasons",
-                "Value": ", ".join(segment.metadata.ineligibility_reasons) or "-",
+                "Value": ", ".join(sorted(reason.value for reason in segment.metadata.ineligibility_reasons)) or "-",
             },
         ]
         if features is not None:
@@ -226,6 +235,7 @@ def _(duration_vocabulary, mo, segment, token_rows):
 
 @app.cell
 def _(
+    MIDI_MAX_PITCH,
     PitchSpelling,
     alt,
     bpm_slider,
@@ -278,7 +288,7 @@ def _(
         pitch_label_expression = f"{pitch_names}[datum.value % 12] + floor(datum.value / 12 - 1)"
         y_domain = [
             max(0, float(piano_roll_df["midi_pitch"].min()) - 1),
-            min(127, float(piano_roll_df["midi_pitch"].max()) + 1),
+            min(MIDI_MAX_PITCH, float(piano_roll_df["midi_pitch"].max()) + 1),
         ]
         note_bars = (
             alt.Chart(piano_roll_df)

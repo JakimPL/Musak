@@ -112,7 +112,7 @@ def test_parsed_score_to_piano_roll_events_does_not_require_tokenized_segment() 
     score = ParsedScore(
         key_root=0,
         key_fifths=0,
-        mode="major",
+        scale_type=ScaleType.MAJOR,
         time_numerator=4,
         time_denominator=4,
         right_hand_bars=[

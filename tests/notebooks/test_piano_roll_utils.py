@@ -64,7 +64,7 @@ def test_parsed_score_piano_roll_dataframe_uses_pitch_spelling_without_token_fie
     score = ParsedScore(
         key_root=0,
         key_fifths=0,
-        mode="major",
+        scale_type=ScaleType.MAJOR,
         time_numerator=4,
         time_denominator=4,
         right_hand_bars=[

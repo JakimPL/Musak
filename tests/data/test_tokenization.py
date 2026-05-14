@@ -19,7 +19,7 @@ def _parsed_score() -> ParsedScore:
     return ParsedScore(
         key_root=0,
         key_fifths=0,
-        mode="major",
+        scale_type=ScaleType.MAJOR,
         time_numerator=4,
         time_denominator=4,
         right_hand_bars=[],
@@ -107,7 +107,7 @@ class TestNoteToToken:
             score=ParsedScore(
                 key_root=9,
                 key_fifths=0,
-                mode="minor",
+                scale_type=ScaleType.HARMONIC_MINOR,
                 time_numerator=4,
                 time_denominator=4,
                 right_hand_bars=[],
@@ -214,7 +214,7 @@ def test_unified_stream_adds_join_suffixes_for_chord_notes() -> None:
     score = ParsedScore(
         key_root=0,
         key_fifths=0,
-        mode="major",
+        scale_type=ScaleType.MAJOR,
         time_numerator=4,
         time_denominator=4,
         right_hand_bars=[
@@ -243,7 +243,7 @@ def test_unified_stream_rejects_overlapping_non_chord_notes() -> None:
     score = ParsedScore(
         key_root=0,
         key_fifths=0,
-        mode="major",
+        scale_type=ScaleType.MAJOR,
         time_numerator=4,
         time_denominator=4,
         right_hand_bars=[
@@ -270,7 +270,7 @@ class TestTokenizationWithDifferentKeys:
         score = ParsedScore(
             key_root=0,  # C
             key_fifths=0,
-            mode="major",
+            scale_type=ScaleType.MAJOR,
             time_numerator=4,
             time_denominator=4,
             right_hand_bars=[],

@@ -1,19 +1,15 @@
 from pathlib import Path
 
+from pydantic import ValidationError
+
 from musak_model.common.files import collect_musicxml_files
 from musak_model.data.config import SegmentationConfig
 from musak_model.data.labeler import extract_difficulty_features
 from musak_model.data.parser import parse_score
-from musak_model.data.schema import ParsedScore, Segment
+from musak_model.data.schema import ParsedScore, Segment, SegmentIneligibilityReason
 from musak_model.data.segmenter import segment_score
 from musak_model.tokens.config import TokenizationConfig
 from musak_model.tokens.duration import DurationVocabulary
-from musak_model.tokens.schema import ScaleType
-
-_MODE_TO_SCALE_TYPE: dict[str, ScaleType] = {
-    "major": ScaleType.MAJOR,
-    "minor": ScaleType.HARMONIC_MINOR,
-}
 
 
 def process_directory(
@@ -63,13 +59,12 @@ def segment_parsed_score(
     duration_vocabulary: DurationVocabulary | None = None,
 ) -> list[Segment]:
     resolved_duration_vocabulary = duration_vocabulary or DurationVocabulary(TokenizationConfig.load())
-    scale_type = _resolve_scale_type(score.mode)
     difficulty_level = _resolve_difficulty_level(source_file, difficulty_labels=difficulty_labels)
 
     segments = segment_score(
         score,
         source_file,
-        scale_type=scale_type,
+        scale_type=score.scale_type,
         duration_vocabulary=resolved_duration_vocabulary,
         segmentation=segmentation,
         difficulty_level=difficulty_level,
@@ -91,22 +86,37 @@ def _attach_difficulty_features(
     score: ParsedScore,
     duration_vocabulary: DurationVocabulary,
 ) -> Segment:
-    features = extract_difficulty_features(
-        segment,
-        score=score,
-        scale_type=segment.scale_type,
-        duration_vocabulary=duration_vocabulary,
-    )
+    if not segment.metadata.eligible_for_training:
+        return segment
+
+    try:
+        features = extract_difficulty_features(
+            segment,
+            score=score,
+            scale_type=segment.scale_type,
+            duration_vocabulary=duration_vocabulary,
+        )
+    except (ValueError, ValidationError):
+        metadata = segment.metadata.model_copy(
+            update={
+                "eligible_for_training": False,
+                "ineligibility_reasons": _append_ineligibility_reason(
+                    segment.metadata.ineligibility_reasons,
+                    SegmentIneligibilityReason.TOKENIZATION_ERROR,
+                ),
+            }
+        )
+        return segment.model_copy(update={"metadata": metadata})
+
     metadata = segment.metadata.model_copy(update={"difficulty_features": features})
     return segment.model_copy(update={"metadata": metadata})
 
 
-def _resolve_scale_type(mode: str) -> ScaleType:
-    scale_type = _MODE_TO_SCALE_TYPE.get(mode)
-    if scale_type is None:
-        raise ValueError(f"unsupported mode '{mode}'; extend _MODE_TO_SCALE_TYPE or pass scale_type explicitly")
-
-    return scale_type
+def _append_ineligibility_reason(
+    reasons: frozenset[SegmentIneligibilityReason],
+    reason: SegmentIneligibilityReason,
+) -> frozenset[SegmentIneligibilityReason]:
+    return reasons | {reason}
 
 
 def _resolve_difficulty_level(

@@ -172,12 +172,6 @@ def build_default_token_vocabulary() -> TokenVocabulary:
     return TokenVocabulary(duration_vocabulary)
 
 
-_DEFAULT_TOKEN_VOCABULARY: Final[TokenVocabulary] = build_default_token_vocabulary()
-VOCAB_SIZE: Final[int] = _DEFAULT_TOKEN_VOCABULARY.vocab_size
-BAR_TOKEN_ID: Final[int] = _DEFAULT_TOKEN_VOCABULARY.bar_token_id
-END_TOKEN_ID: Final[int] = _DEFAULT_TOKEN_VOCABULARY.end_token_id
-
-
 def token_to_id(token: Token, *, vocabulary: TokenVocabulary) -> int:
     return vocabulary.token_to_id(token)
 

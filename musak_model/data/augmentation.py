@@ -20,14 +20,27 @@ def shift_register(
 ) -> Segment:
     shifted_right = _shift_tokens(segment.right_hand_tokens, offset=offset)
     shifted_left = _shift_tokens(segment.left_hand_tokens, offset=offset)
-    return segment.model_copy(update={"right_hand_tokens": shifted_right, "left_hand_tokens": shifted_left})
+    return segment.model_copy(
+        update={
+            "right_hand_tokens": shifted_right,
+            "left_hand_tokens": shifted_left,
+        }
+    )
 
 
-def halve_durations(segment: Segment, *, duration_vocabulary: DurationVocabulary) -> Segment:
+def halve_durations(
+    segment: Segment,
+    *,
+    duration_vocabulary: DurationVocabulary,
+) -> Segment:
     return _remap_durations(segment, duration_vocabulary=duration_vocabulary, factor=Fraction(1, 2))
 
 
-def double_durations(segment: Segment, *, duration_vocabulary: DurationVocabulary) -> Segment:
+def double_durations(
+    segment: Segment,
+    *,
+    duration_vocabulary: DurationVocabulary,
+) -> Segment:
     return _remap_durations(segment, duration_vocabulary=duration_vocabulary, factor=Fraction(2, 1))
 
 
@@ -76,7 +89,12 @@ def _remap_durations(
         duration_vocabulary=duration_vocabulary,
         factor=factor,
     )
-    return segment.model_copy(update={"right_hand_tokens": remapped_right, "left_hand_tokens": remapped_left})
+    return segment.model_copy(
+        update={
+            "right_hand_tokens": remapped_right,
+            "left_hand_tokens": remapped_left,
+        }
+    )
 
 
 def _remap_tokens(

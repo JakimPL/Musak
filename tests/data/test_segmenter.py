@@ -1,7 +1,8 @@
+from fractions import Fraction
 from pathlib import Path
 
 from musak_model.data.config import SegmentationConfig
-from musak_model.data.schema import ParsedBar, ParsedScore, SegmentIneligibilityReason
+from musak_model.data.schema import ParsedBar, ParsedNote, ParsedScore, SegmentIneligibilityReason
 from musak_model.data.segmenter import segment_score
 from musak_model.tokens.config import TokenizationConfig
 from musak_model.tokens.duration import DurationVocabulary
@@ -21,7 +22,7 @@ def _score(*, bars: list[ParsedBar]) -> ParsedScore:
     return ParsedScore(
         key_root=0,
         key_fifths=0,
-        mode="major",
+        scale_type=ScaleType.MAJOR,
         time_numerator=bars[0].time_numerator,
         time_denominator=bars[0].time_denominator,
         right_hand_bars=bars,
@@ -57,7 +58,7 @@ def test_segment_crossing_time_signature_change_is_not_training_eligible() -> No
 
     assert len(segments) == 1
     assert segments[0].metadata.eligible_for_training is False
-    assert segments[0].metadata.ineligibility_reasons == (SegmentIneligibilityReason.MIXED_TIME_SIGNATURE,)
+    assert segments[0].metadata.ineligibility_reasons == {SegmentIneligibilityReason.MIXED_TIME_SIGNATURE}
 
 
 def test_segment_crossing_key_signature_change_is_not_training_eligible() -> None:
@@ -71,4 +72,33 @@ def test_segment_crossing_key_signature_change_is_not_training_eligible() -> Non
 
     assert len(segments) == 1
     assert segments[0].metadata.eligible_for_training is False
-    assert segments[0].metadata.ineligibility_reasons == (SegmentIneligibilityReason.KEY_SIGNATURE_CHANGE,)
+    assert segments[0].metadata.ineligibility_reasons == {SegmentIneligibilityReason.KEY_SIGNATURE_CHANGE}
+
+
+def test_tokenization_error_marks_only_affected_segments_ineligible() -> None:
+    bad_register_bar = ParsedBar(
+        time_numerator=4,
+        time_denominator=4,
+        key_fifths=0,
+        events=[ParsedNote(midi_pitch=24, duration=Fraction(1, 4), beat_offset=Fraction(0))],
+    )
+    score = ParsedScore(
+        key_root=0,
+        key_fifths=0,
+        scale_type=ScaleType.MAJOR,
+        time_numerator=4,
+        time_denominator=4,
+        right_hand_bars=[_bar(), bad_register_bar, _bar()],
+        left_hand_bars=[_bar(), _bar(), _bar()],
+    )
+
+    segments = segment_score(
+        score,
+        Path("piece.mxl"),
+        scale_type=ScaleType.MAJOR,
+        duration_vocabulary=_duration_vocabulary(),
+        segmentation=SegmentationConfig(window_bars=1, stride_bars=1),
+    )
+
+    assert [segment.metadata.eligible_for_training for segment in segments] == [True, False, True]
+    assert segments[1].metadata.ineligibility_reasons == {SegmentIneligibilityReason.TOKENIZATION_ERROR}

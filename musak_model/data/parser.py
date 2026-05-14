@@ -17,12 +17,15 @@ from musak_model.data.schema import (
     ParsedRest,
     ParsedScore,
 )
+from musak_model.tokens.schema import ScaleType
 
 _QUARTER_NOTE_FRACTION: Final[Fraction] = Fraction(1, 4)
 _TRIPLET_DENOMINATOR_LIMIT: Final[int] = 12
 
 _TREBLE_PART_INDEX: Final[int] = 0
 _BASS_PART_INDEX: Final[int] = 1
+_DEFAULT_KEY_FIFTHS: Final[int] = 0
+_DEFAULT_SCALE_TYPE: Final[ScaleType] = ScaleType.MAJOR
 
 
 def parse_score(path: Path) -> ParsedScore:
@@ -30,7 +33,7 @@ def parse_score(path: Path) -> ParsedScore:
     if not isinstance(raw, Score):
         raise ValueError(f"expected a Score, got {type(raw).__name__}")
 
-    key_root, key_fifths, mode = _detect_key(raw)
+    key_root, key_fifths, scale_type = _detect_key(raw)
     time_numerator, time_denominator = _detect_time_signature(raw)
     right_hand_bars, left_hand_bars = _extract_hands(
         raw,
@@ -41,7 +44,7 @@ def parse_score(path: Path) -> ParsedScore:
     return ParsedScore(
         key_root=key_root,
         key_fifths=key_fifths,
-        mode=mode,
+        scale_type=scale_type,
         time_numerator=time_numerator,
         time_denominator=time_denominator,
         right_hand_bars=right_hand_bars,
@@ -49,19 +52,47 @@ def parse_score(path: Path) -> ParsedScore:
     )
 
 
-def _detect_key(score: object) -> tuple[int, int, str]:
+def _detect_key(score: object) -> tuple[int, int, ScaleType]:
     if not isinstance(score, Score):
         raise TypeError(f"expected Score, got {type(score).__name__}")
 
-    key_signature = score.analyze("key")
-    if not isinstance(key_signature, m21_key.Key):
-        raise ValueError(f"unexpected key analysis result: {type(key_signature)}")
+    key_signature = _first_score_key_signature(score)
+    if key_signature is None:
+        key_fifths = _DEFAULT_KEY_FIFTHS
+        scale_type = _DEFAULT_SCALE_TYPE
+    else:
+        key_fifths = int(key_signature.sharps)
+        scale_type = _key_signature_scale_type(key_signature)
 
-    tonic = key_signature.tonic
-    if tonic is None:
-        raise ValueError("key signature has no tonic")
+    key_root = _key_root_from_fifths(key_fifths, scale_type=scale_type)
+    return key_root, key_fifths, scale_type
 
-    return tonic.midi % PITCHES_PER_OCTAVE, key_signature.sharps, key_signature.mode
+
+def _first_score_key_signature(score: Score) -> m21_key.KeySignature | None:
+    key_signatures = list(score.recurse().getElementsByClass(m21_key.KeySignature))
+    if not key_signatures:
+        return None
+
+    return key_signatures[0]
+
+
+def _key_signature_scale_type(key_signature: m21_key.KeySignature) -> ScaleType:
+    mode = getattr(key_signature, "mode", None)
+    if mode == "minor":
+        return ScaleType.HARMONIC_MINOR
+
+    return ScaleType.MAJOR
+
+
+def _key_root_from_fifths(key_fifths: int, *, scale_type: ScaleType) -> int:
+    major_tonic = (key_fifths * 7) % PITCHES_PER_OCTAVE
+    if scale_type == ScaleType.MAJOR:
+        return major_tonic
+
+    if scale_type == ScaleType.HARMONIC_MINOR:
+        return (major_tonic + 9) % PITCHES_PER_OCTAVE
+
+    raise ValueError(f"unsupported key signature scale type: {scale_type.value}")
 
 
 def _detect_time_signature(score: object) -> tuple[int, int]:

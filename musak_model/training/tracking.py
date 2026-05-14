@@ -4,7 +4,7 @@ import importlib
 import os
 from pathlib import Path
 from types import TracebackType
-from typing import Protocol, Self
+from typing import Final, Protocol, Self
 
 from pydantic import BaseModel
 
@@ -12,8 +12,8 @@ from musak_model.model.config import ModelConfig
 from musak_model.training.config import TrainingConfig
 from musak_model.training.ingestion.schema import IngestionErrorRecord, IngestionSplit
 
-_MLFLOW_TRACKING_URI_ENV = "MLFLOW_TRACKING_URI"
-_DEFAULT_MLFLOW_DIR = "mlruns"
+_MLFLOW_TRACKING_URI_ENV: Final[str] = "MLFLOW_TRACKING_URI"
+_DEFAULT_MLFLOW_DIR: Final[str] = "mlruns"
 
 
 class TrainingTracker(Protocol):
@@ -62,18 +62,38 @@ class NoOpTrainingTracker:
     ) -> None:
         return None
 
-    def log_epoch(self, *, epoch: int, train_loss: float, validation_loss: float | None) -> None:
+    def log_epoch(
+        self,
+        *,
+        epoch: int,
+        train_loss: float,
+        validation_loss: float | None,
+    ) -> None:
         return None
 
-    def log_checkpoints(self, *, latest_checkpoint_path: Path | None, best_checkpoint_path: Path | None) -> None:
+    def log_checkpoints(
+        self,
+        *,
+        latest_checkpoint_path: Path | None,
+        best_checkpoint_path: Path | None,
+    ) -> None:
         return None
 
-    def log_invalid_files(self, *, invalid_files: list[IngestionErrorRecord]) -> None:
+    def log_invalid_files(
+        self,
+        *,
+        invalid_files: list[IngestionErrorRecord],
+    ) -> None:
         return None
 
 
 class MlflowTrainingTracker:
-    def __init__(self, *, training_config: TrainingConfig, tracking_root: Path | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        training_config: TrainingConfig,
+        tracking_root: Path | None = None,
+    ) -> None:
         self._training_config = training_config
         self._tracking_root = tracking_root or Path.cwd()
         self._mlflow = importlib.import_module("mlflow")
@@ -117,12 +137,23 @@ class MlflowTrainingTracker:
         )
         self._mlflow.log_params(params)
 
-    def log_epoch(self, *, epoch: int, train_loss: float, validation_loss: float | None) -> None:
+    def log_epoch(
+        self,
+        *,
+        epoch: int,
+        train_loss: float,
+        validation_loss: float | None,
+    ) -> None:
         self._mlflow.log_metric("train_loss", train_loss, step=epoch)
         if validation_loss is not None:
             self._mlflow.log_metric("validation_loss", validation_loss, step=epoch)
 
-    def log_checkpoints(self, *, latest_checkpoint_path: Path | None, best_checkpoint_path: Path | None) -> None:
+    def log_checkpoints(
+        self,
+        *,
+        latest_checkpoint_path: Path | None,
+        best_checkpoint_path: Path | None,
+    ) -> None:
         if latest_checkpoint_path is not None and latest_checkpoint_path.exists():
             self._mlflow.log_artifact(str(latest_checkpoint_path), artifact_path="checkpoints")
 
@@ -148,7 +179,11 @@ def build_training_tracker(
     return MlflowTrainingTracker(training_config=training_config, tracking_root=tracking_root)
 
 
-def _resolve_tracking_uri(*, configured_uri: str | None, tracking_root: Path) -> str:
+def _resolve_tracking_uri(
+    *,
+    configured_uri: str | None,
+    tracking_root: Path,
+) -> str:
     if configured_uri is not None:
         return configured_uri
 

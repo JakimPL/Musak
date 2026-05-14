@@ -17,7 +17,7 @@ def _score(*, right_hand_bars: list[ParsedBar], left_hand_bars: list[ParsedBar])
     return ParsedScore(
         key_root=0,
         key_fifths=0,
-        mode="major",
+        scale_type=ScaleType.MAJOR,
         time_numerator=4,
         time_denominator=4,
         right_hand_bars=right_hand_bars,
