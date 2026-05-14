@@ -36,8 +36,12 @@ class TrainingBatch:
 
 
 class EncodedExerciseDataset(Dataset[TrainingExample]):
-    def __init__(self, samples: list[EncodedExercise]) -> None:
-        self._examples = [_to_training_example(sample) for sample in samples if len(sample.token_ids) >= 2]
+    def __init__(self, samples: list[EncodedExercise], *, include_conditioning: bool = True) -> None:
+        self._examples = [
+            _to_training_example(sample, include_conditioning=include_conditioning)
+            for sample in samples
+            if len(sample.token_ids) >= 2
+        ]
 
     def __len__(self) -> int:
         return len(self._examples)
@@ -52,9 +56,10 @@ def build_dataloaders(
     batch_size: int,
     shuffle_train: bool,
     num_workers: int,
+    include_conditioning: bool = True,
 ) -> tuple[DataLoader[TrainingBatch], DataLoader[TrainingBatch]]:
-    train_dataset = EncodedExerciseDataset(split.train)
-    validation_dataset = EncodedExerciseDataset(split.validation)
+    train_dataset = EncodedExerciseDataset(split.train, include_conditioning=include_conditioning)
+    validation_dataset = EncodedExerciseDataset(split.validation, include_conditioning=include_conditioning)
     train_loader = DataLoader(
         train_dataset,
         batch_size=batch_size,
@@ -104,17 +109,21 @@ def collate_training_examples(examples: list[TrainingExample]) -> TrainingBatch:
     )
 
 
-def _to_training_example(sample: EncodedExercise) -> TrainingExample:
+def _to_training_example(sample: EncodedExercise, *, include_conditioning: bool) -> TrainingExample:
     token_ids = torch.tensor(sample.token_ids, dtype=torch.long)
     bar_positions = torch.tensor(sample.bar_positions, dtype=torch.long)
-    time_signature = (sample.time_numerator, sample.time_denominator)
+    difficulty_id = difficulty_level_to_id(sample.difficulty_level) if include_conditioning else None
+    scale_type_id = scale_type_to_id(sample.scale_type) if include_conditioning else 0
+    time_signature_id = (
+        time_signature_to_id((sample.time_numerator, sample.time_denominator)) if include_conditioning else 0
+    )
     return TrainingExample(
         input_token_ids=token_ids[:-1],
         target_token_ids=token_ids[1:],
         bar_positions=bar_positions[:-1],
-        difficulty_id=difficulty_level_to_id(sample.difficulty_level),
-        scale_type_id=scale_type_to_id(sample.scale_type),
-        time_signature_id=time_signature_to_id(time_signature),
+        difficulty_id=difficulty_id,
+        scale_type_id=scale_type_id,
+        time_signature_id=time_signature_id,
     )
 
 

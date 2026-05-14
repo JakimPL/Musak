@@ -184,6 +184,7 @@ def train_stage_one(
         batch_size=training_config.batch_size,
         shuffle_train=True,
         num_workers=training_config.num_workers,
+        include_conditioning=training_config.use_conditioning,
     )
     vocabulary = build_default_token_vocabulary()
     resolved_model_config = model_config or ModelConfig.load(vocab_size=vocabulary.vocab_size)
