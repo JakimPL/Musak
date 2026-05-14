@@ -3,7 +3,6 @@ __pycache__/
 .mypy_cache/
 .pytest_cache/
 soundfont/
-data/
 
 *.egg-info/
 *.pyc

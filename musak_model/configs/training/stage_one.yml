@@ -1,0 +1,9 @@
+epochs: 10
+batch_size: 8
+learning_rate: 0.0003
+weight_decay: 0.01
+num_workers: 0
+checkpoint_dir: checkpoints/stage_one
+resume_checkpoint: null
+device: cpu
+use_conditioning: false

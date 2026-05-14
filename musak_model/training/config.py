@@ -1,0 +1,30 @@
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Final
+
+from pydantic import BaseModel, ConfigDict, Field
+
+from musak_model.common.files import load_yaml_config
+from musak_model.paths import CONFIGS_DIR
+
+TRAINING_CONFIG_PATH: Final[Path] = CONFIGS_DIR / "training" / "stage_one.yml"
+
+
+class TrainingConfig(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    epochs: int = Field(ge=1)
+    batch_size: int = Field(ge=1)
+    learning_rate: float = Field(gt=0)
+    weight_decay: float = Field(ge=0)
+    num_workers: int = Field(ge=0)
+    checkpoint_dir: Path
+    resume_checkpoint: Path | None = None
+    device: str = "cpu"
+    use_conditioning: bool = False
+
+    @classmethod
+    def load(cls, path: Path = TRAINING_CONFIG_PATH) -> TrainingConfig:
+        parsed = load_yaml_config(path)
+        return cls.model_validate(parsed)

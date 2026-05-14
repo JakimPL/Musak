@@ -1,4 +1,12 @@
+from pathlib import Path
+from typing import Final
+
 from pydantic import BaseModel, ConfigDict, Field
+
+from musak_model.common.files import load_yaml_config
+from musak_model.paths import CONFIGS_DIR
+
+MODEL_CONFIG_DIR: Final[Path] = CONFIGS_DIR / "model"
 
 
 class CNNConfig(BaseModel):
@@ -47,3 +55,13 @@ class ModelConfig(BaseModel):
     gru: GRUConfig
     transformer: TransformerConfig
     conditioning: ConditioningConfig
+
+    @classmethod
+    def load(cls, *, vocab_size: int, config_dir: Path = MODEL_CONFIG_DIR) -> "ModelConfig":
+        return cls(
+            vocab_size=vocab_size,
+            cnn=CNNConfig.model_validate(load_yaml_config(config_dir / "cnn.yml")),
+            gru=GRUConfig.model_validate(load_yaml_config(config_dir / "gru.yml")),
+            transformer=TransformerConfig.model_validate(load_yaml_config(config_dir / "transformer.yml")),
+            conditioning=ConditioningConfig.model_validate(load_yaml_config(config_dir / "conditioning.yml")),
+        )
