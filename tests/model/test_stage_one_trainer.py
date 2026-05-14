@@ -1,5 +1,6 @@
 from pathlib import Path
-from typing import Final
+from types import TracebackType
+from typing import Final, Self
 
 import torch
 from torch.utils.data import DataLoader
@@ -10,11 +11,41 @@ from musak_model.model.config import CNNConfig, ConditioningConfig, GRUConfig, M
 from musak_model.tokens.schema import ScaleType
 from musak_model.training.config import TrainingConfig
 from musak_model.training.dataset import EncodedExerciseDataset, TrainingBatch, collate_training_examples
-from musak_model.training.ingestion.schema import EncodedExercise
+from musak_model.training.ingestion.schema import EncodedExercise, IngestionErrorRecord, IngestionSplit
 from musak_model.training.trainer import StageOneTrainer
 
 VOCAB: Final[int] = 32
 HIDDEN_SIZE: Final[int] = 16
+
+
+class FakeTracker:
+    def __init__(self) -> None:
+        self.epochs: list[int] = []
+        self.checkpoint_logged = False
+        self.invalid_files_logged = False
+
+    def __enter__(self) -> Self:
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
+        return None
+
+    def log_setup(self, *, training_config: TrainingConfig, model_config: ModelConfig, split: IngestionSplit) -> None:
+        return None
+
+    def log_epoch(self, *, epoch: int, train_loss: float, validation_loss: float | None) -> None:
+        self.epochs.append(epoch)
+
+    def log_checkpoints(self, *, latest_checkpoint_path: Path | None, best_checkpoint_path: Path | None) -> None:
+        self.checkpoint_logged = True
+
+    def log_invalid_files(self, *, invalid_files: list[IngestionErrorRecord]) -> None:
+        self.invalid_files_logged = True
 
 
 def _small_model_config() -> ModelConfig:
@@ -96,6 +127,24 @@ def test_trainer_runs_one_epoch_and_writes_checkpoints(tmp_path: Path) -> None:
     assert result.metrics[0].validation_loss is not None
     assert (tmp_path / "latest.pt").exists()
     assert (tmp_path / "best.pt").exists()
+
+
+def test_trainer_logs_to_tracker(tmp_path: Path) -> None:
+    tracker = FakeTracker()
+    model = HierarchicalAutoregressiveModel(_small_model_config())
+    trainer = StageOneTrainer(
+        model=model,
+        config=_training_config(tmp_path),
+        train_loader=_loader(),
+        validation_loader=_loader(),
+        tracker=tracker,
+    )
+
+    trainer.train()
+
+    assert tracker.epochs == [0]
+    assert tracker.checkpoint_logged is True
+    assert tracker.invalid_files_logged is True
 
 
 def test_trainer_resumes_from_checkpoint(tmp_path: Path) -> None:

@@ -30,6 +30,7 @@ dev = [
 model = [
     "altair>=5.0",
     "marimo>=0.23",
+    "mlflow>=3.0",
     "music21>=9.1",
     "numpy>=2.0",
     "pandas>=2.0",

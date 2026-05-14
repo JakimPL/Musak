@@ -23,6 +23,10 @@ class TrainingConfig(BaseModel):
     resume_checkpoint: Path | None = None
     device: str = "cpu"
     use_conditioning: bool = False
+    enable_mlflow: bool = True
+    mlflow_experiment_name: str = "musak-stage-one"
+    mlflow_run_name: str | None = None
+    mlflow_tracking_uri: str | None = None
 
     @classmethod
     def load(cls, path: Path = TRAINING_CONFIG_PATH) -> TrainingConfig:

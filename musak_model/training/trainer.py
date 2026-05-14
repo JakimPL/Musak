@@ -16,6 +16,7 @@ from musak_model.training.dataset import TrainingBatch, build_dataloaders
 from musak_model.training.ingestion.config import IngestionConfig
 from musak_model.training.ingestion.schema import IngestionErrorRecord
 from musak_model.training.ingestion.split import build_split
+from musak_model.training.tracking import NoOpTrainingTracker, TrainingTracker, build_training_tracker
 
 
 class EpochMetrics(BaseModel):
@@ -43,6 +44,7 @@ class StageOneTrainer:
         config: TrainingConfig,
         train_loader: DataLoader[TrainingBatch],
         validation_loader: DataLoader[TrainingBatch],
+        tracker: TrainingTracker | None = None,
     ) -> None:
         self._model = model
         self._config = config
@@ -55,6 +57,7 @@ class StageOneTrainer:
             weight_decay=config.weight_decay,
         )
         self._model.to(self._device)
+        self._tracker = tracker or NoOpTrainingTracker()
 
     def train(self, *, invalid_files: list[IngestionErrorRecord] | None = None) -> TrainingResult:
         if len(self._train_loader) == 0:
@@ -79,6 +82,7 @@ class StageOneTrainer:
             validation_loss = self._validate_epoch()
             metric = EpochMetrics(epoch=epoch, train_loss=train_loss, validation_loss=validation_loss)
             metrics.append(metric)
+            self._tracker.log_epoch(epoch=epoch, train_loss=train_loss, validation_loss=validation_loss)
 
             save_checkpoint(
                 latest_checkpoint_path,
@@ -100,12 +104,18 @@ class StageOneTrainer:
                     best_validation_loss=best_validation_loss,
                 )
 
-        return TrainingResult(
+        result = TrainingResult(
             metrics=metrics,
             best_checkpoint_path=best_checkpoint_path,
             latest_checkpoint_path=latest_checkpoint_path,
             invalid_files=invalid_files or [],
         )
+        self._tracker.log_checkpoints(
+            latest_checkpoint_path=result.latest_checkpoint_path,
+            best_checkpoint_path=result.best_checkpoint_path,
+        )
+        self._tracker.log_invalid_files(invalid_files=result.invalid_files)
+        return result
 
     def _train_epoch(self) -> float:
         self._model.train()
@@ -178,13 +188,21 @@ def train_stage_one(
     vocabulary = build_default_token_vocabulary()
     resolved_model_config = model_config or ModelConfig.load(vocab_size=vocabulary.vocab_size)
     model = HierarchicalAutoregressiveModel(resolved_model_config)
-    trainer = StageOneTrainer(
-        model=model,
-        config=training_config,
-        train_loader=train_loader,
-        validation_loader=validation_loader,
-    )
-    return trainer.train(invalid_files=split.invalid_files)
+    tracker = build_training_tracker(training_config=training_config)
+    with tracker:
+        tracker.log_setup(
+            training_config=training_config,
+            model_config=resolved_model_config,
+            split=split,
+        )
+        trainer = StageOneTrainer(
+            model=model,
+            config=training_config,
+            train_loader=train_loader,
+            validation_loader=validation_loader,
+            tracker=tracker,
+        )
+        return trainer.train(invalid_files=split.invalid_files)
 
 
 def _move_batch_to_device(batch: TrainingBatch, *, device: torch.device) -> TrainingBatch:
