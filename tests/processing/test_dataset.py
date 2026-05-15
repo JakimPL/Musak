@@ -1,3 +1,5 @@
+import sys
+import warnings
 from fractions import Fraction
 from pathlib import Path
 from zipfile import ZipFile
@@ -76,6 +78,7 @@ def test_process_dataset_writes_parsed_and_encoded_artifacts(
     assert Path(processed_root / "PDMX" / parsed_rows[0][ParsedManifestField.PARSED_PATH]).exists()
     assert encoded_rows[0][EncodedManifestField.ELIGIBLE_FOR_TRAINING] == "True"
     assert encoded_rows[0][EncodedManifestField.ENCODED_LINE] == "0"
+    assert int(encoded_rows[0][EncodedManifestField.TOKEN_COUNT]) > 0
     assert load_encoded_jsonl(result.encoded_manifest_path.parent / "data-00000.jsonl")[0].source_file == Path(
         "mxl/piece.mxl"
     )
@@ -123,6 +126,77 @@ def test_process_dataset_records_parse_errors(
     assert parsed_rows[0][ParsedManifestField.ERROR_TYPE] == error_type
 
 
+def test_process_dataset_records_parse_diagnostics_without_console_noise(
+    tmp_path: Path,
+    monkeypatch,
+    capsys,
+    tokenization_config: TokenizationConfig,
+) -> None:
+    dataset_root = tmp_path / "PDMX"
+    source_path = dataset_root / "piece.mxl"
+    source_path.parent.mkdir(parents=True)
+    source_path.write_text("score")
+
+    def noisy_parse(path: Path):
+        warnings.warn("musicxml warning", UserWarning, stacklevel=1)
+        print("stderr diagnostic", file=sys.stderr)
+        return _score()
+
+    monkeypatch.setattr("musak_model.processing.dataset.parse_score", noisy_parse)
+    monkeypatch.setattr("musak_model.processing.dataset._score_title", lambda path: "")
+
+    result = process_dataset(
+        dataset_root,
+        processed_root=tmp_path / "processed",
+        segmentation=_segmentation_config(),
+        tokenization_config=tokenization_config,
+        stage="parsed",
+        overwrite=True,
+    )
+
+    parsed_rows = read_parsed_manifest(result.parsed_manifest_path)
+    captured = capsys.readouterr()
+
+    assert parsed_rows[0][ParsedManifestField.STATUS] == ParsedManifestStatus.SUCCESS.value
+    assert "UserWarning: musicxml warning" in parsed_rows[0][ParsedManifestField.PARSE_DIAGNOSTICS]
+    assert "stderr diagnostic" in parsed_rows[0][ParsedManifestField.PARSE_DIAGNOSTICS]
+    assert "musicxml warning" not in captured.err
+    assert "stderr diagnostic" not in captured.err
+
+
+def test_process_dataset_records_parse_diagnostics_on_errors(
+    tmp_path: Path,
+    monkeypatch,
+    tokenization_config: TokenizationConfig,
+) -> None:
+    dataset_root = tmp_path / "PDMX"
+    source_path = dataset_root / "piece.mxl"
+    source_path.parent.mkdir(parents=True)
+    source_path.write_text("score")
+
+    def noisy_parse_error(path: Path):
+        warnings.warn("before failure", UserWarning, stacklevel=1)
+        raise ValueError("bad score")
+
+    monkeypatch.setattr("musak_model.processing.dataset.parse_score", noisy_parse_error)
+    monkeypatch.setattr("musak_model.processing.dataset._score_title", lambda path: "")
+
+    result = process_dataset(
+        dataset_root,
+        processed_root=tmp_path / "processed",
+        segmentation=_segmentation_config(),
+        tokenization_config=tokenization_config,
+        stage="parsed",
+        overwrite=True,
+    )
+
+    parsed_rows = read_parsed_manifest(result.parsed_manifest_path)
+
+    assert parsed_rows[0][ParsedManifestField.STATUS] == ParsedManifestStatus.ERROR.value
+    assert parsed_rows[0][ParsedManifestField.ERROR_TYPE] == "ValueError"
+    assert "UserWarning: before failure" in parsed_rows[0][ParsedManifestField.PARSE_DIAGNOSTICS]
+
+
 def test_process_dataset_rejects_invalid_worker_count(tmp_path: Path, tokenization_config: TokenizationConfig) -> None:
     with pytest.raises(ValueError, match="workers"):
         process_dataset(
@@ -164,6 +238,134 @@ def test_process_dataset_parallel_parse_keeps_manifest_order(
         "b.musicxml",
         "c.musicxml",
     ]
+
+
+def test_process_dataset_reuses_error_rows_from_parsed_manifest(
+    tmp_path: Path,
+    monkeypatch,
+    caplog,
+    tokenization_config: TokenizationConfig,
+) -> None:
+    dataset_root = tmp_path / "PDMX"
+    source_path = dataset_root / "piece.mxl"
+    source_path.parent.mkdir(parents=True)
+    source_path.write_text("score")
+    processed_root = tmp_path / "processed"
+
+    monkeypatch.setattr(
+        "musak_model.processing.dataset.parse_score", lambda path: (_ for _ in ()).throw(ValueError("bad score"))
+    )
+    monkeypatch.setattr("musak_model.processing.dataset._score_title", lambda path: "")
+    process_dataset(
+        dataset_root,
+        processed_root=processed_root,
+        segmentation=_segmentation_config(),
+        tokenization_config=tokenization_config,
+        stage="parsed",
+        overwrite=True,
+    )
+
+    def fail_if_reparsed(path: Path):
+        raise AssertionError("rejected source should be skipped")
+
+    monkeypatch.setattr("musak_model.processing.dataset.parse_score", fail_if_reparsed)
+
+    with caplog.at_level("INFO", logger="musak_model.processing.dataset"):
+        result = process_dataset(
+            dataset_root,
+            processed_root=processed_root,
+            segmentation=_segmentation_config(),
+            tokenization_config=tokenization_config,
+            stage="parsed",
+            overwrite=False,
+        )
+
+    assert result.parsed_count == 0
+    assert result.error_count == 1
+    assert "Reusing 1 parsed manifest row(s): 0 success(es), 1 error(s)" in caplog.text
+    assert "Parsing 0/1 source file(s)" in caplog.text
+
+
+def test_process_dataset_reuses_success_rows_from_parsed_manifest(
+    tmp_path: Path,
+    monkeypatch,
+    tokenization_config: TokenizationConfig,
+) -> None:
+    dataset_root = tmp_path / "PDMX"
+    source_path = dataset_root / "piece.mxl"
+    source_path.parent.mkdir(parents=True)
+    source_path.write_text("score")
+    processed_root = tmp_path / "processed"
+
+    monkeypatch.setattr("musak_model.processing.dataset.parse_score", lambda path: _score())
+    monkeypatch.setattr("musak_model.processing.dataset._score_title", lambda path: "Piece")
+    process_dataset(
+        dataset_root,
+        processed_root=processed_root,
+        segmentation=_segmentation_config(),
+        tokenization_config=tokenization_config,
+        stage="parsed",
+        overwrite=True,
+    )
+
+    def fail_if_reparsed(path: Path):
+        raise AssertionError("parsed source should be loaded from parsed JSON")
+
+    monkeypatch.setattr("musak_model.processing.dataset.parse_score", fail_if_reparsed)
+
+    result = process_dataset(
+        dataset_root,
+        processed_root=processed_root,
+        segmentation=_segmentation_config(),
+        tokenization_config=tokenization_config,
+        stage="parsed",
+        overwrite=False,
+    )
+
+    assert result.parsed_count == 1
+    assert result.error_count == 0
+
+
+def test_process_dataset_writes_partial_parsed_manifest_on_interrupt(
+    tmp_path: Path,
+    monkeypatch,
+    tokenization_config: TokenizationConfig,
+) -> None:
+    dataset_root = tmp_path / "PDMX"
+    dataset_root.mkdir()
+    first_path = dataset_root / "a.musicxml"
+    second_path = dataset_root / "b.musicxml"
+    first_path.write_text("score", encoding="utf-8")
+    second_path.write_text("score", encoding="utf-8")
+    processed_root = tmp_path / "processed"
+    call_count = 0
+
+    def interrupt_after_first(path: Path):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            return _score()
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr("musak_model.processing.dataset.parse_score", interrupt_after_first)
+    monkeypatch.setattr("musak_model.processing.dataset._score_title", lambda path: "")
+
+    with pytest.raises(KeyboardInterrupt):
+        process_dataset(
+            dataset_root,
+            processed_root=processed_root,
+            segmentation=_segmentation_config(),
+            tokenization_config=tokenization_config,
+            stage="parsed",
+            overwrite=True,
+            workers=1,
+        )
+
+    parsed_rows = read_parsed_manifest(processed_root / "PDMX" / "parsed.csv")
+
+    assert len(parsed_rows) == 1
+    assert parsed_rows[0][ParsedManifestField.SOURCE_FILENAME] == "a.musicxml"
+    assert parsed_rows[0][ParsedManifestField.STATUS] == ParsedManifestStatus.SUCCESS.value
 
 
 def test_process_dataset_rebuilds_incomplete_encoded_outputs(

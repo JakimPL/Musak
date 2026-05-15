@@ -21,6 +21,7 @@ def _():
         encoded_sample_to_segment,
         encoded_segments_result,
         load_encoded_shard,
+        parsed_score_manifest_diagnostics,
         parsed_score_piano_roll_dataframe,
         piano_roll_dataframe,
         process_score_safely,
@@ -46,6 +47,7 @@ def _():
         load_parsed_score_json,
         mo,
         parsed_score_piano_roll_dataframe,
+        parsed_score_manifest_diagnostics,
         piano_roll_dataframe,
         process_score_safely,
         score_summary,
@@ -212,6 +214,7 @@ def _(
     load_encoded_shard,
     load_parsed_score_json,
     mo,
+    parsed_score_manifest_diagnostics,
     process_score_safely,
     selected_path,
     segment_parsed_score_safely,
@@ -252,16 +255,24 @@ def _(
         encoded_shard = None
         with mo.status.spinner(title="Loading parsed score..."):
             loaded_parsed_score = load_parsed_score_json(selected_path)
+            parse_diagnostics = parsed_score_manifest_diagnostics(selected_path)
             processing_result = segment_parsed_score_safely(
                 loaded_parsed_score,
                 selected_path,
                 window_bars=window_slider.value,
                 stride_bars=stride_slider.value,
+                parse_diagnostics=parse_diagnostics,
             )
         if processing_result.succeeded:
+            segment_count = len(processing_result.segments)
+            eligible_count = sum(segment.metadata.eligible_for_training for segment in processing_result.segments)
+            callout_kind = "warn" if segment_count > 0 and eligible_count == 0 else "success"
             processing_output = mo.callout(
-                f"{selected_path.name}: parsed score loaded, {len(processing_result.segments)} segment(s) produced",
-                kind="success",
+                (
+                    f"{selected_path.name}: parsed score loaded, {segment_count} segment(s) produced, "
+                    f"{eligible_count} eligible for training"
+                ),
+                kind=callout_kind,
             )
         else:
             processing_output = mo.callout(
@@ -279,6 +290,18 @@ def _(
         )
     processing_output
     return encoded_shard, processing_result
+
+
+@app.cell
+def _(mo, processing_result):
+    if processing_result is None or processing_result.parse_diagnostics == "":
+        diagnostics_output = mo.md("")
+    else:
+        diagnostics_output = mo.accordion(
+            {"Parse diagnostics": mo.md(f"```text\n{processing_result.parse_diagnostics}\n```")}
+        )
+    diagnostics_output
+    return
 
 
 @app.cell

@@ -1,6 +1,8 @@
 from fractions import Fraction
 from pathlib import Path
 
+import pytest
+
 from musak_model.data.cleaning import clean_parsed_score
 from musak_model.data.config import SegmentationConfig
 from musak_model.data.schema import ParsedBar, ParsedNote, ParsedScore, SegmentIneligibilityReason
@@ -75,7 +77,7 @@ def test_segment_crossing_key_signature_change_is_not_training_eligible(
     assert segments[0].metadata.ineligibility_reasons == {SegmentIneligibilityReason.KEY_SIGNATURE_CHANGE}
 
 
-def test_tokenization_error_marks_only_affected_segments_ineligible(duration_vocabulary: DurationVocabulary) -> None:
+def test_register_error_marks_only_affected_segments_ineligible(duration_vocabulary: DurationVocabulary) -> None:
     bad_register_bar = ParsedBar(
         time_numerator=4,
         time_denominator=4,
@@ -101,7 +103,68 @@ def test_tokenization_error_marks_only_affected_segments_ineligible(duration_voc
     )
 
     assert [segment.metadata.eligible_for_training for segment in segments] == [True, False, True]
-    assert segments[1].metadata.ineligibility_reasons == {SegmentIneligibilityReason.TOKENIZATION_ERROR}
+    assert segments[1].metadata.ineligibility_reasons == {SegmentIneligibilityReason.REGISTER_OUT_OF_RANGE}
+
+
+def test_overlapping_events_mark_segment_ineligible(duration_vocabulary: DurationVocabulary) -> None:
+    overlapping_bar = ParsedBar(
+        time_numerator=4,
+        time_denominator=4,
+        key_fifths=0,
+        events=[
+            ParsedNote(midi_pitch=60, duration=Fraction(1, 2), beat_offset=Fraction(0)),
+            ParsedNote(midi_pitch=64, duration=Fraction(1, 4), beat_offset=Fraction(1, 4)),
+        ],
+    )
+    score = ParsedScore(
+        key_root=0,
+        key_fifths=0,
+        scale_type=ScaleType.MAJOR,
+        time_numerator=4,
+        time_denominator=4,
+        right_hand_bars=[overlapping_bar],
+        left_hand_bars=[_bar()],
+    )
+
+    segments = segment_score(
+        score,
+        Path("piece.mxl"),
+        scale_type=ScaleType.MAJOR,
+        duration_vocabulary=duration_vocabulary,
+        segmentation=SegmentationConfig(window_bars=1, stride_bars=1),
+    )
+
+    assert segments[0].metadata.eligible_for_training is False
+    assert segments[0].metadata.ineligibility_reasons == {SegmentIneligibilityReason.OVERLAPPING_EVENTS}
+
+
+def test_bar_duration_overflow_marks_segment_ineligible(duration_vocabulary: DurationVocabulary) -> None:
+    overflowing_bar = ParsedBar(
+        time_numerator=4,
+        time_denominator=4,
+        key_fifths=0,
+        events=[ParsedNote(midi_pitch=60, duration=Fraction(1, 1), beat_offset=Fraction(1, 4))],
+    )
+    score = ParsedScore(
+        key_root=0,
+        key_fifths=0,
+        scale_type=ScaleType.MAJOR,
+        time_numerator=4,
+        time_denominator=4,
+        right_hand_bars=[overflowing_bar],
+        left_hand_bars=[_bar()],
+    )
+
+    segments = segment_score(
+        score,
+        Path("piece.mxl"),
+        scale_type=ScaleType.MAJOR,
+        duration_vocabulary=duration_vocabulary,
+        segmentation=SegmentationConfig(window_bars=1, stride_bars=1),
+    )
+
+    assert segments[0].metadata.eligible_for_training is False
+    assert segments[0].metadata.ineligibility_reasons == {SegmentIneligibilityReason.BAR_DURATION_OVERFLOW}
 
 
 def test_ambiguous_simultaneous_durations_mark_segment_ineligible(
@@ -238,3 +301,39 @@ def test_unsupported_rest_gap_marks_segment_ineligible_before_it_can_shift_onset
 
     assert segments[0].metadata.eligible_for_training is False
     assert segments[0].metadata.ineligibility_reasons == {SegmentIneligibilityReason.QUANTIZATION_ERROR}
+
+
+def test_unexpected_tokenization_value_error_is_not_swallowed(
+    duration_vocabulary: DurationVocabulary,
+    monkeypatch,
+) -> None:
+    score = ParsedScore(
+        key_root=0,
+        key_fifths=0,
+        scale_type=ScaleType.MAJOR,
+        time_numerator=4,
+        time_denominator=4,
+        right_hand_bars=[
+            ParsedBar(
+                time_numerator=4,
+                time_denominator=4,
+                key_fifths=0,
+                events=[ParsedNote(midi_pitch=60, duration=Fraction(1, 4), beat_offset=Fraction(0))],
+            )
+        ],
+        left_hand_bars=[_bar()],
+    )
+
+    def fail_pitch_conversion(*args, **kwargs):
+        raise ValueError("unexpected pitch conversion bug")
+
+    monkeypatch.setattr("musak_model.data.segmenter.pitch_to_degree", fail_pitch_conversion)
+
+    with pytest.raises(ValueError, match="unexpected pitch conversion bug"):
+        segment_score(
+            score,
+            Path("piece.mxl"),
+            scale_type=ScaleType.MAJOR,
+            duration_vocabulary=duration_vocabulary,
+            segmentation=SegmentationConfig(window_bars=1, stride_bars=1),
+        )

@@ -20,6 +20,7 @@ class ParsedManifestField(StrEnum):
     STATUS = "status"
     ERROR_TYPE = "error_type"
     ERROR_MESSAGE = "error_message"
+    PARSE_DIAGNOSTICS = "parse_diagnostics"
     RIGHT_HAND_BARS = "right_hand_bars"
     LEFT_HAND_BARS = "left_hand_bars"
     KEY_ROOT = "key_root"
@@ -37,6 +38,7 @@ class EncodedManifestField(StrEnum):
     ENCODED_LINE = "encoded_line"
     WINDOW_START_BAR = "window_start_bar"
     BAR_COUNT = "bar_count"
+    TOKEN_COUNT = "token_count"
     ELIGIBLE_FOR_TRAINING = "eligible_for_training"
     INELIGIBILITY_REASONS = "ineligibility_reasons"
     KEY_ROOT = "key_root"
@@ -59,6 +61,7 @@ PARSED_MANIFEST_FIELDS: Final[tuple[ParsedManifestField, ...]] = (
     ParsedManifestField.STATUS,
     ParsedManifestField.ERROR_TYPE,
     ParsedManifestField.ERROR_MESSAGE,
+    ParsedManifestField.PARSE_DIAGNOSTICS,
     ParsedManifestField.RIGHT_HAND_BARS,
     ParsedManifestField.LEFT_HAND_BARS,
     ParsedManifestField.KEY_ROOT,
@@ -76,6 +79,7 @@ ENCODED_MANIFEST_FIELDS: Final[tuple[EncodedManifestField, ...]] = (
     EncodedManifestField.ENCODED_LINE,
     EncodedManifestField.WINDOW_START_BAR,
     EncodedManifestField.BAR_COUNT,
+    EncodedManifestField.TOKEN_COUNT,
     EncodedManifestField.ELIGIBLE_FOR_TRAINING,
     EncodedManifestField.INELIGIBILITY_REASONS,
     EncodedManifestField.KEY_ROOT,
@@ -110,6 +114,7 @@ def parsed_success_row(
     parsed_path: Path,
     processed_root: Path,
     score: ParsedScore,
+    parse_diagnostics: str,
 ) -> dict[str, Any]:
     return {
         ParsedManifestField.SOURCE_ID: source_id_value,
@@ -120,6 +125,7 @@ def parsed_success_row(
         ParsedManifestField.STATUS: ParsedManifestStatus.SUCCESS.value,
         ParsedManifestField.ERROR_TYPE: "",
         ParsedManifestField.ERROR_MESSAGE: "",
+        ParsedManifestField.PARSE_DIAGNOSTICS: parse_diagnostics,
         ParsedManifestField.RIGHT_HAND_BARS: len(score.right_hand_bars),
         ParsedManifestField.LEFT_HAND_BARS: len(score.left_hand_bars),
         ParsedManifestField.KEY_ROOT: score.key_root,
@@ -136,6 +142,7 @@ def parsed_error_row(
     dataset_root: Path,
     title: str,
     exception: Exception,
+    parse_diagnostics: str,
 ) -> dict[str, Any]:
     return {
         ParsedManifestField.SOURCE_ID: source_id_value,
@@ -146,6 +153,7 @@ def parsed_error_row(
         ParsedManifestField.STATUS: ParsedManifestStatus.ERROR.value,
         ParsedManifestField.ERROR_TYPE: type(exception).__name__,
         ParsedManifestField.ERROR_MESSAGE: str(exception),
+        ParsedManifestField.PARSE_DIAGNOSTICS: parse_diagnostics,
         ParsedManifestField.RIGHT_HAND_BARS: "",
         ParsedManifestField.LEFT_HAND_BARS: "",
         ParsedManifestField.KEY_ROOT: "",
@@ -182,6 +190,7 @@ def encoded_row(
         EncodedManifestField.ENCODED_LINE: encoded_line if encoded_line is not None else "",
         EncodedManifestField.WINDOW_START_BAR: segment.metadata.window_start_bar,
         EncodedManifestField.BAR_COUNT: segment.metadata.bar_count,
+        EncodedManifestField.TOKEN_COUNT: len(segment.tokens),
         EncodedManifestField.ELIGIBLE_FOR_TRAINING: segment.metadata.eligible_for_training,
         EncodedManifestField.INELIGIBILITY_REASONS: "|".join(
             sorted(reason.value for reason in segment.metadata.ineligibility_reasons)

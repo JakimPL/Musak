@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 import pytest
 
-from musak_model.data.converter import pitch_to_degree
+from musak_model.data.converter import PitchDegreeRegisterError, pitch_to_degree
 from musak_model.tokens.schema import Hand, ScaleType
 
 
@@ -155,3 +155,13 @@ class TestPitchToDegreeEdgeCases:
             hand=Hand.RIGHT,
         )
         assert result.octave_offset > 0
+
+    def test_register_out_of_range_raises_domain_error(self) -> None:
+        with pytest.raises(PitchDegreeRegisterError, match="outside supported right hand register"):
+            pitch_to_degree(
+                24,
+                key_root=0,
+                key_fifths=0,
+                scale_type=ScaleType.MAJOR,
+                hand=Hand.RIGHT,
+            )

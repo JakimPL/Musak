@@ -2,10 +2,8 @@ from fractions import Fraction
 from pathlib import Path
 from typing import NamedTuple
 
-from pydantic import ValidationError
-
 from musak_model.data.config import SegmentationConfig
-from musak_model.data.converter import pitch_to_degree
+from musak_model.data.converter import PitchDegreeRegisterError, pitch_to_degree
 from musak_model.data.quantizer import quantize_duration
 from musak_model.data.schema import (
     ParsedBar,
@@ -14,6 +12,7 @@ from musak_model.data.schema import (
     ParsedNote,
     ParsedRest,
     ParsedScore,
+    PitchDegree,
     Segment,
     SegmentIneligibilityReason,
     SegmentMetadata,
@@ -34,7 +33,6 @@ from musak_model.tokens.schema import (
 _BAR_TOKEN: BarToken = BarToken()
 _END_TOKEN: EndToken = EndToken()
 _JOIN_WITH_PREVIOUS_TOKEN: JoinWithPreviousToken = JoinWithPreviousToken()
-_TOKENIZATION_ERRORS: tuple[type[Exception], ...] = (ValueError, ValidationError)
 
 
 class TokenizationIneligibilityError(ValueError):
@@ -103,11 +101,11 @@ def _tokenize_hand_safely(
                 )
             )
             tokenized_bars.append(_BarTokenization(tokens=tokens))
-        except _TOKENIZATION_ERRORS as exception:
+        except TokenizationIneligibilityError as exception:
             tokenized_bars.append(
                 _BarTokenization(
                     tokens=[],
-                    ineligibility_reasons=_ineligibility_reasons_for_exception(exception),
+                    ineligibility_reasons=frozenset({exception.reason}),
                 )
             )
 
@@ -168,11 +166,11 @@ def _tokenize_unified_stream_safely(
                 measure_duration=_bar_measure_duration(score.left_hand_bars[bar_index]),
             )
             tokenized_bars.append(_BarTokenization(tokens=_merge_hand_groups(right_groups + left_groups)))
-        except _TOKENIZATION_ERRORS as exception:
+        except TokenizationIneligibilityError as exception:
             tokenized_bars.append(
                 _BarTokenization(
                     tokens=[],
-                    ineligibility_reasons=_ineligibility_reasons_for_exception(exception),
+                    ineligibility_reasons=frozenset({exception.reason}),
                 )
             )
 
@@ -239,9 +237,12 @@ def _normalize_bar_events(
 
     for event in sorted(bar.events, key=_event_sort_key):
         if event.beat_offset < cursor:
-            raise ValueError(
-                f"overlapping events in {hand.value} hand at bar {bar_index}: "
-                f"event starts at {event.beat_offset}, previous event ends at {cursor}"
+            raise TokenizationIneligibilityError(
+                (
+                    f"overlapping events in {hand.value} hand at bar {bar_index}: "
+                    f"event starts at {event.beat_offset}, previous event ends at {cursor}"
+                ),
+                reason=SegmentIneligibilityReason.OVERLAPPING_EVENTS,
             )
 
         if event.beat_offset > cursor:
@@ -279,8 +280,9 @@ def _normalize_bar_events(
         cursor = event.beat_offset + event.duration
 
     if cursor > measure_duration:
-        raise ValueError(
-            f"{hand.value} hand bar {bar_index} exceeds measure duration {measure_duration}: ends at {cursor}"
+        raise TokenizationIneligibilityError(
+            f"{hand.value} hand bar {bar_index} exceeds measure duration {measure_duration}: ends at {cursor}",
+            reason=SegmentIneligibilityReason.BAR_DURATION_OVERFLOW,
         )
 
     if cursor < measure_duration:
@@ -315,8 +317,11 @@ def _raise_for_ambiguous_simultaneous_durations(
 ) -> None:
     durations_by_offset: dict[Fraction, set[Fraction]] = {}
     for event in bar.events:
-        if isinstance(event, ParsedNote | ParsedChord):
-            durations_by_offset.setdefault(event.beat_offset, set()).add(event.duration)
+        match event:
+            case ParsedNote() | ParsedChord():
+                durations_by_offset.setdefault(event.beat_offset, set()).add(event.duration)
+            case ParsedRest():
+                continue
 
     for beat_offset, durations in durations_by_offset.items():
         if len(durations) > 1:
@@ -342,9 +347,12 @@ def _raise_for_quantization_grid_integrity(
     seen_pitch_onsets: dict[tuple[Fraction, int], Fraction] = {}
     for event in sorted(bar.events, key=_event_sort_key):
         if event.beat_offset < cursor:
-            raise ValueError(
-                f"overlapping events in {hand.value} hand at bar {bar_index}: "
-                f"event starts at {event.beat_offset}, previous event ends at {cursor}"
+            raise TokenizationIneligibilityError(
+                (
+                    f"overlapping events in {hand.value} hand at bar {bar_index}: "
+                    f"event starts at {event.beat_offset}, previous event ends at {cursor}"
+                ),
+                reason=SegmentIneligibilityReason.OVERLAPPING_EVENTS,
             )
 
         if event.beat_offset > cursor:
@@ -400,23 +408,23 @@ def _raise_for_quantization_grid_integrity(
 
 
 def _lowest_pitch(event: ParsedEvent) -> int:
-    if isinstance(event, ParsedNote):
-        return event.midi_pitch
-
-    if isinstance(event, ParsedChord):
-        return min(event.midi_pitches)
-
-    return -1
+    match event:
+        case ParsedNote():
+            return event.midi_pitch
+        case ParsedChord():
+            return min(event.midi_pitches)
+        case ParsedRest():
+            return -1
 
 
 def _event_pitches(event: ParsedEvent) -> tuple[int, ...]:
-    if isinstance(event, ParsedNote):
-        return (event.midi_pitch,)
-
-    if isinstance(event, ParsedChord):
-        return tuple(event.midi_pitches)
-
-    return ()
+    match event:
+        case ParsedNote():
+            return (event.midi_pitch,)
+        case ParsedChord():
+            return tuple(event.midi_pitches)
+        case ParsedRest():
+            return ()
 
 
 def _tokens_from_bar_groups(groups: list[_TimedTokenGroup]) -> list[Token]:
@@ -439,11 +447,14 @@ def _merge_hand_groups(groups: list[_TimedTokenGroup]) -> list[Token]:
 
         for token in group.tokens:
             tokens.append(token)
-            if isinstance(token, NoteToken):
-                current_onset = (group.bar_index, group.offset)
-                if previous_note_onset == current_onset:
-                    tokens.append(_JOIN_WITH_PREVIOUS_TOKEN)
-                previous_note_onset = current_onset
+            match token:
+                case NoteToken():
+                    current_onset = (group.bar_index, group.offset)
+                    if previous_note_onset == current_onset:
+                        tokens.append(_JOIN_WITH_PREVIOUS_TOKEN)
+                    previous_note_onset = current_onset
+                case RestToken() | HandToken() | BarToken() | EndToken() | JoinWithPreviousToken():
+                    continue
 
     return tokens
 
@@ -453,12 +464,22 @@ def _group_sort_key(group: _TimedTokenGroup) -> tuple[Fraction, int, int]:
 
 
 def _hand_sort_index(hand: Hand) -> int:
-    return 0 if hand == Hand.RIGHT else 1
+    match hand:
+        case Hand.RIGHT:
+            return 0
+        case Hand.LEFT:
+            return 1
 
 
 def _group_lowest_pitch(group: _TimedTokenGroup) -> int:
-    note_tokens = [index for index, token in enumerate(group.tokens) if isinstance(token, NoteToken)]
-    return note_tokens[0] if note_tokens else -1
+    for index, token in enumerate(group.tokens):
+        match token:
+            case NoteToken():
+                return index
+            case RestToken() | HandToken() | BarToken() | EndToken() | JoinWithPreviousToken():
+                continue
+
+    return -1
 
 
 def _tokenize_bar(
@@ -490,30 +511,34 @@ def _tokenize_event(
     scale_type: ScaleType,
     duration_vocabulary: DurationVocabulary,
 ) -> list[Token]:
-    if isinstance(event, ParsedNote):
-        return [
-            _note_to_token(
+    match event:
+        case ParsedNote():
+            return [
+                _note_to_token(
+                    event,
+                    score=score,
+                    hand=hand,
+                    scale_type=scale_type,
+                    duration_vocabulary=duration_vocabulary,
+                )
+            ]
+        case ParsedRest():
+            return [
+                RestToken(
+                    duration_id=_exact_duration_id(
+                        event.duration,
+                        vocabulary=duration_vocabulary,
+                    )
+                )
+            ]
+        case ParsedChord():
+            return _chord_to_tokens(
                 event,
                 score=score,
                 hand=hand,
                 scale_type=scale_type,
                 duration_vocabulary=duration_vocabulary,
             )
-        ]
-
-    if isinstance(event, ParsedRest):
-        return [RestToken(duration_id=_exact_duration_id(event.duration, vocabulary=duration_vocabulary))]
-
-    if isinstance(event, ParsedChord):
-        return _chord_to_tokens(
-            event,
-            score=score,
-            hand=hand,
-            scale_type=scale_type,
-            duration_vocabulary=duration_vocabulary,
-        )
-
-    raise ValueError(f"unexpected event type: {type(event)}")
 
 
 def _note_to_token(
@@ -524,10 +549,9 @@ def _note_to_token(
     scale_type: ScaleType,
     duration_vocabulary: DurationVocabulary,
 ) -> NoteToken:
-    pitch_degree = pitch_to_degree(
-        event.midi_pitch,
-        key_root=score.key_root,
-        key_fifths=score.key_fifths,
+    pitch_degree = _pitch_to_degree_for_tokenization(
+        event,
+        score=score,
         scale_type=scale_type,
         hand=hand,
     )
@@ -651,11 +675,29 @@ def _flatten_bars(bar_token_lists: list[list[Token]]) -> list[Token]:
     return tokens
 
 
-def _ineligibility_reasons_for_exception(exception: Exception) -> frozenset[SegmentIneligibilityReason]:
-    if isinstance(exception, TokenizationIneligibilityError):
-        return frozenset({exception.reason})
-
-    return frozenset({SegmentIneligibilityReason.TOKENIZATION_ERROR})
+def _pitch_to_degree_for_tokenization(
+    event: ParsedNote,
+    *,
+    score: ParsedScore,
+    scale_type: ScaleType,
+    hand: Hand,
+) -> PitchDegree:
+    try:
+        return pitch_to_degree(
+            event.midi_pitch,
+            key_root=score.key_root,
+            key_fifths=score.key_fifths,
+            scale_type=scale_type,
+            hand=hand,
+        )
+    except PitchDegreeRegisterError as exception:
+        raise TokenizationIneligibilityError(
+            (
+                f"pitch {event.midi_pitch} is outside supported {hand.value} hand register "
+                f"for key {score.key_root} {scale_type.value}"
+            ),
+            reason=SegmentIneligibilityReason.REGISTER_OUT_OF_RANGE,
+        ) from exception
 
 
 def _exact_duration_id(duration: Fraction, *, vocabulary: DurationVocabulary) -> int:

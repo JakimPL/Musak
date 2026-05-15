@@ -4,6 +4,7 @@ import logging
 from collections.abc import Iterable
 from concurrent.futures import Future, ProcessPoolExecutor, as_completed
 from dataclasses import dataclass
+from enum import StrEnum
 from pathlib import Path
 from typing import Literal, TypeVar, cast
 from xml.etree import ElementTree
@@ -19,6 +20,7 @@ from musak_model.data.config import SegmentationConfig
 from musak_model.data.parser import parse_score
 from musak_model.data.pipeline import segment_parsed_score
 from musak_model.data.schema import ParsedScore
+from musak_model.processing.diagnostics import ParseDiagnosticsCapture
 from musak_model.processing.ids import source_id
 from musak_model.processing.io import append_jsonl, load_parsed_score_json, write_json_model
 from musak_model.processing.manifest import (
@@ -29,6 +31,7 @@ from musak_model.processing.manifest import (
     parsed_error_row,
     parsed_success_row,
     read_encoded_manifest,
+    read_parsed_manifest,
     write_encoded_manifest,
     write_parsed_manifest,
 )
@@ -42,23 +45,6 @@ from musak_model.training.ingestion.split import _encode_segment
 type ProcessingStage = Literal["parsed", "encoded", "all"]
 _T = TypeVar("_T")
 _LOGGER = logging.getLogger(__name__)
-
-_PROCESSING_ERRORS: tuple[type[Exception], ...] = (
-    Music21Exception,
-    OSError,
-    OverflowError,
-    ParseError,
-    BadZipFile,
-    TypeError,
-    ValueError,
-)
-
-_TITLE_EXTRACTION_ERRORS: tuple[type[Exception], ...] = (
-    KeyError,
-    OSError,
-    ParseError,
-    BadZipFile,
-)
 
 _MXL_CONTAINER_PATH = "META-INF/container.xml"
 _MXL_SUFFIX = ".mxl"
@@ -94,6 +80,12 @@ class _ParsedScoreResult:
     score: ParsedScore | None
 
 
+class _ParsedManifestReuseIssue(StrEnum):
+    UNSUPPORTED_STATUS = "unsupported_status"
+    MISSING_PARSED_PATH = "missing_parsed_path"
+    UNREADABLE_PARSED_SCORE = "unreadable_parsed_score"
+
+
 def process_dataset(
     dataset_root: Path,
     *,
@@ -126,6 +118,7 @@ def process_dataset(
         workers=workers,
         show_progress=show_progress,
     )
+    _LOGGER.info("Writing parsed manifest to %s", paths.parsed_manifest_path)
     write_parsed_manifest(parsed_rows, paths.parsed_manifest_path)
     _LOGGER.info("Wrote parsed manifest: %s", paths.parsed_manifest_path)
 
@@ -168,41 +161,101 @@ def _process_parsed_scores(
     workers: int,
     show_progress: bool,
 ) -> tuple[list[dict[str, object]], list[tuple[str, Path, Path, ParsedScore]]]:
-    rows: list[dict[str, object]] = []
-    parsed_scores: list[tuple[str, Path, Path, ParsedScore]] = []
-    tasks = [
-        _ParsedScoreTask(
-            index=index,
-            source_path=source_path,
-            dataset_root=dataset_root,
-            paths=paths,
-            overwrite=overwrite,
-        )
-        for index, source_path in enumerate(collect_musicxml_files(dataset_root))
-    ]
-    _LOGGER.info("Parsing %s source file(s) with %s worker(s)", len(tasks), workers)
-    results = _collect_parsed_score_results(tasks, workers=workers, show_progress=show_progress)
-    for result in results:
-        rows.append(result.row)
-        if result.score is not None:
-            parsed_scores.append((result.source_id_value, result.source_path, result.parsed_path, result.score))
+    source_paths = collect_musicxml_files(dataset_root)
+    reusable_rows = _reusable_parsed_manifest_rows(
+        paths=paths,
+        overwrite=overwrite,
+    )
+    ordered_results: list[_ParsedScoreResult | None] = [None] * len(source_paths)
+    tasks: list[_ParsedScoreTask] = []
+    reused_success_count = 0
+    reused_error_count = 0
+    reuse_issues: dict[_ParsedManifestReuseIssue, int] = {}
 
-    _LOGGER.info("Parsed %s/%s source file(s)", len(parsed_scores), len(tasks))
+    for index, source_path in enumerate(source_paths):
+        source_id_value = source_id(source_path, dataset_root=dataset_root)
+        reused_result, reuse_issue = _reused_parsed_result(
+            index=index,
+            source_id_value=source_id_value,
+            source_path=source_path,
+            paths=paths,
+            row=reusable_rows.get(source_id_value),
+        )
+        if reuse_issue is not None:
+            reuse_issues[reuse_issue] = reuse_issues.get(reuse_issue, 0) + 1
+
+        if reused_result is not None:
+            ordered_results[index] = reused_result
+            if reused_result.score is None:
+                reused_error_count += 1
+            else:
+                reused_success_count += 1
+            continue
+
+        tasks.append(
+            _ParsedScoreTask(
+                index=index,
+                source_path=source_path,
+                dataset_root=dataset_root,
+                paths=paths,
+                overwrite=overwrite,
+            )
+        )
+
+    reused_count = len(source_paths) - len(tasks)
+    if reused_count:
+        _LOGGER.info(
+            "Reusing %s parsed manifest row(s): %s success(es), %s error(s)",
+            reused_count,
+            reused_success_count,
+            reused_error_count,
+        )
+    for issue, count in reuse_issues.items():
+        _LOGGER.warning("Could not reuse %s parsed manifest row(s): %s", count, issue.value)
+    _LOGGER.info("Parsing %s/%s source file(s) with %s worker(s)", len(tasks), len(source_paths), workers)
+    completed = False
+    try:
+        _run_parsed_score_tasks(
+            tasks,
+            workers=workers,
+            show_progress=show_progress,
+            ordered_results=ordered_results,
+        )
+        completed = True
+    finally:
+        partial_rows = _parsed_rows_from_results(ordered_results)
+        if partial_rows and not completed:
+            _LOGGER.info("Writing partial parsed manifest to %s", paths.parsed_manifest_path)
+            write_parsed_manifest(partial_rows, paths.parsed_manifest_path)
+            _LOGGER.info("Wrote partial parsed manifest with %s row(s)", len(partial_rows))
+
+    results = _filled_results(ordered_results)
+    rows = [result.row for result in results]
+    parsed_scores = [
+        (result.source_id_value, result.source_path, result.parsed_path, result.score)
+        for result in results
+        if result.score is not None
+    ]
+
+    _LOGGER.info("Parsed %s/%s source file(s)", len(parsed_scores), len(source_paths))
     return rows, parsed_scores
 
 
-def _collect_parsed_score_results(
+def _run_parsed_score_tasks(
     tasks: list[_ParsedScoreTask],
     *,
     workers: int,
     show_progress: bool,
-) -> list[_ParsedScoreResult]:
-    ordered_results: list[_ParsedScoreResult | None] = [None] * len(tasks)
+    ordered_results: list[_ParsedScoreResult | None],
+) -> None:
+    if not tasks:
+        return
+
     if workers == 1:
         for task in _progress(tasks, description="Parsing scores", unit="score", enabled=show_progress):
             result = _process_parsed_score_task(task)
             ordered_results[result.index] = result
-        return _filled_results(ordered_results)
+        return
 
     with ProcessPoolExecutor(max_workers=workers) as executor:
         futures: dict[Future[_ParsedScoreResult], int] = {
@@ -219,24 +272,97 @@ def _collect_parsed_score_results(
             result = future.result()
             ordered_results[result.index] = result
 
-    return _filled_results(ordered_results)
-
 
 def _filled_results(results: list[_ParsedScoreResult | None]) -> list[_ParsedScoreResult]:
     return [result for result in results if result is not None]
+
+
+def _parsed_rows_from_results(results: list[_ParsedScoreResult | None]) -> list[dict[str, object]]:
+    return [result.row for result in results if result is not None]
+
+
+def _reusable_parsed_manifest_rows(
+    *,
+    paths: ProcessedDatasetPaths,
+    overwrite: bool,
+) -> dict[str, dict[str, str]]:
+    if overwrite or not paths.parsed_manifest_path.exists():
+        return {}
+
+    rows = read_parsed_manifest(paths.parsed_manifest_path)
+    _LOGGER.info("Loaded parsed manifest for resume: %s (%s row(s))", paths.parsed_manifest_path, len(rows))
+    return {row[ParsedManifestField.SOURCE_ID]: row for row in rows if row.get(ParsedManifestField.SOURCE_ID, "")}
+
+
+def _reused_parsed_result(
+    *,
+    index: int,
+    source_id_value: str,
+    source_path: Path,
+    paths: ProcessedDatasetPaths,
+    row: dict[str, str] | None,
+) -> tuple[_ParsedScoreResult | None, _ParsedManifestReuseIssue | None]:
+    if row is None:
+        return None, None
+
+    parsed_path = paths.parsed_score_path(source_id_value)
+    status = row[ParsedManifestField.STATUS]
+    if status == ParsedManifestStatus.ERROR.value:
+        return (
+            _ParsedScoreResult(
+                index=index,
+                source_id_value=source_id_value,
+                source_path=source_path,
+                parsed_path=parsed_path,
+                row=dict(row),
+                score=None,
+            ),
+            None,
+        )
+
+    if status != ParsedManifestStatus.SUCCESS.value:
+        return None, _ParsedManifestReuseIssue.UNSUPPORTED_STATUS
+
+    parsed_path_text = row[ParsedManifestField.PARSED_PATH]
+    if parsed_path_text == "":
+        return None, _ParsedManifestReuseIssue.MISSING_PARSED_PATH
+
+    parsed_path = paths.root / parsed_path_text
+    try:
+        score = load_parsed_score_json(parsed_path)
+    except (OSError, ValueError):
+        return None, _ParsedManifestReuseIssue.UNREADABLE_PARSED_SCORE
+
+    return (
+        _ParsedScoreResult(
+            index=index,
+            source_id_value=source_id_value,
+            source_path=source_path,
+            parsed_path=parsed_path,
+            row=dict(row),
+            score=score,
+        ),
+        None,
+    )
 
 
 def _process_parsed_score_task(task: _ParsedScoreTask) -> _ParsedScoreResult:
     source_id_value = source_id(task.source_path, dataset_root=task.dataset_root)
     parsed_path = task.paths.parsed_score_path(source_id_value)
     title = _score_title(task.source_path)
+    diagnostics = ""
+    captured_diagnostics: ParseDiagnosticsCapture | None = None
     try:
         if parsed_path.exists() and not task.overwrite:
             score = load_parsed_score_json(parsed_path)
         else:
-            score = clean_parsed_score(parse_score(task.source_path))
+            with ParseDiagnosticsCapture() as captured_diagnostics:
+                score = clean_parsed_score(parse_score(task.source_path))
+            diagnostics = captured_diagnostics.text()
             write_json_model(score, parsed_path, overwrite=task.overwrite)
-    except _PROCESSING_ERRORS as exception:
+    except (Music21Exception, OSError, OverflowError, ParseError, BadZipFile, TypeError, ValueError) as exception:
+        if captured_diagnostics is not None:
+            diagnostics = captured_diagnostics.text()
         return _ParsedScoreResult(
             index=task.index,
             source_id_value=source_id_value,
@@ -248,6 +374,7 @@ def _process_parsed_score_task(task: _ParsedScoreTask) -> _ParsedScoreResult:
                 dataset_root=task.dataset_root,
                 title=title,
                 exception=exception,
+                parse_diagnostics=diagnostics,
             ),
             score=None,
         )
@@ -265,6 +392,7 @@ def _process_parsed_score_task(task: _ParsedScoreTask) -> _ParsedScoreResult:
             parsed_path=parsed_path,
             processed_root=task.paths.root,
             score=score,
+            parse_diagnostics=diagnostics,
         ),
         score=score,
     )
@@ -392,7 +520,7 @@ def _progress(
 def _score_title(path: Path) -> str:
     try:
         root = _musicxml_root(path)
-    except _TITLE_EXTRACTION_ERRORS:
+    except (KeyError, OSError, ParseError, BadZipFile):
         return ""
 
     for field in _MUSICXML_TITLE_FIELDS:

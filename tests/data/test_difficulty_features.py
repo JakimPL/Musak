@@ -283,7 +283,7 @@ class TestHasAccidentals:
             left_hand_bars=[],
         )
 
-        has_acc = _has_accidentals(bars, score=score, scale_type=ScaleType.MAJOR)
+        has_acc = _has_accidentals(bars, score=score, scale_type=ScaleType.MAJOR, hand=Hand.RIGHT)
         assert has_acc is False
 
     def test_accidental_detected_in_chromatic_note(self) -> None:
@@ -307,7 +307,7 @@ class TestHasAccidentals:
             left_hand_bars=[],
         )
 
-        has_acc = _has_accidentals(bars, score=score, scale_type=ScaleType.MAJOR)
+        has_acc = _has_accidentals(bars, score=score, scale_type=ScaleType.MAJOR, hand=Hand.RIGHT)
         assert has_acc is True
 
 
@@ -421,3 +421,39 @@ class TestExtractDifficultyFeaturesIntegration:
         assert 0 <= features.voice_independence <= 1.0
         assert isinstance(features.has_accidentals, bool)
         assert isinstance(features.has_dotted_notes, bool)
+
+    def test_left_hand_accidental_check_uses_left_hand_register(self, duration_vocabulary: DurationVocabulary) -> None:
+        quarter_id = duration_vocabulary.fraction_to_id(Fraction(1, 4))
+        segment = _segment_with_tokens(
+            duration_vocabulary,
+            left_tokens=[
+                NoteToken(degree=1, accidental=0, octave_offset=-1, duration_id=quarter_id),
+                BarToken(),
+                EndToken(),
+            ],
+        )
+        score = ParsedScore(
+            key_root=0,
+            key_fifths=0,
+            scale_type=ScaleType.MAJOR,
+            time_numerator=4,
+            time_denominator=4,
+            right_hand_bars=[ParsedBar(time_numerator=4, time_denominator=4, key_fifths=0, events=[])],
+            left_hand_bars=[
+                ParsedBar(
+                    time_numerator=4,
+                    time_denominator=4,
+                    key_fifths=0,
+                    events=[ParsedNote(midi_pitch=36, duration=Fraction(1, 4), beat_offset=Fraction(0))],
+                )
+            ],
+        )
+
+        features = extract_difficulty_features(
+            segment,
+            score=score,
+            scale_type=ScaleType.MAJOR,
+            duration_vocabulary=duration_vocabulary,
+        )
+
+        assert features.has_accidentals is False

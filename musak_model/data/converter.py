@@ -1,3 +1,5 @@
+from pydantic import ValidationError
+
 from musak_model.common.elements import MIDI_OCTAVE_OFFSET, PITCHES_PER_OCTAVE
 from musak_model.data.schema import PitchDegree
 from musak_model.tokens.schema import (
@@ -6,6 +8,16 @@ from musak_model.tokens.schema import (
     Hand,
     ScaleType,
 )
+
+
+class PitchDegreeRegisterError(ValueError):
+    def __init__(self, midi_pitch: int, *, hand: Hand, octave_offset: int) -> None:
+        super().__init__(
+            f"pitch {midi_pitch} maps to octave offset {octave_offset}, outside supported {hand.value} hand register"
+        )
+        self.midi_pitch = midi_pitch
+        self.hand = hand
+        self.octave_offset = octave_offset
 
 
 def pitch_to_degree(
@@ -24,7 +36,12 @@ def pitch_to_degree(
         scale_type=scale_type,
     )
     octave_offset = _compute_octave_offset(midi_pitch, hand=hand)
-    return PitchDegree(degree=degree, accidental=accidental, octave_offset=octave_offset)
+    try:
+        return PitchDegree(degree=degree, accidental=accidental, octave_offset=octave_offset)
+    except ValidationError as exception:
+        if _is_octave_offset_validation_error(exception):
+            raise PitchDegreeRegisterError(midi_pitch, hand=hand, octave_offset=octave_offset) from exception
+        raise
 
 
 def _pitch_class_to_degree(
@@ -60,3 +77,7 @@ def _compute_octave_offset(
 ) -> int:
     octave = midi_pitch // PITCHES_PER_OCTAVE - MIDI_OCTAVE_OFFSET
     return octave - HAND_HOME_OCTAVES[hand]
+
+
+def _is_octave_offset_validation_error(exception: ValidationError) -> bool:
+    return any(error["loc"] == ("octave_offset",) for error in exception.errors())

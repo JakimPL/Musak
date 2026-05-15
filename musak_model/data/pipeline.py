@@ -1,10 +1,9 @@
 from pathlib import Path
 
-from pydantic import ValidationError
-
 from musak_model.common.files import collect_musicxml_files
 from musak_model.data.cleaning import clean_parsed_score
 from musak_model.data.config import SegmentationConfig
+from musak_model.data.converter import PitchDegreeRegisterError
 from musak_model.data.labeler import extract_difficulty_features
 from musak_model.data.parser import parse_score
 from musak_model.data.schema import ParsedScore, Segment, SegmentIneligibilityReason
@@ -97,27 +96,18 @@ def _attach_difficulty_features(
             scale_type=segment.scale_type,
             duration_vocabulary=duration_vocabulary,
         )
-    except (ValueError, ValidationError):
+    except PitchDegreeRegisterError:
         metadata = segment.metadata.model_copy(
             update={
                 "eligible_for_training": False,
-                "ineligibility_reasons": _append_ineligibility_reason(
-                    segment.metadata.ineligibility_reasons,
-                    SegmentIneligibilityReason.TOKENIZATION_ERROR,
-                ),
+                "ineligibility_reasons": segment.metadata.ineligibility_reasons
+                | {SegmentIneligibilityReason.REGISTER_OUT_OF_RANGE},
             }
         )
         return segment.model_copy(update={"metadata": metadata})
 
     metadata = segment.metadata.model_copy(update={"difficulty_features": features})
     return segment.model_copy(update={"metadata": metadata})
-
-
-def _append_ineligibility_reason(
-    reasons: frozenset[SegmentIneligibilityReason],
-    reason: SegmentIneligibilityReason,
-) -> frozenset[SegmentIneligibilityReason]:
-    return reasons | {reason}
 
 
 def _resolve_difficulty_level(

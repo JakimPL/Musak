@@ -44,7 +44,10 @@ def extract_difficulty_features(
         notes_per_beat=_notes_per_beat(window_bars_right + window_bars_left),
         rhythmic_diversity=_rhythmic_diversity(segment, duration_vocabulary=duration_vocabulary),
         voice_independence=_voice_independence(segment, duration_vocabulary=duration_vocabulary),
-        has_accidentals=_has_accidentals(window_bars_right + window_bars_left, score=score, scale_type=scale_type),
+        has_accidentals=(
+            _has_accidentals(window_bars_right, score=score, scale_type=scale_type, hand=Hand.RIGHT)
+            or _has_accidentals(window_bars_left, score=score, scale_type=scale_type, hand=Hand.LEFT)
+        ),
         has_dotted_notes=_has_dotted_notes(segment, duration_vocabulary=duration_vocabulary),
     )
 
@@ -123,6 +126,7 @@ def _has_accidentals(
     *,
     score: ParsedScore,
     scale_type: ScaleType,
+    hand: Hand,
 ) -> bool:
     for bar in bars:
         for event in bar.events:
@@ -132,7 +136,7 @@ def _has_accidentals(
                     key_root=score.key_root,
                     key_fifths=score.key_fifths,
                     scale_type=scale_type,
-                    hand=Hand.RIGHT,
+                    hand=hand,
                 )
                 if pitch_degree.accidental != 0:
                     return True
@@ -144,7 +148,7 @@ def _has_accidentals(
                         key_root=score.key_root,
                         key_fifths=score.key_fifths,
                         scale_type=scale_type,
-                        hand=Hand.RIGHT,
+                        hand=hand,
                     )
                     if pitch_degree.accidental != 0:
                         return True
