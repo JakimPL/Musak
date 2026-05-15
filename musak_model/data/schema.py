@@ -144,11 +144,9 @@ class SegmentMetadata(BaseModel):
 
 
 class Segment(BaseModel):
-    model_config = ConfigDict(arbitrary_types_allowed=True, frozen=True)
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid", frozen=True)
 
-    tokens: list[Token] = Field(default_factory=list)
-    right_hand_tokens: list[Token] = Field(default_factory=list)
-    left_hand_tokens: list[Token] = Field(default_factory=list)
+    tokens: list[Token]
     metadata: SegmentMetadata
 
     @property

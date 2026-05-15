@@ -1,12 +1,16 @@
+from dataclasses import dataclass
 from fractions import Fraction
+
+import pytest
 
 from musak_model.data.cleaning import (
     clean_parsed_score,
     deduplicate_simultaneous_pitches,
+    normalize_simultaneous_event_durations,
     trim_silent_edge_bars,
     truncate_overlapping_events,
 )
-from musak_model.data.schema import ParsedChord, ParsedNote
+from musak_model.data.schema import ParsedChord, ParsedEvent, ParsedNote, ParsedRest
 from tests.data.fixtures import bar, chord_event, note_event, parsed_score, rest_event
 
 
@@ -126,6 +130,168 @@ def test_deduplicate_simultaneous_pitches_preserves_same_pitch_with_different_du
     cleaned = deduplicate_simultaneous_pitches(score)
 
     assert cleaned.right_hand_bars[0].events == score.right_hand_bars[0].events
+
+
+@dataclass(frozen=True)
+class SimultaneousDurationCase:
+    name: str
+    events: list[ParsedEvent]
+    expected_pitched_durations: list[Fraction]
+    expected_rest_durations: list[Fraction]
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class TestNormalizeSimultaneousEventDurations:
+    CASES = [
+        SimultaneousDurationCase(
+            name="duration matching next onset is selected",
+            events=[
+                note_event(midi_pitch=60, duration=Fraction(1, 8), beat_offset=Fraction(0)),
+                note_event(midi_pitch=64, duration=Fraction(1, 4), beat_offset=Fraction(0)),
+                note_event(midi_pitch=67, duration=Fraction(1, 2), beat_offset=Fraction(0)),
+                note_event(midi_pitch=69, duration=Fraction(1, 4), beat_offset=Fraction(1, 4)),
+            ],
+            expected_pitched_durations=[Fraction(1, 4), Fraction(1, 4), Fraction(1, 4), Fraction(1, 4)],
+            expected_rest_durations=[],
+        ),
+        SimultaneousDurationCase(
+            name="next onset is selected when no duration matches",
+            events=[
+                note_event(midi_pitch=60, duration=Fraction(1, 8), beat_offset=Fraction(0)),
+                note_event(midi_pitch=64, duration=Fraction(1, 2), beat_offset=Fraction(0)),
+                note_event(midi_pitch=67, duration=Fraction(1, 4), beat_offset=Fraction(1, 4)),
+            ],
+            expected_pitched_durations=[Fraction(1, 4), Fraction(1, 4), Fraction(1, 4)],
+            expected_rest_durations=[],
+        ),
+        SimultaneousDurationCase(
+            name="next onset can extend all simultaneous notes",
+            events=[
+                note_event(midi_pitch=60, duration=Fraction(1, 16), beat_offset=Fraction(0)),
+                note_event(midi_pitch=64, duration=Fraction(1, 8), beat_offset=Fraction(0)),
+                note_event(midi_pitch=67, duration=Fraction(1, 4), beat_offset=Fraction(1, 4)),
+            ],
+            expected_pitched_durations=[Fraction(1, 4), Fraction(1, 4), Fraction(1, 4)],
+            expected_rest_durations=[],
+        ),
+        SimultaneousDurationCase(
+            name="next rest onset defines simultaneous note duration",
+            events=[
+                note_event(midi_pitch=60, duration=Fraction(1, 8), beat_offset=Fraction(0)),
+                note_event(midi_pitch=64, duration=Fraction(1, 2), beat_offset=Fraction(0)),
+                rest_event(duration=Fraction(1, 4), beat_offset=Fraction(1, 4)),
+            ],
+            expected_pitched_durations=[Fraction(1, 4), Fraction(1, 4)],
+            expected_rest_durations=[Fraction(1, 4)],
+        ),
+        SimultaneousDurationCase(
+            name="longest duration is selected without later onset",
+            events=[
+                note_event(midi_pitch=60, duration=Fraction(1, 8), beat_offset=Fraction(0)),
+                note_event(midi_pitch=64, duration=Fraction(1, 2), beat_offset=Fraction(0)),
+            ],
+            expected_pitched_durations=[Fraction(1, 2), Fraction(1, 2)],
+            expected_rest_durations=[],
+        ),
+        SimultaneousDurationCase(
+            name="single pitched event at onset is unchanged",
+            events=[
+                note_event(midi_pitch=60, duration=Fraction(1, 8), beat_offset=Fraction(0)),
+                note_event(midi_pitch=64, duration=Fraction(1, 4), beat_offset=Fraction(1, 4)),
+            ],
+            expected_pitched_durations=[Fraction(1, 8), Fraction(1, 4)],
+            expected_rest_durations=[],
+        ),
+    ]
+
+    @pytest.mark.parametrize("case", CASES, ids=str)
+    def test_normalizes_same_onset_pitched_durations(self, case: SimultaneousDurationCase) -> None:
+        score = parsed_score(right_hand_bars=[bar(case.events)], left_hand_bars=[bar([])])
+
+        cleaned = normalize_simultaneous_event_durations(score)
+
+        events = cleaned.right_hand_bars[0].events
+        assert [event.duration for event in events if isinstance(event, ParsedNote | ParsedChord)] == (
+            case.expected_pitched_durations
+        )
+        assert [event.duration for event in events if isinstance(event, ParsedRest)] == case.expected_rest_durations
+
+    def test_normalizes_chords_and_notes_at_same_onset(self) -> None:
+        score = parsed_score(
+            right_hand_bars=[
+                bar(
+                    [
+                        chord_event(midi_pitches=[60, 64], duration=Fraction(1, 8), beat_offset=Fraction(0)),
+                        note_event(midi_pitch=67, duration=Fraction(1, 2), beat_offset=Fraction(0)),
+                        note_event(midi_pitch=69, duration=Fraction(1, 4), beat_offset=Fraction(1, 4)),
+                    ]
+                )
+            ],
+            left_hand_bars=[bar([])],
+        )
+
+        cleaned = normalize_simultaneous_event_durations(score)
+
+        events = cleaned.right_hand_bars[0].events
+        assert [event.duration for event in events] == [Fraction(1, 4), Fraction(1, 4), Fraction(1, 4)]
+        assert isinstance(events[0], ParsedChord)
+        assert isinstance(events[1], ParsedNote)
+
+    def test_normalizes_hands_independently(self) -> None:
+        score = parsed_score(
+            right_hand_bars=[
+                bar(
+                    [
+                        note_event(midi_pitch=60, duration=Fraction(1, 8), beat_offset=Fraction(0)),
+                        note_event(midi_pitch=64, duration=Fraction(1, 2), beat_offset=Fraction(0)),
+                        note_event(midi_pitch=67, duration=Fraction(1, 4), beat_offset=Fraction(1, 4)),
+                    ]
+                )
+            ],
+            left_hand_bars=[
+                bar(
+                    [
+                        note_event(midi_pitch=48, duration=Fraction(1, 8), beat_offset=Fraction(0)),
+                        note_event(midi_pitch=52, duration=Fraction(1, 2), beat_offset=Fraction(0)),
+                    ]
+                )
+            ],
+        )
+
+        cleaned = normalize_simultaneous_event_durations(score)
+
+        assert [event.duration for event in cleaned.right_hand_bars[0].events] == [
+            Fraction(1, 4),
+            Fraction(1, 4),
+            Fraction(1, 4),
+        ]
+        assert [event.duration for event in cleaned.left_hand_bars[0].events] == [
+            Fraction(1, 2),
+            Fraction(1, 2),
+        ]
+
+    def test_clean_parsed_score_collapses_mixed_duration_same_onset_group_to_chord(self) -> None:
+        score = parsed_score(
+            right_hand_bars=[
+                bar(
+                    [
+                        note_event(midi_pitch=60, duration=Fraction(1, 8), beat_offset=Fraction(0)),
+                        note_event(midi_pitch=64, duration=Fraction(1, 2), beat_offset=Fraction(0)),
+                        note_event(midi_pitch=67, duration=Fraction(1, 4), beat_offset=Fraction(1, 4)),
+                    ]
+                )
+            ],
+            left_hand_bars=[bar([])],
+        )
+
+        cleaned = clean_parsed_score(score)
+
+        first_event = cleaned.right_hand_bars[0].events[0]
+        assert isinstance(first_event, ParsedChord)
+        assert first_event.midi_pitches == [60, 64]
+        assert first_event.duration == Fraction(1, 4)
 
 
 def test_truncate_overlapping_events_preserves_later_onsets() -> None:

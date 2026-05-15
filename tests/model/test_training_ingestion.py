@@ -35,8 +35,6 @@ def _segment(source_file: Path, *, duration_vocabulary: DurationVocabulary) -> S
     ]
     return Segment(
         tokens=tokens,
-        right_hand_tokens=tokens,
-        left_hand_tokens=tokens,
         metadata=SegmentMetadata(
             key_root=0,
             scale_type=ScaleType.MAJOR,

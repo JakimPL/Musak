@@ -7,6 +7,7 @@ from musak_model.tokens.schema import (
     MIN_OCTAVE_OFFSET,
     BarToken,
     EndToken,
+    Hand,
     HandToken,
     JoinWithPreviousToken,
     NoteToken,
@@ -21,14 +22,7 @@ def shift_register(
     *,
     offset: int,
 ) -> Segment:
-    shifted_right = _shift_tokens(segment.right_hand_tokens, offset=offset)
-    shifted_left = _shift_tokens(segment.left_hand_tokens, offset=offset)
-    return segment.model_copy(
-        update={
-            "right_hand_tokens": shifted_right,
-            "left_hand_tokens": shifted_left,
-        }
-    )
+    return segment.model_copy(update={"tokens": _shift_tokens(segment.tokens, offset=offset)})
 
 
 def halve_durations(
@@ -82,22 +76,17 @@ def _remap_durations(
     duration_vocabulary: DurationVocabulary,
     factor: Fraction,
 ) -> Segment:
-    remapped_right = _remap_tokens(
-        segment.right_hand_tokens,
+    tokens = _remap_tokens(
+        segment.tokens,
         duration_vocabulary=duration_vocabulary,
         factor=factor,
     )
-    remapped_left = _remap_tokens(
-        segment.left_hand_tokens,
+    _raise_for_invalid_bar_timing(
+        tokens,
         duration_vocabulary=duration_vocabulary,
-        factor=factor,
+        measure_duration=Fraction(segment.time_numerator, segment.time_denominator),
     )
-    return segment.model_copy(
-        update={
-            "right_hand_tokens": remapped_right,
-            "left_hand_tokens": remapped_left,
-        }
-    )
+    return segment.model_copy(update={"tokens": tokens})
 
 
 def _remap_tokens(
@@ -157,3 +146,45 @@ def _remap_duration_id(
         raise ValueError(f"duration {source_fraction} has no exact mapping for factor {factor}")
 
     return candidate_duration_id
+
+
+def _raise_for_invalid_bar_timing(
+    tokens: list[Token],
+    *,
+    duration_vocabulary: DurationVocabulary,
+    measure_duration: Fraction,
+) -> None:
+    cursors = {Hand.RIGHT: Fraction(0), Hand.LEFT: Fraction(0)}
+    active_hand = Hand.RIGHT
+
+    for token in tokens:
+        if isinstance(token, HandToken):
+            active_hand = token.hand
+            continue
+
+        if isinstance(token, BarToken):
+            _raise_for_bar_overflow(cursors, measure_duration=measure_duration)
+            cursors = {Hand.RIGHT: Fraction(0), Hand.LEFT: Fraction(0)}
+            continue
+
+        if isinstance(token, EndToken):
+            _raise_for_bar_overflow(cursors, measure_duration=measure_duration)
+            break
+
+        if isinstance(token, StartToken):
+            continue
+
+        if isinstance(token, RestToken | NoteToken):
+            cursors[active_hand] += duration_vocabulary.id_to_fraction(token.duration_id)
+            continue
+
+        if isinstance(token, JoinWithPreviousToken):
+            continue
+
+        raise ValueError(f"unexpected token type: {type(token)}")
+
+
+def _raise_for_bar_overflow(cursors: dict[Hand, Fraction], *, measure_duration: Fraction) -> None:
+    for hand, cursor in cursors.items():
+        if cursor > measure_duration:
+            raise ValueError(f"{hand.value} hand duration {cursor} exceeds measure duration {measure_duration}")

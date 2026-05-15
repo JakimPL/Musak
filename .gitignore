@@ -10,7 +10,9 @@ processed/
 *.pyc
 
 *.txt
+*.csv
 *.json
+*.jsonl
 
 *.png
 

@@ -1,6 +1,7 @@
 from fractions import Fraction
 from pathlib import Path
 
+from musak_model.data.cleaning import clean_parsed_score
 from musak_model.data.config import SegmentationConfig
 from musak_model.data.schema import ParsedBar, ParsedNote, ParsedScore, SegmentIneligibilityReason
 from musak_model.data.segmenter import segment_score
@@ -135,6 +136,43 @@ def test_ambiguous_simultaneous_durations_mark_segment_ineligible(
 
     assert segments[0].metadata.eligible_for_training is False
     assert segments[0].metadata.ineligibility_reasons == {SegmentIneligibilityReason.AMBIGUOUS_SIMULTANEOUS_DURATION}
+
+
+def test_cleaned_simultaneous_mixed_durations_are_tokenized_as_chord(
+    duration_vocabulary: DurationVocabulary,
+) -> None:
+    ambiguous_bar = ParsedBar(
+        time_numerator=4,
+        time_denominator=4,
+        key_fifths=0,
+        events=[
+            ParsedNote(midi_pitch=60, duration=Fraction(1, 8), beat_offset=Fraction(0)),
+            ParsedNote(midi_pitch=64, duration=Fraction(1, 2), beat_offset=Fraction(0)),
+            ParsedNote(midi_pitch=67, duration=Fraction(1, 4), beat_offset=Fraction(1, 4)),
+        ],
+    )
+    score = clean_parsed_score(
+        ParsedScore(
+            key_root=0,
+            key_fifths=0,
+            scale_type=ScaleType.MAJOR,
+            time_numerator=4,
+            time_denominator=4,
+            right_hand_bars=[ambiguous_bar],
+            left_hand_bars=[_bar()],
+        )
+    )
+
+    segments = segment_score(
+        score,
+        Path("piece.mxl"),
+        scale_type=ScaleType.MAJOR,
+        duration_vocabulary=duration_vocabulary,
+        segmentation=SegmentationConfig(window_bars=1, stride_bars=1),
+    )
+
+    assert segments[0].metadata.eligible_for_training is True
+    assert segments[0].metadata.ineligibility_reasons == frozenset()
 
 
 def test_unsupported_quantized_duration_marks_segment_ineligible(

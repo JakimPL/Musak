@@ -17,6 +17,7 @@ from musak_model.tokens.schema import (
     ScaleType,
     Token,
 )
+from musak_model.tokens.views import tokens_for_hand
 
 
 def extract_difficulty_features(
@@ -83,9 +84,8 @@ def _notes_per_beat(
 
 
 def _rhythmic_diversity(segment: Segment, *, duration_vocabulary: DurationVocabulary) -> float:
-    all_tokens = segment.right_hand_tokens + segment.left_hand_tokens
     durations_present: set[int] = set()
-    for token in all_tokens:
+    for token in segment.tokens:
         if isinstance(token, NoteToken):
             durations_present.add(token.duration_id)
 
@@ -93,8 +93,14 @@ def _rhythmic_diversity(segment: Segment, *, duration_vocabulary: DurationVocabu
 
 
 def _voice_independence(segment: Segment, *, duration_vocabulary: DurationVocabulary) -> float:
-    right_rhythm = _rhythm_vector(segment.right_hand_tokens, duration_vocabulary=duration_vocabulary)
-    left_rhythm = _rhythm_vector(segment.left_hand_tokens, duration_vocabulary=duration_vocabulary)
+    right_rhythm = _rhythm_vector(
+        tokens_for_hand(segment.tokens, hand=Hand.RIGHT, include_structure=False),
+        duration_vocabulary=duration_vocabulary,
+    )
+    left_rhythm = _rhythm_vector(
+        tokens_for_hand(segment.tokens, hand=Hand.LEFT, include_structure=False),
+        duration_vocabulary=duration_vocabulary,
+    )
 
     if len(right_rhythm) != len(left_rhythm) or not right_rhythm:
         return 0.0
@@ -160,7 +166,7 @@ def _has_note_duration_in(
     duration_vocabulary: DurationVocabulary,
     durations: frozenset[Fraction],
 ) -> bool:
-    for token in segment.right_hand_tokens + segment.left_hand_tokens:
+    for token in segment.tokens:
         if isinstance(token, NoteToken) and duration_vocabulary.id_to_fraction(token.duration_id) in durations:
             return True
 

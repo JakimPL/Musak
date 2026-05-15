@@ -64,20 +64,6 @@ def segment_score(
     segmentation: SegmentationConfig,
     difficulty_level: int | None = None,
 ) -> list[Segment]:
-    right_hand_tokens = _tokenize_hand_safely(
-        score.right_hand_bars,
-        score=score,
-        hand=Hand.RIGHT,
-        scale_type=scale_type,
-        duration_vocabulary=duration_vocabulary,
-    )
-    left_hand_tokens = _tokenize_hand_safely(
-        score.left_hand_bars,
-        score=score,
-        hand=Hand.LEFT,
-        scale_type=scale_type,
-        duration_vocabulary=duration_vocabulary,
-    )
     unified_tokens = _tokenize_unified_stream_safely(
         score=score,
         scale_type=scale_type,
@@ -85,8 +71,6 @@ def segment_score(
     )
 
     return _create_windows(
-        right_hand_tokens=right_hand_tokens,
-        left_hand_tokens=left_hand_tokens,
         unified_tokens=unified_tokens,
         score=score,
         source_file=source_file,
@@ -238,7 +222,11 @@ def _normalize_bar_events(
     duration_vocabulary: DurationVocabulary,
     measure_duration: Fraction,
 ) -> list[_TimedTokenGroup]:
-    _raise_for_ambiguous_simultaneous_durations(bar=bar, bar_index=bar_index, hand=hand)
+    _raise_for_ambiguous_simultaneous_durations(
+        bar=bar,
+        bar_index=bar_index,
+        hand=hand,
+    )
     _raise_for_quantization_grid_integrity(
         bar=bar,
         bar_index=bar_index,
@@ -263,7 +251,14 @@ def _normalize_bar_events(
                     bar_index=bar_index,
                     offset=cursor,
                     hand=hand,
-                    tokens=[RestToken(duration_id=_exact_duration_id(rest_duration, vocabulary=duration_vocabulary))],
+                    tokens=[
+                        RestToken(
+                            duration_id=_exact_duration_id(
+                                rest_duration,
+                                vocabulary=duration_vocabulary,
+                            )
+                        )
+                    ],
                 )
             )
 
@@ -295,7 +290,12 @@ def _normalize_bar_events(
                 offset=cursor,
                 hand=hand,
                 tokens=[
-                    RestToken(duration_id=_exact_duration_id(measure_duration - cursor, vocabulary=duration_vocabulary))
+                    RestToken(
+                        duration_id=_exact_duration_id(
+                            measure_duration - cursor,
+                            vocabulary=duration_vocabulary,
+                        )
+                    )
                 ],
             )
         )
@@ -307,7 +307,12 @@ def _event_sort_key(event: ParsedEvent) -> tuple[Fraction, int]:
     return event.beat_offset, _lowest_pitch(event)
 
 
-def _raise_for_ambiguous_simultaneous_durations(*, bar: ParsedBar, bar_index: int, hand: Hand) -> None:
+def _raise_for_ambiguous_simultaneous_durations(
+    *,
+    bar: ParsedBar,
+    bar_index: int,
+    hand: Hand,
+) -> None:
     durations_by_offset: dict[Fraction, set[Fraction]] = {}
     for event in bar.events:
         if isinstance(event, ParsedNote | ParsedChord):
@@ -559,8 +564,6 @@ def _chord_to_tokens(
 
 
 def _create_windows(
-    right_hand_tokens: list[_BarTokenization],
-    left_hand_tokens: list[_BarTokenization],
     unified_tokens: list[_BarTokenization],
     score: ParsedScore,
     source_file: Path,
@@ -569,16 +572,12 @@ def _create_windows(
     segmentation: SegmentationConfig,
     difficulty_level: int | None,
 ) -> list[Segment]:
-    total_bars = min(len(right_hand_tokens), len(left_hand_tokens), len(unified_tokens))
+    total_bars = len(unified_tokens)
     segments: list[Segment] = []
 
     for start in range(0, total_bars - segmentation.window_bars + 1, segmentation.stride_bars):
         end = start + segmentation.window_bars
-        right_window_bars = right_hand_tokens[start:end]
-        left_window_bars = left_hand_tokens[start:end]
         unified_window_bars = unified_tokens[start:end]
-        right_window = _flatten_bars([bar.tokens for bar in right_window_bars])
-        left_window = _flatten_bars([bar.tokens for bar in left_window_bars])
         unified_window = _flatten_bars([bar.tokens for bar in unified_window_bars])
         first_bar = score.right_hand_bars[start]
         ineligibility_reasons = _merge_ineligibility_reasons(
@@ -587,16 +586,12 @@ def _create_windows(
                 start=start,
                 end=end,
             ),
-            *(bar.ineligibility_reasons for bar in right_window_bars),
-            *(bar.ineligibility_reasons for bar in left_window_bars),
             *(bar.ineligibility_reasons for bar in unified_window_bars),
         )
 
         segments.append(
             Segment(
                 tokens=unified_window,
-                right_hand_tokens=right_window,
-                left_hand_tokens=left_window,
                 metadata=SegmentMetadata(
                     key_root=score.key_root,
                     scale_type=scale_type,

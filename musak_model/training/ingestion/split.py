@@ -15,7 +15,7 @@ from musak_model.processing.paths import ProcessedDatasetPaths
 from musak_model.processing.snapshot import TokenizerSnapshot, build_tokenizer_snapshot
 from musak_model.tokens.config import TokenizationConfig
 from musak_model.tokens.duration import DurationVocabulary
-from musak_model.tokens.schema import BarToken, EndToken, Hand, Token
+from musak_model.tokens.schema import BarToken, EndToken, Token
 from musak_model.tokens.vocabulary import TokenVocabulary, encode
 from musak_model.training.ingestion.config import IngestionConfig
 from musak_model.training.ingestion.schema import EncodedExercise, IngestionErrorRecord, IngestionSplit
@@ -294,46 +294,12 @@ def _encode_segments(segments: list[Segment], *, token_vocabulary: TokenVocabula
 
 
 def _encode_segment(segment: Segment, *, token_vocabulary: TokenVocabulary) -> EncodedExercise:
-    tokens = segment.tokens if segment.tokens else segment.right_hand_tokens + segment.left_hand_tokens
-    token_ids = encode(tokens, vocabulary=token_vocabulary)
-    bar_positions = _build_bar_positions_from_tokens(tokens)
+    token_ids = encode(segment.tokens, vocabulary=token_vocabulary)
+    bar_positions = _build_bar_positions_from_tokens(segment.tokens)
     return EncodedExercise(
         token_ids=token_ids,
         bar_positions=bar_positions,
         hand=None,
-        metadata=segment.metadata,
-    )
-
-
-def _encode_segment_hands(segment: Segment, *, token_vocabulary: TokenVocabulary) -> list[EncodedExercise]:
-    right_hand = _encode_hand_segment(
-        segment=segment,
-        tokens=segment.right_hand_tokens,
-        hand=Hand.RIGHT,
-        token_vocabulary=token_vocabulary,
-    )
-    left_hand = _encode_hand_segment(
-        segment=segment,
-        tokens=segment.left_hand_tokens,
-        hand=Hand.LEFT,
-        token_vocabulary=token_vocabulary,
-    )
-    return [right_hand, left_hand]
-
-
-def _encode_hand_segment(
-    *,
-    segment: Segment,
-    tokens: list[Token],
-    hand: Hand,
-    token_vocabulary: TokenVocabulary,
-) -> EncodedExercise:
-    token_ids = encode(tokens, vocabulary=token_vocabulary)
-    bar_positions = _build_bar_positions_from_tokens(tokens)
-    return EncodedExercise(
-        token_ids=token_ids,
-        bar_positions=bar_positions,
-        hand=hand,
         metadata=segment.metadata,
     )
 

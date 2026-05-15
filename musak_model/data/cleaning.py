@@ -6,7 +6,18 @@ from musak_model.data.schema import ParsedBar, ParsedChord, ParsedEvent, ParsedN
 
 
 def clean_parsed_score(score: ParsedScore) -> ParsedScore:
-    return trim_silent_edge_bars(deduplicate_simultaneous_pitches(truncate_overlapping_events(score)))
+    return trim_silent_edge_bars(
+        deduplicate_simultaneous_pitches(truncate_overlapping_events(normalize_simultaneous_event_durations(score)))
+    )
+
+
+def normalize_simultaneous_event_durations(score: ParsedScore) -> ParsedScore:
+    return score.model_copy(
+        update={
+            "right_hand_bars": [_normalize_bar_simultaneous_durations(bar) for bar in score.right_hand_bars],
+            "left_hand_bars": [_normalize_bar_simultaneous_durations(bar) for bar in score.left_hand_bars],
+        }
+    )
 
 
 def truncate_overlapping_events(score: ParsedScore) -> ParsedScore:
@@ -84,10 +95,60 @@ def _deduplicate_bar(bar: ParsedBar) -> ParsedBar:
     return bar.model_copy(update={"events": events})
 
 
+def _normalize_bar_simultaneous_durations(bar: ParsedBar) -> ParsedBar:
+    events = sorted(bar.events, key=_event_sort_key)
+    next_offsets = _next_offsets(events)
+    pitched_events_by_offset: dict[Fraction, list[ParsedNote | ParsedChord]] = {}
+    for event in events:
+        if isinstance(event, ParsedNote | ParsedChord):
+            pitched_events_by_offset.setdefault(event.beat_offset, []).append(event)
+
+    normalized_events: list[ParsedEvent] = []
+    for event in events:
+        if not isinstance(event, ParsedNote | ParsedChord):
+            normalized_events.append(event)
+            continue
+
+        simultaneous_events = pitched_events_by_offset[event.beat_offset]
+        durations = {simultaneous_event.duration for simultaneous_event in simultaneous_events}
+        if len(simultaneous_events) < 2 or len(durations) == 1:
+            normalized_events.append(event)
+            continue
+
+        normalized_duration = _shared_simultaneous_duration(
+            beat_offset=event.beat_offset,
+            durations=durations,
+            next_offsets=next_offsets,
+        )
+        normalized_events.append(_with_duration(event, normalized_duration))
+
+    if normalized_events == bar.events:
+        return bar
+
+    return bar.model_copy(update={"events": normalized_events})
+
+
+def _next_offsets(events: list[ParsedEvent]) -> dict[Fraction, Fraction]:
+    offsets = sorted({event.beat_offset for event in events})
+    return {offset: offsets[index + 1] for index, offset in enumerate(offsets[:-1])}
+
+
+def _shared_simultaneous_duration(
+    *,
+    beat_offset: Fraction,
+    durations: set[Fraction],
+    next_offsets: dict[Fraction, Fraction],
+) -> Fraction:
+    next_offset = next_offsets.get(beat_offset)
+    if next_offset is not None:
+        return next_offset - beat_offset
+
+    return max(durations)
+
+
 def _truncate_bar_overlaps(bar: ParsedBar) -> ParsedBar:
     events = sorted(bar.events, key=_event_sort_key)
-    offsets = sorted({event.beat_offset for event in events})
-    next_offsets = {offset: offsets[index + 1] for index, offset in enumerate(offsets[:-1])}
+    next_offsets = _next_offsets(events)
     truncated_events: list[ParsedEvent] = []
 
     for event in events:

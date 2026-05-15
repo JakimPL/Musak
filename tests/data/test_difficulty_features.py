@@ -23,13 +23,13 @@ from musak_model.data.schema import (
     SegmentMetadata,
 )
 from musak_model.tokens.duration import DurationVocabulary
-from musak_model.tokens.schema import BarToken, EndToken, NoteToken, ScaleType
+from musak_model.tokens.schema import BarToken, EndToken, Hand, HandToken, NoteToken, ScaleType, Token
 
 
 def _segment_with_tokens(
     duration_vocabulary: DurationVocabulary,
-    right_tokens: list[NoteToken | BarToken | EndToken] | None = None,
-    left_tokens: list[NoteToken | BarToken | EndToken] | None = None,
+    right_tokens: list[Token] | None = None,
+    left_tokens: list[Token] | None = None,
     *,
     window_start_bar: int = 0,
 ) -> Segment:
@@ -50,8 +50,7 @@ def _segment_with_tokens(
         ]
 
     return Segment(
-        right_hand_tokens=right_tokens,
-        left_hand_tokens=left_tokens,
+        tokens=[HandToken(hand=Hand.RIGHT), *right_tokens, HandToken(hand=Hand.LEFT), *left_tokens],
         metadata=SegmentMetadata(
             key_root=0,
             scale_type=ScaleType.MAJOR,

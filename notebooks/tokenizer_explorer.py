@@ -331,9 +331,7 @@ def _(mo, segment):
             {"Property": "Key", "Value": f"{key_names[segment.key_root]} {segment.scale_type.value}"},
             {"Property": "Time signature", "Value": f"{segment.time_numerator}/{segment.time_denominator}"},
             {"Property": "Bars", "Value": str(segment.bar_count)},
-            {"Property": "Unified tokens", "Value": str(len(segment.tokens))},
-            {"Property": "RH tokens", "Value": str(len(segment.right_hand_tokens))},
-            {"Property": "LH tokens", "Value": str(len(segment.left_hand_tokens))},
+            {"Property": "Tokens", "Value": str(len(segment.tokens))},
             {
                 "Property": "Difficulty level",
                 "Value": str(segment.difficulty_level) if segment.difficulty_level is not None else "unlabeled",

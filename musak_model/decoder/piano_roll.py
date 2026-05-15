@@ -79,33 +79,11 @@ def segment_to_piano_roll_events(
     *,
     duration_vocabulary: DurationVocabulary,
 ) -> list[PianoRollEvent]:
-    if segment.tokens:
-        return tokens_to_piano_roll_events(
-            segment.tokens,
-            metadata=segment.metadata,
-            duration_vocabulary=duration_vocabulary,
-            default_hand=Hand.RIGHT,
-        )
-
-    right_events = tokens_to_piano_roll_events(
-        segment.right_hand_tokens,
+    return tokens_to_piano_roll_events(
+        segment.tokens,
         metadata=segment.metadata,
         duration_vocabulary=duration_vocabulary,
         default_hand=Hand.RIGHT,
-    )
-    left_events = tokens_to_piano_roll_events(
-        segment.left_hand_tokens,
-        metadata=segment.metadata,
-        duration_vocabulary=duration_vocabulary,
-        default_hand=Hand.LEFT,
-    )
-    return sorted(
-        right_events + left_events,
-        key=lambda event: (
-            event.start,
-            event.hand.value,
-            event.midi_pitch,
-        ),
     )
 
 

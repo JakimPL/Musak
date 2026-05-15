@@ -130,13 +130,17 @@ def test_segment_to_music21_score_groups_same_onset_notes_as_chord(duration_voca
     assert len(right_notes[0].pitches) == 2
 
 
-def test_segment_to_piano_roll_events_uses_legacy_hand_tokens_when_unified_stream_is_empty(
+def test_segment_to_piano_roll_events_decodes_canonical_unified_tokens(
     duration_vocabulary: DurationVocabulary,
 ) -> None:
     quarter_id = duration_vocabulary.fraction_to_id(Fraction(1, 4))
     segment = Segment(
-        right_hand_tokens=[NoteToken(degree=1, accidental=0, octave_offset=0, duration_id=quarter_id)],
-        left_hand_tokens=[NoteToken(degree=1, accidental=0, octave_offset=0, duration_id=quarter_id)],
+        tokens=[
+            HandToken(hand=Hand.RIGHT),
+            NoteToken(degree=1, accidental=0, octave_offset=0, duration_id=quarter_id),
+            HandToken(hand=Hand.LEFT),
+            NoteToken(degree=1, accidental=0, octave_offset=0, duration_id=quarter_id),
+        ],
         metadata=_metadata(),
     )
 
