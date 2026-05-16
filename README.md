@@ -92,13 +92,21 @@ processed/PDMX/
     data-00000.jsonl
 ```
 
-Training can work from raw MusicXML, parsed JSON, or encoded JSONL:
+Training can work from encoded JSONL, parsed JSON, or raw MusicXML. `--processed-dir` is the processed artifact directory with the dataset name. `--data-dir` is optional when processed artifacts are usable, and is required only when raw MusicXML fallback is needed.
 
 ```bash
-uv run python scripts/train_stage_one.py --data-dir data/PDMX --processed-dir processed
+uv run python scripts/train_stage_one.py --processed-dir processed/PDMX
 ```
 
-When `--processed-dir` is provided, training first looks for encoded artifacts under `processed/PDMX/encoded/<tokenizer_hash>`. Encoded artifacts are reused only when `tokenizer.json` matches the active tokenization config. If matching encoded data is unavailable, training falls back to parsed artifacts, and then to raw MusicXML.
+To allow raw fallback, pass both directories:
+
+```bash
+uv run python scripts/train_stage_one.py --data-dir data/PDMX --processed-dir processed/PDMX
+```
+
+When both directories are supplied, their dataset names must match. For example, `--data-dir data/PDMX --processed-dir processed/PDMX` is valid; `--data-dir data/PDMX --processed-dir processed` is not a training path. Processing still takes a processed root and writes the dataset subdirectory, while training takes the resolved processed dataset directory.
+
+When `--processed-dir` is provided, training first looks for encoded artifacts under `processed/PDMX/encoded/<tokenizer_hash>`. Encoded artifacts are reused only when `tokenizer.json` matches the active tokenization config. If matching encoded data is unavailable, training falls back to parsed artifacts. If no usable processed artifacts exist, training parses raw MusicXML only when `--data-dir` was supplied; otherwise it exits with an error.
 
 Parsed artifacts can be re-tokenized with a different tokenization config. Encoded artifacts cannot; they are already tokenized and are selected by tokenizer hash. Paths stored in manifests are relative to the dataset or processed artifact directory and are informational, not a replacement for passing `--data-dir` and `--processed-dir`.
 

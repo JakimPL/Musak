@@ -20,5 +20,9 @@ def scale_type_to_id(scale_type: ScaleType) -> int:
         raise ValueError(f"unsupported scale type: {scale_type}") from exception
 
 
-def time_signature_to_id(time_signature: tuple[int, int], *, vocabulary: TimeSignatureVocabulary) -> int:
+def time_signature_to_id(
+    time_signature: tuple[int, int],
+    *,
+    vocabulary: TimeSignatureVocabulary,
+) -> int:
     return vocabulary.time_signature_to_id(time_signature)

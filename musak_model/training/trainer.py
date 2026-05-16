@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 
 import torch
@@ -22,7 +23,10 @@ from musak_model.training.dataset import TrainingBatch, build_dataloaders
 from musak_model.training.ingestion.config import IngestionConfig
 from musak_model.training.ingestion.schema import IngestionErrorRecord
 from musak_model.training.ingestion.split import build_split
+from musak_model.training.progress import log_split_summary, progress
 from musak_model.training.tracking import NoOpTrainingTracker, TrainingTracker, build_training_tracker
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class EpochMetrics(BaseModel):
@@ -51,6 +55,7 @@ class StageOneTrainer:
         train_loader: DataLoader[TrainingBatch],
         validation_loader: DataLoader[TrainingBatch],
         tracker: TrainingTracker | None = None,
+        show_progress: bool = False,
     ) -> None:
         self._model = model
         self._config = config
@@ -64,14 +69,19 @@ class StageOneTrainer:
         )
         self._model.to(self._device)
         self._tracker = tracker or NoOpTrainingTracker()
+        self._show_progress = show_progress
 
     def train(self, *, invalid_files: list[IngestionErrorRecord] | None = None) -> TrainingResult:
         if len(self._train_loader) == 0:
             raise ValueError("training loader is empty")
 
+        _LOGGER.info("Training batches per epoch: %s", len(self._train_loader))
+        _LOGGER.info("Validation batches per epoch: %s", len(self._validation_loader))
+
         start_epoch = 0
         best_validation_loss: float | None = None
         if self._config.resume_checkpoint is not None:
+            _LOGGER.info("Resuming from checkpoint: %s", self._config.resume_checkpoint)
             start_epoch, best_validation_loss = load_checkpoint(
                 self._config.resume_checkpoint,
                 model=self._model,
@@ -84,11 +94,19 @@ class StageOneTrainer:
         latest_checkpoint_path = self._config.checkpoint_dir / "latest.pt"
 
         for epoch in range(start_epoch, self._config.epochs):
-            train_loss = self._train_epoch()
-            validation_loss = self._validate_epoch()
+            _LOGGER.info("Epoch %s/%s started", epoch + 1, self._config.epochs)
+            train_loss = self._train_epoch(epoch=epoch)
+            validation_loss = self._validate_epoch(epoch=epoch)
             metric = EpochMetrics(epoch=epoch, train_loss=train_loss, validation_loss=validation_loss)
             metrics.append(metric)
             self._tracker.log_epoch(epoch=epoch, train_loss=train_loss, validation_loss=validation_loss)
+            _LOGGER.info(
+                "Epoch %s/%s finished: train_loss=%.6f validation_loss=%s",
+                epoch + 1,
+                self._config.epochs,
+                train_loss,
+                validation_loss,
+            )
 
             save_checkpoint(
                 latest_checkpoint_path,
@@ -97,6 +115,7 @@ class StageOneTrainer:
                 epoch=epoch,
                 best_validation_loss=best_validation_loss,
             )
+            _LOGGER.info("Saved latest checkpoint: %s", latest_checkpoint_path)
 
             score = validation_loss if validation_loss is not None else train_loss
             if best_validation_loss is None or score < best_validation_loss:
@@ -109,6 +128,7 @@ class StageOneTrainer:
                     epoch=epoch,
                     best_validation_loss=best_validation_loss,
                 )
+                _LOGGER.info("Saved best checkpoint: %s", best_checkpoint_path)
 
         result = TrainingResult(
             metrics=metrics,
@@ -123,12 +143,18 @@ class StageOneTrainer:
         self._tracker.log_invalid_files(invalid_files=result.invalid_files)
         return result
 
-    def _train_epoch(self) -> float:
+    def _train_epoch(self, *, epoch: int) -> float:
         self._model.train()
         total_loss = 0.0
         total_tokens = 0
 
-        for batch in self._train_loader:
+        for batch in progress(
+            self._train_loader,
+            description=f"Training epoch {epoch + 1}",
+            unit="batch",
+            enabled=self._show_progress,
+            total=len(self._train_loader),
+        ):
             batch = _move_batch_to_device(batch, device=self._device)
             self._optimizer.zero_grad(set_to_none=True)
             loss, token_count = self._loss_for_batch(batch)
@@ -139,7 +165,7 @@ class StageOneTrainer:
 
         return total_loss / total_tokens
 
-    def _validate_epoch(self) -> float | None:
+    def _validate_epoch(self, *, epoch: int) -> float | None:
         if len(self._validation_loader) == 0:
             return None
 
@@ -147,7 +173,13 @@ class StageOneTrainer:
         total_loss = 0.0
         total_tokens = 0
         with torch.no_grad():
-            for batch in self._validation_loader:
+            for batch in progress(
+                self._validation_loader,
+                description=f"Validation epoch {epoch + 1}",
+                unit="batch",
+                enabled=self._show_progress,
+                total=len(self._validation_loader),
+            ):
                 batch = _move_batch_to_device(batch, device=self._device)
                 loss, token_count = self._loss_for_batch(batch)
                 total_loss += float(loss.detach().item()) * token_count
@@ -187,18 +219,24 @@ def train_stage_one(
     tokenization_config: TokenizationConfig,
     model_config: ModelConfig | None = None,
     conditioning_config_path: Path = CONDITIONING_CONFIG_PATH,
+    show_progress: bool = False,
+    allow_raw_fallback: bool = True,
 ) -> TrainingResult:
+    _LOGGER.info("Building train/validation split")
     split = build_split(
         source_dir,
         config=ingestion_config,
         segmentation=segmentation_config,
         tokenization_config=tokenization_config,
+        allow_raw_fallback=allow_raw_fallback,
     )
+    log_split_summary(split)
     vocabulary = TokenVocabulary(DurationVocabulary(tokenization_config))
     resolved_model_config = model_config or ModelConfig.load(
         vocabulary_size=vocabulary.vocabulary_size,
         conditioning_config_path=conditioning_config_path,
     )
+    _LOGGER.info("Model vocabulary size: %s", resolved_model_config.vocabulary_size)
     time_signature_vocabulary = TimeSignatureVocabulary(resolved_model_config.conditioning.time_signature)
     structural_control_vocabulary = StructuralControlVocabulary(resolved_model_config.conditioning.structural)
     train_loader, validation_loader = build_dataloaders(
@@ -226,6 +264,7 @@ def train_stage_one(
             train_loader=train_loader,
             validation_loader=validation_loader,
             tracker=tracker,
+            show_progress=show_progress,
         )
         return trainer.train(invalid_files=split.invalid_files)
 

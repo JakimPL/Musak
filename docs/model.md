@@ -14,7 +14,7 @@ processed/<dataset-name>/
     data-00000.jsonl
 ```
 
-Training receives the dataset root and optional processed root. With `data/PDMX` and `processed`, the training code looks for reusable encoded artifacts under `processed/PDMX/encoded/<tokenizer-hash>`. Encoded artifacts are used only when `tokenizer.json` matches the active tokenizer snapshot. Otherwise, training falls back to parsed JSON and then raw MusicXML.
+Training receives explicit dataset directories. With `--processed-dir processed/PDMX`, the training code looks for reusable encoded artifacts under `processed/PDMX/encoded/<tokenizer-hash>`. `--data-dir data/PDMX` is optional when processed artifacts are usable, and is required only for raw MusicXML fallback. When both directories are supplied, dataset names must match. Encoded artifacts are used only when `tokenizer.json` matches the active tokenizer snapshot. Otherwise, training falls back to parsed JSON, and then raw MusicXML only if `--data-dir` was supplied.
 
 Each encoded JSONL row is an `EncodedExercise`:
 

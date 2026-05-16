@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import logging
 from enum import StrEnum
 from pathlib import Path
 
@@ -9,7 +10,6 @@ import torch
 from musak_model.data.config import load_difficulty_labels, load_segmentation_config
 from musak_model.paths import (
     CONDITIONING_CONFIG_PATH,
-    DEFAULT_DATA_DIR,
     DEFAULT_MLFLOW_DIR,
     DEFAULT_STAGE_ONE_CHECKPOINT_DIR,
     DEFAULT_STAGE_TWO_CHECKPOINT_DIR,
@@ -24,6 +24,8 @@ from musak_model.training.config import StageTwoTrainingConfig, TrainingConfig
 from musak_model.training.ingestion.config import IngestionConfig
 from musak_model.training.stage_two import train_stage_two
 from musak_model.training.trainer import TrainingResult, train_stage_one
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class TrainingStage(StrEnum):
@@ -40,6 +42,9 @@ class TrainHelpFormatter(
 
 def run_training(stage: TrainingStage) -> None:
     args = parse_training_args(stage)
+    configure_logging(args.log_level)
+    validate_training_paths(args)
+    source_dir = training_source_dir(args)
     ingestion_config = build_ingestion_config(args)
     segmentation_config = load_segmentation_config(
         args.segmentation_config,
@@ -49,22 +54,40 @@ def run_training(stage: TrainingStage) -> None:
     tokenization_config = TokenizationConfig.load(args.tokenization_config)
     match stage:
         case TrainingStage.STAGE_ONE:
+            training_config = build_stage_one_training_config(args)
+            log_training_start(
+                stage,
+                args=args,
+                ingestion_config=ingestion_config,
+                training_config=training_config,
+            )
             result = train_stage_one(
-                args.data_dir,
+                source_dir,
                 ingestion_config=ingestion_config,
                 segmentation_config=segmentation_config,
-                training_config=build_stage_one_training_config(args),
+                training_config=training_config,
                 tokenization_config=tokenization_config,
                 conditioning_config_path=args.conditioning_config,
+                show_progress=not args.no_progress,
+                allow_raw_fallback=args.data_dir is not None,
             )
         case TrainingStage.STAGE_TWO:
+            training_config = build_stage_two_training_config(args)
+            log_training_start(
+                stage,
+                args=args,
+                ingestion_config=ingestion_config,
+                training_config=training_config,
+            )
             result = train_stage_two(
-                args.data_dir,
+                source_dir,
                 ingestion_config=ingestion_config,
                 segmentation_config=segmentation_config,
-                training_config=build_stage_two_training_config(args),
+                training_config=training_config,
                 tokenization_config=tokenization_config,
                 conditioning_config_path=args.conditioning_config,
+                show_progress=not args.no_progress,
+                allow_raw_fallback=args.data_dir is not None,
             )
 
     print_training_result(result)
@@ -84,8 +107,8 @@ def add_common_training_arguments(parser: argparse.ArgumentParser, *, stage: Tra
     parser.add_argument(
         "--data-dir",
         type=Path,
-        default=DEFAULT_DATA_DIR,
-        help="Dataset root. With --processed-dir, artifacts are resolved as <processed-dir>/<data-dir.name>/.",
+        default=None,
+        help="Optional raw dataset root, including the dataset name, for example data/PDMX.",
     )
     parser.add_argument("--ingestion-config", type=Path, default=INGESTION_CONFIG_PATH, help="Ingestion YAML config.")
     parser.add_argument(
@@ -145,7 +168,7 @@ def add_common_training_arguments(parser: argparse.ArgumentParser, *, stage: Tra
         "--processed-dir",
         type=Path,
         default=None,
-        help="Processed artifact root. Training resolves artifacts under <processed-dir>/<data-dir.name>/.",
+        help="Processed artifact directory for the same dataset, for example processed/PDMX.",
     )
     if stage == TrainingStage.STAGE_ONE:
         parser.add_argument(
@@ -153,11 +176,19 @@ def add_common_training_arguments(parser: argparse.ArgumentParser, *, stage: Tra
             action="store_true",
             help="Enable conditioning inputs during training.",
         )
+    parser.add_argument(
+        "--log-level",
+        choices=("DEBUG", "INFO", "WARNING", "ERROR"),
+        default="INFO",
+        help="Minimum logging level.",
+    )
+    parser.add_argument("--no-progress", action="store_true", help="Disable tqdm progress bars.")
 
 
 def build_ingestion_config(args: argparse.Namespace) -> IngestionConfig:
     config = IngestionConfig.load(args.ingestion_config)
     difficulty_labels = load_difficulty_labels(args.difficulty_labels)
+    processed_root = args.processed_dir.parent if args.processed_dir is not None else config.processed_root
     return config.model_copy(
         update={
             key: value
@@ -165,11 +196,39 @@ def build_ingestion_config(args: argparse.Namespace) -> IngestionConfig:
                 "validation_fraction": args.validation_fraction,
                 "split_seed": args.split_seed,
                 "difficulty_labels": difficulty_labels if difficulty_labels is not None else config.difficulty_labels,
-                "processed_root": args.processed_dir if args.processed_dir is not None else config.processed_root,
+                "processed_root": processed_root,
             }.items()
             if value is not None
         }
     )
+
+
+def validate_training_paths(args: argparse.Namespace) -> None:
+    if args.data_dir is None and args.processed_dir is None:
+        raise ValueError("training requires --processed-dir, --data-dir, or both")
+
+    if args.processed_dir is None:
+        return None
+
+    if args.data_dir is not None and args.processed_dir.name != args.data_dir.name:
+        raise ValueError(
+            f"Processed dataset directory {args.processed_dir} belongs to dataset {args.processed_dir.name!r}, "
+            f"but --data-dir resolves to dataset {args.data_dir.name!r}. Training requires matching dataset "
+            "directory names, for example --data-dir data/PDMX --processed-dir processed/PDMX."
+        )
+
+    return None
+
+
+def training_source_dir(args: argparse.Namespace) -> Path:
+    if args.data_dir is not None:
+        return Path(args.data_dir)
+
+    if args.processed_dir is None:
+        raise ValueError("training requires --processed-dir, --data-dir, or both")
+
+    processed_dir = Path(args.processed_dir)
+    return Path(processed_dir.name)
 
 
 def build_stage_one_training_config(args: argparse.Namespace) -> TrainingConfig:
@@ -233,6 +292,42 @@ def resolve_device(requested_device: str) -> str:
     return "cpu"
 
 
+def configure_logging(level: str) -> None:
+    logging.basicConfig(
+        level=getattr(logging, level),
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
+
+
+def log_training_start(
+    stage: TrainingStage,
+    *,
+    args: argparse.Namespace,
+    ingestion_config: IngestionConfig,
+    training_config: TrainingConfig,
+) -> None:
+    _LOGGER.info("Starting %s training", stage.value)
+    _LOGGER.info("Raw input directory: %s", args.data_dir)
+    _LOGGER.info("Processed artifact directory: %s", args.processed_dir)
+    if args.data_dir is None:
+        _LOGGER.info("Raw MusicXML fallback: disabled because --data-dir was not provided")
+    _LOGGER.info("Internal processed root: %s", ingestion_config.processed_root)
+    _LOGGER.info("Training config: %s", args.training_config)
+    _LOGGER.info("Segmentation config: %s", args.segmentation_config)
+    _LOGGER.info("Tokenization config: %s", args.tokenization_config)
+    _LOGGER.info("Conditioning config: %s", args.conditioning_config)
+    _LOGGER.info("Device: %s", training_config.device)
+    _LOGGER.info("Epochs: %s", training_config.epochs)
+    _LOGGER.info("Batch size: %s", training_config.batch_size)
+    _LOGGER.info("Workers: %s", training_config.num_workers)
+    _LOGGER.info("Progress bars: %s", not args.no_progress)
+    _LOGGER.info("Checkpoint directory: %s", training_config.checkpoint_dir)
+    _LOGGER.info("Latest checkpoint target: %s", training_config.checkpoint_dir / "latest.pt")
+    _LOGGER.info("Best checkpoint target: %s", training_config.checkpoint_dir / "best.pt")
+    if isinstance(training_config, StageTwoTrainingConfig):
+        _LOGGER.info("Stage-one checkpoint: %s", training_config.stage_one_checkpoint)
+
+
 def print_training_result(result: TrainingResult) -> None:
     metrics = result.metrics
     if metrics:
@@ -251,14 +346,13 @@ def _description(stage: TrainingStage) -> str:
     match stage:
         case TrainingStage.STAGE_ONE:
             return (
-                "Train the Musak Stage 1 autoregressive model. The data directory is the dataset root; "
-                "when --processed-dir is set, training looks for reusable artifacts under "
-                "<processed-dir>/<data-dir.name>/ before falling back to raw MusicXML."
+                "Train the Musak Stage 1 autoregressive model. Pass --processed-dir processed/PDMX for "
+                "processed-only training, or add --data-dir data/PDMX to allow raw MusicXML fallback."
             )
         case TrainingStage.STAGE_TWO:
             return (
                 "Fine-tune the Musak Stage 2 constrained autoregressive model from a Stage 1 checkpoint. "
-                "The data directory follows the same artifact lookup rules as Stage 1."
+                "Use the same explicit dataset directory policy as Stage 1."
             )
 
 
@@ -269,15 +363,18 @@ def _epilog(stage: TrainingStage) -> str:
         stage_two_extra = " --stage-one-checkpoint checkpoints/stage_one/best.pt"
     return (
         "Examples:\n"
-        f"  uv run python {executable} --data-dir data/PDMX --processed-dir processed{stage_two_extra}\n"
-        f"  uv run python {executable} --data-dir data/PDMX --processed-dir processed "
+        f"  uv run python {executable} --processed-dir processed/PDMX{stage_two_extra}\n"
+        f"  uv run python {executable} --data-dir data/PDMX --processed-dir processed/PDMX "
         "--tokenization-config musak_model/configs/tokens/tokenization.yml"
         f"{stage_two_extra}\n\n"
         "Artifact lookup:\n"
-        "  Encoded artifacts are reused only from encoded/<tokenizer-hash>/ when tokenizer.json matches "
-        "the active tokenization config.\n"
+        "  --processed-dir must include the dataset name, for example processed/PDMX.\n"
+        "  --data-dir is optional when processed artifacts are usable. Provide it to allow raw fallback.\n"
+        "  When both are supplied, dataset names must match: --data-dir data/PDMX --processed-dir processed/PDMX.\n"
+        "  Encoded artifacts are reused only from <processed-dir>/encoded/<tokenizer-hash>/ when "
+        "tokenizer.json matches the active tokenization config.\n"
         "  If matching encoded artifacts are unavailable, parsed JSON artifacts are used when present.\n"
-        "  If no usable processed artifacts exist, MusicXML files are parsed on the fly."
+        "  If no usable processed artifacts exist, MusicXML files are parsed only when --data-dir was supplied."
     )
 
 

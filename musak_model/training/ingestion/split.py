@@ -36,6 +36,7 @@ def build_split(
     config: IngestionConfig,
     segmentation: SegmentationConfig,
     tokenization_config: TokenizationConfig,
+    allow_raw_fallback: bool = True,
 ) -> IngestionSplit:
     """Build deterministic train/validation split from MusicXML files."""
     duration_vocabulary = DurationVocabulary(tokenization_config)
@@ -51,6 +52,15 @@ def build_split(
     )
     if processed_split is not None:
         return processed_split
+
+    if config.processed_root is not None:
+        _LOGGER.warning("Processed artifacts were not used; falling back to raw MusicXML from %s", source_dir)
+
+    if not allow_raw_fallback:
+        raise ValueError(
+            "processed artifacts are unavailable or unusable, and raw MusicXML fallback is disabled. "
+            "Pass --data-dir to allow raw fallback or rebuild processed artifacts."
+        )
 
     file_paths = collect_musicxml_files(source_dir)
     validation_files = set(
@@ -107,6 +117,7 @@ def _build_split_from_processed_artifacts(
     paths = ProcessedDatasetPaths.from_dataset_root(processed_root=config.processed_root, dataset_root=source_dir)
     parsed_rows = read_parsed_manifest(paths.parsed_manifest_path)
     if not parsed_rows:
+        _LOGGER.warning("Processed parsed manifest is missing or empty: %s", paths.parsed_manifest_path)
         return None
 
     invalid_files = [
@@ -139,6 +150,7 @@ def _build_split_from_processed_artifacts(
     )
     encoded_path = paths.encoded_jsonl_path(snapshot.tokenizer_hash)
     if encoded_path.exists() and _encoded_artifacts_match(paths=paths, expected_snapshot=snapshot):
+        _LOGGER.info("Using encoded processed artifacts: %s", encoded_path)
         return _split_encoded_samples(
             load_encoded_jsonl(encoded_path),
             validation_keys=validation_keys,
@@ -150,6 +162,7 @@ def _build_split_from_processed_artifacts(
         row for row in parsed_rows if row[ParsedManifestField.STATUS] == ParsedManifestStatus.SUCCESS.value
     ]
     if parsed_success_rows:
+        _LOGGER.warning("Encoded processed artifacts unavailable; rebuilding training samples from parsed artifacts")
         return _split_from_parsed_scores(
             parsed_success_rows,
             paths=paths,
@@ -162,6 +175,7 @@ def _build_split_from_processed_artifacts(
             invalid_files=invalid_files,
         )
 
+    _LOGGER.warning("Processed parsed manifest has no successful parsed scores: %s", paths.parsed_manifest_path)
     return None
 
 

@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import cast
+from typing import Final, cast
 
 import torch
 from torch import Tensor
@@ -14,9 +14,9 @@ from musak_model.tokens.vocabulary import TokenVocabulary
 from musak_model.training.conditioning import difficulty_level_to_id, scale_type_to_id, time_signature_to_id
 from musak_model.training.ingestion.schema import EncodedExercise, IngestionSplit
 
-_PADDING_TOKEN_ID: int = 0
-_PADDING_BAR_POSITION: int = -1
-_START_BAR_POSITION: int = 0
+_PADDING_TOKEN_ID: Final[int] = 0
+_PADDING_BAR_POSITION: Final[int] = -1
+_START_BAR_POSITION: Final[int] = 0
 
 type _TrainingDataLoader = DataLoader[TrainingBatch]
 
@@ -234,11 +234,18 @@ def _structural_control_ids(
         sample.to_segment(token_vocabulary=token_vocabulary),
         duration_vocabulary=token_vocabulary.duration_vocabulary,
     )
-    return torch.tensor(structural_control_vocabulary.features_to_ids(features), dtype=torch.long)
+
+    return torch.tensor(
+        structural_control_vocabulary.features_to_ids(features),
+        dtype=torch.long,
+    )
 
 
 def _optional_tensor(values: list[int | None]) -> Tensor | None:
     if any(value is None for value in values):
         return None
 
-    return torch.tensor([value for value in values if value is not None], dtype=torch.long)
+    return torch.tensor(
+        [value for value in values if value is not None],
+        dtype=torch.long,
+    )

@@ -348,6 +348,33 @@ def test_build_ingestion_split_falls_back_to_parsed_artifacts(
     assert split.invalid_files == []
 
 
+def test_build_ingestion_split_requires_raw_fallback_when_processed_artifacts_are_unusable(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    tokenization_config: TokenizationConfig,
+) -> None:
+    processed_root = tmp_path / "processed"
+    processed_root.mkdir()
+    monkeypatch.setattr(
+        "musak_model.training.ingestion.split.process_file",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("raw processing should not run")),
+    )
+
+    with pytest.raises(ValueError, match="raw MusicXML fallback is disabled"):
+        build_split(
+            Path("PDMX"),
+            config=IngestionConfig(
+                validation_fraction=0.0,
+                split_seed=17,
+                difficulty_labels=None,
+                processed_root=processed_root,
+            ),
+            segmentation=SegmentationConfig(window_bars=1, stride_bars=1),
+            tokenization_config=tokenization_config,
+            allow_raw_fallback=False,
+        )
+
+
 def test_load_ingestion_config_reads_yaml(tmp_path: Path) -> None:
     config_path = tmp_path / "ingestion.yml"
     config_path.write_text(
