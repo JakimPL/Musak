@@ -10,7 +10,13 @@ from musak_model.conditioning.time_signature import TimeSignatureVocabularyConfi
 from musak_model.data.schema import SegmentMetadata
 from musak_model.model.config import CNNConfig, GRUConfig, ModelConfig, TransformerConfig
 from musak_model.tokens.schema import ScaleType
-from musak_model.training.config import TrainingConfig
+from musak_model.training.config import (
+    CheckpointConfig,
+    MlflowConfig,
+    OptimizationConfig,
+    RuntimeConfig,
+    TrainingConfig,
+)
 from musak_model.training.ingestion.schema import EncodedExercise, IngestionErrorRecord, IngestionSplit
 from musak_model.training.tracking import MlflowTrainingTracker, build_training_tracker
 
@@ -54,16 +60,14 @@ class FakeMlflow(ModuleType):
 
 def _training_config(tmp_path: Path, *, enable_mlflow: bool = True, tracking_uri: str | None = None) -> TrainingConfig:
     return TrainingConfig(
-        epochs=1,
-        batch_size=2,
-        learning_rate=0.001,
-        weight_decay=0.0,
-        num_workers=0,
-        checkpoint_dir=tmp_path / "checkpoints",
-        device="cpu",
-        enable_mlflow=enable_mlflow,
-        mlflow_tracking_uri=tracking_uri,
-        mlflow_run_name="test-run",
+        optimization=OptimizationConfig(epochs=1, batch_size=2, learning_rate=0.001, weight_decay=0.0),
+        runtime=RuntimeConfig(num_workers=0, device="cpu"),
+        checkpoints=CheckpointConfig(checkpoint_dir=tmp_path / "checkpoints"),
+        mlflow=MlflowConfig(
+            enable_mlflow=enable_mlflow,
+            mlflow_tracking_uri=tracking_uri,
+            mlflow_run_name="test-run",
+        ),
     )
 
 

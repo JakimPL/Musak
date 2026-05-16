@@ -31,19 +31,18 @@ _FILE_PROCESSING_ERRORS: Final[tuple[type[Exception], ...]] = (
 
 
 def build_split(
-    source_dir: Path,
+    source_directory: Path,
     *,
     config: IngestionConfig,
     segmentation: SegmentationConfig,
     tokenization_config: TokenizationConfig,
     allow_raw_fallback: bool = True,
 ) -> IngestionSplit:
-    """Build deterministic train/validation split from MusicXML files."""
     duration_vocabulary = DurationVocabulary(tokenization_config)
     token_vocabulary = TokenVocabulary(duration_vocabulary)
 
     processed_split = _build_split_from_processed_artifacts(
-        source_dir,
+        source_directory,
         config=config,
         segmentation=segmentation,
         tokenization_config=tokenization_config,
@@ -54,7 +53,7 @@ def build_split(
         return processed_split
 
     if config.processed_root is not None:
-        _LOGGER.warning("Processed artifacts were not used; falling back to raw MusicXML from %s", source_dir)
+        _LOGGER.warning("Processed artifacts were not used; falling back to raw MusicXML from %s", source_directory)
 
     if not allow_raw_fallback:
         raise ValueError(
@@ -62,7 +61,7 @@ def build_split(
             "Pass --data-dir to allow raw fallback or rebuild processed artifacts."
         )
 
-    file_paths = collect_musicxml_files(source_dir)
+    file_paths = collect_musicxml_files(source_directory)
     validation_files = set(
         _split_validation_files(
             file_paths=file_paths,
@@ -99,11 +98,15 @@ def build_split(
         else:
             train_samples.extend(encoded_samples)
 
-    return IngestionSplit(train=train_samples, validation=validation_samples, invalid_files=invalid_files)
+    return IngestionSplit(
+        train=train_samples,
+        validation=validation_samples,
+        invalid_files=invalid_files,
+    )
 
 
 def _build_split_from_processed_artifacts(
-    source_dir: Path,
+    source_directory: Path,
     *,
     config: IngestionConfig,
     segmentation: SegmentationConfig,
@@ -114,7 +117,7 @@ def _build_split_from_processed_artifacts(
     if config.processed_root is None:
         return None
 
-    paths = ProcessedDatasetPaths.from_dataset_root(processed_root=config.processed_root, dataset_root=source_dir)
+    paths = ProcessedDatasetPaths.from_dataset_root(processed_root=config.processed_root, dataset_root=source_directory)
     parsed_rows = read_parsed_manifest(paths.parsed_manifest_path)
     if not parsed_rows:
         _LOGGER.warning("Processed parsed manifest is missing or empty: %s", paths.parsed_manifest_path)
@@ -130,12 +133,12 @@ def _build_split_from_processed_artifacts(
         if row[ParsedManifestField.STATUS] == ParsedManifestStatus.ERROR.value
     ]
     source_paths = [
-        source_dir / row[ParsedManifestField.SOURCE_PATH]
+        source_directory / row[ParsedManifestField.SOURCE_PATH]
         for row in parsed_rows
         if row[ParsedManifestField.STATUS] == ParsedManifestStatus.SUCCESS.value
     ]
     validation_keys = {
-        _source_key(path, source_dir=source_dir)
+        _source_key(path, source_directory=source_directory)
         for path in _split_validation_files(
             file_paths=source_paths,
             validation_fraction=config.validation_fraction,
@@ -154,7 +157,7 @@ def _build_split_from_processed_artifacts(
         return _split_encoded_samples(
             load_encoded_jsonl(encoded_path),
             validation_keys=validation_keys,
-            source_dir=source_dir,
+            source_directory=source_directory,
             invalid_files=invalid_files,
         )
 
@@ -166,7 +169,7 @@ def _build_split_from_processed_artifacts(
         return _split_from_parsed_scores(
             parsed_success_rows,
             paths=paths,
-            source_dir=source_dir,
+            source_directory=source_directory,
             validation_keys=validation_keys,
             segmentation=segmentation,
             difficulty_labels=config.difficulty_labels,
@@ -206,25 +209,29 @@ def _split_encoded_samples(
     samples: list[EncodedExercise],
     *,
     validation_keys: set[str],
-    source_dir: Path,
+    source_directory: Path,
     invalid_files: list[IngestionErrorRecord],
 ) -> IngestionSplit:
     train_samples: list[EncodedExercise] = []
     validation_samples: list[EncodedExercise] = []
     for sample in samples:
-        if _source_key(sample.source_file, source_dir=source_dir) in validation_keys:
+        if _source_key(sample.source_file, source_directory=source_directory) in validation_keys:
             validation_samples.append(sample)
         else:
             train_samples.append(sample)
 
-    return IngestionSplit(train=train_samples, validation=validation_samples, invalid_files=invalid_files)
+    return IngestionSplit(
+        train=train_samples,
+        validation=validation_samples,
+        invalid_files=invalid_files,
+    )
 
 
 def _split_from_parsed_scores(
     parsed_rows: list[dict[str, str]],
     *,
     paths: ProcessedDatasetPaths,
-    source_dir: Path,
+    source_directory: Path,
     validation_keys: set[str],
     segmentation: SegmentationConfig,
     difficulty_labels: dict[str, int] | None,
@@ -236,7 +243,7 @@ def _split_from_parsed_scores(
     validation_samples: list[EncodedExercise] = []
     for row in parsed_rows:
         relative_source_path = Path(row[ParsedManifestField.SOURCE_PATH])
-        source_path = source_dir / relative_source_path
+        source_path = source_directory / relative_source_path
         parsed_path = paths.root / row[ParsedManifestField.PARSED_PATH]
         try:
             score = load_parsed_score_json(parsed_path)
@@ -258,15 +265,24 @@ def _split_from_parsed_scores(
             continue
 
         encoded_samples = _encode_segments(segments, token_vocabulary=token_vocabulary)
-        if _source_key(source_path, source_dir=source_dir) in validation_keys:
+        if _source_key(source_path, source_directory=source_directory) in validation_keys:
             validation_samples.extend(encoded_samples)
         else:
             train_samples.extend(encoded_samples)
 
-    return IngestionSplit(train=train_samples, validation=validation_samples, invalid_files=invalid_files)
+    return IngestionSplit(
+        train=train_samples,
+        validation=validation_samples,
+        invalid_files=invalid_files,
+    )
 
 
-def _split_validation_files(*, file_paths: list[Path], validation_fraction: float, split_seed: int) -> list[Path]:
+def _split_validation_files(
+    *,
+    file_paths: list[Path],
+    validation_fraction: float,
+    split_seed: int,
+) -> list[Path]:
     if not file_paths:
         return []
 
@@ -276,7 +292,11 @@ def _split_validation_files(*, file_paths: list[Path], validation_fraction: floa
     return shuffled_files[:validation_count]
 
 
-def _validation_count(*, total_files: int, validation_fraction: float) -> int:
+def _validation_count(
+    *,
+    total_files: int,
+    validation_fraction: float,
+) -> int:
     if total_files <= 1 or validation_fraction <= 0:
         return 0
 
@@ -290,14 +310,18 @@ def _validation_count(*, total_files: int, validation_fraction: float) -> int:
     return count
 
 
-def _source_key(path: Path, *, source_dir: Path) -> str:
+def _source_key(path: Path, *, source_directory: Path) -> str:
     try:
-        return path.resolve().relative_to(source_dir.resolve()).as_posix()
+        return path.resolve().relative_to(source_directory.resolve()).as_posix()
     except ValueError:
         return path.as_posix()
 
 
-def _encode_segments(segments: list[Segment], *, token_vocabulary: TokenVocabulary) -> list[EncodedExercise]:
+def _encode_segments(
+    segments: list[Segment],
+    *,
+    token_vocabulary: TokenVocabulary,
+) -> list[EncodedExercise]:
     encoded_samples: list[EncodedExercise] = []
     for segment in segments:
         if not segment.metadata.eligible_for_training:
@@ -307,7 +331,11 @@ def _encode_segments(segments: list[Segment], *, token_vocabulary: TokenVocabula
     return encoded_samples
 
 
-def _encode_segment(segment: Segment, *, token_vocabulary: TokenVocabulary) -> EncodedExercise:
+def _encode_segment(
+    segment: Segment,
+    *,
+    token_vocabulary: TokenVocabulary,
+) -> EncodedExercise:
     token_ids = encode(segment.tokens, vocabulary=token_vocabulary)
     bar_positions = _build_bar_positions_from_tokens(segment.tokens)
     return EncodedExercise(

@@ -53,7 +53,7 @@ def run_training(stage: TrainingStage) -> None:
     args = parse_training_args(stage)
     configure_logging(args.log_level)
     validate_training_paths(args)
-    source_dir = training_source_dir(args)
+    source_directory = training_source_dir(args)
     ingestion_config = build_ingestion_config(args)
     segmentation_config = load_segmentation_config(
         args.segmentation_config,
@@ -71,7 +71,7 @@ def run_training(stage: TrainingStage) -> None:
                 training_config=training_config,
             )
             result = train_stage_one(
-                source_dir,
+                source_directory,
                 ingestion_config=ingestion_config,
                 segmentation_config=segmentation_config,
                 training_config=training_config,
@@ -89,7 +89,7 @@ def run_training(stage: TrainingStage) -> None:
                 training_config=training_config,
             )
             result = train_stage_two(
-                source_dir,
+                source_directory,
                 ingestion_config=ingestion_config,
                 segmentation_config=segmentation_config,
                 training_config=training_config,
@@ -248,8 +248,8 @@ def build_stage_one_training_config(args: argparse.Namespace) -> TrainingConfig:
         default_checkpoint_dir=DEFAULT_STAGE_ONE_CHECKPOINT_DIR,
     )
     updates["conditioning"] = TrainingConditioningConfig(
-        use_conditioning=args.use_conditioning or config.use_conditioning,
-        use_structural_conditioning=config.use_structural_conditioning,
+        use_conditioning=args.use_conditioning or config.conditioning.use_conditioning,
+        use_structural_conditioning=config.conditioning.use_structural_conditioning,
     )
     return config.model_copy(update=updates)
 
@@ -269,7 +269,9 @@ def build_stage_two_training_config(args: argparse.Namespace) -> StageTwoTrainin
         checkpoint_dir=checkpoint_config.checkpoint_dir,
         resume_checkpoint=checkpoint_config.resume_checkpoint,
         stage_one_checkpoint=(
-            args.stage_one_checkpoint if args.stage_one_checkpoint is not None else config.stage_one_checkpoint
+            args.stage_one_checkpoint
+            if args.stage_one_checkpoint is not None
+            else config.checkpoints.stage_one_checkpoint
         ),
     )
     updates["conditioning"] = TrainingConditioningConfig(use_conditioning=True, use_structural_conditioning=True)
@@ -284,26 +286,26 @@ def common_training_section_updates(
 ) -> dict[str, OptimizationConfig | RuntimeConfig | TrainingConditioningConfig | CheckpointConfig | MlflowConfig]:
     return {
         "optimization": OptimizationConfig(
-            epochs=args.epochs if args.epochs is not None else config.epochs,
-            batch_size=args.batch_size if args.batch_size is not None else config.batch_size,
-            learning_rate=args.learning_rate if args.learning_rate is not None else config.learning_rate,
-            weight_decay=args.weight_decay if args.weight_decay is not None else config.weight_decay,
+            epochs=args.epochs if args.epochs is not None else config.optimization.epochs,
+            batch_size=args.batch_size if args.batch_size is not None else config.optimization.batch_size,
+            learning_rate=args.learning_rate if args.learning_rate is not None else config.optimization.learning_rate,
+            weight_decay=args.weight_decay if args.weight_decay is not None else config.optimization.weight_decay,
         ),
         "runtime": RuntimeConfig(
-            num_workers=args.num_workers if args.num_workers is not None else config.num_workers,
-            device=resolve_device(args.device or config.device),
+            num_workers=args.num_workers if args.num_workers is not None else config.runtime.num_workers,
+            device=resolve_device(args.device or config.runtime.device),
         ),
         "conditioning": config.conditioning,
         "checkpoints": CheckpointConfig(
-            checkpoint_dir=args.checkpoint_dir or config.checkpoint_dir or default_checkpoint_dir,
+            checkpoint_dir=args.checkpoint_dir or config.checkpoints.checkpoint_dir or default_checkpoint_dir,
             resume_checkpoint=(
-                args.resume_checkpoint if args.resume_checkpoint is not None else config.resume_checkpoint
+                args.resume_checkpoint if args.resume_checkpoint is not None else config.checkpoints.resume_checkpoint
             ),
         ),
         "mlflow": MlflowConfig(
-            enable_mlflow=not args.disable_mlflow and config.enable_mlflow,
-            mlflow_experiment_name=args.mlflow_experiment_name or config.mlflow_experiment_name,
-            mlflow_run_name=args.mlflow_run_name if args.mlflow_run_name is not None else config.mlflow_run_name,
+            enable_mlflow=not args.disable_mlflow and config.mlflow.enable_mlflow,
+            mlflow_experiment_name=args.mlflow_experiment_name or config.mlflow.mlflow_experiment_name,
+            mlflow_run_name=args.mlflow_run_name if args.mlflow_run_name is not None else config.mlflow.mlflow_run_name,
             mlflow_tracking_uri=str(args.mlflow_dir),
         ),
     }
@@ -346,16 +348,16 @@ def log_training_start(
     _LOGGER.info("Segmentation config: %s", args.segmentation_config)
     _LOGGER.info("Tokenization config: %s", args.tokenization_config)
     _LOGGER.info("Conditioning config: %s", args.conditioning_config)
-    _LOGGER.info("Device: %s", training_config.device)
-    _LOGGER.info("Epochs: %s", training_config.epochs)
-    _LOGGER.info("Batch size: %s", training_config.batch_size)
-    _LOGGER.info("Workers: %s", training_config.num_workers)
+    _LOGGER.info("Device: %s", training_config.runtime.device)
+    _LOGGER.info("Epochs: %s", training_config.optimization.epochs)
+    _LOGGER.info("Batch size: %s", training_config.optimization.batch_size)
+    _LOGGER.info("Workers: %s", training_config.runtime.num_workers)
     _LOGGER.info("Progress bars: %s", not args.no_progress)
-    _LOGGER.info("Checkpoint directory: %s", training_config.checkpoint_dir)
-    _LOGGER.info("Latest checkpoint target: %s", training_config.checkpoint_dir / "latest.pt")
-    _LOGGER.info("Best checkpoint target: %s", training_config.checkpoint_dir / "best.pt")
+    _LOGGER.info("Checkpoint directory: %s", training_config.checkpoints.checkpoint_dir)
+    _LOGGER.info("Latest checkpoint target: %s", training_config.checkpoints.checkpoint_dir / "latest.pt")
+    _LOGGER.info("Best checkpoint target: %s", training_config.checkpoints.checkpoint_dir / "best.pt")
     if isinstance(training_config, StageTwoTrainingConfig):
-        _LOGGER.info("Stage-one checkpoint: %s", training_config.stage_one_checkpoint)
+        _LOGGER.info("Stage-one checkpoint: %s", training_config.checkpoints.stage_one_checkpoint)
 
 
 def print_training_result(result: TrainingResult) -> None:

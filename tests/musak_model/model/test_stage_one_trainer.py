@@ -14,7 +14,7 @@ from musak_model.tokens.config import TokenizationConfig
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import ScaleType
 from musak_model.tokens.vocabulary import TokenVocabulary
-from musak_model.training.config import TrainingConfig
+from musak_model.training.config import CheckpointConfig, OptimizationConfig, RuntimeConfig, TrainingConfig
 from musak_model.training.dataset import EncodedExerciseDataset, TrainingBatch, collate_training_examples
 from musak_model.training.ingestion.schema import EncodedExercise, IngestionErrorRecord, IngestionSplit
 from musak_model.training.trainer import StageOneTrainer
@@ -75,14 +75,9 @@ def _small_model_config() -> ModelConfig:
 
 def _training_config(checkpoint_dir: Path, *, resume_checkpoint: Path | None = None, epochs: int = 1) -> TrainingConfig:
     return TrainingConfig(
-        epochs=epochs,
-        batch_size=2,
-        learning_rate=0.001,
-        weight_decay=0.0,
-        num_workers=0,
-        checkpoint_dir=checkpoint_dir,
-        resume_checkpoint=resume_checkpoint,
-        device="cpu",
+        optimization=OptimizationConfig(epochs=epochs, batch_size=2, learning_rate=0.001, weight_decay=0.0),
+        runtime=RuntimeConfig(num_workers=0, device="cpu"),
+        checkpoints=CheckpointConfig(checkpoint_dir=checkpoint_dir, resume_checkpoint=resume_checkpoint),
     )
 
 

@@ -10,6 +10,7 @@
 6. Prefer protocols over inheritance.
 7. Separate function options with `*`. Positional arguments should be intentionally chosen.
 8. Prefer `match` statements over long `isinstance` chains, and for enumeration handling.
+9. Do not preserve backward compatibility for internal APIs, configs, or data shapes unless the user explicitly asks for it.
 
 ## Shared Ownership
 

@@ -100,12 +100,12 @@ class MlflowTrainingTracker:
 
     def __enter__(self) -> Self:
         tracking_uri = _resolve_tracking_uri(
-            configured_uri=self._training_config.mlflow_tracking_uri,
+            configured_uri=self._training_config.mlflow.mlflow_tracking_uri,
             tracking_root=self._tracking_root,
         )
         self._mlflow.set_tracking_uri(tracking_uri)
-        self._mlflow.set_experiment(self._training_config.mlflow_experiment_name)
-        self._mlflow.start_run(run_name=self._training_config.mlflow_run_name)
+        self._mlflow.set_experiment(self._training_config.mlflow.mlflow_experiment_name)
+        self._mlflow.start_run(run_name=self._training_config.mlflow.mlflow_run_name)
         return self
 
     def __exit__(
@@ -173,7 +173,7 @@ def build_training_tracker(
     training_config: TrainingConfig,
     tracking_root: Path | None = None,
 ) -> TrainingTracker:
-    if not training_config.enable_mlflow:
+    if not training_config.mlflow.enable_mlflow:
         return NoOpTrainingTracker()
 
     return MlflowTrainingTracker(training_config=training_config, tracking_root=tracking_root)

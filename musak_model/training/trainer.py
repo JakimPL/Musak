@@ -61,11 +61,11 @@ class StageOneTrainer:
         self._config = config
         self._train_loader = train_loader
         self._validation_loader = validation_loader
-        self._device = torch.device(config.device)
+        self._device = torch.device(config.runtime.device)
         self._optimizer = AdamW(
             self._model.parameters(),
-            lr=config.learning_rate,
-            weight_decay=config.weight_decay,
+            lr=config.optimization.learning_rate,
+            weight_decay=config.optimization.weight_decay,
         )
         self._model.to(self._device)
         self._tracker = tracker or NoOpTrainingTracker()
@@ -80,10 +80,10 @@ class StageOneTrainer:
 
         start_epoch = 0
         best_validation_loss: float | None = None
-        if self._config.resume_checkpoint is not None:
-            _LOGGER.info("Resuming from checkpoint: %s", self._config.resume_checkpoint)
+        if self._config.checkpoints.resume_checkpoint is not None:
+            _LOGGER.info("Resuming from checkpoint: %s", self._config.checkpoints.resume_checkpoint)
             start_epoch, best_validation_loss = load_checkpoint(
-                self._config.resume_checkpoint,
+                self._config.checkpoints.resume_checkpoint,
                 model=self._model,
                 optimizer=self._optimizer,
                 device=self._device,
@@ -91,10 +91,10 @@ class StageOneTrainer:
 
         metrics: list[EpochMetrics] = []
         best_checkpoint_path: Path | None = None
-        latest_checkpoint_path = self._config.checkpoint_dir / "latest.pt"
+        latest_checkpoint_path = self._config.checkpoints.checkpoint_dir / "latest.pt"
 
-        for epoch in range(start_epoch, self._config.epochs):
-            _LOGGER.info("Epoch %s/%s started", epoch + 1, self._config.epochs)
+        for epoch in range(start_epoch, self._config.optimization.epochs):
+            _LOGGER.info("Epoch %s/%s started", epoch + 1, self._config.optimization.epochs)
             train_loss = self._train_epoch(epoch=epoch)
             validation_loss = self._validate_epoch(epoch=epoch)
             metric = EpochMetrics(epoch=epoch, train_loss=train_loss, validation_loss=validation_loss)
@@ -103,7 +103,7 @@ class StageOneTrainer:
             _LOGGER.info(
                 "Epoch %s/%s finished: train_loss=%.6f validation_loss=%s",
                 epoch + 1,
-                self._config.epochs,
+                self._config.optimization.epochs,
                 train_loss,
                 validation_loss,
             )
@@ -120,7 +120,7 @@ class StageOneTrainer:
             score = validation_loss if validation_loss is not None else train_loss
             if best_validation_loss is None or score < best_validation_loss:
                 best_validation_loss = score
-                best_checkpoint_path = self._config.checkpoint_dir / "best.pt"
+                best_checkpoint_path = self._config.checkpoints.checkpoint_dir / "best.pt"
                 save_checkpoint(
                     best_checkpoint_path,
                     model=self._model,
@@ -191,10 +191,12 @@ class StageOneTrainer:
         logits = self._model(
             batch.input_token_ids,
             bar_positions=batch.bar_positions,
-            difficulty_ids=batch.difficulty_ids if self._config.use_conditioning else None,
-            scale_type_ids=batch.scale_type_ids if self._config.use_conditioning else None,
-            time_signature_ids=batch.time_signature_ids if self._config.use_conditioning else None,
-            structural_control_ids=(batch.structural_control_ids if self._config.use_structural_conditioning else None),
+            difficulty_ids=batch.difficulty_ids if self._config.conditioning.use_conditioning else None,
+            scale_type_ids=batch.scale_type_ids if self._config.conditioning.use_conditioning else None,
+            time_signature_ids=batch.time_signature_ids if self._config.conditioning.use_conditioning else None,
+            structural_control_ids=(
+                batch.structural_control_ids if self._config.conditioning.use_structural_conditioning else None
+            ),
             token_padding_mask=batch.token_padding_mask,
         )
         flat_loss = nn.functional.cross_entropy(
@@ -211,7 +213,7 @@ class StageOneTrainer:
 
 
 def train_stage_one(
-    source_dir: Path,
+    source_directory: Path,
     *,
     ingestion_config: IngestionConfig,
     segmentation_config: SegmentationConfig,
@@ -224,7 +226,7 @@ def train_stage_one(
 ) -> TrainingResult:
     _LOGGER.info("Building train/validation split")
     split = build_split(
-        source_dir,
+        source_directory,
         config=ingestion_config,
         segmentation=segmentation_config,
         tokenization_config=tokenization_config,
@@ -241,11 +243,11 @@ def train_stage_one(
     structural_control_vocabulary = StructuralControlVocabulary(resolved_model_config.conditioning.structural)
     train_loader, validation_loader = build_dataloaders(
         split,
-        batch_size=training_config.batch_size,
+        batch_size=training_config.optimization.batch_size,
         shuffle_train=True,
-        num_workers=training_config.num_workers,
-        include_conditioning=training_config.use_conditioning,
-        include_structural_controls=training_config.use_structural_conditioning,
+        num_workers=training_config.runtime.num_workers,
+        include_conditioning=training_config.conditioning.use_conditioning,
+        include_structural_controls=training_config.conditioning.use_structural_conditioning,
         time_signature_vocabulary=time_signature_vocabulary,
         token_vocabulary=vocabulary,
         structural_control_vocabulary=structural_control_vocabulary,

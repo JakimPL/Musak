@@ -13,13 +13,13 @@ from musak_model.tokens.duration import DurationVocabulary
 
 
 def process_directory(
-    source_dir: Path,
+    source_directory: Path,
     *,
     segmentation: SegmentationConfig,
     difficulty_labels: dict[str, int] | None = None,
 ) -> list[Segment]:
     duration_vocabulary = DurationVocabulary(TokenizationConfig.load())
-    musicxml_files = collect_musicxml_files(source_dir)
+    musicxml_files = collect_musicxml_files(source_directory)
     segments: list[Segment] = []
     for path in musicxml_files:
         file_segments = process_file(

@@ -27,7 +27,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 def train_stage_two(
-    source_dir: Path,
+    source_directory: Path,
     *,
     ingestion_config: IngestionConfig,
     segmentation_config: SegmentationConfig,
@@ -47,7 +47,7 @@ def train_stage_two(
     )
     _LOGGER.info("Model vocabulary size: %s", resolved_model_config.vocabulary_size)
     split = build_split(
-        source_dir,
+        source_directory,
         config=ingestion_config,
         segmentation=segmentation_config,
         tokenization_config=tokenization_config,
@@ -58,22 +58,22 @@ def train_stage_two(
     structural_control_vocabulary = StructuralControlVocabulary(resolved_model_config.conditioning.structural)
     train_loader, validation_loader = build_dataloaders(
         split,
-        batch_size=training_config.batch_size,
+        batch_size=training_config.optimization.batch_size,
         shuffle_train=True,
-        num_workers=training_config.num_workers,
-        include_conditioning=training_config.use_conditioning,
-        include_structural_controls=training_config.use_structural_conditioning,
+        num_workers=training_config.runtime.num_workers,
+        include_conditioning=training_config.conditioning.use_conditioning,
+        include_structural_controls=training_config.conditioning.use_structural_conditioning,
         time_signature_vocabulary=time_signature_vocabulary,
         token_vocabulary=token_vocabulary,
         structural_control_vocabulary=structural_control_vocabulary,
         max_sequence_length=resolved_model_config.transformer.max_sequence_length,
     )
     model = HierarchicalAutoregressiveModel(resolved_model_config)
-    _LOGGER.info("Loading stage-one model weights from: %s", training_config.stage_one_checkpoint)
+    _LOGGER.info("Loading stage-one model weights from: %s", training_config.checkpoints.stage_one_checkpoint)
     load_model_weights(
-        training_config.stage_one_checkpoint,
+        training_config.checkpoints.stage_one_checkpoint,
         model=model,
-        device=torch.device(training_config.device),
+        device=torch.device(training_config.runtime.device),
     )
     tracker = build_training_tracker(training_config=training_config)
 
