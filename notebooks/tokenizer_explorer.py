@@ -11,7 +11,6 @@ def _():
     import altair as alt
     import marimo as mo
 
-    from musak_model.common.elements import MIDI_MAX_PITCH
     from musak_model.paths import DEFAULT_DATA_DIR, DEFAULT_PROCESSED_ROOT
     from musak_model.processing.io import load_parsed_score_json
     from musak_model.tokens.vocabulary import build_default_token_vocabulary
@@ -20,20 +19,21 @@ def _():
         default_duration_vocabulary,
         encoded_sample_to_segment,
         encoded_segments_result,
+        hand_controls,
         load_encoded_shard,
         parsed_score_manifest_diagnostics,
-        parsed_score_piano_roll_dataframe,
-        piano_roll_dataframe,
+        parsed_score_piano_roll_view_data,
+        piano_roll_player_panel,
         process_score_safely,
         score_summary,
         segment_parsed_score_safely,
+        segment_piano_roll_view_data,
         selected_file,
         selected_musicxml_file,
         token_rows,
     )
 
     return (
-        MIDI_MAX_PITCH,
         DEFAULT_DATA_DIR,
         DEFAULT_PROCESSED_ROOT,
         Path,
@@ -43,17 +43,19 @@ def _():
         default_duration_vocabulary,
         encoded_sample_to_segment,
         encoded_segments_result,
+        hand_controls,
         load_encoded_shard,
         load_parsed_score_json,
         mo,
-        parsed_score_piano_roll_dataframe,
         parsed_score_manifest_diagnostics,
-        piano_roll_dataframe,
+        parsed_score_piano_roll_view_data,
+        piano_roll_player_panel,
         process_score_safely,
         score_summary,
+        segment_parsed_score_safely,
+        segment_piano_roll_view_data,
         selected_file,
         selected_musicxml_file,
-        segment_parsed_score_safely,
         token_rows,
     )
 
@@ -71,29 +73,30 @@ def _(build_default_token_vocabulary, mo):
 
 
 @app.cell
-def _(DEFAULT_DATA_DIR, DEFAULT_PROCESSED_ROOT, Path, default_duration_vocabulary):
+def _(
+    DEFAULT_DATA_DIR,
+    DEFAULT_PROCESSED_ROOT,
+    Path,
+    default_duration_vocabulary,
+):
     def _existing_directory(path: Path) -> Path:
         current = path
         while not current.exists() or not current.is_dir():
             if current == current.parent:
                 return DEFAULT_DATA_DIR
+
             current = current.parent
+
         return current
 
     data_root = DEFAULT_DATA_DIR
-    pdmx_root = data_root / "PDMX" / "mxl"
-    initial_browser_path = pdmx_root if pdmx_root.exists() else data_root
     processed_browser_path = _existing_directory(DEFAULT_PROCESSED_ROOT)
     duration_vocabulary = default_duration_vocabulary()
-    return (
-        duration_vocabulary,
-        initial_browser_path,
-        processed_browser_path,
-    )
+    return duration_vocabulary, processed_browser_path
 
 
 @app.cell
-def _(initial_browser_path, mo, processed_browser_path):
+def _(DEFAULT_DATA_DIR, mo, processed_browser_path):
     source_mode = mo.ui.radio(
         options={
             "Raw MusicXML": "raw",
@@ -105,7 +108,7 @@ def _(initial_browser_path, mo, processed_browser_path):
         label="Source",
     )
     file_browser = mo.ui.file_browser(
-        initial_path=initial_browser_path,
+        initial_path=DEFAULT_DATA_DIR,
         filetypes=[".mxl", ".musicxml", ".xml"],
         selection_mode="file",
         multiple=False,
@@ -171,21 +174,31 @@ def _(
 
 
 @app.cell
-def _(encoded_browser, file_browser, parsed_browser, selected_file, selected_musicxml_file, source_mode):
+def _(
+    encoded_browser,
+    file_browser,
+    parsed_browser,
+    selected_file,
+    selected_musicxml_file,
+    source_mode,
+):
     if source_mode.value == "raw":
         active_selection = selected_musicxml_file(file_browser)
+
     elif source_mode.value == "parsed":
         active_selection = selected_file(
             parsed_browser,
             supported_suffixes=frozenset({".json"}),
             description="parsed score JSON",
         )
+
     else:
         active_selection = selected_file(
             encoded_browser,
             supported_suffixes=frozenset({".jsonl"}),
             description="encoded JSONL",
         )
+
     selected_path = active_selection.path
     return active_selection, selected_path
 
@@ -208,7 +221,6 @@ def _(active_selection, mo):
 
 @app.cell
 def _(
-    duration_vocabulary,
     encoded_sample_to_segment,
     encoded_segments_result,
     load_encoded_shard,
@@ -216,8 +228,8 @@ def _(
     mo,
     parsed_score_manifest_diagnostics,
     process_score_safely,
-    selected_path,
     segment_parsed_score_safely,
+    selected_path,
     source_mode,
     stride_slider,
     window_slider,
@@ -226,6 +238,7 @@ def _(
         encoded_shard = None
         processing_result = None
         processing_output = mo.md("")
+
     elif source_mode.value == "raw":
         encoded_shard = None
         with mo.status.spinner(title="Parsing and tokenizing selected file..."):
@@ -251,6 +264,7 @@ def _(
                 f"{processing_result.path.name}: {processing_result.error_type}: {processing_result.error_message}",
                 kind="danger",
             )
+
     elif source_mode.value == "parsed":
         encoded_shard = None
         with mo.status.spinner(title="Loading parsed score..."):
@@ -288,18 +302,21 @@ def _(
             f"{selected_path.name}: {len(encoded_shard.samples)} encoded sample(s) loaded",
             kind="success",
         )
+
     processing_output
-    return encoded_shard, processing_result
+    return (processing_result,)
 
 
 @app.cell
 def _(mo, processing_result):
     if processing_result is None or processing_result.parse_diagnostics == "":
         diagnostics_output = mo.md("")
+
     else:
         diagnostics_output = mo.accordion(
             {"Parse diagnostics": mo.md(f"```text\n{processing_result.parse_diagnostics}\n```")}
         )
+
     diagnostics_output
     return
 
@@ -308,8 +325,10 @@ def _(mo, processing_result):
 def _(mo, processing_result):
     if processing_result is None or processing_result.succeeded:
         traceback_output = mo.md("")
+
     else:
         traceback_output = mo.accordion({"Traceback": mo.md(f"```text\n{processing_result.traceback_text}\n```")})
+
     traceback_output
     return
 
@@ -325,9 +344,11 @@ def _(mo, processing_result):
             label="Segment",
         )
         segment_slider_output = segment_slider
+
     else:
         segment_slider = None
         segment_slider_output = mo.md("")
+
     segment_slider_output
     return (segment_slider,)
 
@@ -336,6 +357,7 @@ def _(mo, processing_result):
 def _(processing_result, segment_slider):
     if processing_result is not None and segment_slider is not None:
         segment = processing_result.segments[segment_slider.value]
+
     else:
         segment = None
     return (segment,)
@@ -375,6 +397,7 @@ def _(mo, segment):
                 ]
             )
         metadata_output = mo.ui.table(rows, selection=None, label="Segment metadata")
+
     metadata_output
     return
 
@@ -389,120 +412,86 @@ def _(duration_vocabulary, mo, segment, token_rows):
             selection=None,
             label="Unified token stream",
         )
+
     tokens_output
     return
 
 
 @app.cell
+def _(mo, processing_result, segment):
+    if processing_result is not None and processing_result.parsed_score is not None and segment is not None:
+        piano_roll_scope = mo.ui.radio(
+            options={
+                "Selected segment": "segment",
+                "Full score": "full_score",
+            },
+            value="Selected segment",
+            inline=True,
+            label="Piano roll source",
+        )
+        piano_roll_scope_output = piano_roll_scope
+
+    else:
+        piano_roll_scope = None
+        piano_roll_scope_output = mo.md("")
+
+    piano_roll_scope_output
+    return (piano_roll_scope,)
+
+
+@app.cell
+def _(hand_controls, mo):
+    piano_roll_hand_controls = hand_controls(mo)
+    return (piano_roll_hand_controls,)
+
+
+@app.cell
 def _(
-    MIDI_MAX_PITCH,
     PitchSpelling,
     alt,
     bpm_slider,
     duration_vocabulary,
     mo,
-    parsed_score_piano_roll_dataframe,
-    piano_roll_dataframe,
+    parsed_score_piano_roll_view_data,
+    piano_roll_hand_controls,
+    piano_roll_player_panel,
+    piano_roll_scope,
     prefer_flats_checkbox,
     processing_result,
     segment,
+    segment_piano_roll_view_data,
 ):
     pitch_spelling = PitchSpelling.FLATS if prefer_flats_checkbox.value else PitchSpelling.SHARPS
-    if segment is not None:
-        piano_roll_df = piano_roll_dataframe(
+    if (
+        processing_result is not None
+        and processing_result.parsed_score is not None
+        and (piano_roll_scope is None or piano_roll_scope.value == "full_score")
+    ):
+        view_data = parsed_score_piano_roll_view_data(
+            processing_result.parsed_score,
+            pitch_spelling=pitch_spelling,
+            bpm=bpm_slider.value,
+        )
+
+    elif segment is not None:
+        view_data = segment_piano_roll_view_data(
             segment,
             duration_vocabulary=duration_vocabulary,
             pitch_spelling=pitch_spelling,
             bpm=bpm_slider.value,
         )
-        piano_roll_title = "Decoded segment piano roll"
-        measure_duration = segment.time_numerator / segment.time_denominator
-        bar_domain = [segment.metadata.window_start_bar + 1, segment.metadata.window_start_bar + segment.bar_count + 1]
-        seconds_domain = [0.0, segment.bar_count * measure_duration * 4 * 60 / bpm_slider.value]
-    elif processing_result is not None and processing_result.parsed_score is not None:
-        piano_roll_parsed_score = processing_result.parsed_score
-        piano_roll_df = parsed_score_piano_roll_dataframe(
-            piano_roll_parsed_score,
-            pitch_spelling=pitch_spelling,
-            bpm=bpm_slider.value,
-        )
-        piano_roll_title = "Parsed score piano roll"
-        parsed_bar_count = max(
-            len(piano_roll_parsed_score.right_hand_bars),
-            len(piano_roll_parsed_score.left_hand_bars),
-        )
-        measure_duration = piano_roll_parsed_score.time_numerator / piano_roll_parsed_score.time_denominator
-        bar_domain = [1, parsed_bar_count + 1]
-        seconds_domain = [0.0, parsed_bar_count * measure_duration * 4 * 60 / bpm_slider.value]
-    else:
-        piano_roll_df = None
-        piano_roll_title = ""
-        bar_domain = [0, 1]
-        seconds_domain = [0.0, 1.0]
 
-    if piano_roll_df is None:
-        piano_roll_output = mo.md("")
-    elif piano_roll_df.empty:
-        piano_roll_output = mo.callout("No note events decoded for this score.", kind="warn")
     else:
-        sharp_pitch_names = ["C-", "C#", "D-", "D#", "E-", "F-", "F#", "G-", "G#", "A-", "A#", "B-"]
-        flat_pitch_names = ["C-", "Db", "D-", "Eb", "E-", "F-", "Gb", "G-", "Ab", "A-", "Bb", "B-"]
-        pitch_names = flat_pitch_names if prefer_flats_checkbox.value else sharp_pitch_names
-        pitch_label_expression = f"{pitch_names}[datum.value % 12] + floor(datum.value / 12 - 1)"
-        y_domain = [
-            max(0, float(piano_roll_df["midi_pitch"].min()) - 1),
-            min(MIDI_MAX_PITCH, float(piano_roll_df["midi_pitch"].max()) + 1),
-        ]
-        note_bars = (
-            alt.Chart(piano_roll_df)
-            .mark_bar()
-            .encode(
-                x=alt.X(
-                    "bar_start:Q",
-                    title="Bars",
-                    axis=alt.Axis(grid=True),
-                    scale=alt.Scale(domain=bar_domain),
-                ),
-                x2="bar_end:Q",
-                y=alt.Y(
-                    "midi_pitch:Q",
-                    title="Pitch",
-                    axis=alt.Axis(labelExpr=pitch_label_expression),
-                    scale=alt.Scale(domain=y_domain),
-                ),
-                color=alt.Color("hand:N", title="Hand"),
-                tooltip=[
-                    alt.Tooltip("hand:N", title="Hand"),
-                    alt.Tooltip("pitch:N", title="Pitch"),
-                    alt.Tooltip("midi_pitch:Q", title="MIDI"),
-                    alt.Tooltip("bar_start:Q", title="Bar start", format=".3f"),
-                    alt.Tooltip("bar_end:Q", title="Bar end", format=".3f"),
-                    alt.Tooltip("start_seconds:Q", title="Start (s)", format=".3f"),
-                    alt.Tooltip("duration_fraction:N", title="Duration"),
-                    alt.Tooltip("duration_seconds:Q", title="Duration (s)", format=".3f"),
-                    alt.Tooltip("token:N", title="Token"),
-                    alt.Tooltip("token_index:Q", title="Token index"),
-                ],
-            )
-        )
-        seconds_axis = (
-            alt.Chart(piano_roll_df)
-            .mark_rule(opacity=0)
-            .encode(
-                x=alt.X(
-                    "start_seconds:Q",
-                    title="Time (s)",
-                    axis=alt.Axis(orient="top", grid=False),
-                    scale=alt.Scale(domain=seconds_domain),
-                )
-            )
-        )
-        chart = (
-            alt.layer(note_bars, seconds_axis)
-            .resolve_scale(x="independent")
-            .properties(width="container", height=400, title=piano_roll_title)
-        )
-        piano_roll_output = mo.ui.altair_chart(chart)
+        view_data = None
+
+    piano_roll_output = piano_roll_player_panel(
+        view_data,
+        mo=mo,
+        alt=alt,
+        bpm=bpm_slider.value,
+        controls=piano_roll_hand_controls,
+    )
+
     piano_roll_output
     return
 
@@ -517,6 +506,7 @@ def _(duration_vocabulary, mo, score_summary, segment):
             selection=None,
             label="Decoded music21 score summary",
         )
+
     score_output
     return
 

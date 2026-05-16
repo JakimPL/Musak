@@ -9,10 +9,15 @@ from notebooks.utils.statistics import (
     DatasetStatistics,
     eligibility_distribution,
     ineligibility_reason_distribution,
+    key_root_distribution,
     load_dataset_statistics,
     overview_rows,
+    parse_error_table_frame,
+    parsed_table_frame,
     read_encoded_manifest_frame,
     reason_by_column,
+    table_records,
+    token_histogram_distribution,
     token_summary_rows,
 )
 
@@ -106,13 +111,39 @@ def test_encoded_statistics_expand_reasons_and_token_summary(tmp_path: Path) -> 
     reasons = ineligibility_reason_distribution(stats.encoded)
     reason_time = reason_by_column(stats.encoded, EncodedManifestField.TIME_SIGNATURE)
     token_rows = token_summary_rows(stats.encoded)
+    token_distribution = token_histogram_distribution(stats.encoded, bins=2)
 
     assert eligibility.set_index(VALUE_COLUMN).loc["ineligible", COUNT_COLUMN] == 2
     assert reasons.set_index(VALUE_COLUMN).loc["quantization_error", COUNT_COLUMN] == 2
     assert len(reason_time) == 3
+    assert all(isinstance(key, str) for row in table_records(reason_time) for key in row)
+    assert int(token_distribution[COUNT_COLUMN].sum()) == 3
+    assert len(token_distribution) <= 4
     assert token_rows[0] == {"Metric": "min", "Value": "10"}
     assert token_rows[2] == {"Metric": "median", "Value": "20"}
     assert token_rows[-1] == {"Metric": "max", "Value": "30"}
+
+
+def test_key_root_distribution_maps_pitch_classes_to_names(tmp_path: Path) -> None:
+    dataset_dir = tmp_path / "PDMX"
+    encoded_dir = dataset_dir / "encoded" / "abc"
+    encoded_dir.mkdir(parents=True)
+    _write_csv(dataset_dir / "parsed.csv", ParsedManifestField, [{ParsedManifestField.SOURCE_ID: "a"}])
+    _write_csv(
+        encoded_dir / "encoded.csv",
+        EncodedManifestField,
+        [
+            {EncodedManifestField.SEGMENT_ID: "a-0", EncodedManifestField.KEY_ROOT: "0"},
+            {EncodedManifestField.SEGMENT_ID: "a-1", EncodedManifestField.KEY_ROOT: "1"},
+            {EncodedManifestField.SEGMENT_ID: "a-2", EncodedManifestField.KEY_ROOT: "10"},
+        ],
+    )
+    stats = load_dataset_statistics(dataset_dir, encoded_dir)
+    assert stats.encoded is not None
+
+    distribution = key_root_distribution(stats.encoded, EncodedManifestField.KEY_ROOT, top_n=12)
+
+    assert set(distribution[VALUE_COLUMN]) == {"C", "C#", "A#"}
 
 
 def test_overview_supports_parsed_only_statistics(tmp_path: Path) -> None:
@@ -128,6 +159,25 @@ def test_overview_supports_parsed_only_statistics(tmp_path: Path) -> None:
 
     assert stats.has_encoded is False
     assert overview_rows(stats)[0] == {"Metric": "Parsed files", "Value": "1"}
+
+
+def test_manifest_table_frames_are_not_truncated(tmp_path: Path) -> None:
+    dataset_dir = tmp_path / "PDMX"
+    dataset_dir.mkdir()
+    _write_csv(
+        dataset_dir / "parsed.csv",
+        ParsedManifestField,
+        [
+            {ParsedManifestField.SOURCE_ID: "a", ParsedManifestField.STATUS: "error"},
+            {ParsedManifestField.SOURCE_ID: "b", ParsedManifestField.STATUS: "success"},
+            {ParsedManifestField.SOURCE_ID: "c", ParsedManifestField.STATUS: "error"},
+        ],
+    )
+
+    stats = load_dataset_statistics(dataset_dir, None)
+
+    assert len(parsed_table_frame(stats.parsed)) == 3
+    assert len(parse_error_table_frame(stats.parsed)) == 2
 
 
 def _write_csv(path: Path, field_type, rows: list[dict[object, object]]) -> None:

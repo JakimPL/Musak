@@ -36,8 +36,8 @@ from musak.modules.rhythm.exceptions import RhygenException
 from musak.modules.rhythm.generator import RhythmGenerator
 from musak.modules.rhythm.settings import GroupSettings, Settings
 from musak.paths import RHYTHM_CONFIG
-from musak.shared.exporter import midi_to_audio
 from musak.shared.files import load_yaml
+from musak_shared.exporter import midi_to_audio
 
 note_map: dict[str, NoteValue] = {
     "whole_note": 1,

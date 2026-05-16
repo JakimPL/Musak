@@ -25,8 +25,8 @@ from musak.modules.chords.generator import get_random_interval
 from musak.modules.elements.interval import Interval
 from musak.paths import INTERVALS_CONFIG
 from musak.shared.dict import namedtuple_with_base_note
-from musak.shared.exporter import midi_to_audio
 from musak.shared.files import load_yaml
+from musak_shared.exporter import midi_to_audio
 
 
 class IntervalService:

@@ -27,11 +27,16 @@ class Exporter:
         *,
         sf2: str = SOUNDFONT,
         gain: float = GAIN,
+        soundfont_dir: pathlib.Path | None = None,
     ) -> None:
-        self.soundfont_path: pathlib.Path = pathlib.Path.cwd() / "soundfont" / sf2
+        root = pathlib.Path.cwd() if soundfont_dir is None else soundfont_dir
+        self.soundfont_path: pathlib.Path = root / "soundfont" / sf2 if soundfont_dir is None else root / sf2
         self.gain: float = gain
 
     def export_audio(self, midi_data: bytes) -> str:
+        if not self.soundfont_path.exists():
+            raise AudioExportError(f"soundfont not found: {self.soundfont_path}")
+
         with tempfile.TemporaryDirectory() as tmp:
             tmp_dir = pathlib.Path(tmp)
             midi_path = tmp_dir / "audio.mid"
@@ -47,6 +52,8 @@ class Exporter:
                 )
             except subprocess.CalledProcessError as exception:
                 raise AudioExportError(f"ffmpeg failed with exit code {exception.returncode}") from exception
+            except FileNotFoundError as exception:
+                raise AudioExportError("ffmpeg executable not found") from exception
 
             return "data:audio/mpeg;base64," + base64.b64encode(mp3_path.read_bytes()).decode()
 
@@ -70,3 +77,5 @@ class Exporter:
             )
         except subprocess.CalledProcessError as exception:
             raise AudioExportError(f"fluidsynth failed with exit code {exception.returncode}") from exception
+        except FileNotFoundError as exception:
+            raise AudioExportError("fluidsynth executable not found") from exception

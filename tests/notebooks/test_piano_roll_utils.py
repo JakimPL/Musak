@@ -13,9 +13,12 @@ from musak_model.training.ingestion.schema import EncodedExercise
 from notebooks.utils.encoded import load_encoded_shard
 from notebooks.utils.piano_roll import (
     PitchSpelling,
+    filter_piano_roll_dataframe,
     midi_pitch_name,
     parsed_score_piano_roll_dataframe,
+    parsed_score_piano_roll_view_data,
     piano_roll_dataframe,
+    segment_piano_roll_view_data,
 )
 
 
@@ -61,6 +64,34 @@ def test_segment_piano_roll_dataframe_includes_axis_and_token_fields(duration_vo
     assert row["token"] == "1♯(1:4)"
 
 
+def test_segment_piano_roll_view_data_includes_events_domains_and_frame(
+    duration_vocabulary: DurationVocabulary,
+) -> None:
+    quarter_id = duration_vocabulary.fraction_to_id(Fraction(1, 4))
+    segment = Segment(
+        tokens=[
+            HandToken(hand=Hand.RIGHT),
+            NoteToken(degree=1, accidental=0, octave_offset=0, duration_id=quarter_id),
+        ],
+        metadata=SegmentMetadata(
+            key_root=0,
+            scale_type=ScaleType.MAJOR,
+            time_numerator=4,
+            time_denominator=4,
+            bar_count=2,
+            window_start_bar=3,
+            source_file=Path("score.mxl"),
+        ),
+    )
+
+    view_data = segment_piano_roll_view_data(segment, duration_vocabulary=duration_vocabulary, bpm=120)
+
+    assert len(view_data.events) == 1
+    assert view_data.bar_domain == (4.0, 6.0)
+    assert view_data.seconds_domain == (0.0, 4.0)
+    assert view_data.dataframe.iloc[0]["pitch"] == "C-5"
+
+
 def test_parsed_score_piano_roll_dataframe_uses_pitch_spelling_without_token_fields() -> None:
     score = ParsedScore(
         key_root=0,
@@ -88,6 +119,40 @@ def test_parsed_score_piano_roll_dataframe_uses_pitch_spelling_without_token_fie
     assert row["duration_fraction"] == "1:4"
     assert row["duration_seconds"] == 1.0
     assert row["token"] is None
+
+
+def test_parsed_score_piano_roll_view_data_and_filtering() -> None:
+    score = ParsedScore(
+        key_root=0,
+        key_fifths=0,
+        scale_type=ScaleType.MAJOR,
+        time_numerator=4,
+        time_denominator=4,
+        right_hand_bars=[
+            ParsedBar(
+                time_numerator=4,
+                time_denominator=4,
+                key_fifths=0,
+                events=[ParsedNote(midi_pitch=61, duration=Fraction(1, 4), beat_offset=Fraction(0))],
+            )
+        ],
+        left_hand_bars=[
+            ParsedBar(
+                time_numerator=4,
+                time_denominator=4,
+                key_fifths=0,
+                events=[ParsedNote(midi_pitch=48, duration=Fraction(1, 4), beat_offset=Fraction(0))],
+            )
+        ],
+    )
+
+    view_data = parsed_score_piano_roll_view_data(score, pitch_spelling=PitchSpelling.FLATS, bpm=60)
+    left_frame = filter_piano_roll_dataframe(view_data.dataframe, hands=frozenset({Hand.LEFT}))
+
+    assert view_data.bar_domain == (1.0, 2.0)
+    assert view_data.seconds_domain == (0.0, 4.0)
+    assert left_frame["hand"].tolist() == ["left"]
+    assert left_frame["midi_pitch"].tolist() == [48]
 
 
 def test_load_encoded_shard_rebuilds_token_vocabulary(

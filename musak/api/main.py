@@ -6,7 +6,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from musak.api.routers import intervals, inversions, rhythm
-from musak.shared.exporter import AudioExportError
+from musak_shared.exporter import AudioExportError
 
 DEBUG = os.getenv("DEBUG", "0") == "1"
 

@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
 
 import pandas as pd
 
+from musak_model.common.elements import KEYS
 from musak_model.processing.manifest import (
     EncodedManifestField,
     ParsedManifestField,
@@ -17,6 +19,12 @@ PERCENT_COLUMN: Final[str] = "percent"
 VALUE_COLUMN: Final[str] = "value"
 LABEL_COLUMN: Final[str] = "Metric"
 METRIC_VALUE_COLUMN: Final[str] = "Value"
+TOKEN_BIN_START_COLUMN: Final[str] = "token_bin_start"
+TOKEN_BIN_END_COLUMN: Final[str] = "token_bin_end"
+TOKEN_BIN_LABEL_COLUMN: Final[str] = "token_bin"
+TOKEN_BIN_MIDPOINT_COLUMN: Final[str] = "token_bin_midpoint"
+TOKEN_BAR_START_COLUMN: Final[str] = "token_bar_start"
+TOKEN_BAR_END_COLUMN: Final[str] = "token_bar_end"
 
 _TRUE_TEXT: Final[str] = "True"
 _REASON_SEPARATOR: Final[str] = "|"
@@ -119,6 +127,12 @@ def categorical_distribution(
     return counts
 
 
+def key_root_distribution(frame: pd.DataFrame, column: str, *, top_n: int) -> pd.DataFrame:
+    distribution = categorical_distribution(frame, column, top_n=top_n)
+    distribution[VALUE_COLUMN] = distribution[VALUE_COLUMN].map(_key_root_label)
+    return distribution
+
+
 def eligibility_distribution(encoded: pd.DataFrame) -> pd.DataFrame:
     labels = encoded[EncodedManifestField.ELIGIBLE_FOR_TRAINING].map({True: "eligible", False: "ineligible"})
     counts = labels.value_counts(dropna=False).rename_axis(VALUE_COLUMN).reset_index(name=COUNT_COLUMN)
@@ -137,11 +151,17 @@ def ineligibility_reason_distribution(encoded: pd.DataFrame) -> pd.DataFrame:
 
 
 def reason_by_column(encoded: pd.DataFrame, column: str) -> pd.DataFrame:
+    column_name = str(column)
     reasons = _explode_reasons(encoded)
     if reasons.empty:
-        return pd.DataFrame(columns=[VALUE_COLUMN, column, COUNT_COLUMN])
+        return pd.DataFrame(columns=[VALUE_COLUMN, column_name, COUNT_COLUMN])
 
-    return reasons.groupby([VALUE_COLUMN, column], dropna=False).size().reset_index(name=COUNT_COLUMN)
+    return reasons.groupby([VALUE_COLUMN, column_name], dropna=False).size().reset_index(name=COUNT_COLUMN)
+
+
+def table_records(frame: pd.DataFrame) -> list[dict[str, object]]:
+    records = frame.to_dict("records")
+    return [{str(key): value for key, value in row.items()} for row in records]
 
 
 def token_summary_rows(encoded: pd.DataFrame) -> list[dict[str, str]]:
@@ -160,7 +180,57 @@ def token_summary_rows(encoded: pd.DataFrame) -> list[dict[str, str]]:
     ]
 
 
-def top_parse_error_rows(parsed: pd.DataFrame, *, limit: int) -> list[dict[str, str]]:
+def token_histogram_distribution(encoded: pd.DataFrame, *, bins: int = 40) -> pd.DataFrame:
+    tokens = encoded[EncodedManifestField.TOKEN_COUNT].dropna()
+    if tokens.empty:
+        return pd.DataFrame(
+            columns=[
+                TOKEN_BIN_START_COLUMN,
+                TOKEN_BIN_END_COLUMN,
+                TOKEN_BIN_LABEL_COLUMN,
+                TOKEN_BIN_MIDPOINT_COLUMN,
+                TOKEN_BAR_START_COLUMN,
+                TOKEN_BAR_END_COLUMN,
+                EncodedManifestField.ELIGIBLE_FOR_TRAINING,
+                COUNT_COLUMN,
+            ]
+        )
+
+    bin_width = _nice_bin_width(float(tokens.max()), bins=bins)
+    max_edge = (math.floor(float(tokens.max()) / bin_width) + 1) * bin_width
+    bin_edges = list(range(0, int(max_edge + bin_width), int(bin_width)))
+    binned = encoded.loc[
+        tokens.index, [EncodedManifestField.TOKEN_COUNT, EncodedManifestField.ELIGIBLE_FOR_TRAINING]
+    ].copy()
+    binned["_token_interval"] = pd.cut(
+        binned[EncodedManifestField.TOKEN_COUNT],
+        bins=bin_edges,
+        right=False,
+        include_lowest=True,
+    )
+    counts = (
+        binned.groupby(["_token_interval", EncodedManifestField.ELIGIBLE_FOR_TRAINING], observed=True)
+        .size()
+        .reset_index(name=COUNT_COLUMN)
+    )
+    counts[TOKEN_BIN_START_COLUMN] = counts["_token_interval"].map(lambda interval: float(interval.left))
+    counts[TOKEN_BIN_END_COLUMN] = counts["_token_interval"].map(lambda interval: float(interval.right))
+    counts[TOKEN_BIN_MIDPOINT_COLUMN] = (
+        counts[TOKEN_BIN_START_COLUMN].astype(float) + counts[TOKEN_BIN_END_COLUMN].astype(float)
+    ) / 2
+    bar_padding = bin_width * 0.04
+    counts[TOKEN_BAR_START_COLUMN] = counts[TOKEN_BIN_START_COLUMN].astype(float) + bar_padding
+    counts[TOKEN_BAR_END_COLUMN] = counts[TOKEN_BIN_END_COLUMN].astype(float) - bar_padding
+    counts[TOKEN_BIN_LABEL_COLUMN] = counts["_token_interval"].map(
+        lambda interval: f"{interval.left:.0f}-{interval.right:.0f}"
+    )
+    return counts.drop(columns=["_token_interval"]).sort_values(
+        [TOKEN_BIN_START_COLUMN, COUNT_COLUMN],
+        ascending=[True, False],
+    )
+
+
+def parse_error_table_frame(parsed: pd.DataFrame) -> pd.DataFrame:
     errors = parsed[parsed[ParsedManifestField.STATUS] == ParsedManifestStatus.ERROR.value]
     columns = [
         ParsedManifestField.SOURCE_PATH,
@@ -168,10 +238,10 @@ def top_parse_error_rows(parsed: pd.DataFrame, *, limit: int) -> list[dict[str, 
         ParsedManifestField.ERROR_MESSAGE,
         ParsedManifestField.PARSE_DIAGNOSTICS,
     ]
-    return errors.loc[:, columns].head(limit).to_dict("records")
+    return _table_frame(errors, columns)
 
 
-def parsed_table_rows(parsed: pd.DataFrame, *, limit: int) -> list[dict[str, object]]:
+def parsed_table_frame(parsed: pd.DataFrame) -> pd.DataFrame:
     columns = [
         ParsedManifestField.SOURCE_PATH,
         ParsedManifestField.STATUS,
@@ -182,10 +252,10 @@ def parsed_table_rows(parsed: pd.DataFrame, *, limit: int) -> list[dict[str, obj
         ParsedManifestField.RIGHT_HAND_BARS,
         ParsedManifestField.LEFT_HAND_BARS,
     ]
-    return parsed.loc[:, columns].head(limit).to_dict("records")
+    return _table_frame(parsed, columns)
 
 
-def encoded_table_rows(encoded: pd.DataFrame, *, limit: int) -> list[dict[str, object]]:
+def encoded_table_frame(encoded: pd.DataFrame) -> pd.DataFrame:
     columns = [
         EncodedManifestField.SEGMENT_ID,
         EncodedManifestField.SOURCE_PATH,
@@ -199,7 +269,7 @@ def encoded_table_rows(encoded: pd.DataFrame, *, limit: int) -> list[dict[str, o
         EncodedManifestField.TIME_SIGNATURE,
         EncodedManifestField.DIFFICULTY_LEVEL,
     ]
-    return encoded.loc[:, columns].head(limit).to_dict("records")
+    return _table_frame(encoded, columns)
 
 
 def _explode_reasons(encoded: pd.DataFrame) -> pd.DataFrame:
@@ -249,3 +319,30 @@ def _percent(numerator: int, denominator: int) -> str:
         return "0.0%"
 
     return f"{100 * numerator / denominator:.1f}%"
+
+
+def _table_frame(frame: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
+    table = frame.loc[:, [str(column) for column in columns]].copy()
+    table.columns = [str(column) for column in table.columns]
+    return table
+
+
+def _key_root_label(value: object) -> str:
+    try:
+        return KEYS[int(value)]
+    except (TypeError, ValueError, KeyError):
+        return str(value)
+
+
+def _nice_bin_width(max_value: float, *, bins: int) -> int:
+    if max_value <= 0:
+        return 1
+
+    raw_width = max_value / max(bins, 1)
+    magnitude = 10 ** math.floor(math.log10(raw_width))
+    for multiplier in (1, 2, 5, 10):
+        width = multiplier * magnitude
+        if width >= raw_width:
+            return max(1, int(width))
+
+    return max(1, int(10 * magnitude))

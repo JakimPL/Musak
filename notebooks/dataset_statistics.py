@@ -18,15 +18,18 @@ def _():
         categorical_distribution,
         eligibility_distribution,
         encoded_run_dirs,
-        encoded_table_rows,
+        encoded_table_frame,
         ineligibility_reason_distribution,
+        key_root_distribution,
         load_dataset_statistics,
         overview_rows,
-        parsed_table_rows,
+        parse_error_table_frame,
+        parsed_table_frame,
         processed_dataset_dirs,
         reason_by_column,
+        table_records,
+        token_histogram_distribution,
         token_summary_rows,
-        top_parse_error_rows,
     )
     from notebooks.utils.statistics import COUNT_COLUMN, PERCENT_COLUMN, VALUE_COLUMN
 
@@ -42,17 +45,20 @@ def _():
         categorical_distribution,
         eligibility_distribution,
         encoded_run_dirs,
-        encoded_table_rows,
+        encoded_table_frame,
         ineligibility_reason_distribution,
+        key_root_distribution,
         load_dataset_statistics,
         mo,
         overview_rows,
-        parsed_table_rows,
+        parse_error_table_frame,
+        parsed_table_frame,
         pd,
         processed_dataset_dirs,
         reason_by_column,
+        table_records,
+        token_histogram_distribution,
         token_summary_rows,
-        top_parse_error_rows,
     )
 
 
@@ -122,10 +128,9 @@ def _(Path, encoded_selector):
 @app.cell
 def _(mo):
     top_n_slider = mo.ui.slider(start=5, stop=50, step=1, value=20, label="Top categories")
-    table_limit_slider = mo.ui.slider(start=10, stop=500, step=10, value=50, label="Table rows")
-    controls_output = mo.hstack([top_n_slider, table_limit_slider], gap=2)
+    controls_output = top_n_slider
     controls_output
-    return table_limit_slider, top_n_slider
+    return (top_n_slider,)
 
 
 @app.cell
@@ -157,41 +162,86 @@ def _(dataset_dir, encoded_dir, mo, stats_error):
 
 
 @app.cell
-def _(COUNT_COLUMN, PERCENT_COLUMN, VALUE_COLUMN, alt):
+def _(COUNT_COLUMN, PERCENT_COLUMN, VALUE_COLUMN, alt, mo):
+    CHART_WIDTH = 360
+    CHART_HEIGHT = 280
+    WIDE_CHART_WIDTH = 760
+
     def horizontal_bar_chart(frame, *, title: str, value_title: str = "Category"):
+        chart_frame = frame.copy()
+        chart_frame["bar_color"] = chart_frame[VALUE_COLUMN].map(
+            lambda value: "#2f855a" if str(value) == "no error" else "#4f7cac"
+        )
+        color = (
+            alt.Color("bar_color:N", scale=None, legend=None)
+            if "no error" in set(chart_frame[VALUE_COLUMN].astype(str))
+            else alt.value("#4f7cac")
+        )
         return (
-            alt.Chart(frame)
+            alt.Chart(chart_frame)
             .mark_bar()
             .encode(
                 x=alt.X(f"{COUNT_COLUMN}:Q", title="Count"),
                 y=alt.Y(f"{VALUE_COLUMN}:N", title=value_title, sort="-x"),
+                color=color,
                 tooltip=[
                     alt.Tooltip(f"{VALUE_COLUMN}:N", title=value_title),
                     alt.Tooltip(f"{COUNT_COLUMN}:Q", title="Count"),
                     alt.Tooltip(f"{PERCENT_COLUMN}:Q", title="Share", format=".1%"),
                 ],
             )
-            .properties(width="container", height=320, title=title)
+            .properties(width=CHART_WIDTH, height=CHART_HEIGHT, title=title)
         )
 
-    def token_histogram(frame, *, token_column: str, eligible_column: str):
+    def token_distribution_chart(frame, *, eligible_column: str):
+        tick_values = sorted(
+            set(frame["token_bin_start"].astype(float)).union(set(frame["token_bin_end"].astype(float)))
+        )
         return (
             alt.Chart(frame)
             .mark_bar()
             .encode(
-                x=alt.X(f"{token_column}:Q", bin=alt.Bin(maxbins=40), title="Token count"),
-                y=alt.Y("count():Q", title="Segments"),
+                x=alt.X(
+                    "token_bar_start:Q",
+                    title="Token count",
+                    axis=alt.Axis(values=tick_values, labelAngle=-45),
+                    scale=alt.Scale(domain=[0, max(tick_values)], zero=True),
+                ),
+                x2="token_bar_end:Q",
+                y=alt.Y(
+                    f"{COUNT_COLUMN}:Q",
+                    title="Segments",
+                    stack=None,
+                    scale=alt.Scale(zero=True),
+                ),
+                y2=alt.Y2(datum=0),
+                order=alt.Order(f"{COUNT_COLUMN}:Q", sort="descending"),
                 color=alt.Color(f"{eligible_column}:N", title="Eligible"),
                 tooltip=[
-                    alt.Tooltip(f"{token_column}:Q", title="Token count"),
-                    alt.Tooltip("count():Q", title="Segments"),
+                    alt.Tooltip("token_bin:N", title="Token count"),
+                    alt.Tooltip(f"{COUNT_COLUMN}:Q", title="Segments"),
                     alt.Tooltip(f"{eligible_column}:N", title="Eligible"),
                 ],
             )
-            .properties(width="container", height=320, title="Token count distribution")
+            .properties(width=WIDE_CHART_WIDTH, height=320, title="Token count distribution")
         )
 
-    return horizontal_bar_chart, token_histogram
+    def chart_output(chart):
+        try:
+            chart.to_dict()
+        except Exception as exception:
+            return mo.callout(f"Chart specification failed: {type(exception).__name__}: {exception}", kind="danger")
+
+        return mo.ui.altair_chart(chart, chart_selection=False, legend_selection=False)
+
+    def chart_grid(charts):
+        columns = 3
+        rows = []
+        for start in range(0, len(charts), columns):
+            rows.append(mo.hstack(charts[start : start + columns], justify="start", align="start", wrap=True, gap=2))
+        return mo.vstack(rows, gap=2)
+
+    return chart_grid, chart_output, horizontal_bar_chart, token_distribution_chart
 
 
 @app.cell
@@ -208,6 +258,8 @@ def _(mo, overview_rows, stats):
 def _(
     ParsedManifestField,
     categorical_distribution,
+    chart_grid,
+    chart_output,
     horizontal_bar_chart,
     mo,
     stats,
@@ -231,21 +283,14 @@ def _(
             title="Parse error types",
             value_title="Error type",
         )
-        diagnostics_chart = horizontal_bar_chart(
-            categorical_distribution(stats.parsed, "has_parse_diagnostics", top_n=top_n_slider.value),
-            title="Parse diagnostics present",
-            value_title="Diagnostics",
-        )
         parse_charts_output = mo.vstack(
             [
                 mo.md("## Parsing Quality"),
-                mo.hstack(
+                chart_grid(
                     [
-                        mo.ui.altair_chart(status_chart),
-                        mo.ui.altair_chart(error_chart),
-                        mo.ui.altair_chart(diagnostics_chart),
+                        chart_output(status_chart),
+                        chart_output(error_chart),
                     ],
-                    gap=2,
                 ),
             ],
             gap=2,
@@ -255,12 +300,12 @@ def _(
 
 
 @app.cell
-def _(mo, stats, table_limit_slider, top_parse_error_rows):
+def _(mo, parse_error_table_frame, stats):
     if stats is None:
         parse_error_output = mo.md("")
     else:
         parse_error_output = mo.ui.table(
-            top_parse_error_rows(stats.parsed, limit=table_limit_slider.value),
+            parse_error_table_frame(stats.parsed),
             selection=None,
             label="Parse errors",
         )
@@ -271,15 +316,17 @@ def _(mo, stats, table_limit_slider, top_parse_error_rows):
 @app.cell
 def _(
     EncodedManifestField,
+    chart_output,
     eligibility_distribution,
     horizontal_bar_chart,
     ineligibility_reason_distribution,
     mo,
     reason_by_column,
     stats,
+    table_records,
 ):
     if stats is None or stats.encoded is None:
-        eligibility_output = mo.md("")
+        eligibility_output = mo.callout("No encoded manifest is loaded.", kind="warn")
     else:
         eligibility_chart = horizontal_bar_chart(
             eligibility_distribution(stats.encoded),
@@ -290,19 +337,32 @@ def _(
         reason_chart = (
             mo.callout("No ineligibility reasons found.", kind="success")
             if reason_distribution.empty
-            else mo.ui.altair_chart(
-                horizontal_bar_chart(
-                    reason_distribution,
-                    title="Ineligibility reasons",
-                    value_title="Reason",
-                )
+            else mo.vstack(
+                [
+                    mo.md("### Ineligibility Reason Distribution"),
+                    chart_output(
+                        horizontal_bar_chart(
+                            reason_distribution,
+                            title="Ineligibility reasons",
+                            value_title="Reason",
+                        )
+                    ),
+                ],
+                gap=1,
             )
         )
-        reason_time_rows = reason_by_column(stats.encoded, EncodedManifestField.TIME_SIGNATURE).to_dict("records")
+        reason_time_rows = table_records(reason_by_column(stats.encoded, EncodedManifestField.TIME_SIGNATURE))
         eligibility_output = mo.vstack(
             [
                 mo.md("## Segment Eligibility"),
-                mo.hstack([mo.ui.altair_chart(eligibility_chart), reason_chart], gap=2),
+                mo.vstack(
+                    [
+                        mo.md("### Eligibility Distribution"),
+                        chart_output(eligibility_chart),
+                    ],
+                    gap=1,
+                ),
+                reason_chart,
                 mo.ui.table(reason_time_rows, selection=None, label="Reasons by time signature"),
             ],
             gap=2,
@@ -316,13 +376,16 @@ def _(
     EncodedManifestField,
     ParsedManifestField,
     categorical_distribution,
+    chart_grid,
+    chart_output,
     horizontal_bar_chart,
     mo,
     stats,
+    key_root_distribution,
     top_n_slider,
 ):
     if stats is None:
-        music_output = mo.md("")
+        music_output = mo.callout("No parsed or encoded manifest is loaded.", kind="warn")
     else:
         source = stats.encoded if stats.encoded is not None else stats.parsed
         key_column = EncodedManifestField.KEY_ROOT if stats.encoded is not None else ParsedManifestField.KEY_ROOT
@@ -331,7 +394,7 @@ def _(
             EncodedManifestField.TIME_SIGNATURE if stats.encoded is not None else ParsedManifestField.TIME_SIGNATURE
         )
         key_chart = horizontal_bar_chart(
-            categorical_distribution(source, key_column, top_n=top_n_slider.value),
+            key_root_distribution(source, key_column, top_n=top_n_slider.value),
             title="Key root distribution",
             value_title="Key root",
         )
@@ -348,13 +411,12 @@ def _(
         music_output = mo.vstack(
             [
                 mo.md("## Musical Metadata"),
-                mo.hstack(
+                chart_grid(
                     [
-                        mo.ui.altair_chart(key_chart),
-                        mo.ui.altair_chart(scale_chart),
-                        mo.ui.altair_chart(time_chart),
+                        chart_output(key_chart),
+                        chart_output(scale_chart),
+                        chart_output(time_chart),
                     ],
-                    gap=2,
                 ),
             ],
             gap=2,
@@ -364,25 +426,27 @@ def _(
 
 
 @app.cell
-def _(EncodedManifestField, mo, stats, token_histogram, token_summary_rows):
+def _(
+    EncodedManifestField,
+    chart_output,
+    mo,
+    stats,
+    token_distribution_chart,
+    token_histogram_distribution,
+    token_summary_rows,
+):
     if stats is None or stats.encoded is None:
-        token_output = mo.md("")
+        token_output = mo.callout("No encoded manifest is loaded.", kind="warn")
     else:
-        token_chart = token_histogram(
-            stats.encoded,
-            token_column=EncodedManifestField.TOKEN_COUNT,
+        token_chart = token_distribution_chart(
+            token_histogram_distribution(stats.encoded),
             eligible_column=EncodedManifestField.ELIGIBLE_FOR_TRAINING,
         )
         token_output = mo.vstack(
             [
                 mo.md("## Token Statistics"),
-                mo.hstack(
-                    [
-                        mo.ui.altair_chart(token_chart),
-                        mo.ui.table(token_summary_rows(stats.encoded), selection=None, label="Token summary"),
-                    ],
-                    gap=2,
-                ),
+                chart_output(token_chart),
+                mo.ui.table(token_summary_rows(stats.encoded), selection=None, label="Token summary"),
             ],
             gap=2,
         )
@@ -391,9 +455,9 @@ def _(EncodedManifestField, mo, stats, token_histogram, token_summary_rows):
 
 
 @app.cell
-def _(EncodedManifestField, categorical_distribution, horizontal_bar_chart, mo, stats, top_n_slider):
+def _(EncodedManifestField, categorical_distribution, chart_output, horizontal_bar_chart, mo, stats, top_n_slider):
     if stats is None or stats.encoded is None:
-        difficulty_output = mo.md("")
+        difficulty_output = mo.callout("No encoded manifest is loaded.", kind="warn")
     else:
         difficulty_chart = horizontal_bar_chart(
             categorical_distribution(
@@ -408,7 +472,7 @@ def _(EncodedManifestField, categorical_distribution, horizontal_bar_chart, mo, 
         difficulty_output = mo.vstack(
             [
                 mo.md("## Difficulty"),
-                mo.ui.altair_chart(difficulty_chart),
+                chart_output(difficulty_chart),
             ],
             gap=2,
         )
@@ -417,13 +481,13 @@ def _(EncodedManifestField, categorical_distribution, horizontal_bar_chart, mo, 
 
 
 @app.cell
-def _(encoded_table_rows, mo, parsed_table_rows, stats, table_limit_slider):
+def _(encoded_table_frame, mo, parsed_table_frame, stats):
     if stats is None:
         table_output = mo.md("")
     else:
         tables = [
             mo.ui.table(
-                parsed_table_rows(stats.parsed, limit=table_limit_slider.value),
+                parsed_table_frame(stats.parsed),
                 selection=None,
                 label="Parsed manifest rows",
             )
@@ -431,7 +495,7 @@ def _(encoded_table_rows, mo, parsed_table_rows, stats, table_limit_slider):
         if stats.encoded is not None:
             tables.append(
                 mo.ui.table(
-                    encoded_table_rows(stats.encoded, limit=table_limit_slider.value),
+                    encoded_table_frame(stats.encoded),
                     selection=None,
                     label="Encoded manifest rows",
                 )
