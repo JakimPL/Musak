@@ -75,7 +75,7 @@ The generation request should include:
 - `scale_type`
 - `time_signature`
 - `bar_count`
-- later controls such as maximum gap, maximum notes per hand, shortest duration, dotted-note policy, and difficulty.
+- later controls such as maximum notes per hand, difficulty, and additional style preferences.
 
 Ordinary notes and rests should fit within the remaining duration of the active hand's current bar. Cross-bar sound should not be modeled by overflowing note durations. Instead, the generator should split the sound at the barline and emit `HoldToken` at the start of the continuation span.
 
@@ -110,6 +110,7 @@ The hard state currently tracks:
 - absolute right- and left-hand cursors;
 - previous contiguous same-hand attack end, used for `HoldToken`;
 - previous same-hand onset, used for chord joins;
+- previous same-hand onset pitches, used for maximum melodic gap;
 - pending chord-join state for `JoinWithPreviousToken`.
 
 This lets the mask enforce exact measure length without removing ties. A cross-bar sound is generated
@@ -117,6 +118,10 @@ as a note/chord that ends exactly at a barline, followed by a `BarToken`, follow
 `HoldToken` in the next bar. Chord notes that start at the end of a bar are allowed to temporarily
 overflow only when the next legal token is forced to be `JoinWithPreviousToken`; the join restores the
 cursor to the chord onset duration.
+
+Maximum melodic gap is enforced between consecutive same-hand onsets. Large intervals are still allowed
+inside a chord: if a note would violate the melodic gap but can join the previous onset, the mask forces
+the next token to be `JoinWithPreviousToken`. This keeps chord voicings distinct from melodic leaps.
 
 ## Tie and Hold Rules
 
@@ -168,9 +173,10 @@ The implemented tie slices add:
 - ineligibility handling for partial chord ties, mismatched tie continuations, and windows that start on a tie continuation.
 - Music21 export of held notes/chords as tied fragments split at barlines.
 - a model-agnostic hard constraint state for next-token generation masks.
+- hard controls for shortest duration, dotted-duration policy, chord size, and maximum melodic gap.
 
 Remaining work:
 
 - integrate the generation constraint mask into a model sampling loop;
 - add soft logits controls for tie likelihood and other stylistic preferences;
-- add hard-mask extensions for maximum gap, density limits, shortest duration, dotted-note policy, and difficulty.
+- add hard-mask extensions for broader density limits and difficulty.

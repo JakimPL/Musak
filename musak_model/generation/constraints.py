@@ -8,6 +8,7 @@ import torch
 from torch import Tensor
 
 from musak_model.tokens.duration import DurationVocabulary
+from musak_model.tokens.pitch import note_token_to_midi_pitch
 from musak_model.tokens.schema import (
     BarToken,
     EndToken,
@@ -17,6 +18,7 @@ from musak_model.tokens.schema import (
     JoinWithPreviousToken,
     NoteToken,
     RestToken,
+    ScaleType,
     StartToken,
     Token,
 )
@@ -36,6 +38,9 @@ class GenerationConstraints:
     minimum_duration: Fraction | None = None
     allow_dotted_durations: bool = True
     max_notes_per_onset_per_hand: int | None = None
+    maximum_pitch_gap_semitones: int | None = None
+    key_root: int | None = None
+    scale_type: ScaleType | None = None
 
     @property
     def measure_duration(self) -> Fraction:
@@ -47,6 +52,7 @@ class _OnsetState:
     start: Fraction
     duration: Fraction
     note_count: int
+    midi_pitches: tuple[int, ...]
 
 
 @dataclass(frozen=True)
@@ -56,6 +62,7 @@ class _PendingJoin:
     cursor_before_note: Fraction
     cursor_after_note: Fraction
     duration: Fraction
+    midi_pitch: int | None
 
 
 @dataclass(frozen=True)
@@ -143,8 +150,13 @@ class GenerationConstraintState:
         remaining = self._remaining_duration(self.active_hand)
         join_target = self._join_target(duration)
         can_join = join_target is not None
+        midi_pitch = self._note_midi_pitch(token)
+        exceeds_pitch_gap = self._exceeds_pitch_gap(midi_pitch)
         if duration > remaining and not can_join:
             raise GenerationConstraintError("note duration exceeds remaining active-hand measure time")
+
+        if exceeds_pitch_gap and not can_join:
+            raise GenerationConstraintError("note exceeds maximum same-hand pitch gap")
 
         cursor = self._cursor(self.active_hand)
         cursor_after = cursor + duration
@@ -155,6 +167,7 @@ class GenerationConstraintState:
                 cursor_before_note=cursor,
                 cursor_after_note=cursor_after,
                 duration=duration,
+                midi_pitch=midi_pitch,
             )
             if join_target is not None
             else None
@@ -162,8 +175,16 @@ class GenerationConstraintState:
 
         state = self.with_cursor(self.active_hand, cursor_after)
         state = state.with_last_attack_end(self.active_hand, cursor_after)
-        state = state.with_last_onset(self.active_hand, _OnsetState(start=cursor, duration=duration, note_count=1))
-        return replace(state, pending_join=pending_join, must_join=duration > remaining)
+        state = state.with_last_onset(
+            self.active_hand,
+            _OnsetState(
+                start=cursor,
+                duration=duration,
+                note_count=1,
+                midi_pitches=_optional_pitch_tuple(midi_pitch),
+            ),
+        )
+        return replace(state, pending_join=pending_join, must_join=duration > remaining or exceeds_pitch_gap)
 
     def _apply_rest(
         self,
@@ -214,7 +235,11 @@ class GenerationConstraintState:
         state = state.with_last_attack_end(self.active_hand, pending.target.start + pending.duration)
         state = state.with_last_onset(
             self.active_hand,
-            replace(pending.target, note_count=pending.target.note_count + 1),
+            replace(
+                pending.target,
+                note_count=pending.target.note_count + 1,
+                midi_pitches=_append_optional_pitch(pending.target.midi_pitches, pending.midi_pitch),
+            ),
         )
 
         return replace(
@@ -246,6 +271,28 @@ class GenerationConstraintState:
             raise GenerationConstraintError("dotted durations are disabled")
 
         return duration
+
+    def _note_midi_pitch(self, token: NoteToken) -> int | None:
+        if self.constraints.maximum_pitch_gap_semitones is None:
+            return None
+
+        if self.constraints.key_root is None or self.constraints.scale_type is None:
+            raise GenerationConstraintError("maximum pitch gap requires key_root and scale_type constraints")
+
+        return note_token_to_midi_pitch(
+            token,
+            key_root=self.constraints.key_root,
+            scale_type=self.constraints.scale_type,
+            hand=self.active_hand,
+        )
+
+    def _exceeds_pitch_gap(self, midi_pitch: int | None) -> bool:
+        maximum = self.constraints.maximum_pitch_gap_semitones
+        previous_onset = self._last_onset(self.active_hand)
+        if maximum is None or midi_pitch is None or previous_onset is None or not previous_onset.midi_pitches:
+            return False
+
+        return min(abs(midi_pitch - previous_pitch) for previous_pitch in previous_onset.midi_pitches) > maximum
 
     def _remaining_duration(self, hand: Hand) -> Fraction:
         return (self.bar_index + 1) * self.constraints.measure_duration - self._cursor(hand)
@@ -366,3 +413,17 @@ def mask_disallowed_logits(
     allowed_indices = torch.tensor(sorted(allowed_token_ids), dtype=torch.long, device=logits.device)
     masked[..., allowed_indices] = logits[..., allowed_indices]
     return masked
+
+
+def _optional_pitch_tuple(midi_pitch: int | None) -> tuple[int, ...]:
+    if midi_pitch is None:
+        return ()
+
+    return (midi_pitch,)
+
+
+def _append_optional_pitch(midi_pitches: tuple[int, ...], midi_pitch: int | None) -> tuple[int, ...]:
+    if midi_pitch is None:
+        return midi_pitches
+
+    return (*midi_pitches, midi_pitch)

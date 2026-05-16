@@ -4,9 +4,8 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from musak_model.data.schema import ParsedChord, ParsedNote, ParsedScore, Segment, SegmentMetadata
 from musak_model.tokens.duration import DurationVocabulary
+from musak_model.tokens.pitch import note_token_to_midi_pitch
 from musak_model.tokens.schema import (
-    HAND_HOME_OCTAVES,
-    SCALE_INTERVALS,
     BarToken,
     EndToken,
     Hand,
@@ -18,7 +17,7 @@ from musak_model.tokens.schema import (
     StartToken,
     Token,
 )
-from musak_shared.elements import MIDI_MAX_PITCH, MIDI_OCTAVE_OFFSET, PITCHES_PER_OCTAVE
+from musak_shared.elements import MIDI_MAX_PITCH
 
 
 class PianoRollEvent(BaseModel):
@@ -137,7 +136,12 @@ def tokens_to_piano_roll_events(
             duration = duration_vocabulary.id_to_fraction(token.duration_id)
             event = PianoRollEvent(
                 hand=active_hand,
-                midi_pitch=_token_to_midi_pitch(token, metadata=metadata, hand=active_hand),
+                midi_pitch=note_token_to_midi_pitch(
+                    token,
+                    key_root=metadata.key_root,
+                    scale_type=metadata.scale_type,
+                    hand=active_hand,
+                ),
                 start=bar_index * measure_duration + cursors[active_hand],
                 duration=duration,
                 token_index=token_index,
@@ -190,15 +194,3 @@ def _extend_last_attack(
 
 def _same_onset_event_indices(events: list[PianoRollEvent], *, hand: Hand, start: Fraction) -> list[int]:
     return [index for index, event in enumerate(events) if event.hand == hand and event.start == start]
-
-
-def _token_to_midi_pitch(
-    token: NoteToken,
-    *,
-    metadata: SegmentMetadata,
-    hand: Hand,
-) -> int:
-    interval = SCALE_INTERVALS[metadata.scale_type][token.degree - 1]
-    pitch_class = (metadata.key_root + interval + token.accidental) % PITCHES_PER_OCTAVE
-    octave = HAND_HOME_OCTAVES[hand] + token.octave_offset
-    return (octave + MIDI_OCTAVE_OFFSET) * PITCHES_PER_OCTAVE + pitch_class

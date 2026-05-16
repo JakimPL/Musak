@@ -19,6 +19,7 @@ from musak_model.tokens.schema import (
     JoinWithPreviousToken,
     NoteToken,
     RestToken,
+    ScaleType,
     StartToken,
 )
 from musak_model.tokens.vocabulary import TokenVocabulary
@@ -224,6 +225,79 @@ class TestAllowedNextTokenIds:
         )
 
         assert token_vocabulary.token_to_id(_note(dotted_quarter_id)) not in allowed
+
+    def test_disallows_melodic_gap_above_maximum(
+        self,
+        duration_vocabulary: DurationVocabulary,
+        token_vocabulary: TokenVocabulary,
+    ) -> None:
+        quarter_id = duration_vocabulary.fraction_to_id(Fraction(1, 4))
+        prefix = _ids(
+            [
+                _note(quarter_id),
+                RestToken(duration_id=quarter_id),
+            ],
+            token_vocabulary=token_vocabulary,
+        )
+        nearby_note = NoteToken(degree=2, accidental=0, octave_offset=0, duration_id=quarter_id)
+        distant_note = NoteToken(degree=5, accidental=0, octave_offset=0, duration_id=quarter_id)
+
+        allowed = allowed_next_token_ids(
+            prefix,
+            constraints=_constraints(
+                maximum_pitch_gap_semitones=2,
+                key_root=0,
+                scale_type=ScaleType.MAJOR,
+            ),
+            token_vocabulary=token_vocabulary,
+            duration_vocabulary=duration_vocabulary,
+        )
+
+        assert token_vocabulary.token_to_id(nearby_note) in allowed
+        assert token_vocabulary.token_to_id(distant_note) not in allowed
+
+    def test_large_chord_interval_is_allowed_only_when_joined(
+        self,
+        duration_vocabulary: DurationVocabulary,
+        token_vocabulary: TokenVocabulary,
+    ) -> None:
+        quarter_id = duration_vocabulary.fraction_to_id(Fraction(1, 4))
+        distant_note = NoteToken(degree=5, accidental=0, octave_offset=0, duration_id=quarter_id)
+        prefix = _ids(
+            [
+                _note(quarter_id),
+                distant_note,
+            ],
+            token_vocabulary=token_vocabulary,
+        )
+
+        allowed = allowed_next_token_ids(
+            prefix,
+            constraints=_constraints(
+                maximum_pitch_gap_semitones=2,
+                key_root=0,
+                scale_type=ScaleType.MAJOR,
+            ),
+            token_vocabulary=token_vocabulary,
+            duration_vocabulary=duration_vocabulary,
+        )
+
+        assert allowed == frozenset({token_vocabulary.join_with_previous_token_id})
+
+    def test_maximum_pitch_gap_requires_key_and_scale(
+        self,
+        duration_vocabulary: DurationVocabulary,
+        token_vocabulary: TokenVocabulary,
+    ) -> None:
+        quarter_id = duration_vocabulary.fraction_to_id(Fraction(1, 4))
+
+        with pytest.raises(GenerationConstraintError, match="requires key_root and scale_type"):
+            allowed_next_token_ids(
+                _ids([_note(quarter_id)], token_vocabulary=token_vocabulary),
+                constraints=_constraints(maximum_pitch_gap_semitones=2),
+                token_vocabulary=token_vocabulary,
+                duration_vocabulary=duration_vocabulary,
+            )
 
 
 class TestGenerationConstraintState:
