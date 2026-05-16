@@ -52,6 +52,10 @@ class TokenVocabulary:
         return self._vocab_size
 
     @property
+    def duration_vocabulary(self) -> DurationVocabulary:
+        return self._duration_vocabulary
+
+    @property
     def bar_token_id(self) -> int:
         return self._bar_token_id
 

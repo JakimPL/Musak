@@ -130,7 +130,8 @@ class TestForwardBarLayouts:
         ids=lambda c: c.label,
     )
     def test_output_shape(self, case: BarLayoutCase) -> None:
-        model = HierarchicalAutoregressiveModel(_small_config())
+        config = _small_config()
+        model = HierarchicalAutoregressiveModel(config)
         token_ids = torch.randint(0, VOCAB, case.token_shape)
         bar_positions = torch.tensor(list(case.bar_positions_rows))
         logits = model(token_ids, bar_positions=bar_positions)
@@ -205,7 +206,8 @@ class TestForwardValidation:
         2) execute forward with potentially invalid arguments,
         3) assert the expected validation error message fragment.
         """
-        model = HierarchicalAutoregressiveModel(_small_config())
+        config = _small_config()
+        model = HierarchicalAutoregressiveModel(config)
         token_ids = self._build_token_ids(case)
         bar_positions = self._build_bar_positions(case)
         kwargs = self._build_forward_kwargs(case)
@@ -217,7 +219,8 @@ class TestForwardValidation:
 class TestForwardBehaviour:
     def test_is_deterministic(self) -> None:
         torch.manual_seed(0)
-        model = HierarchicalAutoregressiveModel(_small_config())
+        config = _small_config()
+        model = HierarchicalAutoregressiveModel(config)
         model.eval()
         token_ids = torch.randint(0, VOCAB, (2, 16))
         bar_positions = _uniform_bar_positions(2, 16, 2)
@@ -235,7 +238,8 @@ class TestForwardBehaviour:
         ``backward()``, every parameter is expected to have a non-None gradient;
         missing gradients usually indicate a disconnected branch in the model.
         """
-        model = HierarchicalAutoregressiveModel(_small_config())
+        config = _small_config()
+        model = HierarchicalAutoregressiveModel(config)
         token_ids = torch.randint(0, VOCAB, (2, 16))
         bar_positions = _uniform_bar_positions(2, 16, 2)
         logits = model(
@@ -244,6 +248,11 @@ class TestForwardBehaviour:
             difficulty_ids=torch.zeros(2, dtype=torch.long),
             scale_type_ids=torch.zeros(2, dtype=torch.long),
             time_signature_ids=torch.zeros(2, dtype=torch.long),
+            structural_control_ids=torch.zeros(
+                2,
+                len(config.conditioning.structural_vocabulary_sizes),
+                dtype=torch.long,
+            ),
         )
         logits.sum().backward()
         params_without_grad = [name for name, p in model.named_parameters() if p.grad is None]

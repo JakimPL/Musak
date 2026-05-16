@@ -7,6 +7,7 @@ from torch import Tensor
 from torch.optim import AdamW
 from torch.utils.data import DataLoader
 
+from musak_model.conditioning.structural import StructuralControlVocabulary
 from musak_model.conditioning.time_signature import TimeSignatureVocabulary
 from musak_model.data.config import SegmentationConfig
 from musak_model.model import HierarchicalAutoregressiveModel
@@ -161,6 +162,7 @@ class StageOneTrainer:
             difficulty_ids=batch.difficulty_ids if self._config.use_conditioning else None,
             scale_type_ids=batch.scale_type_ids if self._config.use_conditioning else None,
             time_signature_ids=batch.time_signature_ids if self._config.use_conditioning else None,
+            structural_control_ids=(batch.structural_control_ids if self._config.use_structural_conditioning else None),
             token_padding_mask=batch.token_padding_mask,
         )
         flat_loss = nn.functional.cross_entropy(
@@ -198,14 +200,17 @@ def train_stage_one(
         conditioning_config_path=conditioning_config_path,
     )
     time_signature_vocabulary = TimeSignatureVocabulary(resolved_model_config.conditioning.time_signature)
+    structural_control_vocabulary = StructuralControlVocabulary(resolved_model_config.conditioning.structural)
     train_loader, validation_loader = build_dataloaders(
         split,
         batch_size=training_config.batch_size,
         shuffle_train=True,
         num_workers=training_config.num_workers,
         include_conditioning=training_config.use_conditioning,
+        include_structural_controls=training_config.use_structural_conditioning,
         time_signature_vocabulary=time_signature_vocabulary,
         token_vocabulary=vocabulary,
+        structural_control_vocabulary=structural_control_vocabulary,
     )
     model = HierarchicalAutoregressiveModel(resolved_model_config)
     tracker = build_training_tracker(training_config=training_config)
@@ -231,6 +236,7 @@ def _move_batch_to_device(batch: TrainingBatch, *, device: torch.device) -> Trai
         input_token_ids=batch.input_token_ids.to(device),
         target_token_ids=batch.target_token_ids.to(device),
         bar_positions=batch.bar_positions.to(device),
+        structural_control_ids=batch.structural_control_ids.to(device),
         token_padding_mask=batch.token_padding_mask.to(device),
         difficulty_ids=difficulty_ids,
         scale_type_ids=batch.scale_type_ids.to(device),

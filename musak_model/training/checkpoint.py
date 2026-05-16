@@ -43,3 +43,13 @@ def load_checkpoint(
     model.load_state_dict(state["model_state_dict"])
     optimizer.load_state_dict(state["optimizer_state_dict"])
     return state["epoch"] + 1, state["best_validation_loss"]
+
+
+def load_model_weights(
+    path: Path,
+    *,
+    model: nn.Module,
+    device: torch.device,
+) -> None:
+    state = cast(CheckpointState, torch.load(path, map_location=device))
+    model.load_state_dict(state["model_state_dict"])

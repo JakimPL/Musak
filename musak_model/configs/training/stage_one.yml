@@ -7,6 +7,7 @@ checkpoint_dir: checkpoints/stage_one
 resume_checkpoint: null
 device: cpu
 use_conditioning: false
+use_structural_conditioning: false
 enable_mlflow: true
 mlflow_experiment_name: musak-stage-one
 mlflow_run_name: null

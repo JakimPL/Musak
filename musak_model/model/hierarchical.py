@@ -34,6 +34,10 @@ class HierarchicalAutoregressiveModel(nn.Module):
         self._time_signature_embedding = nn.Embedding(
             config.conditioning.num_time_signatures, config.transformer.hidden_size
         )
+        self._structural_control_embeddings = nn.ModuleList(
+            nn.Embedding(vocabulary_size, config.transformer.hidden_size)
+            for vocabulary_size in config.conditioning.structural_vocabulary_sizes
+        )
         self._conditioning_norm = nn.LayerNorm(config.transformer.hidden_size)
 
     def forward(
@@ -44,6 +48,7 @@ class HierarchicalAutoregressiveModel(nn.Module):
         difficulty_ids: Tensor | None = None,
         scale_type_ids: Tensor | None = None,
         time_signature_ids: Tensor | None = None,
+        structural_control_ids: Tensor | None = None,
         token_padding_mask: Tensor | None = None,
     ) -> Tensor:
         token_embeddings = self._token_embedding(token_ids)
@@ -62,6 +67,7 @@ class HierarchicalAutoregressiveModel(nn.Module):
             difficulty_ids=difficulty_ids,
             scale_type_ids=scale_type_ids,
             time_signature_ids=time_signature_ids,
+            structural_control_ids=structural_control_ids,
         )
 
         memory_context = torch.cat([conditioning_prefix, transformer_bar_context], dim=1)
@@ -408,6 +414,7 @@ class HierarchicalAutoregressiveModel(nn.Module):
         difficulty_ids: Tensor | None,
         scale_type_ids: Tensor | None,
         time_signature_ids: Tensor | None,
+        structural_control_ids: Tensor | None,
     ) -> Tensor:
         conditioning = torch.zeros(
             batch_size,
@@ -447,8 +454,60 @@ class HierarchicalAutoregressiveModel(nn.Module):
         if time_signature_indices is not None:
             conditioning = conditioning + self._time_signature_embedding(time_signature_indices)
 
+        if structural_control_ids is not None:
+            conditioning = conditioning + self._structural_conditioning(
+                structural_control_ids,
+                batch_size=batch_size,
+                device=device,
+            )
+
         normalized_conditioning = cast(Tensor, self._conditioning_norm(conditioning))
         return normalized_conditioning.unsqueeze(1)
+
+    def _structural_conditioning(
+        self,
+        structural_control_ids: Tensor,
+        *,
+        batch_size: int,
+        device: torch.device,
+    ) -> Tensor:
+        if structural_control_ids.ndim != 2:
+            raise ValueError(f"structural_control_ids must be 2D tensor, got {structural_control_ids.ndim}D")
+
+        if structural_control_ids.size(0) != batch_size:
+            raise ValueError(
+                f"structural_control_ids batch size {structural_control_ids.size(0)} "
+                f"does not match batch size {batch_size}"
+            )
+
+        if structural_control_ids.size(1) != len(self._structural_control_embeddings):
+            raise ValueError(
+                f"structural_control_ids width {structural_control_ids.size(1)} "
+                f"does not match expected {len(self._structural_control_embeddings)}"
+            )
+
+        structural_ids = structural_control_ids.to(device=device, dtype=torch.long)
+        conditioning = torch.zeros(
+            batch_size,
+            self._config.transformer.hidden_size,
+            dtype=self._difficulty_embedding.weight.dtype,
+            device=device,
+        )
+        for control_index, embedding in enumerate(self._structural_control_embeddings):
+            structural_embedding = cast(nn.Embedding, embedding)
+            control_ids = structural_ids[:, control_index]
+            if torch.any(control_ids < 0):
+                raise ValueError("structural_control_ids contains negative values")
+
+            if torch.any(control_ids >= structural_embedding.num_embeddings):
+                raise ValueError(
+                    f"structural_control_ids column {control_index} contains values outside range "
+                    f"[0, {structural_embedding.num_embeddings - 1}]"
+                )
+
+            conditioning = conditioning + structural_embedding(control_ids)
+
+        return conditioning
 
     def _to_optional_indices(
         self,

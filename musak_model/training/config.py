@@ -5,7 +5,7 @@ from pathlib import Path
 from pydantic import BaseModel, ConfigDict, Field
 
 from musak_model.common.files import load_yaml_config
-from musak_model.paths import TRAINING_CONFIG_PATH
+from musak_model.paths import STAGE_TWO_TRAINING_CONFIG_PATH, TRAINING_CONFIG_PATH
 
 
 class TrainingConfig(BaseModel):
@@ -20,6 +20,7 @@ class TrainingConfig(BaseModel):
     device: str = "cpu"
 
     use_conditioning: bool = False
+    use_structural_conditioning: bool = False
 
     checkpoint_dir: Path
     resume_checkpoint: Path | None = None
@@ -31,5 +32,16 @@ class TrainingConfig(BaseModel):
 
     @classmethod
     def load(cls, path: Path = TRAINING_CONFIG_PATH) -> TrainingConfig:
+        parsed = load_yaml_config(path)
+        return cls.model_validate(parsed)
+
+
+class StageTwoTrainingConfig(TrainingConfig):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    stage_one_checkpoint: Path
+
+    @classmethod
+    def load(cls, path: Path = STAGE_TWO_TRAINING_CONFIG_PATH) -> StageTwoTrainingConfig:
         parsed = load_yaml_config(path)
         return cls.model_validate(parsed)

@@ -1,4 +1,4 @@
-from musak_model.tokens.pitch import note_token_to_midi_pitch
+from musak_model.tokens.pitch import note_token_to_midi_pitch, note_token_to_static_hand_position
 from musak_model.tokens.schema import Hand, NoteToken, ScaleType
 
 
@@ -28,3 +28,9 @@ def test_note_token_to_midi_pitch_applies_accidental_and_octave_offset() -> None
         )
         == 61
     )
+
+
+def test_note_token_to_static_hand_position_uses_diatonic_degree_space() -> None:
+    token = NoteToken(degree=3, accidental=1, octave_offset=1, duration_id=0)
+
+    assert note_token_to_static_hand_position(token) == 10

@@ -8,7 +8,7 @@ import torch
 from torch import Tensor
 
 from musak_model.tokens.duration import DurationVocabulary
-from musak_model.tokens.pitch import note_token_to_midi_pitch
+from musak_model.tokens.pitch import note_token_to_midi_pitch, note_token_to_static_hand_position
 from musak_model.tokens.schema import (
     BarToken,
     EndToken,
@@ -39,6 +39,7 @@ class GenerationConstraints:
     allow_dotted_durations: bool = True
     max_notes_per_onset_per_hand: int | None = None
     maximum_pitch_gap_semitones: int | None = None
+    maximum_static_hand_span_degrees: int | None = None
     key_root: int | None = None
     scale_type: ScaleType | None = None
 
@@ -76,6 +77,8 @@ class GenerationConstraintState:
     left_last_attack_end: Fraction | None = None
     right_last_onset: _OnsetState | None = None
     left_last_onset: _OnsetState | None = None
+    right_static_positions: tuple[int, ...] = ()
+    left_static_positions: tuple[int, ...] = ()
     pending_join: _PendingJoin | None = None
     must_join: bool = False
     ended: bool = False
@@ -152,11 +155,15 @@ class GenerationConstraintState:
         can_join = join_target is not None
         midi_pitch = self._note_midi_pitch(token)
         exceeds_pitch_gap = self._exceeds_pitch_gap(midi_pitch)
+        static_position = note_token_to_static_hand_position(token)
         if duration > remaining and not can_join:
             raise GenerationConstraintError("note duration exceeds remaining active-hand measure time")
 
         if exceeds_pitch_gap and not can_join:
             raise GenerationConstraintError("note exceeds maximum same-hand pitch gap")
+
+        if self._exceeds_static_hand_span(static_position):
+            raise GenerationConstraintError("note exceeds maximum static hand span")
 
         cursor = self._cursor(self.active_hand)
         cursor_after = cursor + duration
@@ -175,6 +182,7 @@ class GenerationConstraintState:
 
         state = self.with_cursor(self.active_hand, cursor_after)
         state = state.with_last_attack_end(self.active_hand, cursor_after)
+        state = state.with_static_position(self.active_hand, static_position)
         state = state.with_last_onset(
             self.active_hand,
             _OnsetState(
@@ -294,6 +302,14 @@ class GenerationConstraintState:
 
         return min(abs(midi_pitch - previous_pitch) for previous_pitch in previous_onset.midi_pitches) > maximum
 
+    def _exceeds_static_hand_span(self, static_position: int) -> bool:
+        maximum = self.constraints.maximum_static_hand_span_degrees
+        if maximum is None:
+            return False
+
+        positions = (*self._static_positions(self.active_hand), static_position)
+        return _static_span(positions) > maximum
+
     def _remaining_duration(self, hand: Hand) -> Fraction:
         return (self.bar_index + 1) * self.constraints.measure_duration - self._cursor(hand)
 
@@ -348,6 +364,15 @@ class GenerationConstraintState:
             return replace(self, right_last_onset=onset)
 
         return replace(self, left_last_onset=onset)
+
+    def _static_positions(self, hand: Hand) -> tuple[int, ...]:
+        return self.right_static_positions if hand == Hand.RIGHT else self.left_static_positions
+
+    def with_static_position(self, hand: Hand, position: int) -> GenerationConstraintState:
+        if hand == Hand.RIGHT:
+            return replace(self, right_static_positions=(*self.right_static_positions, position))
+
+        return replace(self, left_static_positions=(*self.left_static_positions, position))
 
 
 def state_from_tokens(
@@ -427,3 +452,10 @@ def _append_optional_pitch(midi_pitches: tuple[int, ...], midi_pitch: int | None
         return midi_pitches
 
     return (*midi_pitches, midi_pitch)
+
+
+def _static_span(positions: tuple[int, ...]) -> int:
+    if len(positions) < 2:
+        return 0
+
+    return max(positions) - min(positions) + 1

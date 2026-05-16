@@ -2,8 +2,9 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict
 
-from musak_model.data.schema import SegmentMetadata
+from musak_model.data.schema import Segment, SegmentMetadata
 from musak_model.tokens.schema import Hand, ScaleType
+from musak_model.tokens.vocabulary import TokenVocabulary
 
 
 class EncodedExercise(BaseModel):
@@ -37,6 +38,9 @@ class EncodedExercise(BaseModel):
     @property
     def difficulty_level(self) -> int | None:
         return self.metadata.difficulty_level
+
+    def to_segment(self, *, token_vocabulary: TokenVocabulary) -> Segment:
+        return Segment(tokens=token_vocabulary.decode(self.token_ids), metadata=self.metadata)
 
 
 class IngestionErrorRecord(BaseModel):

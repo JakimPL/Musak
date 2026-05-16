@@ -62,6 +62,35 @@ The model is hierarchical:
 
 Conditioning currently supports difficulty, scale type, and time signature IDs. These are summed into one prefix vector. `key_root` is not currently a model condition and should remain decode metadata for transposition control.
 
+## Stage Two Constrained Fine-Tuning
+
+Stage one remains the grammar/vocabulary pretraining phase. It uses the same autoregressive next-token
+objective and is not expected to be the final exercise generator by itself.
+
+Stage two is a separate fine-tuning phase. It loads a stage-one checkpoint into the same model shape,
+then trains on exercise-style data with conditioning enabled. Until a dedicated exercise-only dataset
+exists, stage two can be run on the same dataset as stage one to validate the two-stage pipeline.
+
+Stage two keeps the next-token objective. Auxiliary heads, masked-token objectives, and layer freezing
+are deferred research options, not part of the initial pipeline.
+
+Structural controls are derived automatically from tokenized segments and metadata. They are optional:
+each control vocabulary has an explicit unknown/no-control bucket so generation requests can omit a
+constraint. Initial bucket thresholds are config-defined. Dataset-quantile buckets may be useful later
+for calibration, but are not the source of truth for v1.
+
+Pilot structural controls:
+
+- shortest note duration;
+- dotted-note presence;
+- maximum notes per same-hand onset;
+- maximum same-hand melodic gap;
+- static hand placement span;
+- scale type, time signature, and bar count from metadata.
+
+Static hand placement means each hand independently stays within a fixed 5-degree inclusive diatonic
+range, computed as `octave_offset * 7 + degree`. Accidentals do not change this placement coordinate.
+
 ## Controllable Generation Direction
 
 Generation should use hybrid control:
@@ -174,9 +203,11 @@ The implemented tie slices add:
 - Music21 export of held notes/chords as tied fragments split at barlines.
 - a model-agnostic hard constraint state for next-token generation masks.
 - hard controls for shortest duration, dotted-duration policy, chord size, and maximum melodic gap.
+- stage-two structural control extraction, bucketed conditioning IDs, and fine-tuning entrypoint.
 
 Remaining work:
 
 - integrate the generation constraint mask into a model sampling loop;
 - add soft logits controls for tie likelihood and other stylistic preferences;
-- add hard-mask extensions for broader density limits and difficulty.
+- train stage one and stage two end to end on the full dataset as a pipeline validation pass;
+- add a dedicated exercise-only dataset and difficulty controls when available.

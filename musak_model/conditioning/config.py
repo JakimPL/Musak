@@ -5,6 +5,7 @@ from pathlib import Path
 from pydantic import BaseModel, ConfigDict, Field
 
 from musak_model.common.files import load_yaml_config
+from musak_model.conditioning.structural import StructuralConditioningConfig, StructuralControlVocabulary
 from musak_model.conditioning.time_signature import TimeSignatureVocabulary, TimeSignatureVocabularyConfig
 from musak_model.paths import CONDITIONING_CONFIG_PATH
 from musak_model.tokens.schema import ScaleType
@@ -21,6 +22,7 @@ class ConditioningConfig(BaseModel):
 
     difficulty: DifficultyConfig
     time_signature: TimeSignatureVocabularyConfig
+    structural: StructuralConditioningConfig = StructuralConditioningConfig()
     cfg_dropout_probability: float = Field(ge=0.0, lt=1.0)
 
     @property
@@ -34,6 +36,10 @@ class ConditioningConfig(BaseModel):
     @property
     def num_time_signatures(self) -> int:
         return TimeSignatureVocabulary(self.time_signature).vocabulary_size
+
+    @property
+    def structural_vocabulary_sizes(self) -> tuple[int, ...]:
+        return StructuralControlVocabulary(self.structural).vocabulary_sizes
 
     @classmethod
     def load(cls, path: Path = CONDITIONING_CONFIG_PATH) -> ConditioningConfig:

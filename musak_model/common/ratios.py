@@ -18,3 +18,13 @@ def format_ratio(value: RatioValue, *, separator: str = RATIO_SEPARATOR_SYMBOL) 
         raise TypeError(f"unsupported ratio value type: {type(value)}")
 
     return f"{numerator}{separator}{denominator}"
+
+
+def parse_ratio(value: str) -> Fraction:
+    normalized = value.replace(":", RATIO_SEPARATOR_SYMBOL)
+    parts = normalized.split(RATIO_SEPARATOR_SYMBOL)
+    if len(parts) != 2:
+        raise ValueError(f"ratio must contain one separator: {value}")
+
+    numerator_text, denominator_text = parts
+    return Fraction(int(numerator_text), int(denominator_text))

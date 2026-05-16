@@ -299,6 +299,31 @@ class TestAllowedNextTokenIds:
                 duration_vocabulary=duration_vocabulary,
             )
 
+    def test_disallows_notes_outside_static_hand_span(
+        self,
+        duration_vocabulary: DurationVocabulary,
+        token_vocabulary: TokenVocabulary,
+    ) -> None:
+        quarter_id = duration_vocabulary.fraction_to_id(Fraction(1, 4))
+        prefix = _ids(
+            [
+                _note(quarter_id),
+            ],
+            token_vocabulary=token_vocabulary,
+        )
+        inside_position = NoteToken(degree=5, accidental=1, octave_offset=0, duration_id=quarter_id)
+        outside_position = NoteToken(degree=6, accidental=0, octave_offset=0, duration_id=quarter_id)
+
+        allowed = allowed_next_token_ids(
+            prefix,
+            constraints=_constraints(maximum_static_hand_span_degrees=5),
+            token_vocabulary=token_vocabulary,
+            duration_vocabulary=duration_vocabulary,
+        )
+
+        assert token_vocabulary.token_to_id(inside_position) in allowed
+        assert token_vocabulary.token_to_id(outside_position) not in allowed
+
 
 class TestGenerationConstraintState:
     def test_join_restores_cursor_after_bar_ending_chord_note(
