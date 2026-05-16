@@ -103,6 +103,14 @@ Tie probability should be controlled by logits penalties or sampling bias, not b
 
 `HoldToken(duration_id)` means: extend the active hand's previous same-hand note or chord by the specified duration. It advances only the active hand cursor and creates no new attack.
 
+The parser preserves MusicXML note/chord tie state. The segmenter converts matching same-hand tied continuations into hold tokens:
+
+- `start` tie events remain normal note/chord attacks and open a same-hand tie state;
+- `continue` tie events become `HoldToken` and keep the tie state open;
+- `stop` tie events become `HoldToken` and close the tie state;
+- partial chord ties and mismatched continuation pitch sets are marked ineligible for training.
+- segment windows that start on a tie continuation are marked ineligible, because the hold would not have a preceding attack inside the training sample.
+
 Valid examples:
 
 ```text
@@ -133,12 +141,14 @@ No previous right-hand attack exists.
 
 ## Next Implementation Work
 
-The first implemented slice adds `HoldToken` to the tokenizer, text representation, vocabulary, tokenizer snapshot, duration remapping helpers, and piano-roll decoding.
+The implemented tie slices add:
+
+- `HoldToken` to the tokenizer, text representation, vocabulary, tokenizer snapshot, duration remapping helpers, and piano-roll decoding;
+- parsed tie state on notes/chords;
+- segmenter conversion from tied note/chord continuations to hold tokens;
+- ineligibility handling for partial chord ties, mismatched tie continuations, and windows that start on a tie continuation.
 
 Remaining work:
 
-- preserve MusicXML tie state in parsing;
-- encode tied notes/chords into note/chord plus hold segments;
-- reject or explicitly model partial chord ties;
 - export held notes/chords with MusicXML tie notation;
 - add the constrained sampler that uses the hold rules during generation.

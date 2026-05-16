@@ -4,7 +4,6 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from musak_model.common.elements import MIDI_MAX_PITCH, PITCHES_PER_OCTAVE
 from musak_model.common.validators import is_power_of_two
 from musak_model.tokens.schema import (
     MAX_ACCIDENTAL,
@@ -17,6 +16,14 @@ from musak_model.tokens.schema import (
     ScaleType,
     Token,
 )
+from musak_shared.elements import MIDI_MAX_PITCH, PITCHES_PER_OCTAVE
+
+
+class TieType(StrEnum):
+    START = "start"
+    CONTINUE = "continue"
+    STOP = "stop"
+    PARTIAL = "partial"
 
 
 class ParsedNote(BaseModel):
@@ -25,6 +32,7 @@ class ParsedNote(BaseModel):
     midi_pitch: int = Field(ge=0, le=MIDI_MAX_PITCH)
     duration: Fraction = Field(gt=0)
     beat_offset: Fraction = Field(ge=0)
+    tie_type: TieType | None = None
 
 
 class ParsedRest(BaseModel):
@@ -40,6 +48,7 @@ class ParsedChord(BaseModel):
     midi_pitches: list[int]
     duration: Fraction = Field(gt=0)
     beat_offset: Fraction = Field(ge=0)
+    tie_type: TieType | None = None
 
     @field_validator("midi_pitches")
     @classmethod
@@ -119,6 +128,9 @@ class SegmentIneligibilityReason(StrEnum):
     AMBIGUOUS_SIMULTANEOUS_DURATION = "ambiguous_simultaneous_duration"
     QUANTIZATION_ERROR = "quantization_error"
     QUANTIZATION_COLLISION = "quantization_collision"
+    PARTIAL_CHORD_TIE = "partial_chord_tie"
+    TIE_MISMATCH = "tie_mismatch"
+    TIE_CONTINUATION_AT_WINDOW_START = "tie_continuation_at_window_start"
 
 
 class SegmentMetadata(BaseModel):

@@ -3,7 +3,6 @@ from pathlib import Path
 
 import pytest
 
-from musak_model.common.elements import DOTTED_LIKE_DURATIONS
 from musak_model.data.labeler import (
     _has_accidentals,
     _has_dotted_notes,
@@ -24,6 +23,7 @@ from musak_model.data.schema import (
 )
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import BarToken, EndToken, Hand, HandToken, NoteToken, ScaleType, Token
+from musak_shared.elements import DOTTED_LIKE_DURATIONS
 
 
 def _segment_with_tokens(

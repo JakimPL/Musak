@@ -5,10 +5,10 @@ import pytest
 
 from musak_model.data.cleaning import clean_parsed_score
 from musak_model.data.config import SegmentationConfig
-from musak_model.data.schema import ParsedBar, ParsedNote, ParsedScore, SegmentIneligibilityReason
+from musak_model.data.schema import ParsedBar, ParsedChord, ParsedNote, ParsedScore, SegmentIneligibilityReason, TieType
 from musak_model.data.segmenter import segment_score
 from musak_model.tokens.duration import DurationVocabulary
-from musak_model.tokens.schema import ScaleType
+from musak_model.tokens.schema import HandToken, HoldToken, NoteToken, ScaleType
 
 
 def _bar(*, time_numerator: int = 4, time_denominator: int = 4, key_fifths: int = 0) -> ParsedBar:
@@ -165,6 +165,289 @@ def test_bar_duration_overflow_marks_segment_ineligible(duration_vocabulary: Dur
 
     assert segments[0].metadata.eligible_for_training is False
     assert segments[0].metadata.ineligibility_reasons == {SegmentIneligibilityReason.BAR_DURATION_OVERFLOW}
+
+
+def test_tied_note_across_bars_tokenizes_as_hold(duration_vocabulary: DurationVocabulary) -> None:
+    score = ParsedScore(
+        key_root=0,
+        key_fifths=0,
+        scale_type=ScaleType.MAJOR,
+        time_numerator=4,
+        time_denominator=4,
+        right_hand_bars=[
+            ParsedBar(
+                time_numerator=4,
+                time_denominator=4,
+                key_fifths=0,
+                events=[
+                    ParsedNote(midi_pitch=72, duration=Fraction(1, 1), beat_offset=Fraction(0), tie_type=TieType.START)
+                ],
+            ),
+            ParsedBar(
+                time_numerator=4,
+                time_denominator=4,
+                key_fifths=0,
+                events=[
+                    ParsedNote(midi_pitch=72, duration=Fraction(1, 2), beat_offset=Fraction(0), tie_type=TieType.STOP)
+                ],
+            ),
+        ],
+        left_hand_bars=[_bar(), _bar()],
+    )
+
+    segments = segment_score(
+        score,
+        Path("piece.mxl"),
+        scale_type=ScaleType.MAJOR,
+        duration_vocabulary=duration_vocabulary,
+        segmentation=SegmentationConfig(window_bars=2, stride_bars=1),
+    )
+
+    tokens = segments[0].tokens
+    assert segments[0].metadata.eligible_for_training is True
+    assert sum(isinstance(token, NoteToken) for token in tokens) == 1
+    assert sum(isinstance(token, HoldToken) for token in tokens) == 1
+
+
+def test_window_starting_on_tie_continuation_is_not_training_eligible(
+    duration_vocabulary: DurationVocabulary,
+) -> None:
+    score = ParsedScore(
+        key_root=0,
+        key_fifths=0,
+        scale_type=ScaleType.MAJOR,
+        time_numerator=4,
+        time_denominator=4,
+        right_hand_bars=[
+            ParsedBar(
+                time_numerator=4,
+                time_denominator=4,
+                key_fifths=0,
+                events=[
+                    ParsedNote(
+                        midi_pitch=72,
+                        duration=Fraction(1, 1),
+                        beat_offset=Fraction(0),
+                        tie_type=TieType.START,
+                    )
+                ],
+            ),
+            ParsedBar(
+                time_numerator=4,
+                time_denominator=4,
+                key_fifths=0,
+                events=[
+                    ParsedNote(
+                        midi_pitch=72,
+                        duration=Fraction(1, 2),
+                        beat_offset=Fraction(0),
+                        tie_type=TieType.STOP,
+                    )
+                ],
+            ),
+        ],
+        left_hand_bars=[_bar(), _bar()],
+    )
+
+    segments = segment_score(
+        score,
+        Path("piece.mxl"),
+        scale_type=ScaleType.MAJOR,
+        duration_vocabulary=duration_vocabulary,
+        segmentation=SegmentationConfig(window_bars=1, stride_bars=1),
+    )
+
+    assert [segment.metadata.eligible_for_training for segment in segments] == [True, False]
+    assert segments[1].metadata.ineligibility_reasons == {SegmentIneligibilityReason.TIE_CONTINUATION_AT_WINDOW_START}
+
+
+def test_tied_chord_across_bars_tokenizes_as_single_hold_for_same_pitch_set(
+    duration_vocabulary: DurationVocabulary,
+) -> None:
+    score = ParsedScore(
+        key_root=0,
+        key_fifths=0,
+        scale_type=ScaleType.MAJOR,
+        time_numerator=4,
+        time_denominator=4,
+        right_hand_bars=[
+            ParsedBar(
+                time_numerator=4,
+                time_denominator=4,
+                key_fifths=0,
+                events=[
+                    ParsedChord(
+                        midi_pitches=[72, 76],
+                        duration=Fraction(1, 1),
+                        beat_offset=Fraction(0),
+                        tie_type=TieType.START,
+                    )
+                ],
+            ),
+            ParsedBar(
+                time_numerator=4,
+                time_denominator=4,
+                key_fifths=0,
+                events=[
+                    ParsedChord(
+                        midi_pitches=[76, 72],
+                        duration=Fraction(1, 2),
+                        beat_offset=Fraction(0),
+                        tie_type=TieType.STOP,
+                    )
+                ],
+            ),
+        ],
+        left_hand_bars=[_bar(), _bar()],
+    )
+
+    segments = segment_score(
+        score,
+        Path("piece.mxl"),
+        scale_type=ScaleType.MAJOR,
+        duration_vocabulary=duration_vocabulary,
+        segmentation=SegmentationConfig(window_bars=2, stride_bars=1),
+    )
+
+    tokens = segments[0].tokens
+    assert segments[0].metadata.eligible_for_training is True
+    assert sum(isinstance(token, NoteToken) for token in tokens) == 2
+    assert sum(isinstance(token, HoldToken) for token in tokens) == 1
+
+
+def test_one_hand_can_hold_while_other_hand_plays_regular_notes(
+    duration_vocabulary: DurationVocabulary,
+) -> None:
+    score = ParsedScore(
+        key_root=0,
+        key_fifths=0,
+        scale_type=ScaleType.MAJOR,
+        time_numerator=4,
+        time_denominator=4,
+        right_hand_bars=[
+            ParsedBar(
+                time_numerator=4,
+                time_denominator=4,
+                key_fifths=0,
+                events=[
+                    ParsedNote(midi_pitch=72, duration=Fraction(1, 1), beat_offset=Fraction(0), tie_type=TieType.START)
+                ],
+            ),
+            ParsedBar(
+                time_numerator=4,
+                time_denominator=4,
+                key_fifths=0,
+                events=[
+                    ParsedNote(midi_pitch=72, duration=Fraction(1, 1), beat_offset=Fraction(0), tie_type=TieType.STOP)
+                ],
+            ),
+        ],
+        left_hand_bars=[
+            _bar(),
+            ParsedBar(
+                time_numerator=4,
+                time_denominator=4,
+                key_fifths=0,
+                events=[
+                    ParsedNote(midi_pitch=48, duration=Fraction(1, 4), beat_offset=Fraction(0)),
+                    ParsedNote(midi_pitch=50, duration=Fraction(1, 4), beat_offset=Fraction(1, 4)),
+                ],
+            ),
+        ],
+    )
+
+    segments = segment_score(
+        score,
+        Path("piece.mxl"),
+        scale_type=ScaleType.MAJOR,
+        duration_vocabulary=duration_vocabulary,
+        segmentation=SegmentationConfig(window_bars=2, stride_bars=1),
+    )
+
+    tokens = segments[0].tokens
+    assert segments[0].metadata.eligible_for_training is True
+    assert any(isinstance(token, HoldToken) for token in tokens)
+    assert sum(isinstance(token, NoteToken) for token in tokens) == 3
+    assert sum(isinstance(token, HandToken) for token in tokens) >= 3
+
+
+def test_tie_continuation_without_matching_pitch_marks_segment_ineligible(
+    duration_vocabulary: DurationVocabulary,
+) -> None:
+    score = ParsedScore(
+        key_root=0,
+        key_fifths=0,
+        scale_type=ScaleType.MAJOR,
+        time_numerator=4,
+        time_denominator=4,
+        right_hand_bars=[
+            ParsedBar(
+                time_numerator=4,
+                time_denominator=4,
+                key_fifths=0,
+                events=[
+                    ParsedNote(midi_pitch=72, duration=Fraction(1, 1), beat_offset=Fraction(0), tie_type=TieType.START)
+                ],
+            ),
+            ParsedBar(
+                time_numerator=4,
+                time_denominator=4,
+                key_fifths=0,
+                events=[
+                    ParsedNote(midi_pitch=74, duration=Fraction(1, 2), beat_offset=Fraction(0), tie_type=TieType.STOP)
+                ],
+            ),
+        ],
+        left_hand_bars=[_bar(), _bar()],
+    )
+
+    segments = segment_score(
+        score,
+        Path("piece.mxl"),
+        scale_type=ScaleType.MAJOR,
+        duration_vocabulary=duration_vocabulary,
+        segmentation=SegmentationConfig(window_bars=2, stride_bars=1),
+    )
+
+    assert segments[0].metadata.eligible_for_training is False
+    assert segments[0].metadata.ineligibility_reasons == {SegmentIneligibilityReason.TIE_MISMATCH}
+
+
+def test_partial_chord_tie_marks_segment_ineligible(duration_vocabulary: DurationVocabulary) -> None:
+    score = ParsedScore(
+        key_root=0,
+        key_fifths=0,
+        scale_type=ScaleType.MAJOR,
+        time_numerator=4,
+        time_denominator=4,
+        right_hand_bars=[
+            ParsedBar(
+                time_numerator=4,
+                time_denominator=4,
+                key_fifths=0,
+                events=[
+                    ParsedChord(
+                        midi_pitches=[72, 76],
+                        duration=Fraction(1, 2),
+                        beat_offset=Fraction(0),
+                        tie_type=TieType.PARTIAL,
+                    )
+                ],
+            )
+        ],
+        left_hand_bars=[_bar()],
+    )
+
+    segments = segment_score(
+        score,
+        Path("piece.mxl"),
+        scale_type=ScaleType.MAJOR,
+        duration_vocabulary=duration_vocabulary,
+        segmentation=SegmentationConfig(window_bars=1, stride_bars=1),
+    )
+
+    assert segments[0].metadata.eligible_for_training is False
+    assert segments[0].metadata.ineligibility_reasons == {SegmentIneligibilityReason.PARTIAL_CHORD_TIE}
 
 
 def test_ambiguous_simultaneous_durations_mark_segment_ineligible(

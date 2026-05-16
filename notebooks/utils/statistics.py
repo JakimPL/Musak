@@ -7,12 +7,12 @@ from typing import Final
 
 import pandas as pd
 
-from musak_model.common.elements import KEYS
 from musak_model.processing.manifest import (
     EncodedManifestField,
     ParsedManifestField,
     ParsedManifestStatus,
 )
+from musak_shared.elements import KEYS
 
 COUNT_COLUMN: Final[str] = "count"
 PERCENT_COLUMN: Final[str] = "percent"

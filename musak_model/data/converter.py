@@ -1,6 +1,5 @@
 from pydantic import ValidationError
 
-from musak_model.common.elements import MIDI_OCTAVE_OFFSET, PITCHES_PER_OCTAVE
 from musak_model.data.schema import PitchDegree
 from musak_model.tokens.schema import (
     HAND_HOME_OCTAVES,
@@ -8,6 +7,7 @@ from musak_model.tokens.schema import (
     Hand,
     ScaleType,
 )
+from musak_shared.elements import MIDI_OCTAVE_OFFSET, PITCHES_PER_OCTAVE
 
 
 class PitchDegreeRegisterError(ValueError):

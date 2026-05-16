@@ -8,7 +8,6 @@ from music21 import note
 from music21.meter.base import TimeSignature
 from music21.stream.base import Measure, Part, Score
 
-from musak_model.common.elements import PITCHES_PER_OCTAVE
 from musak_model.data.hand_selection import select_piano_hand_parts
 from musak_model.data.schema import (
     ParsedBar,
@@ -17,8 +16,10 @@ from musak_model.data.schema import (
     ParsedNote,
     ParsedRest,
     ParsedScore,
+    TieType,
 )
 from musak_model.tokens.schema import ScaleType
+from musak_shared.elements import PITCHES_PER_OCTAVE
 
 _QUARTER_NOTE_FRACTION: Final[Fraction] = Fraction(1, 4)
 _TRIPLET_DENOMINATOR_LIMIT: Final[int] = 12
@@ -177,6 +178,7 @@ def _parse_measure(
                     midi_pitch=element.pitch.midi,
                     duration=duration,
                     beat_offset=beat_offset,
+                    tie_type=_note_tie_type(element),
                 )
             )
 
@@ -190,6 +192,7 @@ def _parse_measure(
                     midi_pitches=midi_pitches,
                     duration=duration,
                     beat_offset=beat_offset,
+                    tie_type=_chord_tie_type(element),
                 )
             )
 
@@ -224,6 +227,37 @@ def _measure_key_fifths(measure: Measure, *, default_key_fifths: int) -> int:
         return int(key_signature.sharps)
 
     return default_key_fifths
+
+
+def _note_tie_type(element: note.Note) -> TieType | None:
+    if element.tie is None:
+        return None
+
+    return _tie_type_from_text(element.tie.type)
+
+
+def _chord_tie_type(element: chord.Chord) -> TieType | None:
+    tie_types = [_note_tie_type(chord_note) for chord_note in element.notes]
+    present_tie_types = {tie_type for tie_type in tie_types if tie_type is not None}
+    if not present_tie_types:
+        return None
+
+    if len(present_tie_types) > 1 or any(tie_type is None for tie_type in tie_types):
+        return TieType.PARTIAL
+
+    return present_tie_types.pop()
+
+
+def _tie_type_from_text(value: str) -> TieType:
+    match value:
+        case "start":
+            return TieType.START
+        case "continue":
+            return TieType.CONTINUE
+        case "stop":
+            return TieType.STOP
+        case _:
+            raise ValueError(f"unsupported tie type: {value}")
 
 
 def _to_fraction(value: float | Fraction) -> Fraction:

@@ -16,6 +16,7 @@ from musak_model.data.schema import (
     Segment,
     SegmentIneligibilityReason,
     SegmentMetadata,
+    TieType,
 )
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import (
@@ -23,6 +24,7 @@ from musak_model.tokens.schema import (
     EndToken,
     Hand,
     HandToken,
+    HoldToken,
     JoinWithPreviousToken,
     NoteToken,
     RestToken,
@@ -51,6 +53,15 @@ class _TimedTokenGroup(NamedTuple):
 class _BarTokenization(NamedTuple):
     tokens: list[Token]
     ineligibility_reasons: frozenset[SegmentIneligibilityReason] = frozenset()
+
+
+class _TieState(NamedTuple):
+    midi_pitches: tuple[int, ...]
+
+
+class _BarNormalization(NamedTuple):
+    groups: list[_TimedTokenGroup]
+    tie_state: _TieState | None
 
 
 def segment_score(
@@ -87,21 +98,24 @@ def _tokenize_hand_safely(
     duration_vocabulary: DurationVocabulary,
 ) -> list[_BarTokenization]:
     tokenized_bars: list[_BarTokenization] = []
+    tie_state: _TieState | None = None
     for index, bar in enumerate(bars):
         try:
-            tokens = _tokens_from_bar_groups(
-                _normalize_bar_events(
-                    bar=bar,
-                    bar_index=index,
-                    hand=hand,
-                    score=score,
-                    scale_type=scale_type,
-                    duration_vocabulary=duration_vocabulary,
-                    measure_duration=_bar_measure_duration(bar),
-                )
+            normalized = _normalize_bar_events(
+                bar=bar,
+                bar_index=index,
+                hand=hand,
+                score=score,
+                scale_type=scale_type,
+                duration_vocabulary=duration_vocabulary,
+                measure_duration=_bar_measure_duration(bar),
+                tie_state=tie_state,
             )
+            tie_state = normalized.tie_state
+            tokens = _tokens_from_bar_groups(normalized.groups)
             tokenized_bars.append(_BarTokenization(tokens=tokens))
         except TokenizationIneligibilityError as exception:
+            tie_state = None
             tokenized_bars.append(
                 _BarTokenization(
                     tokens=[],
@@ -120,20 +134,23 @@ def _tokenize_hand(
     scale_type: ScaleType,
     duration_vocabulary: DurationVocabulary,
 ) -> list[list[Token]]:
-    return [
-        _tokens_from_bar_groups(
-            _normalize_bar_events(
-                bar=bar,
-                bar_index=index,
-                hand=hand,
-                score=score,
-                scale_type=scale_type,
-                duration_vocabulary=duration_vocabulary,
-                measure_duration=_bar_measure_duration(bar),
-            )
+    tokenized_bars: list[list[Token]] = []
+    tie_state: _TieState | None = None
+    for index, bar in enumerate(bars):
+        normalized = _normalize_bar_events(
+            bar=bar,
+            bar_index=index,
+            hand=hand,
+            score=score,
+            scale_type=scale_type,
+            duration_vocabulary=duration_vocabulary,
+            measure_duration=_bar_measure_duration(bar),
+            tie_state=tie_state,
         )
-        for index, bar in enumerate(bars)
-    ]
+        tie_state = normalized.tie_state
+        tokenized_bars.append(_tokens_from_bar_groups(normalized.groups))
+
+    return tokenized_bars
 
 
 def _tokenize_unified_stream_safely(
@@ -144,10 +161,12 @@ def _tokenize_unified_stream_safely(
 ) -> list[_BarTokenization]:
     total_bars = min(len(score.right_hand_bars), len(score.left_hand_bars))
     tokenized_bars: list[_BarTokenization] = []
+    right_tie_state: _TieState | None = None
+    left_tie_state: _TieState | None = None
 
     for bar_index in range(total_bars):
         try:
-            right_groups = _normalize_bar_events(
+            right_normalized = _normalize_bar_events(
                 bar=score.right_hand_bars[bar_index],
                 bar_index=bar_index,
                 hand=Hand.RIGHT,
@@ -155,8 +174,9 @@ def _tokenize_unified_stream_safely(
                 scale_type=scale_type,
                 duration_vocabulary=duration_vocabulary,
                 measure_duration=_bar_measure_duration(score.right_hand_bars[bar_index]),
+                tie_state=right_tie_state,
             )
-            left_groups = _normalize_bar_events(
+            left_normalized = _normalize_bar_events(
                 bar=score.left_hand_bars[bar_index],
                 bar_index=bar_index,
                 hand=Hand.LEFT,
@@ -164,9 +184,16 @@ def _tokenize_unified_stream_safely(
                 scale_type=scale_type,
                 duration_vocabulary=duration_vocabulary,
                 measure_duration=_bar_measure_duration(score.left_hand_bars[bar_index]),
+                tie_state=left_tie_state,
             )
-            tokenized_bars.append(_BarTokenization(tokens=_merge_hand_groups(right_groups + left_groups)))
+            right_tie_state = right_normalized.tie_state
+            left_tie_state = left_normalized.tie_state
+            tokenized_bars.append(
+                _BarTokenization(tokens=_merge_hand_groups(right_normalized.groups + left_normalized.groups))
+            )
         except TokenizationIneligibilityError as exception:
+            right_tie_state = None
+            left_tie_state = None
             tokenized_bars.append(
                 _BarTokenization(
                     tokens=[],
@@ -185,9 +212,11 @@ def _tokenize_unified_stream(
 ) -> list[list[Token]]:
     total_bars = min(len(score.right_hand_bars), len(score.left_hand_bars))
     tokenized_bars: list[list[Token]] = []
+    right_tie_state: _TieState | None = None
+    left_tie_state: _TieState | None = None
 
     for bar_index in range(total_bars):
-        right_groups = _normalize_bar_events(
+        right_normalized = _normalize_bar_events(
             bar=score.right_hand_bars[bar_index],
             bar_index=bar_index,
             hand=Hand.RIGHT,
@@ -195,8 +224,9 @@ def _tokenize_unified_stream(
             scale_type=scale_type,
             duration_vocabulary=duration_vocabulary,
             measure_duration=_bar_measure_duration(score.right_hand_bars[bar_index]),
+            tie_state=right_tie_state,
         )
-        left_groups = _normalize_bar_events(
+        left_normalized = _normalize_bar_events(
             bar=score.left_hand_bars[bar_index],
             bar_index=bar_index,
             hand=Hand.LEFT,
@@ -204,8 +234,11 @@ def _tokenize_unified_stream(
             scale_type=scale_type,
             duration_vocabulary=duration_vocabulary,
             measure_duration=_bar_measure_duration(score.left_hand_bars[bar_index]),
+            tie_state=left_tie_state,
         )
-        tokenized_bars.append(_merge_hand_groups(right_groups + left_groups))
+        right_tie_state = right_normalized.tie_state
+        left_tie_state = left_normalized.tie_state
+        tokenized_bars.append(_merge_hand_groups(right_normalized.groups + left_normalized.groups))
 
     return tokenized_bars
 
@@ -219,7 +252,8 @@ def _normalize_bar_events(
     scale_type: ScaleType,
     duration_vocabulary: DurationVocabulary,
     measure_duration: Fraction,
-) -> list[_TimedTokenGroup]:
+    tie_state: _TieState | None = None,
+) -> _BarNormalization:
     _raise_for_ambiguous_simultaneous_durations(
         bar=bar,
         bar_index=bar_index,
@@ -234,6 +268,7 @@ def _normalize_bar_events(
     )
     cursor = Fraction(0, 1)
     groups: list[_TimedTokenGroup] = []
+    current_tie_state = tie_state
 
     for event in sorted(bar.events, key=_event_sort_key):
         if event.beat_offset < cursor:
@@ -246,6 +281,12 @@ def _normalize_bar_events(
             )
 
         if event.beat_offset > cursor:
+            if current_tie_state is not None:
+                raise TokenizationIneligibilityError(
+                    f"open tie in {hand.value} hand at bar {bar_index} has a gap before {event.beat_offset}",
+                    reason=SegmentIneligibilityReason.TIE_MISMATCH,
+                )
+
             rest_duration = event.beat_offset - cursor
             groups.append(
                 _TimedTokenGroup(
@@ -263,18 +304,20 @@ def _normalize_bar_events(
                 )
             )
 
+        event_tokens, current_tie_state = _tokenize_event(
+            event,
+            score=score,
+            hand=hand,
+            scale_type=scale_type,
+            duration_vocabulary=duration_vocabulary,
+            tie_state=current_tie_state,
+        )
         groups.append(
             _TimedTokenGroup(
                 bar_index=bar_index,
                 offset=event.beat_offset,
                 hand=hand,
-                tokens=_tokenize_event(
-                    event,
-                    score=score,
-                    hand=hand,
-                    scale_type=scale_type,
-                    duration_vocabulary=duration_vocabulary,
-                ),
+                tokens=event_tokens,
             )
         )
         cursor = event.beat_offset + event.duration
@@ -302,7 +345,7 @@ def _normalize_bar_events(
             )
         )
 
-    return groups
+    return _BarNormalization(groups=groups, tie_state=current_tie_state)
 
 
 def _event_sort_key(event: ParsedEvent) -> tuple[Fraction, int]:
@@ -422,7 +465,7 @@ def _event_pitches(event: ParsedEvent) -> tuple[int, ...]:
         case ParsedNote():
             return (event.midi_pitch,)
         case ParsedChord():
-            return tuple(event.midi_pitches)
+            return tuple(sorted(event.midi_pitches))
         case ParsedRest():
             return ()
 
@@ -453,7 +496,7 @@ def _merge_hand_groups(groups: list[_TimedTokenGroup]) -> list[Token]:
                     if previous_note_onset == current_onset:
                         tokens.append(_JOIN_WITH_PREVIOUS_TOKEN)
                     previous_note_onset = current_onset
-                case RestToken() | HandToken() | BarToken() | EndToken() | JoinWithPreviousToken():
+                case HoldToken() | RestToken() | HandToken() | BarToken() | EndToken() | JoinWithPreviousToken():
                     continue
 
     return tokens
@@ -476,7 +519,7 @@ def _group_lowest_pitch(group: _TimedTokenGroup) -> int:
         match token:
             case NoteToken():
                 return index
-            case RestToken() | HandToken() | BarToken() | EndToken() | JoinWithPreviousToken():
+            case HoldToken() | RestToken() | HandToken() | BarToken() | EndToken() | JoinWithPreviousToken():
                 continue
 
     return -1
@@ -490,16 +533,17 @@ def _tokenize_bar(
     scale_type: ScaleType,
     duration_vocabulary: DurationVocabulary,
 ) -> list[Token]:
+    normalized = _normalize_bar_events(
+        bar=bar,
+        bar_index=0,
+        score=score,
+        hand=hand,
+        scale_type=scale_type,
+        duration_vocabulary=duration_vocabulary,
+        measure_duration=_bar_measure_duration(bar),
+    )
     return _tokens_from_bar_groups(
-        _normalize_bar_events(
-            bar=bar,
-            bar_index=0,
-            score=score,
-            hand=hand,
-            scale_type=scale_type,
-            duration_vocabulary=duration_vocabulary,
-            measure_duration=_bar_measure_duration(bar),
-        )
+        normalized.groups,
     )
 
 
@@ -510,35 +554,104 @@ def _tokenize_event(
     hand: Hand,
     scale_type: ScaleType,
     duration_vocabulary: DurationVocabulary,
-) -> list[Token]:
+    tie_state: _TieState | None,
+) -> tuple[list[Token], _TieState | None]:
     match event:
         case ParsedNote():
-            return [
-                _note_to_token(
+            return _tokenize_pitched_event(
+                event,
+                tokens=[
+                    _note_to_token(
+                        event,
+                        score=score,
+                        hand=hand,
+                        scale_type=scale_type,
+                        duration_vocabulary=duration_vocabulary,
+                    )
+                ],
+                duration_vocabulary=duration_vocabulary,
+                tie_state=tie_state,
+            )
+        case ParsedRest():
+            if tie_state is not None:
+                raise TokenizationIneligibilityError(
+                    "rest cannot continue an open tie",
+                    reason=SegmentIneligibilityReason.TIE_MISMATCH,
+                )
+
+            return (
+                [
+                    RestToken(
+                        duration_id=_exact_duration_id(
+                            event.duration,
+                            vocabulary=duration_vocabulary,
+                        )
+                    )
+                ],
+                None,
+            )
+        case ParsedChord():
+            return _tokenize_pitched_event(
+                event,
+                tokens=_chord_to_tokens(
                     event,
                     score=score,
                     hand=hand,
                     scale_type=scale_type,
                     duration_vocabulary=duration_vocabulary,
-                )
-            ]
-        case ParsedRest():
-            return [
-                RestToken(
-                    duration_id=_exact_duration_id(
-                        event.duration,
-                        vocabulary=duration_vocabulary,
-                    )
-                )
-            ]
-        case ParsedChord():
-            return _chord_to_tokens(
-                event,
-                score=score,
-                hand=hand,
-                scale_type=scale_type,
+                ),
                 duration_vocabulary=duration_vocabulary,
+                tie_state=tie_state,
             )
+
+
+def _tokenize_pitched_event(
+    event: ParsedNote | ParsedChord,
+    *,
+    tokens: list[Token],
+    duration_vocabulary: DurationVocabulary,
+    tie_state: _TieState | None,
+) -> tuple[list[Token], _TieState | None]:
+    tie_type = event.tie_type
+    event_tie_state = _TieState(midi_pitches=_event_pitches(event))
+
+    if tie_type == TieType.PARTIAL:
+        raise TokenizationIneligibilityError(
+            "partial chord ties are not supported",
+            reason=SegmentIneligibilityReason.PARTIAL_CHORD_TIE,
+        )
+
+    if tie_type in {TieType.CONTINUE, TieType.STOP}:
+        _raise_for_tie_state_mismatch(tie_state=tie_state, event_tie_state=event_tie_state)
+        hold_tokens: list[Token] = [
+            HoldToken(duration_id=_exact_duration_id(event.duration, vocabulary=duration_vocabulary)),
+        ]
+        return hold_tokens, event_tie_state if tie_type == TieType.CONTINUE else None
+
+    if tie_state is not None:
+        raise TokenizationIneligibilityError(
+            "open tie was not continued by a matching event",
+            reason=SegmentIneligibilityReason.TIE_MISMATCH,
+        )
+
+    if tie_type == TieType.START:
+        return tokens, event_tie_state
+
+    return tokens, None
+
+
+def _raise_for_tie_state_mismatch(*, tie_state: _TieState | None, event_tie_state: _TieState) -> None:
+    if tie_state is None:
+        raise TokenizationIneligibilityError(
+            "tie continuation has no matching open tie",
+            reason=SegmentIneligibilityReason.TIE_MISMATCH,
+        )
+
+    if tie_state.midi_pitches != event_tie_state.midi_pitches:
+        raise TokenizationIneligibilityError(
+            f"tie continuation pitches {event_tie_state.midi_pitches} do not match open tie {tie_state.midi_pitches}",
+            reason=SegmentIneligibilityReason.TIE_MISMATCH,
+        )
 
 
 def _note_to_token(
@@ -610,6 +723,10 @@ def _create_windows(
                 start=start,
                 end=end,
             ),
+            _window_token_ineligibility_reasons(
+                first_bar_tokens=unified_window_bars[0].tokens,
+                window_start_bar=start,
+            ),
             *(bar.ineligibility_reasons for bar in unified_window_bars),
         )
 
@@ -657,6 +774,30 @@ def _segment_ineligibility_reasons(
         reasons.add(SegmentIneligibilityReason.KEY_SIGNATURE_CHANGE)
 
     return frozenset(reasons)
+
+
+def _window_token_ineligibility_reasons(
+    *,
+    first_bar_tokens: list[Token],
+    window_start_bar: int,
+) -> frozenset[SegmentIneligibilityReason]:
+    if window_start_bar == 0:
+        return frozenset()
+
+    active_hand = Hand.RIGHT
+    seen_same_hand_attack = {Hand.RIGHT: False, Hand.LEFT: False}
+    for token in first_bar_tokens:
+        if isinstance(token, HandToken):
+            active_hand = token.hand
+            continue
+
+        if isinstance(token, HoldToken) and not seen_same_hand_attack[active_hand]:
+            return frozenset({SegmentIneligibilityReason.TIE_CONTINUATION_AT_WINDOW_START})
+
+        if isinstance(token, NoteToken):
+            seen_same_hand_attack[active_hand] = True
+
+    return frozenset()
 
 
 def _merge_ineligibility_reasons(

@@ -1,6 +1,6 @@
 from typing import Optional
 
-from musak.modules.elements.constants import KEYS
+from musak_shared.elements import KEYS
 
 
 def get_note_name(note: int, keys: Optional[dict[int, str]] = None) -> str:

@@ -1,6 +1,5 @@
 from fractions import Fraction
 
-from musak_model.common.elements import DOTTED_LIKE_DURATIONS
 from musak_model.data.converter import pitch_to_degree
 from musak_model.data.schema import (
     DifficultyFeatures,
@@ -18,6 +17,7 @@ from musak_model.tokens.schema import (
     Token,
 )
 from musak_model.tokens.views import tokens_for_hand
+from musak_shared.elements import DOTTED_LIKE_DURATIONS
 
 
 def extract_difficulty_features(
