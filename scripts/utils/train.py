@@ -20,7 +20,16 @@ from musak_model.paths import (
     TRAINING_CONFIG_PATH,
 )
 from musak_model.tokens.config import TokenizationConfig
-from musak_model.training.config import StageTwoTrainingConfig, TrainingConfig
+from musak_model.training.config import (
+    CheckpointConfig,
+    MlflowConfig,
+    OptimizationConfig,
+    RuntimeConfig,
+    StageTwoCheckpointConfig,
+    StageTwoTrainingConfig,
+    TrainingConditioningConfig,
+    TrainingConfig,
+)
 from musak_model.training.ingestion.config import IngestionConfig
 from musak_model.training.stage_two import train_stage_two
 from musak_model.training.trainer import TrainingResult, train_stage_one
@@ -233,49 +242,70 @@ def training_source_dir(args: argparse.Namespace) -> Path:
 
 def build_stage_one_training_config(args: argparse.Namespace) -> TrainingConfig:
     config = TrainingConfig.load(args.training_config)
-    updates = common_training_updates(
+    updates = common_training_section_updates(
         args,
         config=config,
         default_checkpoint_dir=DEFAULT_STAGE_ONE_CHECKPOINT_DIR,
     )
-    updates["use_conditioning"] = args.use_conditioning or config.use_conditioning
-    return config.model_copy(update={key: value for key, value in updates.items() if value is not None})
+    updates["conditioning"] = TrainingConditioningConfig(
+        use_conditioning=args.use_conditioning or config.use_conditioning,
+        use_structural_conditioning=config.use_structural_conditioning,
+    )
+    return config.model_copy(update=updates)
 
 
 def build_stage_two_training_config(args: argparse.Namespace) -> StageTwoTrainingConfig:
     config = StageTwoTrainingConfig.load(args.training_config)
-    updates = common_training_updates(
+    updates = common_training_section_updates(
         args,
         config=config,
         default_checkpoint_dir=DEFAULT_STAGE_TWO_CHECKPOINT_DIR,
     )
-    updates["stage_one_checkpoint"] = (
-        args.stage_one_checkpoint if args.stage_one_checkpoint is not None else config.stage_one_checkpoint
+    checkpoint_config = updates["checkpoints"]
+    if not isinstance(checkpoint_config, CheckpointConfig):
+        raise TypeError("checkpoint update must be a CheckpointConfig")
+
+    updates["checkpoints"] = StageTwoCheckpointConfig(
+        checkpoint_dir=checkpoint_config.checkpoint_dir,
+        resume_checkpoint=checkpoint_config.resume_checkpoint,
+        stage_one_checkpoint=(
+            args.stage_one_checkpoint if args.stage_one_checkpoint is not None else config.stage_one_checkpoint
+        ),
     )
-    updates["use_conditioning"] = True
-    updates["use_structural_conditioning"] = True
-    return config.model_copy(update={key: value for key, value in updates.items() if value is not None})
+    updates["conditioning"] = TrainingConditioningConfig(use_conditioning=True, use_structural_conditioning=True)
+    return config.model_copy(update=updates)
 
 
-def common_training_updates(
+def common_training_section_updates(
     args: argparse.Namespace,
     *,
     config: TrainingConfig,
     default_checkpoint_dir: Path,
-) -> dict[str, int | float | bool | str | Path | None]:
+) -> dict[str, OptimizationConfig | RuntimeConfig | TrainingConditioningConfig | CheckpointConfig | MlflowConfig]:
     return {
-        "epochs": args.epochs,
-        "batch_size": args.batch_size,
-        "learning_rate": args.learning_rate,
-        "weight_decay": args.weight_decay,
-        "num_workers": args.num_workers,
-        "checkpoint_dir": args.checkpoint_dir or config.checkpoint_dir or default_checkpoint_dir,
-        "resume_checkpoint": args.resume_checkpoint if args.resume_checkpoint is not None else config.resume_checkpoint,
-        "device": resolve_device(args.device or config.device),
-        "enable_mlflow": not args.disable_mlflow and config.enable_mlflow,
-        "mlflow_experiment_name": args.mlflow_experiment_name or config.mlflow_experiment_name,
-        "mlflow_run_name": args.mlflow_run_name if args.mlflow_run_name is not None else config.mlflow_run_name,
-        "mlflow_tracking_uri": str(args.mlflow_dir),
+        "optimization": OptimizationConfig(
+            epochs=args.epochs if args.epochs is not None else config.epochs,
+            batch_size=args.batch_size if args.batch_size is not None else config.batch_size,
+            learning_rate=args.learning_rate if args.learning_rate is not None else config.learning_rate,
+            weight_decay=args.weight_decay if args.weight_decay is not None else config.weight_decay,
+        ),
+        "runtime": RuntimeConfig(
+            num_workers=args.num_workers if args.num_workers is not None else config.num_workers,
+            device=resolve_device(args.device or config.device),
+        ),
+        "conditioning": config.conditioning,
+        "checkpoints": CheckpointConfig(
+            checkpoint_dir=args.checkpoint_dir or config.checkpoint_dir or default_checkpoint_dir,
+            resume_checkpoint=(
+                args.resume_checkpoint if args.resume_checkpoint is not None else config.resume_checkpoint
+            ),
+        ),
+        "mlflow": MlflowConfig(
+            enable_mlflow=not args.disable_mlflow and config.enable_mlflow,
+            mlflow_experiment_name=args.mlflow_experiment_name or config.mlflow_experiment_name,
+            mlflow_run_name=args.mlflow_run_name if args.mlflow_run_name is not None else config.mlflow_run_name,
+            mlflow_tracking_uri=str(args.mlflow_dir),
+        ),
     }
 
 

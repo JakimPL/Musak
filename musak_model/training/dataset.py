@@ -71,6 +71,20 @@ class EncodedExerciseDataset(Dataset[TrainingExample]):
                 max_sequence_length,
             )
 
+        unsupported_time_signature_count = sum(
+            1
+            for sample in samples
+            if include_conditioning
+            and len(sample.token_ids) >= 1
+            and (max_sequence_length is None or len(sample.token_ids) <= max_sequence_length)
+            and not time_signature_vocabulary.contains((sample.time_numerator, sample.time_denominator))
+        )
+        if unsupported_time_signature_count > 0:
+            _LOGGER.warning(
+                "Skipping %s training samples with time signatures outside the conditioning vocabulary",
+                unsupported_time_signature_count,
+            )
+
         self._examples = [
             _to_training_example(
                 sample,
@@ -83,6 +97,10 @@ class EncodedExerciseDataset(Dataset[TrainingExample]):
             for sample in samples
             if len(sample.token_ids) >= 1
             and (max_sequence_length is None or len(sample.token_ids) <= max_sequence_length)
+            and (
+                not include_conditioning
+                or time_signature_vocabulary.contains((sample.time_numerator, sample.time_denominator))
+            )
         ]
 
     def __len__(self) -> int:

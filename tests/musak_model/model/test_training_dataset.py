@@ -19,15 +19,21 @@ def _time_signature_vocabulary() -> TimeSignatureVocabulary:
     return TimeSignatureVocabulary(TimeSignatureVocabularyConfig(max_denominator=4, relative_numerator_range=2))
 
 
-def _sample(token_ids: list[int], bar_positions: list[int], *, difficulty_level: int | None = 3) -> EncodedExercise:
+def _sample(
+    token_ids: list[int],
+    bar_positions: list[int],
+    *,
+    difficulty_level: int | None = 3,
+    time_signature: tuple[int, int] = (4, 4),
+) -> EncodedExercise:
     return EncodedExercise(
         token_ids=token_ids,
         bar_positions=bar_positions,
         metadata=SegmentMetadata(
             key_root=0,
             scale_type=ScaleType.MAJOR,
-            time_numerator=4,
-            time_denominator=4,
+            time_numerator=time_signature[0],
+            time_denominator=time_signature[1],
             bar_count=1,
             window_start_bar=0,
             source_file=Path("piece.mxl"),
@@ -85,6 +91,37 @@ def test_dataset_skips_samples_longer_than_max_sequence_length(token_vocabulary:
 
     assert len(dataset) == 1
     assert dataset[0].target_token_ids.tolist() == [1, 2, 3]
+
+
+def test_dataset_skips_samples_with_unsupported_time_signature_when_conditioned(
+    token_vocabulary: TokenVocabulary,
+) -> None:
+    dataset = EncodedExerciseDataset(
+        [
+            _sample([1, 2, 3], [0, 0, 0], time_signature=(4, 4)),
+            _sample([4, 5, 6], [0, 0, 0], time_signature=(2, 1)),
+        ],
+        time_signature_vocabulary=_time_signature_vocabulary(),
+        token_vocabulary=token_vocabulary,
+        include_conditioning=True,
+    )
+
+    assert len(dataset) == 1
+    assert dataset[0].target_token_ids.tolist() == [1, 2, 3]
+
+
+def test_dataset_keeps_unsupported_time_signature_when_conditioning_disabled(
+    token_vocabulary: TokenVocabulary,
+) -> None:
+    dataset = EncodedExerciseDataset(
+        [_sample([1, 2, 3], [0, 0, 0], time_signature=(2, 1))],
+        time_signature_vocabulary=_time_signature_vocabulary(),
+        token_vocabulary=token_vocabulary,
+        include_conditioning=False,
+    )
+
+    assert len(dataset) == 1
+    assert dataset[0].time_signature_id == 0
 
 
 def test_dataset_rejects_mismatched_token_and_bar_position_lengths(token_vocabulary: TokenVocabulary) -> None:

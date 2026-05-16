@@ -137,7 +137,7 @@ def test_mlflow_tracker_logs_setup_metrics_artifacts_and_invalid_files(
     assert fake_mlflow.experiment_name == "musak-stage-one"
     assert fake_mlflow.run_name == "test-run"
     assert fake_mlflow.ended_status == "FINISHED"
-    assert fake_mlflow.params["training.epochs"] == 1
+    assert fake_mlflow.params["training.optimization.epochs"] == 1
     assert fake_mlflow.params["data.train_samples"] == 1
     assert ("train_loss", 1.25, 3) in fake_mlflow.metrics
     assert ("validation_loss", 1.5, 3) in fake_mlflow.metrics

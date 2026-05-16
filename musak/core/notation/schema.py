@@ -40,6 +40,8 @@ class NoteData(BaseModel):
     keys: list[str]
     duration: VexflowDuration
     dots: Annotated[int, Field(ge=0, le=2)] = 0
+    tie_start: bool = False
+    tie_stop: bool = False
 
 
 class VoiceData(BaseModel):

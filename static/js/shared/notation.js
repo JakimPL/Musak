@@ -1,4 +1,4 @@
-import { Renderer, Stave, StaveNote, Voice, Formatter, Dot, Beam } from 'https://esm.sh/vexflow@5.0.0';
+import { Renderer, Stave, StaveNote, Voice, Formatter, Dot, Beam, StaveTie } from 'https://esm.sh/vexflow@5.0.0';
 
 const STAVE_HEIGHT = 140;
 const STAVE_PADDING = 40;
@@ -37,6 +37,30 @@ function drawVoice(voiceData, stave, staveData, context) {
     const beams = Beam.generateBeams(nonRestNotes);
     voice.draw(context, stave);
     beams.forEach(beam => beam.setContext(context).draw());
+    drawTies(voiceData, vfNotes, context);
+    return { voiceData, vfNotes };
+}
+
+function drawTies(voiceData, vfNotes, context) {
+    for (let index = 0; index < voiceData.notes.length - 1; index += 1) {
+        const firstData = voiceData.notes[index];
+        const secondData = voiceData.notes[index + 1];
+        if (!firstData.tie_start || !secondData.tie_stop) {
+            continue;
+        }
+        if (firstData.duration.endsWith('r') || secondData.duration.endsWith('r')) {
+            continue;
+        }
+        const noteCount = Math.min(firstData.keys.length, secondData.keys.length);
+        const indices = Array.from({ length: noteCount }, (_, noteIndex) => noteIndex);
+        const tie = new StaveTie({
+            first_note: vfNotes[index],
+            last_note: vfNotes[index + 1],
+            first_indices: indices,
+            last_indices: indices,
+        });
+        tie.setContext(context).draw();
+    }
 }
 
 function drawStave(staveData, context, x, y, width, showClef) {
@@ -57,8 +81,35 @@ function drawStave(staveData, context, x, y, width, showClef) {
         stave.addTimeSignature(`${staveData.time_signature[0]}/${staveData.time_signature[1]}`);
     }
     stave.setContext(context).draw();
+    const voiceResults = [];
     for (const voice of staveData.voices) {
-        drawVoice(voice, stave, staveData, context);
+        voiceResults.push(drawVoice(voice, stave, staveData, context));
+    }
+    return { staveData, voiceResults };
+}
+
+function drawTiesAcrossStaves(leftResult, rightResult, context) {
+    const voiceCount = Math.min(leftResult.voiceResults.length, rightResult.voiceResults.length);
+    for (let voiceIndex = 0; voiceIndex < voiceCount; voiceIndex += 1) {
+        const leftVoice = leftResult.voiceResults[voiceIndex];
+        const rightVoice = rightResult.voiceResults[voiceIndex];
+        const leftData = leftVoice.voiceData.notes[leftVoice.voiceData.notes.length - 1];
+        const rightData = rightVoice.voiceData.notes[0];
+        if (!leftData || !rightData || !leftData.tie_start || !rightData.tie_stop) {
+            continue;
+        }
+        if (leftData.duration.endsWith('r') || rightData.duration.endsWith('r')) {
+            continue;
+        }
+        const noteCount = Math.min(leftData.keys.length, rightData.keys.length);
+        const indices = Array.from({ length: noteCount }, (_, noteIndex) => noteIndex);
+        const tie = new StaveTie({
+            first_note: leftVoice.vfNotes[leftVoice.vfNotes.length - 1],
+            last_note: rightVoice.vfNotes[0],
+            first_indices: indices,
+            last_indices: indices,
+        });
+        tie.setContext(context).draw();
     }
 }
 
@@ -90,6 +141,7 @@ export function renderScore(scoreData, containerElement) {
     rows.forEach((row, rowIndex) => {
         const y = rowIndex * STAVE_HEIGHT + STAVE_Y_OFFSET;
         let x = STAVE_X_OFFSET;
+        const rowResults = [];
         row.forEach((staveData, colIndex) => {
             let width;
             if (!hasTimeSig) {
@@ -98,9 +150,12 @@ export function renderScore(scoreData, containerElement) {
                 const normalWidth = (naturalWidth - 2 * STAVE_X_OFFSET - FIRST_STAVE_OVERHEAD) / row.length;
                 width = colIndex === 0 ? normalWidth + FIRST_STAVE_OVERHEAD : normalWidth;
             }
-            drawStave(staveData, context, x, y, width, colIndex === 0);
+            rowResults.push(drawStave(staveData, context, x, y, width, colIndex === 0));
             x += width;
         });
+        for (let colIndex = 0; colIndex < rowResults.length - 1; colIndex += 1) {
+            drawTiesAcrossStaves(rowResults[colIndex], rowResults[colIndex + 1], context);
+        }
     });
 
     if (naturalWidth > containerWidth) {

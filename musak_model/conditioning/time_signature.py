@@ -38,6 +38,9 @@ class TimeSignatureVocabulary:
         except KeyError as exception:
             raise ValueError(f"unsupported time signature: {time_signature}") from exception
 
+    def contains(self, time_signature: tuple[int, int]) -> bool:
+        return time_signature in self._time_signature_to_id
+
     def id_to_time_signature(self, time_signature_id: int) -> tuple[int, int]:
         if not 0 <= time_signature_id < self.vocabulary_size:
             raise KeyError(f"time_signature_id must be in [0, {self.vocabulary_size - 1}]")

@@ -1,0 +1,457 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from fractions import Fraction
+from pathlib import Path
+from typing import Callable, Protocol, cast
+
+import torch
+from torch import Tensor
+
+from musak_model.conditioning.structural import StructuralControlFeatures, StructuralControlVocabulary
+from musak_model.conditioning.time_signature import TimeSignatureVocabulary
+from musak_model.data.schema import Segment, SegmentMetadata
+from musak_model.decoder import segment_to_piano_roll_events
+from musak_model.generation.constraints import (
+    GenerationConstraintError,
+    GenerationConstraints,
+    allowed_next_token_ids,
+    mask_disallowed_logits,
+)
+from musak_model.model import HierarchicalAutoregressiveModel
+from musak_model.model.config import ModelConfig
+from musak_model.paths import MODEL_CONFIG_DIR
+from musak_model.tokens.config import TokenizationConfig
+from musak_model.tokens.duration import DurationVocabulary
+from musak_model.tokens.schema import (
+    BarToken,
+    EndToken,
+    HandToken,
+    HoldToken,
+    JoinWithPreviousToken,
+    NoteToken,
+    RestToken,
+    ScaleType,
+    StartToken,
+    Token,
+)
+from musak_model.tokens.text import tokens_from_text, tokens_to_text
+from musak_model.tokens.vocabulary import TokenVocabulary
+from musak_model.training.conditioning import scale_type_to_id, time_signature_to_id
+from musak_model.training.ingestion.schema import EncodedExercise
+
+
+class AutoregressiveModel(Protocol):
+    def eval(self) -> AutoregressiveModel: ...
+
+    def __call__(
+        self,
+        token_ids: Tensor,
+        *,
+        bar_positions: Tensor,
+        difficulty_ids: Tensor | None = None,
+        scale_type_ids: Tensor | None = None,
+        time_signature_ids: Tensor | None = None,
+        structural_control_ids: Tensor | None = None,
+        token_padding_mask: Tensor | None = None,
+    ) -> Tensor: ...
+
+
+@dataclass(frozen=True)
+class LoadedModel:
+    model: HierarchicalAutoregressiveModel
+    config: ModelConfig
+    checkpoint_epoch: int | None
+    best_validation_loss: float | None
+    device: torch.device
+    token_vocabulary: TokenVocabulary
+    duration_vocabulary: DurationVocabulary
+
+
+@dataclass(frozen=True)
+class PromptData:
+    tokens: list[Token]
+    token_ids: list[int]
+    model_input_ids: list[int]
+    bar_positions: list[int]
+    text: str
+
+
+@dataclass(frozen=True)
+class SamplingOptions:
+    max_new_tokens: int
+    temperature: float = 1.0
+    top_k: int | None = None
+    top_p: float | None = None
+    greedy: bool = False
+    seed: int | None = None
+    constraints: GenerationConstraints | None = None
+    scale_type: ScaleType | None = None
+    time_signature: tuple[int, int] | None = None
+    structural_features: StructuralControlFeatures | None = None
+
+
+@dataclass(frozen=True)
+class SampleTraceRow:
+    step: int
+    token_id: int
+    token_text: str
+    probability: float
+    logit: float
+    allowed_token_count: int | None
+
+
+@dataclass(frozen=True)
+class SamplingResult:
+    tokens: list[Token]
+    token_ids: list[int]
+    new_token_ids: list[int]
+    trace: list[SampleTraceRow]
+    stop_reason: str
+    reached_end: bool
+    constraint_error: str | None
+
+    @property
+    def generated_token_count(self) -> int:
+        return len(self.new_token_ids)
+
+
+def load_trained_model(
+    checkpoint_path: Path,
+    *,
+    device: str,
+    tokenization_config_path: Path | None = None,
+    model_config_dir: Path | None = None,
+) -> LoadedModel:
+    resolved_device = torch.device(device)
+    tokenization_config = (
+        TokenizationConfig.load(tokenization_config_path)
+        if tokenization_config_path is not None
+        else TokenizationConfig.load()
+    )
+    duration_vocabulary = DurationVocabulary(tokenization_config)
+    token_vocabulary = TokenVocabulary(duration_vocabulary)
+    model_config = ModelConfig.load(
+        vocabulary_size=token_vocabulary.vocabulary_size,
+        config_dir=model_config_dir or MODEL_CONFIG_DIR,
+    )
+    model = HierarchicalAutoregressiveModel(model_config)
+    state = cast(dict[str, object], torch.load(checkpoint_path, map_location=resolved_device))
+    model.load_state_dict(cast(dict[str, Tensor], state["model_state_dict"]))
+    model.to(resolved_device)
+    model.eval()
+    return LoadedModel(
+        model=model,
+        config=model_config,
+        checkpoint_epoch=cast(int | None, state.get("epoch")),
+        best_validation_loss=cast(float | None, state.get("best_validation_loss")),
+        device=resolved_device,
+        token_vocabulary=token_vocabulary,
+        duration_vocabulary=duration_vocabulary,
+    )
+
+
+def empty_prompt(*, token_vocabulary: TokenVocabulary, duration_vocabulary: DurationVocabulary) -> PromptData:
+    return prompt_from_tokens([], token_vocabulary=token_vocabulary, duration_vocabulary=duration_vocabulary)
+
+
+def prompt_from_text(
+    text: str,
+    *,
+    token_vocabulary: TokenVocabulary,
+    duration_vocabulary: DurationVocabulary,
+) -> PromptData:
+    tokens = [
+        token
+        for token in tokens_from_text(text, duration_vocabulary=duration_vocabulary)
+        if not isinstance(token, StartToken)
+    ]
+    return prompt_from_tokens(tokens, token_vocabulary=token_vocabulary, duration_vocabulary=duration_vocabulary)
+
+
+def prompt_from_encoded_sample(
+    sample: EncodedExercise,
+    *,
+    token_vocabulary: TokenVocabulary,
+    duration_vocabulary: DurationVocabulary,
+) -> PromptData:
+    return prompt_from_tokens(
+        token_vocabulary.decode(sample.token_ids),
+        token_vocabulary=token_vocabulary,
+        duration_vocabulary=duration_vocabulary,
+    )
+
+
+def prompt_from_tokens(
+    tokens: list[Token],
+    *,
+    token_vocabulary: TokenVocabulary,
+    duration_vocabulary: DurationVocabulary,
+) -> PromptData:
+    token_ids = token_vocabulary.encode(tokens)
+    model_input_ids = [token_vocabulary.start_token_id, *token_ids]
+    bar_positions = _model_bar_positions(tokens)
+    return PromptData(
+        tokens=tokens,
+        token_ids=token_ids,
+        model_input_ids=model_input_ids,
+        bar_positions=bar_positions,
+        text=tokens_to_text(tokens, duration_vocabulary=duration_vocabulary),
+    )
+
+
+def sample_autoregressive(
+    model: AutoregressiveModel,
+    prompt: PromptData,
+    *,
+    options: SamplingOptions,
+    token_vocabulary: TokenVocabulary,
+    duration_vocabulary: DurationVocabulary,
+    model_config: ModelConfig | None = None,
+    device: torch.device | None = None,
+    progress_callback: Callable[[int, Token, str], None] | None = None,
+) -> SamplingResult:
+    resolved_device = torch.device("cpu") if device is None else device
+    generator = torch.Generator(device=resolved_device)
+    if options.seed is not None:
+        generator.manual_seed(options.seed)
+
+    model.eval()
+    musical_token_ids = list(prompt.token_ids)
+    model_input_ids = list(prompt.model_input_ids)
+    trace: list[SampleTraceRow] = []
+    constraint_error: str | None = None
+    stop_reason = "max_tokens"
+
+    with torch.no_grad():
+        for step in range(options.max_new_tokens):
+            if model_config is not None and len(model_input_ids) >= model_config.transformer.max_sequence_length:
+                stop_reason = "max_sequence_length"
+                break
+
+            input_tensor = torch.tensor([model_input_ids], dtype=torch.long, device=resolved_device)
+            bar_positions = torch.tensor(
+                [_model_bar_positions_from_ids(musical_token_ids, token_vocabulary=token_vocabulary)],
+                dtype=torch.long,
+                device=resolved_device,
+            )
+            logits = model(
+                input_tensor,
+                bar_positions=bar_positions,
+                scale_type_ids=_scale_type_tensor(options, model_config=model_config, device=resolved_device),
+                time_signature_ids=_time_signature_tensor(options, model_config=model_config, device=resolved_device),
+                structural_control_ids=_structural_control_tensor(
+                    options, model_config=model_config, device=resolved_device
+                ),
+            )[0, -1]
+            allowed_count: int | None = None
+            if options.constraints is not None:
+                try:
+                    allowed_ids = allowed_next_token_ids(
+                        musical_token_ids,
+                        constraints=options.constraints,
+                        token_vocabulary=token_vocabulary,
+                        duration_vocabulary=duration_vocabulary,
+                    )
+                    allowed_count = len(allowed_ids)
+                    logits = mask_disallowed_logits(logits, allowed_token_ids=allowed_ids)
+                except GenerationConstraintError as exception:
+                    constraint_error = str(exception)
+                    stop_reason = "constraint_error"
+                    break
+
+            next_token_id, probability, selected_logit = _select_next_token_id(
+                logits,
+                options=options,
+                generator=generator,
+            )
+            next_token = token_vocabulary.id_to_token(next_token_id)
+            musical_token_ids.append(next_token_id)
+            model_input_ids.append(next_token_id)
+            stop_reason_for_step = "end_token" if isinstance(next_token, EndToken) else "running"
+            if progress_callback is not None:
+                progress_callback(step + 1, next_token, stop_reason_for_step)
+
+            trace.append(
+                SampleTraceRow(
+                    step=step,
+                    token_id=next_token_id,
+                    token_text=next_token.to_text(duration_vocabulary=duration_vocabulary),
+                    probability=probability,
+                    logit=selected_logit,
+                    allowed_token_count=allowed_count,
+                )
+            )
+            if isinstance(next_token, EndToken):
+                stop_reason = "end_token"
+                break
+
+    return SamplingResult(
+        tokens=token_vocabulary.decode(musical_token_ids),
+        token_ids=musical_token_ids,
+        new_token_ids=musical_token_ids[len(prompt.token_ids) :],
+        trace=trace,
+        stop_reason=stop_reason,
+        reached_end=stop_reason == "end_token",
+        constraint_error=constraint_error,
+    )
+
+
+def sampling_result_to_segment(
+    result: SamplingResult,
+    *,
+    key_root: int,
+    scale_type: ScaleType,
+    time_numerator: int,
+    time_denominator: int,
+    source_file: Path = Path("generated"),
+) -> Segment:
+    return Segment(
+        tokens=result.tokens,
+        metadata=SegmentMetadata(
+            key_root=key_root,
+            scale_type=scale_type,
+            time_numerator=time_numerator,
+            time_denominator=time_denominator,
+            bar_count=_display_bar_count(result.tokens),
+            window_start_bar=0,
+            source_file=source_file,
+        ),
+    )
+
+
+def trace_rows(result: SamplingResult) -> list[dict[str, float | int | str | None]]:
+    return [
+        {
+            "step": row.step,
+            "token_id": row.token_id,
+            "token": row.token_text,
+            "probability": row.probability,
+            "logit": row.logit,
+            "allowed": row.allowed_token_count,
+        }
+        for row in result.trace
+    ]
+
+
+def segment_decode_error(segment: Segment, *, duration_vocabulary: DurationVocabulary) -> str | None:
+    try:
+        segment_to_piano_roll_events(segment, duration_vocabulary=duration_vocabulary)
+    except ValueError as exception:
+        return str(exception)
+
+    return None
+
+
+def segment_event_count(segment: Segment, *, duration_vocabulary: DurationVocabulary) -> int | None:
+    try:
+        return len(segment_to_piano_roll_events(segment, duration_vocabulary=duration_vocabulary))
+    except ValueError:
+        return None
+
+
+def _display_bar_count(tokens: list[Token]) -> int:
+    completed_bars = sum(1 for token in tokens if isinstance(token, BarToken))
+    trailing_tokens_after_bar = False
+    for token in reversed(tokens):
+        if isinstance(token, EndToken):
+            continue
+        if isinstance(token, BarToken):
+            break
+        if isinstance(token, (HandToken, JoinWithPreviousToken, NoteToken, RestToken, HoldToken)):
+            trailing_tokens_after_bar = True
+            break
+
+    return completed_bars + int(trailing_tokens_after_bar)
+
+
+def _model_bar_positions(tokens: list[Token]) -> list[int]:
+    positions = [0]
+    bar_index = 0
+    for token in tokens:
+        positions.append(bar_index)
+        if isinstance(token, BarToken):
+            bar_index += 1
+
+    return positions
+
+
+def _model_bar_positions_from_ids(token_ids: list[int], *, token_vocabulary: TokenVocabulary) -> list[int]:
+    return _model_bar_positions(token_vocabulary.decode(token_ids))
+
+
+def _select_next_token_id(
+    logits: Tensor,
+    *,
+    options: SamplingOptions,
+    generator: torch.Generator,
+) -> tuple[int, float, float]:
+    if options.greedy:
+        token_id = int(torch.argmax(logits).item())
+        probabilities = torch.softmax(logits, dim=-1)
+        return token_id, float(probabilities[token_id].item()), float(logits[token_id].item())
+
+    filtered_logits = _apply_sampling_filters(logits, options=options)
+    probabilities = torch.softmax(filtered_logits / max(options.temperature, 1e-6), dim=-1)
+    token_id = int(torch.multinomial(probabilities, num_samples=1, generator=generator).item())
+    return token_id, float(probabilities[token_id].item()), float(logits[token_id].item())
+
+
+def _apply_sampling_filters(logits: Tensor, *, options: SamplingOptions) -> Tensor:
+    filtered = logits.clone()
+    if options.top_k is not None and options.top_k > 0 and options.top_k < filtered.numel():
+        threshold = torch.topk(filtered, options.top_k).values[-1]
+        filtered = torch.where(filtered < threshold, torch.full_like(filtered, float("-inf")), filtered)
+
+    if options.top_p is not None and 0 < options.top_p < 1:
+        sorted_logits, sorted_indices = torch.sort(filtered, descending=True)
+        sorted_probabilities = torch.softmax(sorted_logits, dim=-1)
+        cumulative = torch.cumsum(sorted_probabilities, dim=-1)
+        remove = cumulative > options.top_p
+        remove[1:] = remove[:-1].clone()
+        remove[0] = False
+        filtered[sorted_indices[remove]] = float("-inf")
+
+    return filtered
+
+
+def _scale_type_tensor(
+    options: SamplingOptions,
+    *,
+    model_config: ModelConfig | None,
+    device: torch.device,
+) -> Tensor | None:
+    if model_config is None or options.scale_type is None:
+        return None
+
+    return torch.tensor([scale_type_to_id(options.scale_type)], dtype=torch.long, device=device)
+
+
+def _time_signature_tensor(
+    options: SamplingOptions,
+    *,
+    model_config: ModelConfig | None,
+    device: torch.device,
+) -> Tensor | None:
+    if model_config is None or options.time_signature is None:
+        return None
+
+    vocabulary = TimeSignatureVocabulary(model_config.conditioning.time_signature)
+    return torch.tensor(
+        [time_signature_to_id(options.time_signature, vocabulary=vocabulary)],
+        dtype=torch.long,
+        device=device,
+    )
+
+
+def _structural_control_tensor(
+    options: SamplingOptions,
+    *,
+    model_config: ModelConfig | None,
+    device: torch.device,
+) -> Tensor | None:
+    if model_config is None or options.structural_features is None:
+        return None
+
+    vocabulary = StructuralControlVocabulary(model_config.conditioning.structural)
+    return torch.tensor([vocabulary.features_to_ids(options.structural_features)], dtype=torch.long, device=device)

@@ -1,14 +1,19 @@
-epochs: 1
-batch_size: 16
-learning_rate: 0.0003
-weight_decay: 0.01
-num_workers: 0
-checkpoint_dir: checkpoints/stage_one
-resume_checkpoint: null
-device: cpu
-use_conditioning: false
-use_structural_conditioning: false
-enable_mlflow: true
-mlflow_experiment_name: musak-stage-one
-mlflow_run_name: null
-mlflow_tracking_uri: null
+optimization:
+  epochs: 25
+  batch_size: 8
+  learning_rate: 3e-4
+  weight_decay: 0.01
+runtime:
+  num_workers: 0
+  device: cuda
+conditioning:
+  use_conditioning: false
+  use_structural_conditioning: false
+checkpoints:
+  checkpoint_dir: checkpoints/stage_one
+  resume_checkpoint: null
+mlflow:
+  enable_mlflow: true
+  mlflow_experiment_name: musak-stage-one
+  mlflow_run_name: null
+  mlflow_tracking_uri: null

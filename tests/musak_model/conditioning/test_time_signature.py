@@ -21,6 +21,7 @@ def test_time_signature_vocabulary_generates_deterministic_mapping() -> None:
     )
     assert vocabulary.vocabulary_size == 11
     assert vocabulary.time_signature_to_id((4, 4)) == 7
+    assert vocabulary.contains((4, 4))
     assert vocabulary.id_to_time_signature(7) == (4, 4)
 
 
@@ -32,6 +33,9 @@ def test_time_signature_vocabulary_rejects_values_outside_generated_range() -> N
 
     with pytest.raises(ValueError, match="unsupported time signature"):
         vocabulary.time_signature_to_id((1, 8))
+
+    assert not vocabulary.contains((8, 4))
+    assert not vocabulary.contains((1, 8))
 
 
 def test_time_signature_vocabulary_config_requires_power_of_two_denominator() -> None:
