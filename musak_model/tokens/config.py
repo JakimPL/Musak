@@ -6,8 +6,8 @@ from pathlib import Path
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from musak_model.common.files import load_yaml_config
-from musak_model.common.validators import is_power_of_two
 from musak_model.paths import TOKENIZATION_CONFIG_PATH
+from musak_shared.common import is_power_of_two
 
 
 class TokenizationConfig(BaseModel):

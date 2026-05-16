@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from musak_model.common.validators import is_power_of_two
+from musak_shared.common import is_power_of_two
 
 
 class TimeSignatureVocabularyConfig(BaseModel):

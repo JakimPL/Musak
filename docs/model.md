@@ -99,6 +99,25 @@ The sampler should mask invalid tokens:
 
 Tie probability should be controlled by logits penalties or sampling bias, not by removing tie support.
 
+The first implementation slice lives in `musak_model.generation.constraints`. It is model-agnostic: a
+sampling loop can pass the generated prefix token IDs to `allowed_next_token_ids(...)`, then pass the
+result to `mask_disallowed_logits(...)` before temperature/top-k/top-p sampling.
+
+The hard state currently tracks:
+
+- active hand;
+- completed bar count;
+- absolute right- and left-hand cursors;
+- previous contiguous same-hand attack end, used for `HoldToken`;
+- previous same-hand onset, used for chord joins;
+- pending chord-join state for `JoinWithPreviousToken`.
+
+This lets the mask enforce exact measure length without removing ties. A cross-bar sound is generated
+as a note/chord that ends exactly at a barline, followed by a `BarToken`, followed by a same-hand
+`HoldToken` in the next bar. Chord notes that start at the end of a bar are allowed to temporarily
+overflow only when the next legal token is forced to be `JoinWithPreviousToken`; the join restores the
+cursor to the chord onset duration.
+
 ## Tie and Hold Rules
 
 `HoldToken(duration_id)` means: extend the active hand's previous same-hand note or chord by the specified duration. It advances only the active hand cursor and creates no new attack.
@@ -147,8 +166,11 @@ The implemented tie slices add:
 - parsed tie state on notes/chords;
 - segmenter conversion from tied note/chord continuations to hold tokens;
 - ineligibility handling for partial chord ties, mismatched tie continuations, and windows that start on a tie continuation.
+- Music21 export of held notes/chords as tied fragments split at barlines.
+- a model-agnostic hard constraint state for next-token generation masks.
 
 Remaining work:
 
-- export held notes/chords with MusicXML tie notation;
-- add the constrained sampler that uses the hold rules during generation.
+- integrate the generation constraint mask into a model sampling loop;
+- add soft logits controls for tie likelihood and other stylistic preferences;
+- add hard-mask extensions for maximum gap, density limits, shortest duration, dotted-note policy, and difficulty.

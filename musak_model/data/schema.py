@@ -4,7 +4,6 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from musak_model.common.validators import is_power_of_two
 from musak_model.tokens.schema import (
     MAX_ACCIDENTAL,
     MAX_DEGREE,
@@ -16,6 +15,7 @@ from musak_model.tokens.schema import (
     ScaleType,
     Token,
 )
+from musak_shared.common import is_power_of_two
 from musak_shared.elements import MIDI_MAX_PITCH, PITCHES_PER_OCTAVE
 
 
