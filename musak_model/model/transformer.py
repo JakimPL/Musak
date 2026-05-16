@@ -63,6 +63,12 @@ class CausalTransformerDecoder(nn.Module):
         # target_embeddings: (batch, target_seq, hidden) — token sequence being generated
         # memory_context:    (batch, memory_seq, hidden) — conditioning and completed-bar latents
         sequence_length = target_embeddings.size(1)
+        if sequence_length > self._config.max_sequence_length:
+            raise ValueError(
+                f"target sequence length {sequence_length} exceeds transformer max_sequence_length "
+                f"{self._config.max_sequence_length}"
+            )
+
         positional = self._position_embedding(sequence_length).to(device=target_embeddings.device)
         target = target_embeddings + positional
 

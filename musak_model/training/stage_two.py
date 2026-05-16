@@ -66,6 +66,7 @@ def train_stage_two(
         time_signature_vocabulary=time_signature_vocabulary,
         token_vocabulary=token_vocabulary,
         structural_control_vocabulary=structural_control_vocabulary,
+        max_sequence_length=resolved_model_config.transformer.max_sequence_length,
     )
     model = HierarchicalAutoregressiveModel(resolved_model_config)
     _LOGGER.info("Loading stage-one model weights from: %s", training_config.stage_one_checkpoint)

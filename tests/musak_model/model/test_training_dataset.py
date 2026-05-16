@@ -72,6 +72,21 @@ def test_dataset_skips_empty_samples(token_vocabulary: TokenVocabulary) -> None:
     assert len(dataset) == 0
 
 
+def test_dataset_skips_samples_longer_than_max_sequence_length(token_vocabulary: TokenVocabulary) -> None:
+    dataset = EncodedExerciseDataset(
+        [
+            _sample([1, 2, 3], [0, 0, 0]),
+            _sample([1, 2, 3, 4], [0, 0, 0, 0]),
+        ],
+        time_signature_vocabulary=_time_signature_vocabulary(),
+        token_vocabulary=token_vocabulary,
+        max_sequence_length=3,
+    )
+
+    assert len(dataset) == 1
+    assert dataset[0].target_token_ids.tolist() == [1, 2, 3]
+
+
 def test_dataset_rejects_mismatched_token_and_bar_position_lengths(token_vocabulary: TokenVocabulary) -> None:
     with pytest.raises(ValueError, match="bar_positions"):
         EncodedExerciseDataset(

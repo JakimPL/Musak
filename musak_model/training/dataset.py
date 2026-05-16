@@ -1,3 +1,4 @@
+import logging
 from dataclasses import dataclass
 from typing import Final, cast
 
@@ -17,6 +18,7 @@ from musak_model.training.ingestion.schema import EncodedExercise, IngestionSpli
 _PADDING_TOKEN_ID: Final[int] = 0
 _PADDING_BAR_POSITION: Final[int] = -1
 _START_BAR_POSITION: Final[int] = 0
+_LOGGER = logging.getLogger(__name__)
 
 type _TrainingDataLoader = DataLoader[TrainingBatch]
 
@@ -54,9 +56,20 @@ class EncodedExerciseDataset(Dataset[TrainingExample]):
         structural_control_vocabulary: StructuralControlVocabulary | None = None,
         include_conditioning: bool = True,
         include_structural_controls: bool = False,
+        max_sequence_length: int | None = None,
     ) -> None:
         if include_structural_controls and structural_control_vocabulary is None:
             raise ValueError("structural_control_vocabulary is required when include_structural_controls is true")
+
+        overlength_count = sum(
+            1 for sample in samples if max_sequence_length is not None and len(sample.token_ids) > max_sequence_length
+        )
+        if overlength_count > 0:
+            _LOGGER.warning(
+                "Skipping %s training samples longer than model max_sequence_length=%s",
+                overlength_count,
+                max_sequence_length,
+            )
 
         self._examples = [
             _to_training_example(
@@ -69,6 +82,7 @@ class EncodedExerciseDataset(Dataset[TrainingExample]):
             )
             for sample in samples
             if len(sample.token_ids) >= 1
+            and (max_sequence_length is None or len(sample.token_ids) <= max_sequence_length)
         ]
 
     def __len__(self) -> int:
@@ -89,6 +103,7 @@ def build_dataloaders(
     structural_control_vocabulary: StructuralControlVocabulary | None = None,
     include_conditioning: bool = True,
     include_structural_controls: bool = False,
+    max_sequence_length: int | None = None,
 ) -> tuple[DataLoader[TrainingBatch], DataLoader[TrainingBatch]]:
     train_dataset = EncodedExerciseDataset(
         split.train,
@@ -97,6 +112,7 @@ def build_dataloaders(
         time_signature_vocabulary=time_signature_vocabulary,
         token_vocabulary=token_vocabulary,
         structural_control_vocabulary=structural_control_vocabulary,
+        max_sequence_length=max_sequence_length,
     )
     validation_dataset = EncodedExerciseDataset(
         split.validation,
@@ -105,6 +121,7 @@ def build_dataloaders(
         time_signature_vocabulary=time_signature_vocabulary,
         token_vocabulary=token_vocabulary,
         structural_control_vocabulary=structural_control_vocabulary,
+        max_sequence_length=max_sequence_length,
     )
     train_loader = DataLoader(
         train_dataset,

@@ -249,6 +249,7 @@ def train_stage_one(
         time_signature_vocabulary=time_signature_vocabulary,
         token_vocabulary=vocabulary,
         structural_control_vocabulary=structural_control_vocabulary,
+        max_sequence_length=resolved_model_config.transformer.max_sequence_length,
     )
     model = HierarchicalAutoregressiveModel(resolved_model_config)
     tracker = build_training_tracker(training_config=training_config)

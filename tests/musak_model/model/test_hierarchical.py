@@ -195,6 +195,12 @@ class TestForwardValidation:
                 difficulty_values=(0, 0),
                 difficulty_ndim=2,
             ),
+            ValidationCase(
+                label="sequence_exceeds_transformer_max_length",
+                match="max_sequence_length",
+                token_seq_len=129,
+                bar_seq_len=129,
+            ),
         ],
         ids=lambda c: c.label,
     )
