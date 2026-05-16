@@ -2,7 +2,7 @@ from collections import defaultdict
 from fractions import Fraction
 from pathlib import Path
 
-from music21 import chord, note, stream
+from music21 import chord, note, stream, tie
 from music21.base import Music21Object
 from music21.meter.base import TimeSignature
 
@@ -42,19 +42,21 @@ def _part_from_events(events: list[PianoRollEvent], *, hand: Hand, segment: Segm
     part = stream.Part(id=hand.value)  # type: ignore[no-untyped-call]
     time_signature_text = format_ratio((segment.time_numerator, segment.time_denominator))
     part.insert(0, TimeSignature(time_signature_text))  # type: ignore[no-untyped-call]
+    measure_duration = Fraction(segment.time_numerator, segment.time_denominator)
     hand_events = [event for event in events if event.hand == hand]
     grouped = _group_events_by_start(hand_events)
 
     for start, onset_events in sorted(grouped.items(), key=lambda item: item[0]):
-        offset = _fraction_to_quarter_length(start)
-        duration = _fraction_to_quarter_length(max(event.duration for event in onset_events))
-        if len(onset_events) == 1:
-            element: Music21Object = note.Note(onset_events[0].midi_pitch)
-        else:
-            element = chord.Chord([event.midi_pitch for event in onset_events])
-
-        element.duration.quarterLength = duration
-        part.insert(offset, element)  # type: ignore[no-untyped-call]
+        onset_duration = max(event.duration for event in onset_events)
+        for fragment_start, fragment_duration, tie_type in _split_at_barlines(
+            start=start,
+            duration=onset_duration,
+            measure_duration=measure_duration,
+        ):
+            element = _element_from_onset_events(onset_events)
+            element.duration.quarterLength = _fraction_to_quarter_length(fragment_duration)
+            _apply_tie(element, tie_type)
+            part.insert(_fraction_to_quarter_length(fragment_start), element)  # type: ignore[no-untyped-call]
 
     return part
 
@@ -65,6 +67,64 @@ def _group_events_by_start(events: list[PianoRollEvent]) -> dict[Fraction, list[
         grouped[event.start].append(event)
 
     return dict(grouped)
+
+
+def _split_at_barlines(
+    *,
+    start: Fraction,
+    duration: Fraction,
+    measure_duration: Fraction,
+) -> list[tuple[Fraction, Fraction, str | None]]:
+    if measure_duration <= 0:
+        raise ValueError("measure_duration must be positive")
+
+    end = start + duration
+    cursor = start
+    fragments: list[tuple[Fraction, Fraction]] = []
+
+    while cursor < end:
+        next_barline = ((cursor // measure_duration) + 1) * measure_duration
+        fragment_end = min(end, next_barline)
+        fragments.append((cursor, fragment_end - cursor))
+        cursor = fragment_end
+
+    if len(fragments) == 1:
+        fragment_start, fragment_duration = fragments[0]
+        return [(fragment_start, fragment_duration, None)]
+
+    tied_fragments: list[tuple[Fraction, Fraction, str | None]] = []
+    last_index = len(fragments) - 1
+    for index, (fragment_start, fragment_duration) in enumerate(fragments):
+        if index == 0:
+            tie_type = "start"
+        elif index == last_index:
+            tie_type = "stop"
+        else:
+            tie_type = "continue"
+
+        tied_fragments.append((fragment_start, fragment_duration, tie_type))
+
+    return tied_fragments
+
+
+def _element_from_onset_events(onset_events: list[PianoRollEvent]) -> Music21Object:
+    if len(onset_events) == 1:
+        return note.Note(onset_events[0].midi_pitch)
+
+    return chord.Chord([event.midi_pitch for event in onset_events])
+
+
+def _apply_tie(element: Music21Object, tie_type: str | None) -> None:
+    if tie_type is None:
+        return
+
+    if isinstance(element, note.Note):
+        element.tie = tie.Tie(tie_type)  # type: ignore[no-untyped-call]
+        return
+
+    if isinstance(element, chord.Chord):
+        for chord_note in element.notes:
+            chord_note.tie = tie.Tie(tie_type)  # type: ignore[no-untyped-call]
 
 
 def _fraction_to_quarter_length(value: Fraction) -> Fraction:
