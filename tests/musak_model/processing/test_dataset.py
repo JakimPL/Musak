@@ -23,7 +23,7 @@ from musak_model.processing.snapshot import build_tokenizer_snapshot
 from musak_model.tokens.config import TokenizationConfig
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.vocabulary import TokenVocabulary
-from tests.data.fixtures import bar, note_event, parsed_score
+from tests.musak_model.data.fixtures import bar, note_event, parsed_score
 
 
 def _score():

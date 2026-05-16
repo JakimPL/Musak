@@ -3,12 +3,21 @@ from fractions import Fraction
 import pytest
 
 from musak_model.tokens.duration import DurationVocabulary
-from musak_model.tokens.schema import Hand, HandToken, JoinWithPreviousToken, NoteToken, StartToken
+from musak_model.tokens.schema import Hand, HandToken, HoldToken, JoinWithPreviousToken, NoteToken, StartToken
 from musak_model.tokens.vocabulary import TokenVocabulary
 
 
-def test_structural_tokens_roundtrip(token_vocabulary: TokenVocabulary) -> None:
-    tokens = [StartToken(), HandToken(hand=Hand.RIGHT), HandToken(hand=Hand.LEFT), JoinWithPreviousToken()]
+def test_structural_tokens_roundtrip(
+    duration_vocabulary: DurationVocabulary,
+    token_vocabulary: TokenVocabulary,
+) -> None:
+    tokens = [
+        StartToken(),
+        HandToken(hand=Hand.RIGHT),
+        HandToken(hand=Hand.LEFT),
+        JoinWithPreviousToken(),
+        HoldToken(duration_id=duration_vocabulary.fraction_to_id(Fraction(1, 4))),
+    ]
 
     token_ids = token_vocabulary.encode(tokens)
 
@@ -37,3 +46,14 @@ def test_rejects_token_id_outside_extended_vocabulary(token_vocabulary: TokenVoc
 def test_start_token_has_explicit_vocabulary_id(token_vocabulary: TokenVocabulary) -> None:
     assert token_vocabulary.token_to_id(StartToken()) == token_vocabulary.start_token_id
     assert token_vocabulary.id_to_token(token_vocabulary.start_token_id) == StartToken()
+
+
+def test_hold_token_ids_are_contiguous_after_rest_tokens(
+    duration_vocabulary: DurationVocabulary,
+    token_vocabulary: TokenVocabulary,
+) -> None:
+    quarter_id = duration_vocabulary.fraction_to_id(Fraction(1, 4))
+    hold_token_id = token_vocabulary.token_to_id(HoldToken(duration_id=quarter_id))
+
+    assert hold_token_id == token_vocabulary.first_hold_token_id + quarter_id
+    assert token_vocabulary.id_to_token(hold_token_id) == HoldToken(duration_id=quarter_id)

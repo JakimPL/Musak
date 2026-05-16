@@ -4,7 +4,7 @@ from musak_model.data.schema import ParsedBar, ParsedNote
 from musak_model.decoder.piano_roll import PianoRollEvent, parsed_score_to_piano_roll_events
 from musak_model.tokens.schema import Hand
 from musak_model.validation.roundtrip import compare_parsed_score_to_events, compare_parsed_scores
-from tests.data.fixtures import bar, chord_event, note_event, parsed_score
+from tests.musak_model.data.fixtures import bar, chord_event, note_event, parsed_score
 
 
 def test_compare_parsed_scores_reports_exact_match() -> None:

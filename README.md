@@ -34,6 +34,7 @@ Tokens are separated by spaces. The canonical grammar is:
 Hand:      R | L
 Note:      DEGREE ACCIDENTAL? OCTAVE? DURATION
 Rest:      r DURATION
+Hold:      h DURATION
 Join:      ~
 Start:     BOS
 Bar:       |
@@ -52,6 +53,8 @@ R 6♯↑1(1:4) 3(1:4) ~ L r(1:8) 1↓1(1:8) | ‖
 ```
 
 `6♯↑1(1:4)` means scale degree 6, raised by one semitone, octave offset +1, with duration 1/4. `~` joins the preceding token to the previous note onset, so `n` simultaneous notes are represented with `n - 1` join tokens in the unified stream. This can join notes across `R` and `L` when they share an onset; decoding keeps independent time cursors for each hand.
+
+`~` joins a note to the previous onset for chord representation. `h(NUM:DEN)` extends the active hand's previous same-hand note or chord by the given duration; it is used for tied/held continuations rather than new attacks.
 
 `BOS` is the learned beginning-of-sequence token. Encoded dataset artifacts store musical tokens only and end with `‖`; training prepends `BOS` to the model input so the first musical token is learned as `BOS -> first_token`. Generation should seed the model with the tokenizer vocabulary's `start_token_id`.
 

@@ -11,7 +11,7 @@ from musak_model.data.cleaning import (
     truncate_overlapping_events,
 )
 from musak_model.data.schema import ParsedChord, ParsedEvent, ParsedNote, ParsedRest
-from tests.data.fixtures import bar, chord_event, note_event, parsed_score, rest_event
+from tests.musak_model.data.fixtures import bar, chord_event, note_event, parsed_score, rest_event
 
 
 def _note_bar():

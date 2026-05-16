@@ -39,6 +39,7 @@ class SpecialTokenSnapshotField(StrEnum):
     RIGHT_HAND = "right_hand"
     LEFT_HAND = "left_hand"
     JOIN_WITH_PREVIOUS = "join_with_previous"
+    FIRST_HOLD = "first_hold"
 
 
 class TokenRangeSnapshotField(StrEnum):
@@ -90,6 +91,7 @@ def build_tokenizer_snapshot(
         SpecialTokenSnapshotField.RIGHT_HAND: token_vocabulary.right_hand_token_id,
         SpecialTokenSnapshotField.LEFT_HAND: token_vocabulary.left_hand_token_id,
         SpecialTokenSnapshotField.JOIN_WITH_PREVIOUS: token_vocabulary.join_with_previous_token_id,
+        SpecialTokenSnapshotField.FIRST_HOLD: token_vocabulary.first_hold_token_id,
     }
     token_ranges = {
         TokenRangeSnapshotField.MIN_DEGREE: MIN_DEGREE,

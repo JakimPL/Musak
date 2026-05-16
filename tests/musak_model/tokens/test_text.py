@@ -10,6 +10,7 @@ from musak_model.tokens.schema import (
     EndToken,
     Hand,
     HandToken,
+    HoldToken,
     JoinWithPreviousToken,
     NoteToken,
     RestToken,
@@ -49,6 +50,10 @@ def _rest(duration_vocabulary: DurationVocabulary, duration: Fraction) -> RestTo
     return RestToken(duration_id=_duration_id(duration_vocabulary, duration))
 
 
+def _hold(duration_vocabulary: DurationVocabulary, duration: Fraction) -> HoldToken:
+    return HoldToken(duration_id=_duration_id(duration_vocabulary, duration))
+
+
 def _canonical_sequence(duration_vocabulary: DurationVocabulary) -> list[Token]:
     return [
         HandToken(hand=Hand.RIGHT),
@@ -59,6 +64,8 @@ def _canonical_sequence(duration_vocabulary: DurationVocabulary) -> list[Token]:
         _rest(duration_vocabulary, Fraction(1, 8)),
         _note(duration_vocabulary, degree=1, octave_offset=-1, duration=Fraction(1, 8)),
         BarToken(),
+        HandToken(hand=Hand.RIGHT),
+        _hold(duration_vocabulary, Fraction(1, 4)),
         EndToken(),
     ]
 
@@ -143,6 +150,11 @@ class TestTokenTextDisplay:
             expected_text="r(3:8)",
         ),
         TokenDisplayCase(
+            name="hold duration",
+            token_factory=lambda vocabulary: _hold(vocabulary, Fraction(1, 4)),
+            expected_text="h(1:4)",
+        ),
+        TokenDisplayCase(
             name="tuplet duration note",
             token_factory=lambda vocabulary: _note(vocabulary, degree=5, duration=Fraction(1, 12)),
             expected_text="5(1:12)",
@@ -194,7 +206,7 @@ class TestTokenTextDumping:
     CASES = [
         TokenSequenceCase(
             name="mixed unified stream",
-            text="R 6♯↑1(1:4) 3(1:4) ~ L r(1:8) 1↓1(1:8) | ‖",
+            text="R 6♯↑1(1:4) 3(1:4) ~ L r(1:8) 1↓1(1:8) | R h(1:4) ‖",
             expected_factory=_canonical_sequence,
         ),
         TokenSequenceCase(
@@ -270,6 +282,11 @@ class TestTokenTextParsing:
             name="rest",
             text="r(3:8)",
             expected_factory=lambda vocabulary: _rest(vocabulary, Fraction(3, 8)),
+        ),
+        TokenParseCase(
+            name="hold",
+            text="h(1:4)",
+            expected_factory=lambda vocabulary: _hold(vocabulary, Fraction(1, 4)),
         ),
         TokenParseCase(
             name="right hand",

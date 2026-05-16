@@ -1,6 +1,16 @@
 from collections.abc import Sequence
 
-from musak_model.tokens.schema import BarToken, EndToken, Hand, HandToken, NoteToken, RestToken, StartToken, Token
+from musak_model.tokens.schema import (
+    BarToken,
+    EndToken,
+    Hand,
+    HandToken,
+    HoldToken,
+    NoteToken,
+    RestToken,
+    StartToken,
+    Token,
+)
 
 
 def tokens_for_hand(
@@ -21,7 +31,7 @@ def tokens_for_hand(
             selected_tokens.append(token)
             continue
 
-        if active_hand == hand and isinstance(token, (NoteToken, RestToken)):
+        if active_hand == hand and isinstance(token, (NoteToken, RestToken, HoldToken)):
             selected_tokens.append(token)
 
     return selected_tokens

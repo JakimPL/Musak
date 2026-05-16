@@ -9,6 +9,7 @@ from musak_model.tokens.schema import (
     EndToken,
     Hand,
     HandToken,
+    HoldToken,
     JoinWithPreviousToken,
     NoteToken,
     RestToken,
@@ -64,7 +65,7 @@ def _shift_token(
 
         return token.model_copy(update={"octave_offset": new_offset})
 
-    if isinstance(token, (RestToken, HandToken, JoinWithPreviousToken, BarToken, StartToken, EndToken)):
+    if isinstance(token, (RestToken, HoldToken, HandToken, JoinWithPreviousToken, BarToken, StartToken, EndToken)):
         return token
 
     raise ValueError(f"unexpected token type: {type(token)}")
@@ -119,7 +120,7 @@ def _remap_token_duration(
         )
         return token.model_copy(update={"duration_id": remapped_duration_id})
 
-    if isinstance(token, RestToken):
+    if isinstance(token, RestToken | HoldToken):
         remapped_duration_id = _remap_duration_id(
             token.duration_id,
             duration_vocabulary=duration_vocabulary,
@@ -174,7 +175,7 @@ def _raise_for_invalid_bar_timing(
         if isinstance(token, StartToken):
             continue
 
-        if isinstance(token, RestToken | NoteToken):
+        if isinstance(token, RestToken | NoteToken | HoldToken):
             cursors[active_hand] += duration_vocabulary.id_to_fraction(token.duration_id)
             continue
 

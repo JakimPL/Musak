@@ -12,6 +12,7 @@ from musak_model.tokens.schema import (
     EndToken,
     Hand,
     HandToken,
+    HoldToken,
     JoinWithPreviousToken,
     NoteToken,
     RestToken,
@@ -98,6 +99,7 @@ def tokens_to_piano_roll_events(
     active_hand = default_hand
     bar_index = 0
     cursors = {Hand.RIGHT: Fraction(0), Hand.LEFT: Fraction(0)}
+    last_attack_indices: dict[Hand, list[int]] = {Hand.RIGHT: [], Hand.LEFT: []}
     events: list[PianoRollEvent] = []
 
     for token_index, token in enumerate(tokens):
@@ -120,6 +122,17 @@ def tokens_to_piano_roll_events(
             cursors[active_hand] += duration_vocabulary.id_to_fraction(token.duration_id)
             continue
 
+        if isinstance(token, HoldToken):
+            duration = duration_vocabulary.id_to_fraction(token.duration_id)
+            _extend_last_attack(
+                events,
+                event_indices=last_attack_indices[active_hand],
+                duration=duration,
+                hand=active_hand,
+            )
+            cursors[active_hand] += duration
+            continue
+
         if isinstance(token, NoteToken):
             duration = duration_vocabulary.id_to_fraction(token.duration_id)
             event = PianoRollEvent(
@@ -132,6 +145,7 @@ def tokens_to_piano_roll_events(
             )
             events.append(event)
             cursors[active_hand] += duration
+            last_attack_indices[active_hand] = [len(events) - 1]
             continue
 
         if isinstance(token, JoinWithPreviousToken):
@@ -142,6 +156,11 @@ def tokens_to_piano_roll_events(
             joined_start = events[-2].start
             joined_event = previous_event.model_copy(update={"start": joined_start})
             events[-1] = joined_event
+            last_attack_indices[active_hand] = _same_onset_event_indices(
+                events,
+                hand=active_hand,
+                start=joined_start,
+            )
             cursors[active_hand] = max(
                 cursors[active_hand] - joined_event.duration,
                 joined_event.end - bar_index * measure_duration,
@@ -149,6 +168,28 @@ def tokens_to_piano_roll_events(
             continue
 
     return events
+
+
+def _extend_last_attack(
+    events: list[PianoRollEvent],
+    *,
+    event_indices: list[int],
+    duration: Fraction,
+    hand: Hand,
+) -> None:
+    if not event_indices:
+        raise ValueError(f"hold token needs a previous {hand.value} hand note or chord")
+
+    for event_index in event_indices:
+        event = events[event_index]
+        if event.hand != hand:
+            raise ValueError("hold token cannot extend a note from another hand")
+
+        events[event_index] = event.model_copy(update={"duration": event.duration + duration})
+
+
+def _same_onset_event_indices(events: list[PianoRollEvent], *, hand: Hand, start: Fraction) -> list[int]:
+    return [index for index, event in enumerate(events) if event.hand == hand and event.start == start]
 
 
 def _token_to_midi_pitch(

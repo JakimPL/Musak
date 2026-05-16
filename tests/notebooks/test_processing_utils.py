@@ -9,7 +9,7 @@ from notebooks.utils.processing import (
     parsed_score_manifest_diagnostics,
     process_score_safely,
 )
-from tests.data.fixtures import bar, note_event, parsed_score
+from tests.musak_model.data.fixtures import bar, note_event, parsed_score
 
 
 def _score():

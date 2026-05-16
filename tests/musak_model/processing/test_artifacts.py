@@ -11,7 +11,7 @@ from musak_model.tokens.schema import ScaleType
 from musak_model.tokens.vocabulary import TokenVocabulary
 from musak_model.training.ingestion.schema import EncodedExercise
 from musak_model.version import TOKENIZER_SCHEMA_VERSION
-from tests.data.fixtures import bar, note_event, parsed_score
+from tests.musak_model.data.fixtures import bar, note_event, parsed_score
 
 
 def test_source_and_segment_ids_are_stable_for_relative_source_path(tmp_path: Path) -> None:

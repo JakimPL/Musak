@@ -14,6 +14,7 @@ from musak_model.tokens.schema import (
     EndToken,
     Hand,
     HandToken,
+    HoldToken,
     JoinWithPreviousToken,
     NoteToken,
     RestToken,
@@ -37,7 +38,8 @@ class TokenVocabulary:
         self._duration_count = duration_vocabulary.vocabulary_size()
         self._note_count = _DEGREE_COUNT * _ACCIDENTAL_COUNT * _OCTAVE_OFFSET_COUNT * self._duration_count
         self._rest_count = self._duration_count
-        self._bar_token_id = self._note_count + self._rest_count
+        self._hold_count = self._duration_count
+        self._bar_token_id = self._note_count + self._rest_count + self._hold_count
         self._end_token_id = self._bar_token_id + 1
         self._right_hand_token_id = self._end_token_id + 1
         self._left_hand_token_id = self._right_hand_token_id + 1
@@ -70,6 +72,10 @@ class TokenVocabulary:
         return self._join_with_previous_token_id
 
     @property
+    def first_hold_token_id(self) -> int:
+        return self._note_count + self._rest_count
+
+    @property
     def start_token_id(self) -> int:
         return self._start_token_id
 
@@ -79,6 +85,9 @@ class TokenVocabulary:
 
         if isinstance(token, RestToken):
             return self._rest_token_to_id(token)
+
+        if isinstance(token, HoldToken):
+            return self._hold_token_to_id(token)
 
         if isinstance(token, BarToken):
             return self._bar_token_id
@@ -104,9 +113,14 @@ class TokenVocabulary:
         if token_id < self._note_count:
             return self._id_to_note_token(token_id)
 
-        if token_id < self._bar_token_id:
+        first_hold_token_id = self.first_hold_token_id
+        if token_id < first_hold_token_id:
             duration_id = token_id - self._note_count
             return RestToken(duration_id=duration_id)
+
+        if token_id < self._bar_token_id:
+            duration_id = token_id - first_hold_token_id
+            return HoldToken(duration_id=duration_id)
 
         if token_id == self._bar_token_id:
             return _BAR_TOKEN
@@ -155,6 +169,10 @@ class TokenVocabulary:
     def _rest_token_to_id(self, token: RestToken) -> int:
         _validate_duration_id(duration_id=token.duration_id, duration_count=self._duration_count)
         return self._note_count + token.duration_id
+
+    def _hold_token_to_id(self, token: HoldToken) -> int:
+        _validate_duration_id(duration_id=token.duration_id, duration_count=self._duration_count)
+        return self.first_hold_token_id + token.duration_id
 
     def _id_to_note_token(self, token_id: int) -> NoteToken:
         duration_id = token_id % self._duration_count

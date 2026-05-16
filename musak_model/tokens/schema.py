@@ -12,6 +12,7 @@ from musak_model.tokens.symbols import (
     DURATION_OPEN_SYMBOL,
     DURATION_SEPARATOR_SYMBOL,
     END_SYMBOL,
+    HOLD_SYMBOL,
     JOIN_WITH_PREVIOUS_SYMBOL,
     LEFT_HAND_SYMBOL,
     OCTAVE_DOWN_SYMBOL,
@@ -137,6 +138,22 @@ class RestToken(BaseModel):
         return repr(self)
 
 
+class HoldToken(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    kind: Literal["hold"] = "hold"
+    duration_id: int = Field(ge=MIN_DURATION_ID)
+
+    def to_text(self, *, duration_vocabulary: DurationVocabulary) -> str:
+        return f"{HOLD_SYMBOL}{_duration_text(self.duration_id, duration_vocabulary=duration_vocabulary)}"
+
+    def __repr__(self) -> str:
+        return f"{HOLD_SYMBOL}/d{self.duration_id}"
+
+    def __str__(self) -> str:
+        return repr(self)
+
+
 class HandToken(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -213,4 +230,4 @@ class EndToken(BaseModel):
         return repr(self)
 
 
-Token = NoteToken | RestToken | HandToken | JoinWithPreviousToken | BarToken | StartToken | EndToken
+Token = NoteToken | RestToken | HoldToken | HandToken | JoinWithPreviousToken | BarToken | StartToken | EndToken

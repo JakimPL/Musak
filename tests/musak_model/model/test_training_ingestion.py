@@ -12,7 +12,7 @@ from musak_model.tokens.schema import BarToken, EndToken, NoteToken, ScaleType, 
 from musak_model.tokens.vocabulary import TokenVocabulary
 from musak_model.training.ingestion.config import IngestionConfig
 from musak_model.training.ingestion.split import _build_bar_positions_from_tokens, _encode_segment, build_split
-from tests.data.fixtures import bar, note_event, parsed_score
+from tests.musak_model.data.fixtures import bar, note_event, parsed_score
 
 
 def _note(duration_vocabulary: DurationVocabulary) -> NoteToken:

@@ -14,6 +14,7 @@ from musak_model.tokens.schema import (
     EndToken,
     Hand,
     HandToken,
+    HoldToken,
     JoinWithPreviousToken,
     NoteToken,
     RestToken,
@@ -28,6 +29,7 @@ from musak_model.tokens.symbols import (
     DURATION_OPEN_SYMBOL,
     DURATION_SEPARATOR_SYMBOL,
     END_SYMBOL,
+    HOLD_SYMBOL,
     JOIN_WITH_PREVIOUS_SYMBOL,
     LEFT_HAND_SYMBOL,
     OCTAVE_DOWN_SYMBOL,
@@ -52,6 +54,7 @@ _NOTE_PATTERN: Final[re.Pattern[str]] = re.compile(
     rf"{_DURATION_PATTERN}$"
 )
 _REST_PATTERN: Final[re.Pattern[str]] = re.compile(rf"^{re.escape(REST_SYMBOL)}{_DURATION_PATTERN}$")
+_HOLD_PATTERN: Final[re.Pattern[str]] = re.compile(rf"^{re.escape(HOLD_SYMBOL)}{_DURATION_PATTERN}$")
 
 _ACCIDENTAL_VALUES: Final[dict[str, int]] = {
     "": 0,
@@ -129,6 +132,16 @@ def token_from_text(
         return RestToken(
             duration_id=_duration_id(
                 rest_match,
+                token_text,
+                duration_vocabulary=duration_vocabulary,
+            )
+        )
+
+    hold_match = _HOLD_PATTERN.fullmatch(token_text)
+    if hold_match is not None:
+        return HoldToken(
+            duration_id=_duration_id(
+                hold_match,
                 token_text,
                 duration_vocabulary=duration_vocabulary,
             )
