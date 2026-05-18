@@ -174,7 +174,7 @@ def _(
                     {exception}
                     ```
                     """),
-                kind="warn",
+                kind="danger",
             )
         else:
             setup_status = mo.callout(
@@ -200,7 +200,7 @@ def _(mo):
 
 @app.cell
 def _(GenerationRequest, ScaleType, loaded_model, mo, seed, set_generation_request):
-    mo.stop(loaded_model is None, mo.callout("Load a checkpoint before configuring generation.", kind="warn"))
+    mo.stop(loaded_model is None, mo.md(""))
 
     prompt_example = "R 1(1:4) 3(1:4) L r(1:2) |"
     pasted_tokens = mo.ui.text_area(
@@ -345,7 +345,6 @@ def _(
     request = generation_request()
     if request is None:
         output = None
-        generation_status = mo.callout("Adjust controls, then click Generate.", kind="warn")
     else:
         request_model = request.loaded_model
         if request.prompt_text.strip():
@@ -402,7 +401,7 @@ def _(
         with mo.status.progress_bar(
             total=request.max_new_tokens,
             title="Sampling model output...",
-            completion_title="Sampling complete",
+            remove_on_exit=True,
         ) as progress:
 
             def _update_sampling_progress(step, token, stop_reason):
@@ -445,9 +444,7 @@ def _(
             status_message=status_message,
             status_kind=status_kind,
         )
-        generation_status = mo.callout(status_message, kind=status_kind)
 
-    generation_status
     return (output,)
 
 
@@ -534,6 +531,15 @@ def _(
         )
 
     piano_roll_output
+    return
+
+
+@app.cell
+def _(mo, output):
+    generation_status_output = (
+        mo.md("") if output is None else mo.callout(output.status_message, kind=output.status_kind)
+    )
+    generation_status_output
     return
 
 

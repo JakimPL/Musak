@@ -96,9 +96,42 @@ def score_data_html(score_data: ScoreData, *, element_id: str = "model-output-no
     <html>
     <head>
       <style>
+        :root {{
+          color-scheme: light dark;
+        }}
+
+        html,
         body {{
+          background: transparent;
+          color: #111827;
           margin: 0;
           font-family: sans-serif;
+        }}
+
+        @media (prefers-color-scheme: dark) {{
+          body {{
+            color: #f9fafb;
+          }}
+        }}
+
+        #{escaped_id} {{
+          background: transparent;
+        }}
+
+        #{escaped_id} svg {{
+          background: transparent !important;
+          color: inherit;
+        }}
+
+        #{escaped_id} svg rect {{
+          fill: transparent !important;
+        }}
+
+        #{escaped_id} svg path,
+        #{escaped_id} svg line,
+        #{escaped_id} svg text {{
+          fill: currentColor !important;
+          stroke: currentColor !important;
         }}
       </style>
     </head>
