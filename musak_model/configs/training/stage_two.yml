@@ -1,13 +1,15 @@
 optimization:
   epochs: 5
-  batch_size: 8
+  batch_size: 16
   learning_rate: 1e-4
   weight_decay: 0.01
 runtime:
   num_workers: 0
   device: cuda
 conditioning:
-  use_conditioning: true
+  use_time_signature: true
+  use_scale_type: true
+  use_difficulty: false
   use_structural_conditioning: true
 checkpoints:
   checkpoint_dir: checkpoints/stage_two

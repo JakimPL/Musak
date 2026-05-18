@@ -23,18 +23,19 @@ from musak_model.training.dataset import TrainingBatch, build_dataloaders
 from musak_model.training.ingestion.config import IngestionConfig
 from musak_model.training.ingestion.schema import IngestionErrorRecord
 from musak_model.training.ingestion.split import build_split
+from musak_model.training.metrics import (
+    BatchMetrics,
+    EpochMetrics,
+    EpochSplitMetrics,
+    MetricsAccumulator,
+    batch_metrics_from_logits,
+    build_token_kind_ids,
+    module_gradient_norm_metrics,
+)
 from musak_model.training.progress import log_split_summary, progress
 from musak_model.training.tracking import NoOpTrainingTracker, TrainingTracker, build_training_tracker
 
 _LOGGER = logging.getLogger(__name__)
-
-
-class EpochMetrics(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-    epoch: int
-    train_loss: float
-    validation_loss: float | None
 
 
 class TrainingResult(BaseModel):
@@ -56,6 +57,7 @@ class StageOneTrainer:
         validation_loader: DataLoader[TrainingBatch],
         tracker: TrainingTracker | None = None,
         show_progress: bool = False,
+        token_kind_ids: Tensor | None = None,
     ) -> None:
         self._model = model
         self._config = config
@@ -70,6 +72,7 @@ class StageOneTrainer:
         self._model.to(self._device)
         self._tracker = tracker or NoOpTrainingTracker()
         self._show_progress = show_progress
+        self._token_kind_ids = token_kind_ids.to(self._device) if token_kind_ids is not None else None
 
     def train(self, *, invalid_files: list[IngestionErrorRecord] | None = None) -> TrainingResult:
         if len(self._train_loader) == 0:
@@ -95,17 +98,46 @@ class StageOneTrainer:
 
         for epoch in range(start_epoch, self._config.optimization.epochs):
             _LOGGER.info("Epoch %s/%s started", epoch + 1, self._config.optimization.epochs)
-            train_loss = self._train_epoch(epoch=epoch)
-            validation_loss = self._validate_epoch(epoch=epoch)
-            metric = EpochMetrics(epoch=epoch, train_loss=train_loss, validation_loss=validation_loss)
+            train_metrics = self._train_epoch(epoch=epoch)
+            validation_metrics = self._validate_epoch(epoch=epoch)
+            metric = EpochMetrics(
+                epoch=epoch,
+                train_loss=train_metrics.loss,
+                train_perplexity=train_metrics.perplexity,
+                train_token_accuracy=train_metrics.token_accuracy,
+                train_token_kind_accuracy=train_metrics.token_kind_accuracy,
+                train_cnn_gradient_norm=train_metrics.cnn_gradient_norm,
+                train_gru_gradient_norm=train_metrics.gru_gradient_norm,
+                train_transformer_gradient_norm=train_metrics.transformer_gradient_norm,
+                validation_loss=validation_metrics.loss if validation_metrics is not None else None,
+                validation_perplexity=validation_metrics.perplexity if validation_metrics is not None else None,
+                validation_token_accuracy=validation_metrics.token_accuracy if validation_metrics is not None else None,
+                validation_token_kind_accuracy=(
+                    validation_metrics.token_kind_accuracy if validation_metrics is not None else None
+                ),
+            )
             metrics.append(metric)
-            self._tracker.log_epoch(epoch=epoch, train_loss=train_loss, validation_loss=validation_loss)
+            self._tracker.log_epoch(metrics=metric)
             _LOGGER.info(
-                "Epoch %s/%s finished: train_loss=%.6f validation_loss=%s",
+                (
+                    "Epoch %s/%s finished: train_loss=%.6f train_perplexity=%.6f "
+                    "train_token_accuracy=%.6f train_token_kind_accuracy=%s train_cnn_gradient_norm=%s "
+                    "train_gru_gradient_norm=%s train_transformer_gradient_norm=%s validation_loss=%s "
+                    "validation_perplexity=%s validation_token_accuracy=%s validation_token_kind_accuracy=%s"
+                ),
                 epoch + 1,
                 self._config.optimization.epochs,
-                train_loss,
-                validation_loss,
+                metric.train_loss,
+                metric.train_perplexity,
+                metric.train_token_accuracy,
+                metric.train_token_kind_accuracy,
+                metric.train_cnn_gradient_norm,
+                metric.train_gru_gradient_norm,
+                metric.train_transformer_gradient_norm,
+                metric.validation_loss,
+                metric.validation_perplexity,
+                metric.validation_token_accuracy,
+                metric.validation_token_kind_accuracy,
             )
 
             save_checkpoint(
@@ -117,7 +149,7 @@ class StageOneTrainer:
             )
             _LOGGER.info("Saved latest checkpoint: %s", latest_checkpoint_path)
 
-            score = validation_loss if validation_loss is not None else train_loss
+            score = metric.validation_loss if metric.validation_loss is not None else metric.train_loss
             if best_validation_loss is None or score < best_validation_loss:
                 best_validation_loss = score
                 best_checkpoint_path = self._config.checkpoints.checkpoint_dir / "best.pt"
@@ -143,10 +175,9 @@ class StageOneTrainer:
         self._tracker.log_invalid_files(invalid_files=result.invalid_files)
         return result
 
-    def _train_epoch(self, *, epoch: int) -> float:
+    def _train_epoch(self, *, epoch: int) -> EpochSplitMetrics:
         self._model.train()
-        total_loss = 0.0
-        total_tokens = 0
+        accumulator = MetricsAccumulator()
 
         for batch in progress(
             self._train_loader,
@@ -157,21 +188,20 @@ class StageOneTrainer:
         ):
             batch = _move_batch_to_device(batch, device=self._device)
             self._optimizer.zero_grad(set_to_none=True)
-            loss, token_count = self._loss_for_batch(batch)
+            loss, batch_metrics = self._loss_for_batch(batch)
             loss.backward()  # type: ignore[no-untyped-call]
+            batch_metrics = batch_metrics.model_copy(update=module_gradient_norm_metrics(self._model))
             self._optimizer.step()
-            total_loss += float(loss.detach().item()) * token_count
-            total_tokens += token_count
+            accumulator.add(batch_metrics)
 
-        return total_loss / total_tokens
+        return accumulator.to_epoch_split_metrics()
 
-    def _validate_epoch(self, *, epoch: int) -> float | None:
+    def _validate_epoch(self, *, epoch: int) -> EpochSplitMetrics | None:
         if len(self._validation_loader) == 0:
             return None
 
         self._model.eval()
-        total_loss = 0.0
-        total_tokens = 0
+        accumulator = MetricsAccumulator()
         with torch.no_grad():
             for batch in progress(
                 self._validation_loader,
@@ -181,19 +211,18 @@ class StageOneTrainer:
                 total=len(self._validation_loader),
             ):
                 batch = _move_batch_to_device(batch, device=self._device)
-                loss, token_count = self._loss_for_batch(batch)
-                total_loss += float(loss.detach().item()) * token_count
-                total_tokens += token_count
+                _, batch_metrics = self._loss_for_batch(batch)
+                accumulator.add(batch_metrics)
 
-        return total_loss / total_tokens
+        return accumulator.to_epoch_split_metrics()
 
-    def _loss_for_batch(self, batch: TrainingBatch) -> tuple[Tensor, int]:
+    def _loss_for_batch(self, batch: TrainingBatch) -> tuple[Tensor, BatchMetrics]:
         logits = self._model(
             batch.input_token_ids,
             bar_positions=batch.bar_positions,
-            difficulty_ids=batch.difficulty_ids if self._config.conditioning.use_conditioning else None,
-            scale_type_ids=batch.scale_type_ids if self._config.conditioning.use_conditioning else None,
-            time_signature_ids=batch.time_signature_ids if self._config.conditioning.use_conditioning else None,
+            difficulty_ids=batch.difficulty_ids if self._config.conditioning.use_difficulty else None,
+            scale_type_ids=batch.scale_type_ids if self._config.conditioning.use_scale_type else None,
+            time_signature_ids=batch.time_signature_ids if self._config.conditioning.use_time_signature else None,
             structural_control_ids=(
                 batch.structural_control_ids if self._config.conditioning.use_structural_conditioning else None
             ),
@@ -205,11 +234,15 @@ class StageOneTrainer:
             reduction="none",
         )
         valid_mask = ~batch.token_padding_mask.reshape(-1)
-        token_count = int(valid_mask.sum().item())
-        if token_count == 0:
-            raise ValueError("batch has no valid target tokens")
-
-        return (flat_loss[valid_mask].sum() / token_count), token_count
+        loss = flat_loss[valid_mask].sum() / int(valid_mask.sum().item())
+        batch_metrics = batch_metrics_from_logits(
+            logits,
+            target_token_ids=batch.target_token_ids,
+            token_padding_mask=batch.token_padding_mask,
+            loss=loss,
+            token_kind_ids=self._token_kind_ids,
+        )
+        return loss, batch_metrics
 
 
 def train_stage_one(
@@ -246,7 +279,7 @@ def train_stage_one(
         batch_size=training_config.optimization.batch_size,
         shuffle_train=True,
         num_workers=training_config.runtime.num_workers,
-        include_conditioning=training_config.conditioning.use_conditioning,
+        conditioning=training_config.conditioning,
         include_structural_controls=training_config.conditioning.use_structural_conditioning,
         time_signature_vocabulary=time_signature_vocabulary,
         token_vocabulary=vocabulary,
@@ -268,6 +301,7 @@ def train_stage_one(
             validation_loader=validation_loader,
             tracker=tracker,
             show_progress=show_progress,
+            token_kind_ids=build_token_kind_ids(vocabulary),
         )
         return trainer.train(invalid_files=split.invalid_files)
 

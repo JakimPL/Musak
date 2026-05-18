@@ -10,7 +10,8 @@ from musak_model.data.schema import SegmentMetadata
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import Hand, HandToken, NoteToken, ScaleType
 from musak_model.tokens.vocabulary import TokenVocabulary
-from musak_model.training.conditioning import difficulty_level_to_id, time_signature_to_id
+from musak_model.training.conditioning import difficulty_level_to_id, scale_type_to_id, time_signature_to_id
+from musak_model.training.config import TrainingConditioningConfig
 from musak_model.training.dataset import EncodedExerciseDataset, collate_training_examples
 from musak_model.training.ingestion.schema import EncodedExercise
 
@@ -103,25 +104,59 @@ def test_dataset_skips_samples_with_unsupported_time_signature_when_conditioned(
         ],
         time_signature_vocabulary=_time_signature_vocabulary(),
         token_vocabulary=token_vocabulary,
-        include_conditioning=True,
+        conditioning=TrainingConditioningConfig(use_time_signature=True),
     )
 
     assert len(dataset) == 1
     assert dataset[0].target_token_ids.tolist() == [1, 2, 3]
 
 
-def test_dataset_keeps_unsupported_time_signature_when_conditioning_disabled(
+def test_dataset_keeps_unsupported_time_signature_when_time_signature_conditioning_disabled(
     token_vocabulary: TokenVocabulary,
 ) -> None:
     dataset = EncodedExerciseDataset(
         [_sample([1, 2, 3], [0, 0, 0], time_signature=(2, 1))],
         time_signature_vocabulary=_time_signature_vocabulary(),
         token_vocabulary=token_vocabulary,
-        include_conditioning=False,
+        conditioning=TrainingConditioningConfig(use_time_signature=False, use_scale_type=True),
     )
 
     assert len(dataset) == 1
     assert dataset[0].time_signature_id == 0
+    assert dataset[0].scale_type_id == scale_type_to_id(ScaleType.MAJOR)
+
+
+def test_dataset_builds_independent_metadata_conditioning_ids(token_vocabulary: TokenVocabulary) -> None:
+    dataset = EncodedExerciseDataset(
+        [_sample([1, 2, 3], [0, 0, 0], difficulty_level=3)],
+        time_signature_vocabulary=_time_signature_vocabulary(),
+        token_vocabulary=token_vocabulary,
+        conditioning=TrainingConditioningConfig(
+            use_time_signature=True,
+            use_scale_type=True,
+            use_difficulty=True,
+        ),
+    )
+
+    example = dataset[0]
+
+    assert example.difficulty_id == 3
+    assert example.scale_type_id == scale_type_to_id(ScaleType.MAJOR)
+    assert example.time_signature_id == time_signature_to_id((4, 4), vocabulary=_time_signature_vocabulary())
+
+
+def test_dataset_omits_difficulty_when_disabled(token_vocabulary: TokenVocabulary) -> None:
+    dataset = EncodedExerciseDataset(
+        [_sample([1, 2, 3], [0, 0, 0], difficulty_level=3)],
+        time_signature_vocabulary=_time_signature_vocabulary(),
+        token_vocabulary=token_vocabulary,
+        conditioning=TrainingConditioningConfig(use_time_signature=True, use_scale_type=True),
+    )
+
+    batch = collate_training_examples([dataset[0]])
+
+    assert dataset[0].difficulty_id is None
+    assert batch.difficulty_ids is None
 
 
 def test_dataset_rejects_mismatched_token_and_bar_position_lengths(token_vocabulary: TokenVocabulary) -> None:

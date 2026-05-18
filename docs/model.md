@@ -60,12 +60,17 @@ The model is hierarchical:
 - a causal Transformer decoder predicts next-token logits;
 - bar context is exposed as memory, with attention masked so future bars are hidden.
 
-Conditioning currently supports difficulty, scale type, and time signature IDs. These are summed into one prefix vector. `key_root` is not currently a model condition and should remain decode metadata for transposition control.
+Conditioning supports difficulty, scale type, and time signature IDs. Stage one is metadata-conditioned
+on scale type and time signature by default. Difficulty is supported but disabled by default until labels
+are reliable enough to train against. Enabled conditioning IDs are summed into one prefix vector.
+`key_root` is not currently a model condition and should remain decode metadata for transposition control.
 
 ## Stage Two Constrained Fine-Tuning
 
 Stage one remains the grammar/vocabulary pretraining phase. It uses the same autoregressive next-token
-objective and is not expected to be the final exercise generator by itself.
+objective and is not expected to be the final exercise generator by itself. It uses stable metadata
+conditioning for scale type and time signature so the model learns controllable meter and mode preferences
+from the start.
 
 Stage two is a separate fine-tuning phase. It loads a stage-one checkpoint into the same model shape,
 then trains on exercise-style data with conditioning enabled. Until a dedicated exercise-only dataset

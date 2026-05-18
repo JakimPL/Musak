@@ -18,6 +18,7 @@ from musak_model.training.config import (
     TrainingConfig,
 )
 from musak_model.training.ingestion.schema import EncodedExercise, IngestionErrorRecord, IngestionSplit
+from musak_model.training.metrics import EpochMetrics
 from musak_model.training.tracking import MlflowTrainingTracker, build_training_tracker
 
 
@@ -133,7 +134,22 @@ def test_mlflow_tracker_logs_setup_metrics_artifacts_and_invalid_files(
 
     with tracker:
         tracker.log_setup(training_config=_training_config(tmp_path), model_config=_model_config(), split=_split())
-        tracker.log_epoch(epoch=3, train_loss=1.25, validation_loss=1.5)
+        tracker.log_epoch(
+            metrics=EpochMetrics(
+                epoch=3,
+                train_loss=1.25,
+                train_perplexity=3.49,
+                train_token_accuracy=0.5,
+                train_token_kind_accuracy=0.75,
+                train_cnn_gradient_norm=0.1,
+                train_gru_gradient_norm=0.2,
+                train_transformer_gradient_norm=0.3,
+                validation_loss=1.5,
+                validation_perplexity=4.48,
+                validation_token_accuracy=0.4,
+                validation_token_kind_accuracy=0.6,
+            )
+        )
         tracker.log_checkpoints(latest_checkpoint_path=checkpoint, best_checkpoint_path=None)
         tracker.log_invalid_files(invalid_files=_split().invalid_files)
 
@@ -144,7 +160,16 @@ def test_mlflow_tracker_logs_setup_metrics_artifacts_and_invalid_files(
     assert fake_mlflow.params["training.optimization.epochs"] == 1
     assert fake_mlflow.params["data.train_samples"] == 1
     assert ("train_loss", 1.25, 3) in fake_mlflow.metrics
+    assert ("train_perplexity", 3.49, 3) in fake_mlflow.metrics
+    assert ("train_token_accuracy", 0.5, 3) in fake_mlflow.metrics
+    assert ("train_token_kind_accuracy", 0.75, 3) in fake_mlflow.metrics
+    assert ("train_cnn_gradient_norm", 0.1, 3) in fake_mlflow.metrics
+    assert ("train_gru_gradient_norm", 0.2, 3) in fake_mlflow.metrics
+    assert ("train_transformer_gradient_norm", 0.3, 3) in fake_mlflow.metrics
     assert ("validation_loss", 1.5, 3) in fake_mlflow.metrics
+    assert ("validation_perplexity", 4.48, 3) in fake_mlflow.metrics
+    assert ("validation_token_accuracy", 0.4, 3) in fake_mlflow.metrics
+    assert ("validation_token_kind_accuracy", 0.6, 3) in fake_mlflow.metrics
     assert fake_mlflow.artifacts == [(str(checkpoint), "checkpoints")]
     assert fake_mlflow.logged_dicts[0][1] == "invalid_files.json"
 

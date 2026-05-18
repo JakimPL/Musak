@@ -12,6 +12,7 @@ from musak_model.model.config import ModelConfig
 from musak_model.paths import DEFAULT_MLFLOW_DIR
 from musak_model.training.config import TrainingConfig
 from musak_model.training.ingestion.schema import IngestionErrorRecord, IngestionSplit
+from musak_model.training.metrics import EpochMetrics
 
 _MLFLOW_TRACKING_URI_ENV: Final[str] = "MLFLOW_TRACKING_URI"
 
@@ -34,7 +35,7 @@ class TrainingTracker(Protocol):
         split: IngestionSplit,
     ) -> None: ...
 
-    def log_epoch(self, *, epoch: int, train_loss: float, validation_loss: float | None) -> None: ...
+    def log_epoch(self, *, metrics: EpochMetrics) -> None: ...
 
     def log_checkpoints(self, *, latest_checkpoint_path: Path | None, best_checkpoint_path: Path | None) -> None: ...
 
@@ -65,9 +66,7 @@ class NoOpTrainingTracker:
     def log_epoch(
         self,
         *,
-        epoch: int,
-        train_loss: float,
-        validation_loss: float | None,
+        metrics: EpochMetrics,
     ) -> None:
         return None
 
@@ -140,13 +139,10 @@ class MlflowTrainingTracker:
     def log_epoch(
         self,
         *,
-        epoch: int,
-        train_loss: float,
-        validation_loss: float | None,
+        metrics: EpochMetrics,
     ) -> None:
-        self._mlflow.log_metric("train_loss", train_loss, step=epoch)
-        if validation_loss is not None:
-            self._mlflow.log_metric("validation_loss", validation_loss, step=epoch)
+        for name, value in _epoch_metric_values(metrics).items():
+            self._mlflow.log_metric(name, value, step=metrics.epoch)
 
     def log_checkpoints(
         self,
@@ -196,6 +192,10 @@ def _resolve_tracking_uri(
 
 def _serializable_dump(model: BaseModel) -> dict[str, object]:
     return model.model_dump(mode="json")
+
+
+def _epoch_metric_values(metrics: EpochMetrics) -> dict[str, float]:
+    return {key: value for key, value in metrics.model_dump().items() if key != "epoch" and isinstance(value, float)}
 
 
 def _flatten_params(values: dict[str, object]) -> dict[str, str | int | float | bool]:

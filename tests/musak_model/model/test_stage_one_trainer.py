@@ -17,6 +17,7 @@ from musak_model.tokens.vocabulary import TokenVocabulary
 from musak_model.training.config import CheckpointConfig, OptimizationConfig, RuntimeConfig, TrainingConfig
 from musak_model.training.dataset import EncodedExerciseDataset, TrainingBatch, collate_training_examples
 from musak_model.training.ingestion.schema import EncodedExercise, IngestionErrorRecord, IngestionSplit
+from musak_model.training.metrics import EpochMetrics
 from musak_model.training.trainer import StageOneTrainer
 
 HIDDEN_SIZE: Final[int] = 16
@@ -42,8 +43,8 @@ class FakeTracker:
     def log_setup(self, *, training_config: TrainingConfig, model_config: ModelConfig, split: IngestionSplit) -> None:
         return None
 
-    def log_epoch(self, *, epoch: int, train_loss: float, validation_loss: float | None) -> None:
-        self.epochs.append(epoch)
+    def log_epoch(self, *, metrics: EpochMetrics) -> None:
+        self.epochs.append(metrics.epoch)
 
     def log_checkpoints(self, *, latest_checkpoint_path: Path | None, best_checkpoint_path: Path | None) -> None:
         self.checkpoint_logged = True
@@ -132,7 +133,11 @@ def test_trainer_runs_one_epoch_and_writes_checkpoints(tmp_path: Path) -> None:
 
     assert len(result.metrics) == 1
     assert result.metrics[0].train_loss > 0
+    assert result.metrics[0].train_perplexity > 1
+    assert 0 <= result.metrics[0].train_token_accuracy <= 1
     assert result.metrics[0].validation_loss is not None
+    assert result.metrics[0].validation_perplexity is not None
+    assert result.metrics[0].validation_token_accuracy is not None
     assert (tmp_path / "latest.pt").exists()
     assert (tmp_path / "best.pt").exists()
 

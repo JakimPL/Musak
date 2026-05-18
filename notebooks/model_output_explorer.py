@@ -13,8 +13,6 @@ def _():
     import marimo as mo
     import torch
 
-    alt.data_transformers.disable_max_rows()
-
     from musak_model.generation.constraints import GenerationConstraints
     from musak_model.paths import DEFAULT_CHECKPOINT_DIR, DEFAULT_PROCESSED_ROOT, TOKENIZATION_CONFIG_PATH
     from musak_model.tokens.schema import ScaleType
@@ -40,16 +38,17 @@ def _():
         trace_rows,
     )
 
+    alt.data_transformers.disable_max_rows()
     return (
-        DEFAULT_PROCESSED_ROOT,
         DEFAULT_CHECKPOINT_DIR,
-        TOKENIZATION_CONFIG_PATH,
+        DEFAULT_PROCESSED_ROOT,
         Fraction,
         GenerationConstraints,
         Path,
         PitchSpelling,
         SamplingOptions,
         ScaleType,
+        TOKENIZATION_CONFIG_PATH,
         alt,
         empty_prompt,
         hand_controls,
@@ -62,25 +61,31 @@ def _():
         sample_autoregressive,
         sampling_result_to_segment,
         score_data_html,
-        selected_file,
         segment_decode_error,
         segment_event_count,
         segment_piano_roll_view_data,
         segment_to_score_data,
+        selected_file,
         token_rows,
-        torch,
         trace_rows,
     )
 
 
 @app.cell
 def _(mo):
-    mo.md("# Model Output Explorer")
+    mo.md("""
+    # Model Output Explorer
+    """)
     return
 
 
 @app.cell
-def _(DEFAULT_CHECKPOINT_DIR, DEFAULT_PROCESSED_ROOT, TOKENIZATION_CONFIG_PATH, mo):
+def _(
+    DEFAULT_CHECKPOINT_DIR,
+    DEFAULT_PROCESSED_ROOT,
+    TOKENIZATION_CONFIG_PATH,
+    mo,
+):
     checkpoint_browser = mo.ui.file_browser(
         initial_path=DEFAULT_CHECKPOINT_DIR if DEFAULT_CHECKPOINT_DIR.exists() else ".",
         filetypes=[".pt"],
@@ -111,7 +116,15 @@ def _(DEFAULT_CHECKPOINT_DIR, DEFAULT_PROCESSED_ROOT, TOKENIZATION_CONFIG_PATH, 
 
 
 @app.cell
-def _(checkpoint_browser, device, load_trained_model, mo, selected_file, tokenization_path, Path):
+def _(
+    Path,
+    checkpoint_browser,
+    device,
+    load_trained_model,
+    mo,
+    selected_file,
+    tokenization_path,
+):
     checkpoint_selection = selected_file(
         checkpoint_browser,
         supported_suffixes=frozenset({".pt"}),
@@ -139,7 +152,7 @@ def _(checkpoint_browser, device, load_trained_model, mo, selected_file, tokeniz
         )
 
     setup_status
-    return checkpoint_path, loaded_model
+    return (loaded_model,)
 
 
 @app.cell
@@ -159,7 +172,7 @@ def _(encoded_browser, load_encoded_shard, mo, selected_file):
         encoded_status = mo.callout(f"Loaded {len(encoded_shard.samples)} encoded sample(s).", kind="success")
 
     encoded_status
-    return encoded_shard, encoded_path
+    return (encoded_shard,)
 
 
 @app.cell
@@ -244,10 +257,13 @@ def _(ScaleType, encoded_shard, mo):
 @app.cell
 def _(
     Fraction,
+    GenerationConstraints,
+    SamplingOptions,
     ScaleType,
     allow_dotted,
     empty_prompt,
     encoded_shard,
+    generate_button,
     greedy,
     key_root,
     loaded_model,
@@ -264,8 +280,9 @@ def _(
     sample_autoregressive,
     sample_slider,
     sampling_result_to_segment,
-    segment_decode_error,
+    scale_type,
     seed,
+    segment_decode_error,
     target_bars,
     temperature,
     time_denominator,
@@ -273,9 +290,6 @@ def _(
     top_k,
     top_p,
     use_constraints,
-    generate_button,
-    GenerationConstraints,
-    SamplingOptions,
 ):
     if loaded_model is None:
         prompt = None
@@ -377,7 +391,7 @@ def _(
         )
 
     generation_status
-    return decoded_segment, decode_error, prompt, sampling_result
+    return decode_error, decoded_segment, sampling_result
 
 
 @app.cell
@@ -387,7 +401,16 @@ def _(hand_controls, mo):
 
 
 @app.cell
-def _(bpm, decoded_segment, decode_error, loaded_model, mo, notation_bars, score_data_html, segment_to_score_data):
+def _(
+    bpm,
+    decode_error,
+    decoded_segment,
+    loaded_model,
+    mo,
+    notation_bars,
+    score_data_html,
+    segment_to_score_data,
+):
     if decoded_segment is None or loaded_model is None:
         notation_output = mo.md("")
     elif decode_error is not None:
@@ -455,7 +478,16 @@ def _(
 
 
 @app.cell
-def _(decoded_segment, decode_error, loaded_model, mo, sampling_result, segment_event_count, token_rows, trace_rows):
+def _(
+    decode_error,
+    decoded_segment,
+    loaded_model,
+    mo,
+    sampling_result,
+    segment_event_count,
+    token_rows,
+    trace_rows,
+):
     if decoded_segment is None or loaded_model is None or sampling_result is None:
         debug_output = mo.md("")
     else:

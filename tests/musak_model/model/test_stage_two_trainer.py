@@ -111,7 +111,11 @@ def test_train_stage_two_loads_stage_one_checkpoint_and_runs_epoch(tmp_path: Pat
                 checkpoint_dir=tmp_path / "stage_two",
                 stage_one_checkpoint=stage_one_checkpoint,
             ),
-            conditioning=TrainingConditioningConfig(use_conditioning=True, use_structural_conditioning=True),
+            conditioning=TrainingConditioningConfig(
+                use_time_signature=True,
+                use_scale_type=True,
+                use_structural_conditioning=True,
+            ),
             mlflow=MlflowConfig(enable_mlflow=False),
         ),
         tokenization_config=_tokenization_config(),

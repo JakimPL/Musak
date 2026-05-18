@@ -56,3 +56,4 @@
 3. Model-specific behavior in `musak_model` should be tested under the matching `tests/musak_model` subpackage.
 4. When moving functionality between packages, move its direct unit tests in the same change.
 5. Parametrize test functions of the same body and use test case dataclass pattern.
+6. Prefer fixtures over factories.

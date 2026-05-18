@@ -19,6 +19,7 @@ from musak_model.training.config import StageTwoTrainingConfig
 from musak_model.training.dataset import build_dataloaders
 from musak_model.training.ingestion.config import IngestionConfig
 from musak_model.training.ingestion.split import build_split
+from musak_model.training.metrics import build_token_kind_ids
 from musak_model.training.progress import log_split_summary
 from musak_model.training.tracking import build_training_tracker
 from musak_model.training.trainer import StageOneTrainer, TrainingResult
@@ -61,7 +62,7 @@ def train_stage_two(
         batch_size=training_config.optimization.batch_size,
         shuffle_train=True,
         num_workers=training_config.runtime.num_workers,
-        include_conditioning=training_config.conditioning.use_conditioning,
+        conditioning=training_config.conditioning,
         include_structural_controls=training_config.conditioning.use_structural_conditioning,
         time_signature_vocabulary=time_signature_vocabulary,
         token_vocabulary=token_vocabulary,
@@ -91,6 +92,7 @@ def train_stage_two(
             validation_loader=validation_loader,
             tracker=tracker,
             show_progress=show_progress,
+            token_kind_ids=build_token_kind_ids(token_vocabulary),
         )
 
         return trainer.train(invalid_files=split.invalid_files)

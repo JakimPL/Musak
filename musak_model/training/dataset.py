@@ -13,6 +13,7 @@ from musak_model.conditioning.structural import (
 from musak_model.conditioning.time_signature import TimeSignatureVocabulary
 from musak_model.tokens.vocabulary import TokenVocabulary
 from musak_model.training.conditioning import difficulty_level_to_id, scale_type_to_id, time_signature_to_id
+from musak_model.training.config import TrainingConditioningConfig
 from musak_model.training.ingestion.schema import EncodedExercise, IngestionSplit
 
 _PADDING_TOKEN_ID: Final[int] = 0
@@ -54,7 +55,7 @@ class EncodedExerciseDataset(Dataset[TrainingExample]):
         time_signature_vocabulary: TimeSignatureVocabulary,
         token_vocabulary: TokenVocabulary,
         structural_control_vocabulary: StructuralControlVocabulary | None = None,
-        include_conditioning: bool = True,
+        conditioning: TrainingConditioningConfig = TrainingConditioningConfig(),
         include_structural_controls: bool = False,
         max_sequence_length: int | None = None,
     ) -> None:
@@ -74,7 +75,7 @@ class EncodedExerciseDataset(Dataset[TrainingExample]):
         unsupported_time_signature_count = sum(
             1
             for sample in samples
-            if include_conditioning
+            if conditioning.use_time_signature
             and len(sample.token_ids) >= 1
             and (max_sequence_length is None or len(sample.token_ids) <= max_sequence_length)
             and not time_signature_vocabulary.contains((sample.time_numerator, sample.time_denominator))
@@ -88,7 +89,7 @@ class EncodedExerciseDataset(Dataset[TrainingExample]):
         self._examples = [
             _to_training_example(
                 sample,
-                include_conditioning=include_conditioning,
+                conditioning=conditioning,
                 include_structural_controls=include_structural_controls,
                 time_signature_vocabulary=time_signature_vocabulary,
                 token_vocabulary=token_vocabulary,
@@ -98,7 +99,7 @@ class EncodedExerciseDataset(Dataset[TrainingExample]):
             if len(sample.token_ids) >= 1
             and (max_sequence_length is None or len(sample.token_ids) <= max_sequence_length)
             and (
-                not include_conditioning
+                not conditioning.use_time_signature
                 or time_signature_vocabulary.contains((sample.time_numerator, sample.time_denominator))
             )
         ]
@@ -119,13 +120,13 @@ def build_dataloaders(
     time_signature_vocabulary: TimeSignatureVocabulary,
     token_vocabulary: TokenVocabulary,
     structural_control_vocabulary: StructuralControlVocabulary | None = None,
-    include_conditioning: bool = True,
+    conditioning: TrainingConditioningConfig = TrainingConditioningConfig(),
     include_structural_controls: bool = False,
     max_sequence_length: int | None = None,
 ) -> tuple[DataLoader[TrainingBatch], DataLoader[TrainingBatch]]:
     train_dataset = EncodedExerciseDataset(
         split.train,
-        include_conditioning=include_conditioning,
+        conditioning=conditioning,
         include_structural_controls=include_structural_controls,
         time_signature_vocabulary=time_signature_vocabulary,
         token_vocabulary=token_vocabulary,
@@ -134,7 +135,7 @@ def build_dataloaders(
     )
     validation_dataset = EncodedExerciseDataset(
         split.validation,
-        include_conditioning=include_conditioning,
+        conditioning=conditioning,
         include_structural_controls=include_structural_controls,
         time_signature_vocabulary=time_signature_vocabulary,
         token_vocabulary=token_vocabulary,
@@ -155,7 +156,13 @@ def build_dataloaders(
         num_workers=num_workers,
         collate_fn=collate_training_examples,
     )
-    return cast(tuple[DataLoader[TrainingBatch], DataLoader[TrainingBatch]], (train_loader, validation_loader))
+    return cast(
+        tuple[DataLoader[TrainingBatch], DataLoader[TrainingBatch]],
+        (
+            train_loader,
+            validation_loader,
+        ),
+    )
 
 
 def collate_training_examples(examples: list[TrainingExample]) -> TrainingBatch:
@@ -200,7 +207,7 @@ def collate_training_examples(examples: list[TrainingExample]) -> TrainingBatch:
 def _to_training_example(
     sample: EncodedExercise,
     *,
-    include_conditioning: bool,
+    conditioning: TrainingConditioningConfig,
     include_structural_controls: bool,
     time_signature_vocabulary: TimeSignatureVocabulary,
     token_vocabulary: TokenVocabulary,
@@ -221,14 +228,14 @@ def _to_training_example(
         structural_control_vocabulary=structural_control_vocabulary,
         token_vocabulary=token_vocabulary,
     )
-    difficulty_id = difficulty_level_to_id(sample.difficulty_level) if include_conditioning else None
-    scale_type_id = scale_type_to_id(sample.scale_type) if include_conditioning else 0
+    difficulty_id = difficulty_level_to_id(sample.difficulty_level) if conditioning.use_difficulty else None
+    scale_type_id = scale_type_to_id(sample.scale_type) if conditioning.use_scale_type else 0
     time_signature_id = (
         time_signature_to_id(
             (sample.time_numerator, sample.time_denominator),
             vocabulary=time_signature_vocabulary,
         )
-        if include_conditioning
+        if conditioning.use_time_signature
         else 0
     )
     return TrainingExample(

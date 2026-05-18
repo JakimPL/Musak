@@ -27,7 +27,9 @@ class RuntimeConfig(BaseModel):
 class TrainingConditioningConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    use_conditioning: bool = False
+    use_time_signature: bool = False
+    use_scale_type: bool = False
+    use_difficulty: bool = False
     use_structural_conditioning: bool = False
 
 

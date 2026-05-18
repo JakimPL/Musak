@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import argparse
 import logging
+import shlex
+from collections.abc import Callable
 from enum import StrEnum
 from pathlib import Path
 
@@ -64,42 +66,196 @@ def run_training(stage: TrainingStage) -> None:
     match stage:
         case TrainingStage.STAGE_ONE:
             training_config = build_stage_one_training_config(args)
+            if should_skip_pretraining(args=args, training_config=training_config):
+                _LOGGER.info("Skipping pretraining because checkpoint files already exist.")
+                print("Skipping pretraining because checkpoint files already exist.")
+                return
+
             log_training_start(
                 stage,
                 args=args,
                 ingestion_config=ingestion_config,
                 training_config=training_config,
             )
-            result = train_stage_one(
-                source_directory,
-                ingestion_config=ingestion_config,
-                segmentation_config=segmentation_config,
+            result = run_training_safely(
+                lambda: train_stage_one(
+                    source_directory,
+                    ingestion_config=ingestion_config,
+                    segmentation_config=segmentation_config,
+                    training_config=training_config,
+                    tokenization_config=tokenization_config,
+                    conditioning_config_path=args.conditioning_config,
+                    show_progress=not args.no_progress,
+                    allow_raw_fallback=args.data_dir is not None,
+                ),
+                stage=stage,
+                args=args,
                 training_config=training_config,
-                tokenization_config=tokenization_config,
-                conditioning_config_path=args.conditioning_config,
-                show_progress=not args.no_progress,
-                allow_raw_fallback=args.data_dir is not None,
             )
         case TrainingStage.STAGE_TWO:
             training_config = build_stage_two_training_config(args)
+            validate_finetune_checkpoint(training_config)
             log_training_start(
                 stage,
                 args=args,
                 ingestion_config=ingestion_config,
                 training_config=training_config,
             )
-            result = train_stage_two(
-                source_directory,
-                ingestion_config=ingestion_config,
-                segmentation_config=segmentation_config,
+            result = run_training_safely(
+                lambda: train_stage_two(
+                    source_directory,
+                    ingestion_config=ingestion_config,
+                    segmentation_config=segmentation_config,
+                    training_config=training_config,
+                    tokenization_config=tokenization_config,
+                    conditioning_config_path=args.conditioning_config,
+                    show_progress=not args.no_progress,
+                    allow_raw_fallback=args.data_dir is not None,
+                ),
+                stage=stage,
+                args=args,
                 training_config=training_config,
-                tokenization_config=tokenization_config,
-                conditioning_config_path=args.conditioning_config,
-                show_progress=not args.no_progress,
-                allow_raw_fallback=args.data_dir is not None,
             )
 
     print_training_result(result)
+
+
+def should_skip_pretraining(*, args: argparse.Namespace, training_config: TrainingConfig) -> bool:
+    existing_checkpoints = existing_training_checkpoints(training_config)
+    if args.resume_checkpoint is not None or args.overwrite or not existing_checkpoints:
+        return False
+
+    checkpoint_list = ", ".join(str(path) for path in existing_checkpoints)
+    _LOGGER.warning("Pretraining checkpoint file(s) already exist: %s", checkpoint_list)
+    prompt = (
+        "Pretraining checkpoint file(s) already exist:\n"
+        f"{checkpoint_list}\n"
+        "Overwrite and run pretraining anyway? [y/N]: "
+    )
+    answer = input(prompt).strip().lower()
+    return answer not in {"y", "yes"}
+
+
+def existing_training_checkpoints(training_config: TrainingConfig) -> tuple[Path, ...]:
+    checkpoint_dir = training_config.checkpoints.checkpoint_dir
+    candidates = (checkpoint_dir / "latest.pt", checkpoint_dir / "best.pt")
+    return tuple(path for path in candidates if path.exists())
+
+
+def validate_finetune_checkpoint(training_config: StageTwoTrainingConfig) -> None:
+    checkpoint_path = training_config.checkpoints.stage_one_checkpoint
+    if not checkpoint_path.exists():
+        raise FileNotFoundError(f"Stage-one pretrain checkpoint does not exist: {checkpoint_path}")
+
+
+def run_training_safely(
+    train: Callable[[], TrainingResult],
+    *,
+    stage: TrainingStage,
+    args: argparse.Namespace,
+    training_config: TrainingConfig,
+) -> TrainingResult:
+    try:
+        return train()
+    except KeyboardInterrupt as exception:
+        handle_keyboard_interrupt(stage=stage, args=args, training_config=training_config)
+        raise SystemExit(130) from exception
+
+
+def handle_keyboard_interrupt(
+    *,
+    stage: TrainingStage,
+    args: argparse.Namespace,
+    training_config: TrainingConfig,
+) -> None:
+    latest_checkpoint_path = training_config.checkpoints.checkpoint_dir / "latest.pt"
+    _LOGGER.warning("%s training interrupted by KeyboardInterrupt", stage.value)
+    _LOGGER.warning("Checkpoint directory: %s", training_config.checkpoints.checkpoint_dir)
+    if not latest_checkpoint_path.exists():
+        _LOGGER.warning("No latest checkpoint exists yet; resume command is unavailable.")
+        print("Training interrupted. No latest checkpoint exists yet; resume command is unavailable.")
+        return
+
+    command = resume_command(
+        stage=stage, args=args, training_config=training_config, checkpoint_path=latest_checkpoint_path
+    )
+    _LOGGER.warning("Resume command: %s", command)
+    print("Training interrupted.")
+    print(f"Resume command:\n{command}")
+
+
+def resume_command(
+    *,
+    stage: TrainingStage,
+    args: argparse.Namespace,
+    training_config: TrainingConfig,
+    checkpoint_path: Path,
+) -> str:
+    command = ["uv", "run", "python", _executable(stage)]
+    command.extend(_optional_path_argument("--data-dir", args.data_dir))
+    command.extend(_optional_path_argument("--processed-dir", args.processed_dir))
+    command.extend(
+        [
+            "--ingestion-config",
+            str(args.ingestion_config),
+            "--segmentation-config",
+            str(args.segmentation_config),
+            "--tokenization-config",
+            str(args.tokenization_config),
+            "--conditioning-config",
+            str(args.conditioning_config),
+            "--training-config",
+            str(args.training_config),
+            "--checkpoint-dir",
+            str(training_config.checkpoints.checkpoint_dir),
+            "--resume-checkpoint",
+            str(checkpoint_path),
+            "--mlflow-dir",
+            str(args.mlflow_dir),
+            "--device",
+            training_config.runtime.device,
+            "--epochs",
+            str(training_config.optimization.epochs),
+            "--batch-size",
+            str(training_config.optimization.batch_size),
+            "--num-workers",
+            str(training_config.runtime.num_workers),
+            "--log-level",
+            args.log_level,
+        ]
+    )
+    command.extend(_optional_value_argument("--learning-rate", args.learning_rate))
+    command.extend(_optional_value_argument("--weight-decay", args.weight_decay))
+    command.extend(_optional_value_argument("--validation-fraction", args.validation_fraction))
+    command.extend(_optional_value_argument("--split-seed", args.split_seed))
+    command.extend(_optional_value_argument("--window-bars", args.window_bars))
+    command.extend(_optional_value_argument("--stride-bars", args.stride_bars))
+    command.extend(_optional_path_argument("--difficulty-labels", args.difficulty_labels))
+    command.extend(_optional_value_argument("--mlflow-experiment-name", args.mlflow_experiment_name))
+    command.extend(_optional_value_argument("--mlflow-run-name", args.mlflow_run_name))
+    if args.no_progress:
+        command.append("--no-progress")
+    if args.overwrite:
+        command.append("--overwrite")
+    if not training_config.mlflow.enable_mlflow:
+        command.append("--disable-mlflow")
+    if isinstance(training_config, StageTwoTrainingConfig):
+        command.extend(["--stage-one-checkpoint", str(training_config.checkpoints.stage_one_checkpoint)])
+    return shlex.join(command)
+
+
+def _optional_path_argument(name: str, value: Path | None) -> list[str]:
+    if value is None:
+        return []
+
+    return [name, str(value)]
+
+
+def _optional_value_argument(name: str, value: int | float | str | None) -> list[str]:
+    if value is None:
+        return []
+
+    return [name, str(value)]
 
 
 def parse_training_args(stage: TrainingStage) -> argparse.Namespace:
@@ -158,6 +314,7 @@ def add_common_training_arguments(parser: argparse.ArgumentParser, *, stage: Tra
             help="Stage-one checkpoint whose model weights initialize stage-two fine-tuning.",
         )
     parser.add_argument("--resume-checkpoint", type=Path, default=None, help="Checkpoint to resume from.")
+    parser.add_argument("--overwrite", action="store_true", help="Allow pretraining to overwrite existing checkpoints.")
     parser.add_argument("--mlflow-dir", type=Path, default=DEFAULT_MLFLOW_DIR, help="Local MLflow tracking directory.")
     parser.add_argument("--disable-mlflow", action="store_true", help="Disable MLflow tracking.")
     parser.add_argument("--mlflow-experiment-name", type=str, default=None, help="Override MLflow experiment name.")
@@ -179,12 +336,6 @@ def add_common_training_arguments(parser: argparse.ArgumentParser, *, stage: Tra
         default=None,
         help="Processed artifact directory for the same dataset, for example processed/PDMX.",
     )
-    if stage == TrainingStage.STAGE_ONE:
-        parser.add_argument(
-            "--use-conditioning",
-            action="store_true",
-            help="Enable conditioning inputs during training.",
-        )
     parser.add_argument(
         "--log-level",
         choices=("DEBUG", "INFO", "WARNING", "ERROR"),
@@ -242,16 +393,13 @@ def training_source_dir(args: argparse.Namespace) -> Path:
 
 def build_stage_one_training_config(args: argparse.Namespace) -> TrainingConfig:
     config = TrainingConfig.load(args.training_config)
-    updates = common_training_section_updates(
-        args,
-        config=config,
-        default_checkpoint_dir=DEFAULT_STAGE_ONE_CHECKPOINT_DIR,
+    return config.model_copy(
+        update=common_training_section_updates(
+            args,
+            config=config,
+            default_checkpoint_dir=DEFAULT_STAGE_ONE_CHECKPOINT_DIR,
+        )
     )
-    updates["conditioning"] = TrainingConditioningConfig(
-        use_conditioning=args.use_conditioning or config.conditioning.use_conditioning,
-        use_structural_conditioning=config.conditioning.use_structural_conditioning,
-    )
-    return config.model_copy(update=updates)
 
 
 def build_stage_two_training_config(args: argparse.Namespace) -> StageTwoTrainingConfig:
@@ -274,7 +422,6 @@ def build_stage_two_training_config(args: argparse.Namespace) -> StageTwoTrainin
             else config.checkpoints.stage_one_checkpoint
         ),
     )
-    updates["conditioning"] = TrainingConditioningConfig(use_conditioning=True, use_structural_conditioning=True)
     return config.model_copy(update=updates)
 
 
