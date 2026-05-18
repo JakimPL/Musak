@@ -92,6 +92,17 @@ def score_data_html(score_data: ScoreData, *, element_id: str = "model-output-no
     escaped_id = html.escape(element_id, quote=True)
     module_source = _NOTATION_JS_PATH.read_text(encoding="utf-8")
     return f"""
+    <!doctype html>
+    <html>
+    <head>
+      <style>
+        body {{
+          margin: 0;
+          font-family: sans-serif;
+        }}
+      </style>
+    </head>
+    <body>
     <div id="{escaped_id}" style="width: 100%; overflow-x: auto;">Loading notation...</div>
     <script type="module">
       const container = document.getElementById({json.dumps(element_id)});
@@ -106,6 +117,8 @@ def score_data_html(score_data: ScoreData, *, element_id: str = "model-output-no
         container.textContent = `Notation render failed: ${{error.message}}`;
       }}
     </script>
+    </body>
+    </html>
     """
 
 

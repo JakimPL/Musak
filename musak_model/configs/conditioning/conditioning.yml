@@ -8,6 +8,10 @@ structural:
     thresholds: ["1/16", "1/8", "1/4", "1/2"]
   max_notes_per_onset:
     thresholds: [1, 2, 3, 4]
+  max_notes_per_hand:
+    thresholds: [1, 2, 3, 4, 5]
+  max_onset_span_semitones:
+    thresholds: [4, 7, 12]
   max_melodic_gap_semitones:
     thresholds: [4, 7, 12]
   static_hand_span_degrees:

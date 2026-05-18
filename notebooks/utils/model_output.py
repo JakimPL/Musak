@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from fractions import Fraction
 from pathlib import Path
-from typing import Callable, Protocol, cast
+from typing import Callable, Literal, Protocol, cast
 
 import torch
 from torch import Tensor
@@ -114,6 +114,40 @@ class SamplingResult:
     @property
     def generated_token_count(self) -> int:
         return len(self.new_token_ids)
+
+
+@dataclass(frozen=True)
+class GeneratedOutput:
+    sampling_result: SamplingResult
+    decoded_segment: Segment
+    decode_error: str | None
+    duration_vocabulary: DurationVocabulary
+    status_message: str
+    status_kind: Literal["success", "warn"]
+
+
+@dataclass(frozen=True)
+class GenerationRequest:
+    loaded_model: LoadedModel
+    prompt_text: str
+    max_new_tokens: int
+    temperature: float
+    top_k: int | None
+    top_p: float | None
+    greedy: bool
+    seed: int
+    key_root: int
+    scale_type: str
+    time_numerator: int
+    time_denominator: int
+    target_bars: int
+    use_constraints: bool
+    minimum_duration: str
+    allow_dotted: bool
+    max_notes_per_hand: int | None
+    max_onset_span: int | None
+    max_gap: int | None
+    max_span: int | None
 
 
 def load_trained_model(

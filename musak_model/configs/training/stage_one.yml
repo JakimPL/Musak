@@ -10,7 +10,7 @@ conditioning:
   use_time_signature: true
   use_scale_type: true
   use_difficulty: false
-  use_structural_conditioning: false
+  use_structural_conditioning: true
 checkpoints:
   checkpoint_dir: checkpoints/stage_one
   resume_checkpoint: null

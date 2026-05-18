@@ -209,7 +209,7 @@ def test_dataset_builds_structural_control_ids_when_enabled(
         structural_control_vocabulary=StructuralControlVocabulary(ConditioningConfig.load().structural),
     )
 
-    assert dataset[0].structural_control_ids.numel() == 5
+    assert dataset[0].structural_control_ids.numel() == 7
     assert dataset[0].structural_control_ids.tolist()[1] == 1
 
 

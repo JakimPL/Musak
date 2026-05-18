@@ -23,6 +23,8 @@ class StructuralControlName(StrEnum):
     SHORTEST_NOTE_DURATION = "shortest_note_duration"
     HAS_DOTTED_NOTES = "has_dotted_notes"
     MAX_NOTES_PER_ONSET = "max_notes_per_onset"
+    MAX_NOTES_PER_HAND = "max_notes_per_hand"
+    MAX_ONSET_SPAN_SEMITONES = "max_onset_span_semitones"
     MAX_MELODIC_GAP_SEMITONES = "max_melodic_gap_semitones"
     STATIC_HAND_SPAN_DEGREES = "static_hand_span_degrees"
 
@@ -31,6 +33,8 @@ STRUCTURAL_CONTROL_ORDER: Final[tuple[StructuralControlName, ...]] = (
     StructuralControlName.SHORTEST_NOTE_DURATION,
     StructuralControlName.HAS_DOTTED_NOTES,
     StructuralControlName.MAX_NOTES_PER_ONSET,
+    StructuralControlName.MAX_NOTES_PER_HAND,
+    StructuralControlName.MAX_ONSET_SPAN_SEMITONES,
     StructuralControlName.MAX_MELODIC_GAP_SEMITONES,
     StructuralControlName.STATIC_HAND_SPAN_DEGREES,
 )
@@ -80,6 +84,8 @@ class StructuralConditioningConfig(BaseModel):
 
     shortest_note_duration: FractionBucketConfig = FractionBucketConfig(thresholds=("1/16", "1/8", "1/4", "1/2", "1/1"))
     max_notes_per_onset: IntegerBucketConfig = IntegerBucketConfig(thresholds=(1, 2, 3, 4))
+    max_notes_per_hand: IntegerBucketConfig = IntegerBucketConfig(thresholds=(1, 2, 3, 4, 5))
+    max_onset_span_semitones: IntegerBucketConfig = IntegerBucketConfig(thresholds=(3, 7, 12))
     max_melodic_gap_semitones: IntegerBucketConfig = IntegerBucketConfig(thresholds=(2, 4, 7, 12))
     static_hand_span_degrees: IntegerBucketConfig = IntegerBucketConfig(thresholds=(1, 3, 5, 7, 14))
 
@@ -88,10 +94,12 @@ class StructuralControlFeatures(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     shortest_note_duration: Fraction | None
-    has_dotted_notes: bool
-    max_notes_per_onset: int
-    max_melodic_gap_semitones: int
-    static_hand_span_degrees: int
+    has_dotted_notes: bool | None
+    max_notes_per_onset: int | None
+    max_notes_per_hand: int | None
+    max_onset_span_semitones: int | None
+    max_melodic_gap_semitones: int | None
+    static_hand_span_degrees: int | None
 
 
 class StructuralControlVocabulary:
@@ -110,6 +118,10 @@ class StructuralControlVocabulary:
                 return BOOLEAN_CONTROL_VOCABULARY_SIZE
             case StructuralControlName.MAX_NOTES_PER_ONSET:
                 return _bucket_size(self._config.max_notes_per_onset.thresholds)
+            case StructuralControlName.MAX_NOTES_PER_HAND:
+                return _bucket_size(self._config.max_notes_per_hand.thresholds)
+            case StructuralControlName.MAX_ONSET_SPAN_SEMITONES:
+                return _bucket_size(self._config.max_onset_span_semitones.thresholds)
             case StructuralControlName.MAX_MELODIC_GAP_SEMITONES:
                 return _bucket_size(self._config.max_melodic_gap_semitones.thresholds)
             case StructuralControlName.STATIC_HAND_SPAN_DEGREES:
@@ -121,8 +133,10 @@ class StructuralControlVocabulary:
 
         return (
             _fraction_bucket_id(features.shortest_note_duration, self._config.shortest_note_duration.parsed_thresholds),
-            TRUE_CONTROL_ID if features.has_dotted_notes else FALSE_CONTROL_ID,
+            _boolean_control_id(features.has_dotted_notes),
             _integer_bucket_id(features.max_notes_per_onset, self._config.max_notes_per_onset.thresholds),
+            _integer_bucket_id(features.max_notes_per_hand, self._config.max_notes_per_hand.thresholds),
+            _integer_bucket_id(features.max_onset_span_semitones, self._config.max_onset_span_semitones.thresholds),
             _integer_bucket_id(features.max_melodic_gap_semitones, self._config.max_melodic_gap_semitones.thresholds),
             _integer_bucket_id(features.static_hand_span_degrees, self._config.static_hand_span_degrees.thresholds),
         )
@@ -165,6 +179,7 @@ class _FeatureState(BaseModel):
     shortest_note_duration: Fraction | None = None
     has_dotted_notes: bool = False
     max_notes_per_onset: int = 0
+    max_onset_span_semitones: int = 0
     max_melodic_gap_semitones: int = 0
     right_static_positions: tuple[int, ...] = ()
     left_static_positions: tuple[int, ...] = ()
@@ -206,10 +221,12 @@ class _FeatureState(BaseModel):
             shortest_note_duration=self.shortest_note_duration,
             has_dotted_notes=self.has_dotted_notes,
             max_notes_per_onset=self.max_notes_per_onset,
+            max_notes_per_hand=self.max_notes_per_onset,
+            max_onset_span_semitones=self.max_onset_span_semitones,
             max_melodic_gap_semitones=self.max_melodic_gap_semitones,
             static_hand_span_degrees=max(
-                _span(self.right_static_positions),
-                _span(self.left_static_positions),
+                _inclusive_span(self.right_static_positions),
+                _inclusive_span(self.left_static_positions),
             ),
         )
 
@@ -224,20 +241,30 @@ class _FeatureState(BaseModel):
         match hand:
             case Hand.RIGHT:
                 count = self.right_current_onset_count + 1
+                current_pitches = (*self.right_last_onset_pitches, midi_pitch)
                 return self.model_copy(
                     update={
                         "right_current_onset_count": count,
-                        "right_last_onset_pitches": (*self.right_last_onset_pitches, midi_pitch),
+                        "right_last_onset_pitches": current_pitches,
                         "max_notes_per_onset": max(self.max_notes_per_onset, count),
+                        "max_onset_span_semitones": max(
+                            self.max_onset_span_semitones,
+                            _distance_span(current_pitches),
+                        ),
                     }
                 )
             case Hand.LEFT:
                 count = self.left_current_onset_count + 1
+                current_pitches = (*self.left_last_onset_pitches, midi_pitch)
                 return self.model_copy(
                     update={
                         "left_current_onset_count": count,
-                        "left_last_onset_pitches": (*self.left_last_onset_pitches, midi_pitch),
+                        "left_last_onset_pitches": current_pitches,
                         "max_notes_per_onset": max(self.max_notes_per_onset, count),
+                        "max_onset_span_semitones": max(
+                            self.max_onset_span_semitones,
+                            _distance_span(current_pitches),
+                        ),
                     }
                 )
 
@@ -283,11 +310,18 @@ def _melodic_gap(midi_pitch: int, previous_onset_pitches: tuple[int, ...]) -> in
     return min(abs(midi_pitch - previous_pitch) for previous_pitch in previous_onset_pitches)
 
 
-def _span(values: tuple[int, ...]) -> int:
+def _inclusive_span(values: tuple[int, ...]) -> int:
     if len(values) < 2:
         return 0
 
     return max(values) - min(values) + 1
+
+
+def _distance_span(values: tuple[int, ...]) -> int:
+    if len(values) < 2:
+        return 0
+
+    return max(values) - min(values)
 
 
 def _bucket_size(thresholds: tuple[object, ...]) -> int:
@@ -303,6 +337,13 @@ def _integer_bucket_id(value: int | None, thresholds: tuple[int, ...]) -> int:
             return index
 
     return len(thresholds) + 1
+
+
+def _boolean_control_id(value: bool | None) -> int:
+    if value is None:
+        return UNKNOWN_CONTROL_ID
+
+    return TRUE_CONTROL_ID if value else FALSE_CONTROL_ID
 
 
 def _fraction_bucket_id(value: Fraction | None, thresholds: tuple[Fraction, ...]) -> int:

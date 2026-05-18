@@ -55,6 +55,8 @@ def test_extract_structural_control_features_from_tokens(duration_vocabulary: Du
     assert features.shortest_note_duration == Fraction(1, 8)
     assert features.has_dotted_notes is True
     assert features.max_notes_per_onset == 2
+    assert features.max_notes_per_hand == 2
+    assert features.max_onset_span_semitones == 4
     assert features.max_melodic_gap_semitones == 3
     assert features.static_hand_span_degrees == 5
 
@@ -64,6 +66,8 @@ def test_structural_control_vocabulary_maps_features_to_bucket_ids() -> None:
         StructuralConditioningConfig(
             shortest_note_duration=FractionBucketConfig(thresholds=("1/8", "1/4")),
             max_notes_per_onset=IntegerBucketConfig(thresholds=(1, 2)),
+            max_notes_per_hand=IntegerBucketConfig(thresholds=(1, 2, 5)),
+            max_onset_span_semitones=IntegerBucketConfig(thresholds=(4, 12)),
             max_melodic_gap_semitones=IntegerBucketConfig(thresholds=(2, 7)),
             static_hand_span_degrees=IntegerBucketConfig(thresholds=(3, 5)),
         )
@@ -72,18 +76,20 @@ def test_structural_control_vocabulary_maps_features_to_bucket_ids() -> None:
         shortest_note_duration=Fraction(1, 8),
         has_dotted_notes=True,
         max_notes_per_onset=3,
+        max_notes_per_hand=5,
+        max_onset_span_semitones=12,
         max_melodic_gap_semitones=7,
         static_hand_span_degrees=5,
     )
 
-    assert vocabulary.features_to_ids(features) == (1, TRUE_CONTROL_ID, 3, 2, 2)
-    assert vocabulary.vocabulary_sizes == (4, 3, 4, 4, 4)
+    assert vocabulary.features_to_ids(features) == (1, TRUE_CONTROL_ID, 3, 3, 2, 2, 2)
+    assert vocabulary.vocabulary_sizes == (4, 3, 4, 5, 4, 4, 4)
 
 
 def test_structural_control_vocabulary_maps_missing_features_to_unknown() -> None:
     vocabulary = StructuralControlVocabulary(StructuralConditioningConfig())
 
-    assert vocabulary.features_to_ids(None) == (UNKNOWN_CONTROL_ID,) * 5
+    assert vocabulary.features_to_ids(None) == (UNKNOWN_CONTROL_ID,) * 7
 
 
 def test_structural_control_config_rejects_unsorted_thresholds() -> None:

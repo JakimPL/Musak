@@ -21,7 +21,7 @@ def test_training_config_loads_nested_stage_one_config() -> None:
     assert config.conditioning.use_time_signature
     assert config.conditioning.use_scale_type
     assert not config.conditioning.use_difficulty
-    assert not config.conditioning.use_structural_conditioning
+    assert config.conditioning.use_structural_conditioning
     assert config.mlflow.mlflow_experiment_name == "musak-stage-one"
 
 

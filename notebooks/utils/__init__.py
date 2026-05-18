@@ -7,6 +7,8 @@ from notebooks.utils.encoded import (
 from notebooks.utils.file_browser import FileSelection, selected_file, selected_musicxml_file
 from notebooks.utils.model_notation import UnsupportedNotationDurationError, score_data_html, segment_to_score_data
 from notebooks.utils.model_output import (
+    GeneratedOutput,
+    GenerationRequest,
     LoadedModel,
     PromptData,
     SampleTraceRow,
@@ -71,6 +73,8 @@ __all__ = [
     "SampleTraceRow",
     "SamplingOptions",
     "SamplingResult",
+    "GeneratedOutput",
+    "GenerationRequest",
     "LoadedModel",
     "EncodedShard",
     "UnsupportedNotationDurationError",

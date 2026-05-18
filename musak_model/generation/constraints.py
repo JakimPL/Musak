@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from fractions import Fraction
-from typing import Collection, Sequence
+from typing import Collection, Final, Sequence
 
 import torch
 from torch import Tensor
@@ -25,6 +25,8 @@ from musak_model.tokens.schema import (
 from musak_model.tokens.vocabulary import TokenVocabulary
 from musak_shared.elements import is_dotted_duration
 
+MAX_NOTES_PER_HAND: Final[int] = 5
+
 
 class GenerationConstraintError(ValueError):
     """Raised when a generated prefix violates hard generation constraints."""
@@ -38,6 +40,8 @@ class GenerationConstraints:
     minimum_duration: Fraction | None = None
     allow_dotted_durations: bool = True
     max_notes_per_onset_per_hand: int | None = None
+    max_notes_per_hand: int | None = None
+    maximum_onset_span_semitones: int | None = None
     maximum_pitch_gap_semitones: int | None = None
     maximum_static_hand_span_degrees: int | None = None
     key_root: int | None = None
@@ -155,12 +159,16 @@ class GenerationConstraintState:
         can_join = join_target is not None
         midi_pitch = self._note_midi_pitch(token)
         exceeds_pitch_gap = self._exceeds_pitch_gap(midi_pitch)
+        exceeds_onset_span = self._exceeds_onset_span(join_target, midi_pitch)
         static_position = note_token_to_static_hand_position(token)
         if duration > remaining and not can_join:
             raise GenerationConstraintError("note duration exceeds remaining active-hand measure time")
 
         if exceeds_pitch_gap and not can_join:
             raise GenerationConstraintError("note exceeds maximum same-hand pitch gap")
+
+        if exceeds_onset_span:
+            raise GenerationConstraintError("note exceeds maximum same-hand onset span")
 
         if self._exceeds_static_hand_span(static_position):
             raise GenerationConstraintError("note exceeds maximum static hand span")
@@ -238,6 +246,9 @@ class GenerationConstraintState:
         if not self._can_add_note_to_onset(pending.target):
             raise GenerationConstraintError("maximum notes per same-hand onset exceeded")
 
+        if self._exceeds_onset_span(pending.target, pending.midi_pitch):
+            raise GenerationConstraintError("note exceeds maximum same-hand onset span")
+
         joined_cursor = max(pending.cursor_before_note, pending.target.start + pending.duration)
         state = self.with_cursor(self.active_hand, joined_cursor)
         state = state.with_last_attack_end(self.active_hand, pending.target.start + pending.duration)
@@ -281,11 +292,14 @@ class GenerationConstraintState:
         return duration
 
     def _note_midi_pitch(self, token: NoteToken) -> int | None:
-        if self.constraints.maximum_pitch_gap_semitones is None:
+        if (
+            self.constraints.maximum_pitch_gap_semitones is None
+            and self.constraints.maximum_onset_span_semitones is None
+        ):
             return None
 
         if self.constraints.key_root is None or self.constraints.scale_type is None:
-            raise GenerationConstraintError("maximum pitch gap requires key_root and scale_type constraints")
+            raise GenerationConstraintError("requires key_root and scale_type constraints for pitch-aware controls")
 
         return note_token_to_midi_pitch(
             token,
@@ -301,6 +315,13 @@ class GenerationConstraintState:
             return False
 
         return min(abs(midi_pitch - previous_pitch) for previous_pitch in previous_onset.midi_pitches) > maximum
+
+    def _exceeds_onset_span(self, join_target: _OnsetState | None, midi_pitch: int | None) -> bool:
+        maximum = self.constraints.maximum_onset_span_semitones
+        if maximum is None or join_target is None or midi_pitch is None:
+            return False
+
+        return _pitch_span((*join_target.midi_pitches, midi_pitch)) > maximum
 
     def _exceeds_static_hand_span(self, static_position: int) -> bool:
         maximum = self.constraints.maximum_static_hand_span_degrees
@@ -331,8 +352,13 @@ class GenerationConstraintState:
         return target
 
     def _can_add_note_to_onset(self, onset: _OnsetState) -> bool:
-        maximum = self.constraints.max_notes_per_onset_per_hand
-        return maximum is None or onset.note_count < maximum
+        requested_maximums = (
+            self.constraints.max_notes_per_onset_per_hand,
+            self.constraints.max_notes_per_hand,
+        )
+        active_maximums = tuple(maximum for maximum in requested_maximums if maximum is not None)
+        maximum = min((*active_maximums, MAX_NOTES_PER_HAND))
+        return onset.note_count < maximum
 
     def _raise_if_complete_bar_count(self, *, token_name: str) -> None:
         if self.bar_index >= self.constraints.bar_count:
@@ -452,6 +478,13 @@ def _append_optional_pitch(midi_pitches: tuple[int, ...], midi_pitch: int | None
         return midi_pitches
 
     return (*midi_pitches, midi_pitch)
+
+
+def _pitch_span(midi_pitches: tuple[int, ...]) -> int:
+    if len(midi_pitches) < 2:
+        return 0
+
+    return max(midi_pitches) - min(midi_pitches)
 
 
 def _static_span(positions: tuple[int, ...]) -> int:

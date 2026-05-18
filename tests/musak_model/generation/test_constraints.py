@@ -324,6 +324,57 @@ class TestAllowedNextTokenIds:
         assert token_vocabulary.token_to_id(inside_position) in allowed
         assert token_vocabulary.token_to_id(outside_position) not in allowed
 
+    def test_disallows_same_hand_onset_span_above_octave(
+        self,
+        duration_vocabulary: DurationVocabulary,
+        token_vocabulary: TokenVocabulary,
+    ) -> None:
+        quarter_id = duration_vocabulary.fraction_to_id(Fraction(1, 4))
+        prefix = _ids([_note(quarter_id)], token_vocabulary=token_vocabulary)
+        octave_note = NoteToken(degree=1, accidental=0, octave_offset=1, duration_id=quarter_id)
+        ninth_note = NoteToken(degree=2, accidental=0, octave_offset=1, duration_id=quarter_id)
+
+        allowed = allowed_next_token_ids(
+            prefix,
+            constraints=_constraints(
+                maximum_onset_span_semitones=12,
+                key_root=0,
+                scale_type=ScaleType.MAJOR,
+            ),
+            token_vocabulary=token_vocabulary,
+            duration_vocabulary=duration_vocabulary,
+        )
+
+        assert token_vocabulary.token_to_id(octave_note) in allowed
+        assert token_vocabulary.token_to_id(ninth_note) not in allowed
+
+    def test_disallows_more_than_five_notes_per_hand_onset(
+        self,
+        duration_vocabulary: DurationVocabulary,
+        token_vocabulary: TokenVocabulary,
+    ) -> None:
+        whole_id = duration_vocabulary.fraction_to_id(Fraction(1, 1))
+        five_note_chord_prefix = [
+            _note(whole_id),
+            _note(whole_id),
+            JoinWithPreviousToken(),
+            _note(whole_id),
+            JoinWithPreviousToken(),
+            _note(whole_id),
+            JoinWithPreviousToken(),
+            _note(whole_id),
+            JoinWithPreviousToken(),
+        ]
+
+        allowed = allowed_next_token_ids(
+            _ids(five_note_chord_prefix, token_vocabulary=token_vocabulary),
+            constraints=_constraints(),
+            token_vocabulary=token_vocabulary,
+            duration_vocabulary=duration_vocabulary,
+        )
+
+        assert token_vocabulary.token_to_id(_note(whole_id)) not in allowed
+
 
 class TestGenerationConstraintState:
     def test_join_restores_cursor_after_bar_ending_chord_note(

@@ -60,9 +60,10 @@ The model is hierarchical:
 - a causal Transformer decoder predicts next-token logits;
 - bar context is exposed as memory, with attention masked so future bars are hidden.
 
-Conditioning supports difficulty, scale type, and time signature IDs. Stage one is metadata-conditioned
-on scale type and time signature by default. Difficulty is supported but disabled by default until labels
-are reliable enough to train against. Enabled conditioning IDs are summed into one prefix vector.
+Conditioning supports difficulty, scale type, time signature IDs, and structural control IDs. Stage one is
+metadata-conditioned on scale type, time signature, and structural controls by default. Difficulty is supported
+but disabled by default until labels are reliable enough to train against. Enabled conditioning IDs are summed
+into one prefix vector.
 `key_root` is not currently a model condition and should remain decode metadata for transposition control.
 
 ## Stage Two Constrained Fine-Tuning
@@ -89,6 +90,8 @@ Pilot structural controls:
 - shortest note duration;
 - dotted-note presence;
 - maximum notes per same-hand onset;
+- maximum notes per same-hand onset under one hand, exposed as a per-hand chord-size control;
+- maximum same-hand onset span in semitones;
 - maximum same-hand melodic gap;
 - static hand placement span;
 - scale type, time signature, and bar count from metadata.
@@ -111,7 +114,9 @@ The generation request should include:
 - `bar_count`
 - later controls such as maximum notes per hand, difficulty, and additional style preferences.
 
-Ordinary notes and rests should fit within the remaining duration of the active hand's current bar. Cross-bar sound should not be modeled by overflowing note durations. Instead, the generator should split the sound at the barline and emit `HoldToken` at the start of the continuation span.
+Ordinary notes and rests should fit within the remaining duration of the active hand's current bar. Cross-bar
+sound should not be modeled by overflowing note durations. Instead, the generator should split the sound at the
+barline and emit `HoldToken` at the start of the continuation span.
 
 The decoder state should track:
 
@@ -129,7 +134,10 @@ The sampler should mask invalid tokens:
 - `HoldToken` durations that exceed the current bar;
 - `BarToken` before both hands exactly fill the current measure;
 - `EndToken` before the requested number of complete bars;
-- future controls such as too-short durations, disallowed dotted durations, excessive gaps, or too many same-hand notes.
+- same-hand chord notes that would create more than five simultaneous notes for one hand;
+- same-hand chord notes that would span more than an octave when onset-span control is active;
+- future controls such as too-short durations, disallowed dotted durations, excessive gaps, or too many
+  same-hand notes.
 
 Tie probability should be controlled by logits penalties or sampling bias, not by removing tie support.
 
@@ -159,15 +167,18 @@ the next token to be `JoinWithPreviousToken`. This keeps chord voicings distinct
 
 ## Tie and Hold Rules
 
-`HoldToken(duration_id)` means: extend the active hand's previous same-hand note or chord by the specified duration. It advances only the active hand cursor and creates no new attack.
+`HoldToken(duration_id)` means: extend the active hand's previous same-hand note or chord by the specified
+duration. It advances only the active hand cursor and creates no new attack.
 
-The parser preserves MusicXML note/chord tie state. The segmenter converts matching same-hand tied continuations into hold tokens:
+The parser preserves MusicXML note/chord tie state. The segmenter converts matching same-hand tied
+continuations into hold tokens:
 
 - `start` tie events remain normal note/chord attacks and open a same-hand tie state;
 - `continue` tie events become `HoldToken` and keep the tie state open;
 - `stop` tie events become `HoldToken` and close the tie state;
 - partial chord ties and mismatched continuation pitch sets are marked ineligible for training.
-- segment windows that start on a tie continuation are marked ineligible, because the hold would not have a preceding attack inside the training sample.
+- segment windows that start on a tie continuation are marked ineligible, because the hold would not have a
+  preceding attack inside the training sample.
 
 Valid examples:
 
@@ -201,13 +212,15 @@ No previous right-hand attack exists.
 
 The implemented tie slices add:
 
-- `HoldToken` to the tokenizer, text representation, vocabulary, tokenizer snapshot, duration remapping helpers, and piano-roll decoding;
+- `HoldToken` to the tokenizer, text representation, vocabulary, tokenizer snapshot, duration remapping helpers,
+  and piano-roll decoding;
 - parsed tie state on notes/chords;
 - segmenter conversion from tied note/chord continuations to hold tokens;
-- ineligibility handling for partial chord ties, mismatched tie continuations, and windows that start on a tie continuation.
+- ineligibility handling for partial chord ties, mismatched tie continuations, and windows that start on a tie
+  continuation.
 - Music21 export of held notes/chords as tied fragments split at barlines.
 - a model-agnostic hard constraint state for next-token generation masks.
-- hard controls for shortest duration, dotted-duration policy, chord size, and maximum melodic gap.
+- hard controls for shortest duration, dotted-duration policy, chord size, onset span, and maximum melodic gap.
 - stage-two structural control extraction, bucketed conditioning IDs, and fine-tuning entrypoint.
 
 Remaining work:

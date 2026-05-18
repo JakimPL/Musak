@@ -36,6 +36,7 @@
 2. Handle errors at the execution boundary when possible.
 3. Do not add `try`/`except` blocks that only repackage failures without recovery.
 4. Bare `except` and `except Exception` are forbidden.
+5. Error handling blocks should cover only the code that is subject to a failure, unless there is a valid reason.
 
 ## Models
 

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import marimo
 
 __generated_with = "0.23.6"
@@ -7,24 +9,25 @@ app = marimo.App(width="wide", app_title="Model Output Explorer")
 @app.cell
 def _():
     from fractions import Fraction
-    from pathlib import Path
 
     import altair as alt
     import marimo as mo
     import torch
 
+    from musak_model.conditioning.structural import StructuralControlFeatures
     from musak_model.generation.constraints import GenerationConstraints
-    from musak_model.paths import DEFAULT_CHECKPOINT_DIR, DEFAULT_PROCESSED_ROOT, TOKENIZATION_CONFIG_PATH
+    from musak_model.paths import DEFAULT_CHECKPOINT_DIR, TOKENIZATION_CONFIG_PATH
     from musak_model.tokens.schema import ScaleType
     from notebooks.utils import (
+        GeneratedOutput,
+        GenerationRequest,
+        LoadedModel,
         PitchSpelling,
         SamplingOptions,
         empty_prompt,
         hand_controls,
-        load_encoded_shard,
         load_trained_model,
         piano_roll_player_panel,
-        prompt_from_encoded_sample,
         prompt_from_text,
         sample_autoregressive,
         sampling_result_to_segment,
@@ -41,22 +44,21 @@ def _():
     alt.data_transformers.disable_max_rows()
     return (
         DEFAULT_CHECKPOINT_DIR,
-        DEFAULT_PROCESSED_ROOT,
         Fraction,
+        GeneratedOutput,
+        GenerationRequest,
         GenerationConstraints,
-        Path,
         PitchSpelling,
         SamplingOptions,
         ScaleType,
+        StructuralControlFeatures,
         TOKENIZATION_CONFIG_PATH,
         alt,
         empty_prompt,
         hand_controls,
-        load_encoded_shard,
         load_trained_model,
         mo,
         piano_roll_player_panel,
-        prompt_from_encoded_sample,
         prompt_from_text,
         sample_autoregressive,
         sampling_result_to_segment,
@@ -82,7 +84,6 @@ def _(mo):
 @app.cell
 def _(
     DEFAULT_CHECKPOINT_DIR,
-    DEFAULT_PROCESSED_ROOT,
     TOKENIZATION_CONFIG_PATH,
     mo,
 ):
@@ -93,103 +94,131 @@ def _(
         multiple=False,
         label="Checkpoint",
     )
-    encoded_browser = mo.ui.file_browser(
-        initial_path=DEFAULT_PROCESSED_ROOT,
-        filetypes=[".jsonl"],
+    tokenization_browser = mo.ui.file_browser(
+        initial_path=TOKENIZATION_CONFIG_PATH.parent,
+        filetypes=[".yml", ".yaml"],
         selection_mode="file",
         multiple=False,
-        label="Encoded shard",
+        label="Tokenization config",
     )
-    tokenization_path = mo.ui.text(value=str(TOKENIZATION_CONFIG_PATH), label="Tokenization config")
     device = mo.ui.dropdown(options=["cpu", "cuda"], value="cpu", label="Device")
     seed = mo.ui.number(start=0, stop=2**31 - 1, step=1, value=1234, label="Seed")
     setup_output = mo.vstack(
         [
             mo.md("## Setup"),
-            mo.hstack([checkpoint_browser, encoded_browser], gap=2),
-            mo.hstack([tokenization_path, device, seed], gap=2),
+            mo.hstack([checkpoint_browser, tokenization_browser], gap=2, align="end", widths="equal"),
+            mo.hstack([device, seed], gap=2, align="end"),
         ],
         gap=2,
     )
     setup_output
-    return checkpoint_browser, device, encoded_browser, seed, tokenization_path
+    return checkpoint_browser, device, seed, tokenization_browser
 
 
 @app.cell
 def _(
-    Path,
+    TOKENIZATION_CONFIG_PATH,
     checkpoint_browser,
     device,
     load_trained_model,
     mo,
     selected_file,
-    tokenization_path,
+    tokenization_browser,
 ):
     checkpoint_selection = selected_file(
         checkpoint_browser,
         supported_suffixes=frozenset({".pt"}),
         description="checkpoint",
     )
+    tokenization_selection = selected_file(
+        tokenization_browser,
+        supported_suffixes=frozenset({".yaml", ".yml"}),
+        description="tokenization config",
+    )
+    if tokenization_selection.path is None and tokenization_browser.value:
+        tokenization_config_path = None
+        tokenization_status = tokenization_selection.message
+    else:
+        tokenization_config_path = tokenization_selection.path or TOKENIZATION_CONFIG_PATH
+        tokenization_status = (
+            f"tokenization={tokenization_config_path.name}"
+            if tokenization_selection.path is not None
+            else f"tokenization={tokenization_config_path.name} (default)"
+        )
+
     checkpoint_path = checkpoint_selection.path
-    if checkpoint_path is None:
+    if tokenization_config_path is None:
+        loaded_model = None
+        setup_status = mo.callout(tokenization_status, kind="warn")
+    elif checkpoint_path is None:
         loaded_model = None
         setup_status = mo.callout(checkpoint_selection.message or "Select a checkpoint to load a model.", kind="warn")
     else:
-        with mo.status.spinner(title="Loading model checkpoint..."):
-            loaded_model = load_trained_model(
-                checkpoint_path,
-                device=device.value,
-                tokenization_config_path=Path(tokenization_path.value),
+        try:
+            with mo.status.spinner(title="Loading model checkpoint..."):
+                loaded_model = load_trained_model(
+                    checkpoint_path,
+                    device=device.value,
+                    tokenization_config_path=tokenization_config_path,
+                )
+        except RuntimeError as exception:
+            if "Error(s) in loading state_dict" not in str(exception):
+                raise
+
+            loaded_model = None
+            setup_status = mo.callout(
+                mo.md(f"""
+                    Checkpoint is incompatible with the current model configuration.
+
+                    ```text
+                    {exception}
+                    ```
+                    """),
+                kind="warn",
             )
-        setup_status = mo.callout(
-            (
-                f"Loaded `{checkpoint_path.name}` | "
-                f"vocab={loaded_model.token_vocabulary.vocabulary_size} | "
-                f"max_seq={loaded_model.config.transformer.max_sequence_length} | "
-                f"epoch={loaded_model.checkpoint_epoch}"
-            ),
-            kind="success",
-        )
+        else:
+            setup_status = mo.callout(
+                (
+                    f"Loaded `{checkpoint_path.name}` | "
+                    f"{tokenization_status} | "
+                    f"vocab={loaded_model.token_vocabulary.vocabulary_size} | "
+                    f"max_seq={loaded_model.config.transformer.max_sequence_length} | "
+                    f"epoch={loaded_model.checkpoint_epoch}"
+                ),
+                kind="success",
+            )
 
     setup_status
     return (loaded_model,)
 
 
 @app.cell
-def _(encoded_browser, load_encoded_shard, mo, selected_file):
-    encoded_selection = selected_file(
-        encoded_browser,
-        supported_suffixes=frozenset({".jsonl"}),
-        description="encoded shard",
-    )
-    encoded_path = encoded_selection.path
-    if encoded_path is None:
-        encoded_shard = None
-        encoded_status = mo.callout(encoded_selection.message, kind="warn") if encoded_selection.message else mo.md("")
-    else:
-        with mo.status.spinner(title="Loading encoded shard..."):
-            encoded_shard = load_encoded_shard(encoded_path)
-        encoded_status = mo.callout(f"Loaded {len(encoded_shard.samples)} encoded sample(s).", kind="success")
-
-    encoded_status
-    return (encoded_shard,)
+def _(mo):
+    generation_request, set_generation_request = mo.state(None)
+    return generation_request, set_generation_request
 
 
 @app.cell
-def _(ScaleType, encoded_shard, mo):
-    prompt_source = mo.ui.radio(
-        options={"Empty": "empty", "Encoded sample": "encoded", "Pasted token text": "text"},
-        value="Empty",
-        inline=True,
-        label="Prompt source",
+def _(GenerationRequest, ScaleType, loaded_model, mo, seed, set_generation_request):
+    mo.stop(loaded_model is None, mo.callout("Load a checkpoint before configuring generation.", kind="warn"))
+
+    prompt_example = "R 1(1:4) 3(1:4) L r(1:2) |"
+    pasted_tokens = mo.ui.text_area(
+        value="",
+        placeholder=prompt_example,
+        label="Token text",
+        rows=4,
+        full_width=True,
     )
-    sample_slider = (
-        mo.ui.slider(start=0, stop=len(encoded_shard.samples) - 1, step=1, value=0, label="Sample")
-        if encoded_shard is not None and encoded_shard.samples
-        else None
+    max_sequence_length = loaded_model.config.transformer.max_sequence_length
+    max_new_tokens = mo.ui.slider(
+        start=1,
+        stop=max_sequence_length,
+        step=1,
+        value=min(128, max_sequence_length),
+        label="Max new tokens",
+        show_value=True,
     )
-    pasted_tokens = mo.ui.text_area(value="", label="Token text")
-    max_new_tokens = mo.ui.slider(start=1, stop=512, step=1, value=128, label="Max new tokens")
     temperature = mo.ui.slider(start=0.1, stop=2.0, step=0.05, value=1.0, label="Temperature")
     top_k = mo.ui.number(start=0, stop=512, step=1, value=0, label="Top-k (0 disables)")
     top_p = mo.ui.slider(start=0.05, stop=1.0, step=0.05, value=1.0, label="Top-p")
@@ -210,147 +239,168 @@ def _(ScaleType, encoded_shard, mo):
         label="Shortest duration",
     )
     allow_dotted = mo.ui.checkbox(value=True, label="Allow dotted notes")
-    max_notes_per_onset = mo.ui.number(start=0, stop=8, step=1, value=0, label="Max notes per onset (0 disables)")
+    max_notes_per_hand = mo.ui.number(start=0, stop=5, step=1, value=5, label="Max notes per hand (0 disables)")
+    max_onset_span = mo.ui.number(start=0, stop=12, step=1, value=12, label="Max onset span (semitones)")
     max_gap = mo.ui.number(start=0, stop=36, step=1, value=0, label="Max melodic gap (0 disables)")
     max_span = mo.ui.number(start=0, stop=21, step=1, value=0, label="Static hand span (0 disables)")
-    generate_button = mo.ui.run_button(label="Generate")
+
+    def _capture_generation_request(_):
+        set_generation_request(
+            GenerationRequest(
+                loaded_model=loaded_model,
+                prompt_text=pasted_tokens.value,
+                max_new_tokens=int(max_new_tokens.value),
+                temperature=float(temperature.value),
+                top_k=int(top_k.value) or None,
+                top_p=float(top_p.value) if float(top_p.value) < 1.0 else None,
+                greedy=greedy.value,
+                seed=int(seed.value),
+                key_root=int(key_root.value),
+                scale_type=scale_type.value,
+                time_numerator=int(time_numerator.value),
+                time_denominator=int(time_denominator.value),
+                target_bars=int(target_bars.value),
+                use_constraints=use_constraints.value,
+                minimum_duration=minimum_duration.value,
+                allow_dotted=allow_dotted.value,
+                max_notes_per_hand=int(max_notes_per_hand.value) or None,
+                max_onset_span=int(max_onset_span.value) or None,
+                max_gap=int(max_gap.value) or None,
+                max_span=int(max_span.value) or None,
+            )
+        )
+
+    generate_button = mo.ui.run_button(label="Generate", on_change=_capture_generation_request)
+    prompt_controls = mo.vstack([mo.md("### Prompt"), pasted_tokens], gap=1)
+    sampling_controls = mo.vstack(
+        [
+            mo.md("### Sampling"),
+            mo.hstack([max_new_tokens, temperature, top_k, top_p, greedy], gap=2, align="end", wrap=True),
+        ],
+        gap=1,
+    )
+    musical_controls = mo.vstack(
+        [
+            mo.md("### Musical Context"),
+            mo.hstack(
+                [key_root, scale_type, time_numerator, time_denominator, target_bars],
+                gap=2,
+                align="end",
+                wrap=True,
+            ),
+        ],
+        gap=1,
+    )
+    playback_controls = mo.vstack(
+        [
+            mo.md("### Playback and Display"),
+            mo.hstack([bpm, notation_bars], gap=2, align="end"),
+        ],
+        gap=1,
+    )
+    constraint_controls = mo.vstack(
+        [
+            mo.md("### Hard Constraints"),
+            mo.hstack([use_constraints, minimum_duration, allow_dotted], gap=2, align="end", wrap=True),
+            mo.hstack([max_notes_per_hand, max_onset_span, max_gap, max_span], gap=2, align="end", wrap=True),
+        ],
+        gap=1,
+    )
     prompt_output = mo.vstack(
         [
             mo.md("## Prompt and Controls"),
-            prompt_source,
-            sample_slider if sample_slider is not None else mo.md(""),
-            pasted_tokens,
-            mo.hstack([max_new_tokens, temperature, top_k, top_p, greedy], gap=2),
-            mo.hstack([key_root, scale_type, time_numerator, time_denominator, target_bars, bpm, notation_bars], gap=2),
-            mo.hstack([use_constraints, minimum_duration, allow_dotted, max_notes_per_onset, max_gap, max_span], gap=2),
+            prompt_controls,
+            sampling_controls,
+            musical_controls,
+            playback_controls,
+            constraint_controls,
             generate_button,
         ],
         gap=2,
     )
     prompt_output
     return (
-        allow_dotted,
         bpm,
         generate_button,
-        greedy,
-        key_root,
-        max_gap,
-        max_new_tokens,
-        max_notes_per_onset,
-        max_span,
-        minimum_duration,
         notation_bars,
-        pasted_tokens,
-        prompt_source,
-        sample_slider,
-        scale_type,
-        target_bars,
-        temperature,
-        time_denominator,
-        time_numerator,
-        top_k,
-        top_p,
-        use_constraints,
     )
 
 
 @app.cell
 def _(
     Fraction,
+    GeneratedOutput,
     GenerationConstraints,
     SamplingOptions,
     ScaleType,
-    allow_dotted,
+    StructuralControlFeatures,
     empty_prompt,
-    encoded_shard,
-    generate_button,
-    greedy,
-    key_root,
-    loaded_model,
-    max_gap,
-    max_new_tokens,
-    max_notes_per_onset,
-    max_span,
-    minimum_duration,
+    generation_request,
     mo,
-    pasted_tokens,
-    prompt_from_encoded_sample,
     prompt_from_text,
-    prompt_source,
     sample_autoregressive,
-    sample_slider,
     sampling_result_to_segment,
-    scale_type,
-    seed,
     segment_decode_error,
-    target_bars,
-    temperature,
-    time_denominator,
-    time_numerator,
-    top_k,
-    top_p,
-    use_constraints,
 ):
-    if loaded_model is None:
-        prompt = None
-        sampling_result = None
-        decoded_segment = None
-        decode_error = None
-        generation_status = mo.md("")
-    elif not generate_button.value:
-        prompt = None
-        sampling_result = None
-        decoded_segment = None
-        decode_error = None
+    request = generation_request()
+    if request is None:
+        output = None
         generation_status = mo.callout("Adjust controls, then click Generate.", kind="warn")
     else:
-        if prompt_source.value == "encoded" and encoded_shard is not None and sample_slider is not None:
-            prompt = prompt_from_encoded_sample(
-                encoded_shard.samples[sample_slider.value],
-                token_vocabulary=loaded_model.token_vocabulary,
-                duration_vocabulary=loaded_model.duration_vocabulary,
-            )
-        elif prompt_source.value == "text":
+        request_model = request.loaded_model
+        if request.prompt_text.strip():
             prompt = prompt_from_text(
-                pasted_tokens.value,
-                token_vocabulary=loaded_model.token_vocabulary,
-                duration_vocabulary=loaded_model.duration_vocabulary,
+                request.prompt_text,
+                token_vocabulary=request_model.token_vocabulary,
+                duration_vocabulary=request_model.duration_vocabulary,
             )
         else:
             prompt = empty_prompt(
-                token_vocabulary=loaded_model.token_vocabulary,
-                duration_vocabulary=loaded_model.duration_vocabulary,
+                token_vocabulary=request_model.token_vocabulary,
+                duration_vocabulary=request_model.duration_vocabulary,
             )
 
-        selected_scale_type = ScaleType(scale_type.value)
+        selected_scale_type = ScaleType(request.scale_type)
         hard_constraints = None
-        if use_constraints.value:
+        if request.use_constraints:
             hard_constraints = GenerationConstraints(
-                time_numerator=int(time_numerator.value),
-                time_denominator=int(time_denominator.value),
-                bar_count=int(target_bars.value),
-                minimum_duration=Fraction(minimum_duration.value) if minimum_duration.value != "None" else None,
-                allow_dotted_durations=allow_dotted.value,
-                max_notes_per_onset_per_hand=int(max_notes_per_onset.value) or None,
-                maximum_pitch_gap_semitones=int(max_gap.value) or None,
-                maximum_static_hand_span_degrees=int(max_span.value) or None,
-                key_root=int(key_root.value),
+                time_numerator=request.time_numerator,
+                time_denominator=request.time_denominator,
+                bar_count=request.target_bars,
+                minimum_duration=Fraction(request.minimum_duration) if request.minimum_duration != "None" else None,
+                allow_dotted_durations=request.allow_dotted,
+                max_notes_per_hand=request.max_notes_per_hand,
+                maximum_onset_span_semitones=request.max_onset_span,
+                maximum_pitch_gap_semitones=request.max_gap,
+                maximum_static_hand_span_degrees=request.max_span,
+                key_root=request.key_root,
                 scale_type=selected_scale_type,
             )
 
         options = SamplingOptions(
-            max_new_tokens=int(max_new_tokens.value),
-            temperature=float(temperature.value),
-            top_k=int(top_k.value) or None,
-            top_p=float(top_p.value) if float(top_p.value) < 1.0 else None,
-            greedy=greedy.value,
-            seed=int(seed.value),
+            max_new_tokens=request.max_new_tokens,
+            temperature=request.temperature,
+            top_k=request.top_k,
+            top_p=request.top_p,
+            greedy=request.greedy,
+            seed=request.seed,
             constraints=hard_constraints,
             scale_type=selected_scale_type,
-            time_signature=(int(time_numerator.value), int(time_denominator.value)),
+            time_signature=(request.time_numerator, request.time_denominator),
+            structural_features=StructuralControlFeatures(
+                shortest_note_duration=(
+                    Fraction(request.minimum_duration) if request.minimum_duration != "None" else None
+                ),
+                has_dotted_notes=None if request.allow_dotted else False,
+                max_notes_per_onset=None,
+                max_notes_per_hand=request.max_notes_per_hand,
+                max_onset_span_semitones=request.max_onset_span,
+                max_melodic_gap_semitones=request.max_gap,
+                static_hand_span_degrees=request.max_span,
+            ),
         )
         with mo.status.progress_bar(
-            total=int(max_new_tokens.value),
+            total=request.max_new_tokens,
             title="Sampling model output...",
             completion_title="Sampling complete",
         ) as progress:
@@ -358,40 +408,47 @@ def _(
             def _update_sampling_progress(step, token, stop_reason):
                 progress.update(
                     title="Sampling model output...",
-                    subtitle=f"step {step}/{int(max_new_tokens.value)} | {token.kind} | {stop_reason}",
+                    subtitle=f"step {step}/{request.max_new_tokens} | {token.kind} | {stop_reason}",
                 )
 
             sampling_result = sample_autoregressive(
-                loaded_model.model,
+                request_model.model,
                 prompt,
                 options=options,
-                token_vocabulary=loaded_model.token_vocabulary,
-                duration_vocabulary=loaded_model.duration_vocabulary,
-                model_config=loaded_model.config,
-                device=loaded_model.device,
+                token_vocabulary=request_model.token_vocabulary,
+                duration_vocabulary=request_model.duration_vocabulary,
+                model_config=request_model.config,
+                device=request_model.device,
                 progress_callback=_update_sampling_progress,
             )
         decoded_segment = sampling_result_to_segment(
             sampling_result,
-            key_root=int(key_root.value),
+            key_root=request.key_root,
             scale_type=selected_scale_type,
-            time_numerator=int(time_numerator.value),
-            time_denominator=int(time_denominator.value),
+            time_numerator=request.time_numerator,
+            time_denominator=request.time_denominator,
         )
-        decode_error = segment_decode_error(decoded_segment, duration_vocabulary=loaded_model.duration_vocabulary)
-        generation_status = mo.callout(
-            (
-                f"Stop reason: `{sampling_result.stop_reason}` | "
-                f"new tokens: {sampling_result.generated_token_count} | "
-                f"EndToken: {sampling_result.reached_end} | "
-                f"constraint error: {sampling_result.constraint_error or '-'} | "
-                f"decode error: {decode_error or '-'}"
-            ),
-            kind="success" if sampling_result.constraint_error is None and decode_error is None else "warn",
+        decode_error = segment_decode_error(decoded_segment, duration_vocabulary=request_model.duration_vocabulary)
+        status_message = (
+            f"Stop reason: `{sampling_result.stop_reason}` | "
+            f"new tokens: {sampling_result.generated_token_count} | "
+            f"EndToken: {sampling_result.reached_end} | "
+            f"constraint error: {sampling_result.constraint_error or '-'} | "
+            f"decode error: {decode_error or '-'}"
         )
+        status_kind = "success" if sampling_result.constraint_error is None and decode_error is None else "warn"
+        output = GeneratedOutput(
+            sampling_result=sampling_result,
+            decoded_segment=decoded_segment,
+            decode_error=decode_error,
+            duration_vocabulary=request_model.duration_vocabulary,
+            status_message=status_message,
+            status_kind=status_kind,
+        )
+        generation_status = mo.callout(status_message, kind=status_kind)
 
     generation_status
-    return decode_error, decoded_segment, sampling_result
+    return (output,)
 
 
 @app.cell
@@ -403,36 +460,38 @@ def _(hand_controls, mo):
 @app.cell
 def _(
     bpm,
-    decode_error,
-    decoded_segment,
-    loaded_model,
+    output,
     mo,
     notation_bars,
     score_data_html,
     segment_to_score_data,
 ):
-    if decoded_segment is None or loaded_model is None:
+    if output is None:
         notation_output = mo.md("")
-    elif decode_error is not None:
-        notation_output = mo.callout(f"Notation skipped because decoding failed: {decode_error}", kind="warn")
+    elif output.decode_error is not None:
+        notation_output = mo.callout(f"Notation skipped because decoding failed: {output.decode_error}", kind="warn")
     else:
         try:
             score_data = segment_to_score_data(
-                decoded_segment,
-                duration_vocabulary=loaded_model.duration_vocabulary,
+                output.decoded_segment,
+                duration_vocabulary=output.duration_vocabulary,
                 tempo=bpm.value,
                 measures_per_row=4,
                 max_bars=notation_bars.value,
             )
             bar_note = (
                 mo.callout(
-                    f"Showing first {notation_bars.value} of {decoded_segment.bar_count} display bar(s) in notation.",
+                    (
+                        f"Showing first {notation_bars.value} of "
+                        f"{output.decoded_segment.bar_count} display bar(s) in notation."
+                    ),
                     kind="warn",
                 )
-                if decoded_segment.bar_count > notation_bars.value
+                if output.decoded_segment.bar_count > notation_bars.value
                 else mo.md("")
             )
-            notation_output = mo.vstack([bar_note, mo.Html(score_data_html(score_data))], gap=1)
+            iframe_height = f"{max(220, len(score_data.rows) * 140 + 24)}px"
+            notation_output = mo.vstack([bar_note, mo.iframe(score_data_html(score_data), height=iframe_height)], gap=1)
         except ValueError as exception:
             notation_output = mo.callout(f"Notation rendering unavailable: {exception}", kind="warn")
 
@@ -445,22 +504,23 @@ def _(
     PitchSpelling,
     alt,
     bpm,
-    decode_error,
-    decoded_segment,
-    loaded_model,
     mo,
+    output,
     output_hand_controls,
     piano_roll_player_panel,
     segment_piano_roll_view_data,
 ):
-    if decoded_segment is None or loaded_model is None:
+    if output is None:
         piano_roll_output = mo.md("")
-    elif decode_error is not None:
-        piano_roll_output = mo.callout(f"Piano roll skipped because decoding failed: {decode_error}", kind="warn")
+    elif output.decode_error is not None:
+        piano_roll_output = mo.callout(
+            f"Piano roll skipped because decoding failed: {output.decode_error}",
+            kind="warn",
+        )
     else:
         view_data = segment_piano_roll_view_data(
-            decoded_segment,
-            duration_vocabulary=loaded_model.duration_vocabulary,
+            output.decoded_segment,
+            duration_vocabulary=output.duration_vocabulary,
             pitch_spelling=PitchSpelling.SHARPS,
             bpm=bpm.value,
             title="Generated output piano roll",
@@ -479,39 +539,36 @@ def _(
 
 @app.cell
 def _(
-    decode_error,
-    decoded_segment,
-    loaded_model,
     mo,
-    sampling_result,
+    output,
     segment_event_count,
     token_rows,
     trace_rows,
 ):
-    if decoded_segment is None or loaded_model is None or sampling_result is None:
+    if output is None:
         debug_output = mo.md("")
     else:
         token_table = mo.ui.table(
-            token_rows(decoded_segment.tokens, duration_vocabulary=loaded_model.duration_vocabulary),
+            token_rows(output.decoded_segment.tokens, duration_vocabulary=output.duration_vocabulary),
             selection=None,
             label="Generated tokens",
         )
-        trace_table = mo.ui.table(trace_rows(sampling_result), selection=None, label="Sample trace")
-        raw_text = " ".join(row["token"] for row in trace_rows(sampling_result))
+        trace_table = mo.ui.table(trace_rows(output.sampling_result), selection=None, label="Sample trace")
+        raw_text = " ".join(row["token"] for row in trace_rows(output.sampling_result))
         summary_rows = [
-            {"metric": "display bars", "value": decoded_segment.bar_count},
-            {"metric": "tokens total", "value": len(decoded_segment.tokens)},
-            {"metric": "generated tokens", "value": sampling_result.generated_token_count},
+            {"metric": "display bars", "value": output.decoded_segment.bar_count},
+            {"metric": "tokens total", "value": len(output.decoded_segment.tokens)},
+            {"metric": "generated tokens", "value": output.sampling_result.generated_token_count},
             {
                 "metric": "decoded note events",
                 "value": (
-                    segment_event_count(decoded_segment, duration_vocabulary=loaded_model.duration_vocabulary)
-                    if decode_error is None
+                    segment_event_count(output.decoded_segment, duration_vocabulary=output.duration_vocabulary)
+                    if output.decode_error is None
                     else "-"
                 ),
             },
-            {"metric": "stop reason", "value": sampling_result.stop_reason},
-            {"metric": "decode error", "value": decode_error or "-"},
+            {"metric": "stop reason", "value": output.sampling_result.stop_reason},
+            {"metric": "decode error", "value": output.decode_error or "-"},
         ]
         debug_output = mo.vstack(
             [
@@ -522,7 +579,7 @@ def _(
                     {
                         "Probability trace": trace_table,
                         "Raw sampled token text": mo.md(f"```text\n{raw_text}\n```"),
-                        "Decoded metadata": mo.md(f"```text\n{decoded_segment.metadata}\n```"),
+                        "Decoded metadata": mo.md(f"```text\n{output.decoded_segment.metadata}\n```"),
                     }
                 ),
             ],
