@@ -1,4 +1,15 @@
-import { Renderer, Stave, StaveNote, Voice, Formatter, Dot, Beam, StaveTie } from 'https://esm.sh/vexflow@5.0.0';
+import {
+    Accidental,
+    Barline,
+    Renderer,
+    Stave,
+    StaveNote,
+    Voice,
+    Formatter,
+    Dot,
+    Beam,
+    StaveTie,
+} from 'https://esm.sh/vexflow@5.0.0';
 
 const STAVE_HEIGHT = 140;
 const STAVE_PADDING = 40;
@@ -17,10 +28,29 @@ function buildStaveNote(noteData, clef) {
     const isRest = noteData.duration.endsWith('r');
     const keys = isRest ? [REST_PLACEHOLDER_KEY] : noteData.keys;
     const note = new StaveNote({ clef, keys, duration: noteData.duration });
+    if (!isRest) {
+        keys.forEach((key, index) => {
+            const accidental = accidentalFromKey(key);
+            if (accidental) {
+                note.addModifier(new Accidental(accidental), index);
+            }
+        });
+    }
     if (noteData.dots > 0) {
         Dot.buildAndAttach([note], { all: true });
     }
     return note;
+}
+
+function accidentalFromKey(key) {
+    const pitch = key.split('/')[0] ?? '';
+    if (pitch.includes('#')) {
+        return '#';
+    }
+    if (pitch.includes('b')) {
+        return 'b';
+    }
+    return null;
 }
 
 function drawVoice(voiceData, stave, staveData, context) {
@@ -65,6 +95,8 @@ function drawTies(voiceData, vfNotes, context) {
 
 function drawStave(staveData, context, x, y, width, showClef) {
     const stave = new Stave(x, y, width);
+    stave.setBegBarType(Barline.type.SINGLE);
+    stave.setEndBarType(Barline.type.SINGLE);
     if (staveData.clef === 'percussion') {
         stave.setConfigForLines([
             { visible: false },
@@ -81,11 +113,20 @@ function drawStave(staveData, context, x, y, width, showClef) {
         stave.addTimeSignature(`${staveData.time_signature[0]}/${staveData.time_signature[1]}`);
     }
     stave.setContext(context).draw();
+    drawExplicitBarline(context, stave, x);
+    drawExplicitBarline(context, stave, x + width);
     const voiceResults = [];
     for (const voice of staveData.voices) {
         voiceResults.push(drawVoice(voice, stave, staveData, context));
     }
     return { staveData, voiceResults };
+}
+
+function drawExplicitBarline(context, stave, x) {
+    context.beginPath();
+    context.moveTo(x, stave.getYForLine(0));
+    context.lineTo(x, stave.getYForLine(4));
+    context.stroke();
 }
 
 function drawTiesAcrossStaves(leftResult, rightResult, context) {

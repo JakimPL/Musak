@@ -15,9 +15,11 @@ def _():
     import torch
 
     from musak_model.conditioning.structural import StructuralControlFeatures
+    from musak_model.decoder.notation import segment_to_score_data
     from musak_model.generation.constraints import GenerationConstraints
     from musak_model.paths import DEFAULT_CHECKPOINT_DIR, TOKENIZATION_CONFIG_PATH
     from musak_model.tokens.schema import ScaleType
+    from musak_shared.notation.html import score_data_html
     from notebooks.utils import (
         GeneratedOutput,
         GenerationRequest,
@@ -31,11 +33,9 @@ def _():
         prompt_from_text,
         sample_autoregressive,
         sampling_result_to_segment,
-        score_data_html,
         segment_decode_error,
         segment_event_count,
         segment_piano_roll_view_data,
-        segment_to_score_data,
         selected_file,
         token_rows,
         trace_rows,

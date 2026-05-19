@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from musak_model.data.schema import Segment, SegmentMetadata
+from musak_model.decoder.notation import UnsupportedNotationDurationError, segment_to_score_data
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import (
     BarToken,
@@ -17,7 +18,6 @@ from musak_model.tokens.schema import (
     RestToken,
     ScaleType,
 )
-from notebooks.utils.model_notation import UnsupportedNotationDurationError, segment_to_score_data
 
 
 def _segment(
@@ -41,8 +41,8 @@ def _segment(
     )
 
 
-def _note(duration_id: int, *, degree: int = 1) -> NoteToken:
-    return NoteToken(degree=degree, accidental=0, octave_offset=0, duration_id=duration_id)
+def _note(duration_id: int, *, degree: int = 1, accidental: int = 0) -> NoteToken:
+    return NoteToken(degree=degree, accidental=accidental, octave_offset=0, duration_id=duration_id)
 
 
 def test_segment_to_score_data_outputs_two_hand_rows(
@@ -99,6 +99,47 @@ def test_segment_to_score_data_groups_joined_chord_notes(
     assert len(chord.keys) == 2
 
 
+def test_segment_to_score_data_preserves_token_accidental_spelling(
+    duration_vocabulary: DurationVocabulary,
+) -> None:
+    quarter_id = duration_vocabulary.fraction_to_id(Fraction(1, 4))
+    segment = _segment(
+        [
+            HandToken(hand=Hand.RIGHT),
+            _note(quarter_id, degree=1, accidental=1),
+            _note(quarter_id, degree=2, accidental=-1),
+        ]
+    )
+
+    score = segment_to_score_data(segment, duration_vocabulary=duration_vocabulary)
+    notes = score.rows[0][0].voices[0].notes
+
+    assert notes[0].keys == ["c#/5"]
+    assert notes[1].keys == ["db/5"]
+
+
+def test_segment_to_score_data_uses_token_bars_when_metadata_bar_count_is_lower(
+    duration_vocabulary: DurationVocabulary,
+) -> None:
+    quarter_id = duration_vocabulary.fraction_to_id(Fraction(1, 4))
+    segment = _segment(
+        [
+            HandToken(hand=Hand.RIGHT),
+            _note(quarter_id),
+            BarToken(),
+            HandToken(hand=Hand.RIGHT),
+            _note(quarter_id),
+            BarToken(),
+        ],
+        bar_count=0,
+    )
+
+    score = segment_to_score_data(segment, duration_vocabulary=duration_vocabulary)
+
+    assert len(score.rows[0]) == 2
+    assert len(score.rows[1]) == 2
+
+
 def test_segment_to_score_data_marks_holds_across_barlines_as_ties(
     duration_vocabulary: DurationVocabulary,
 ) -> None:
@@ -138,6 +179,42 @@ def test_segment_to_score_data_supports_dotted_durations(
 
     assert note.duration == "q"
     assert note.dots == 1
+
+
+def test_segment_to_score_data_splits_composite_rests(
+    duration_vocabulary: DurationVocabulary,
+) -> None:
+    segment = _segment(
+        [],
+        time_numerator=9,
+        time_denominator=16,
+    )
+
+    score = segment_to_score_data(segment, duration_vocabulary=duration_vocabulary)
+    right_notes = score.rows[0][0].voices[0].notes
+
+    assert [(note.duration, note.dots) for note in right_notes] == [("hr", 0), ("16r", 0)]
+
+
+def test_segment_to_score_data_splits_composite_notes_with_ties(
+    duration_vocabulary: DurationVocabulary,
+) -> None:
+    half_id = duration_vocabulary.fraction_to_id(Fraction(1, 2))
+    sixteenth_id = duration_vocabulary.fraction_to_id(Fraction(1, 16))
+    segment = _segment(
+        [
+            HandToken(hand=Hand.RIGHT),
+            _note(half_id),
+            HoldToken(duration_id=sixteenth_id),
+        ]
+    )
+
+    score = segment_to_score_data(segment, duration_vocabulary=duration_vocabulary)
+    right_notes = score.rows[0][0].voices[0].notes
+
+    assert [(note.duration, note.dots) for note in right_notes[:2]] == [("h", 0), ("16", 0)]
+    assert right_notes[0].tie_start
+    assert right_notes[1].tie_stop
 
 
 def test_segment_to_score_data_rejects_unsupported_tuplets(

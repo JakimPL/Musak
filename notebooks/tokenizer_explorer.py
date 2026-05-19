@@ -11,9 +11,12 @@ def _():
     import altair as alt
     import marimo as mo
 
+    from musak_model.decoder.notation import segment_to_score_data
     from musak_model.paths import DEFAULT_DATA_DIR, DEFAULT_PROCESSED_ROOT
     from musak_model.processing.io import load_parsed_score_json
     from musak_model.tokens.vocabulary import build_default_token_vocabulary
+    from musak_shared.elements import MUSICXML_EXTENSIONS
+    from musak_shared.notation.html import score_data_html
     from notebooks.utils import (
         PitchSpelling,
         default_duration_vocabulary,
@@ -36,6 +39,7 @@ def _():
     return (
         DEFAULT_DATA_DIR,
         DEFAULT_PROCESSED_ROOT,
+        MUSICXML_EXTENSIONS,
         Path,
         PitchSpelling,
         alt,
@@ -52,8 +56,10 @@ def _():
         piano_roll_player_panel,
         process_score_safely,
         score_summary,
+        score_data_html,
         segment_parsed_score_safely,
         segment_piano_roll_view_data,
+        segment_to_score_data,
         selected_file,
         selected_musicxml_file,
         token_rows,
@@ -96,7 +102,7 @@ def _(
 
 
 @app.cell
-def _(DEFAULT_DATA_DIR, mo, processed_browser_path):
+def _(DEFAULT_DATA_DIR, MUSICXML_EXTENSIONS, mo, processed_browser_path):
     source_mode = mo.ui.radio(
         options={
             "Raw MusicXML": "raw",
@@ -414,6 +420,27 @@ def _(duration_vocabulary, mo, segment, token_rows):
         )
 
     tokens_output
+    return
+
+
+@app.cell
+def _(bpm_slider, duration_vocabulary, mo, score_data_html, segment, segment_to_score_data):
+    if segment is None:
+        notation_output = mo.md("")
+    else:
+        try:
+            score_data = segment_to_score_data(
+                segment,
+                duration_vocabulary=duration_vocabulary,
+                tempo=bpm_slider.value,
+                measures_per_row=4,
+            )
+            iframe_height = f"{max(220, len(score_data.rows) * 140 + 24)}px"
+            notation_output = mo.iframe(score_data_html(score_data), height=iframe_height)
+        except ValueError as exception:
+            notation_output = mo.callout(f"Notation rendering unavailable: {exception}", kind="warn")
+
+    notation_output
     return
 
 

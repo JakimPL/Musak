@@ -1,4 +1,3 @@
-from musak_model.paths import INGESTION_CONFIG_PATH, PRETRAINING_CONFIG_PATH
 from musak_model.training.config import TrainingConfig
 from musak_model.training.dataset import EncodedExerciseDataset, TrainingBatch, TrainingExample, build_dataloaders
 from musak_model.training.ingestion import (
@@ -21,14 +20,12 @@ __all__ = [
     "EncodedExercise",
     "EncodedExerciseDataset",
     "EpochMetrics",
-    "INGESTION_CONFIG_PATH",
     "IngestionConfig",
     "IngestionErrorRecord",
     "IngestionSplit",
     "MlflowTrainingTracker",
     "NoOpTrainingTracker",
     "PretrainingTrainer",
-    "PRETRAINING_CONFIG_PATH",
     "TrainingBatch",
     "TrainingConfig",
     "TrainingExample",

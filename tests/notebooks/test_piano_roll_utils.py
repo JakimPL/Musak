@@ -1,6 +1,8 @@
 from fractions import Fraction
 from pathlib import Path
 
+import altair as alt
+
 from musak_model.data.schema import ParsedBar, ParsedNote, ParsedScore, Segment, SegmentMetadata
 from musak_model.decoder import encoded_exercise_to_segment
 from musak_model.processing.io import append_jsonl, write_json_model
@@ -17,6 +19,7 @@ from notebooks.utils.piano_roll import (
     midi_pitch_name,
     parsed_score_piano_roll_dataframe,
     parsed_score_piano_roll_view_data,
+    piano_roll_chart,
     piano_roll_dataframe,
     segment_piano_roll_view_data,
 )
@@ -57,6 +60,8 @@ def test_segment_piano_roll_dataframe_includes_axis_and_token_fields(duration_vo
     assert row["pitch"] == "C#5"
     assert row["bar_start"] == 3.0
     assert row["bar_end"] == 3.25
+    assert row["bar_start_display"] == 3.004
+    assert row["bar_end_display"] == 3.246
     assert row["start_seconds"] == 0.0
     assert row["duration_fraction"] == "1:4"
     assert row["duration_seconds"] == 0.5
@@ -153,6 +158,44 @@ def test_parsed_score_piano_roll_view_data_and_filtering() -> None:
     assert view_data.seconds_domain == (0.0, 4.0)
     assert left_frame["hand"].tolist() == ["left"]
     assert left_frame["midi_pitch"].tolist() == [48]
+
+
+def test_piano_roll_chart_uses_fixed_hand_colors_and_note_outlines() -> None:
+    score = ParsedScore(
+        key_root=0,
+        key_fifths=0,
+        scale_type=ScaleType.MAJOR,
+        time_numerator=4,
+        time_denominator=4,
+        right_hand_bars=[
+            ParsedBar(
+                time_numerator=4,
+                time_denominator=4,
+                key_fifths=0,
+                events=[ParsedNote(midi_pitch=60, duration=Fraction(1, 4), beat_offset=Fraction(0))],
+            )
+        ],
+        left_hand_bars=[
+            ParsedBar(
+                time_numerator=4,
+                time_denominator=4,
+                key_fifths=0,
+                events=[ParsedNote(midi_pitch=48, duration=Fraction(1, 4), beat_offset=Fraction(0))],
+            )
+        ],
+    )
+
+    chart = piano_roll_chart(parsed_score_piano_roll_view_data(score), alt=alt)
+    note_layer = chart.to_dict()["layer"][0]
+
+    assert note_layer["mark"]["stroke"] == "#ffffff"
+    assert note_layer["mark"]["strokeWidth"] == 0.7
+    assert note_layer["encoding"]["x"]["field"] == "bar_start_display"
+    assert note_layer["encoding"]["x2"]["field"] == "bar_end_display"
+    assert note_layer["encoding"]["color"]["scale"] == {
+        "domain": ["left", "right"],
+        "range": ["#1f77b4", "#ff7f0e"],
+    }
 
 
 def test_load_encoded_shard_rebuilds_token_vocabulary(

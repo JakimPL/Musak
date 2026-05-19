@@ -15,6 +15,11 @@ from musak_shared.ratios import format_ratio
 
 _QUARTERS_PER_WHOLE: Final[int] = 4
 _SECONDS_PER_MINUTE: Final[int] = 60
+_LEFT_HAND_COLOR: Final[str] = "#1f77b4"
+_RIGHT_HAND_COLOR: Final[str] = "#ff7f0e"
+_NOTE_STROKE_COLOR: Final[str] = "#ffffff"
+_NOTE_STROKE_WIDTH: Final[float] = 0.7
+_NOTE_BAR_MARGIN: Final[Fraction] = Fraction(1, 250)
 _SHARP_PITCH_NAMES: Final[tuple[str, ...]] = ("C-", "C#", "D-", "D#", "E-", "F-", "F#", "G-", "G#", "A-", "A#", "B-")
 _FLAT_PITCH_NAMES: Final[tuple[str, ...]] = ("C-", "Db", "D-", "Eb", "E-", "F-", "Gb", "G-", "Ab", "A-", "Bb", "B-")
 
@@ -148,22 +153,29 @@ def piano_roll_chart(
     ]
     note_bars = (
         alt.Chart(frame)
-        .mark_bar()
+        .mark_bar(stroke=_NOTE_STROKE_COLOR, strokeWidth=_NOTE_STROKE_WIDTH)
         .encode(
             x=alt.X(
-                "bar_start:Q",
+                "bar_start_display:Q",
                 title="Bars",
                 axis=alt.Axis(grid=True),
                 scale=alt.Scale(domain=list(view_data.bar_domain)),
             ),
-            x2="bar_end:Q",
+            x2="bar_end_display:Q",
             y=alt.Y(
                 "midi_pitch:Q",
                 title="Pitch",
                 axis=alt.Axis(labelExpr=pitch_label_expression),
                 scale=alt.Scale(domain=y_domain),
             ),
-            color=alt.Color("hand:N", title="Hand"),
+            color=alt.Color(
+                "hand:N",
+                title="Hand",
+                scale=alt.Scale(
+                    domain=[Hand.LEFT.value, Hand.RIGHT.value],
+                    range=[_LEFT_HAND_COLOR, _RIGHT_HAND_COLOR],
+                ),
+            ),
             tooltip=[
                 alt.Tooltip("hand:N", title="Hand"),
                 alt.Tooltip("pitch:N", title="Pitch"),
@@ -218,6 +230,8 @@ def _events_to_dataframe(
         duration_seconds = _whole_note_fraction_to_seconds(event.duration, bpm=bpm)
         bar_start = window_start_bar + 1 + event.start / measure_duration
         bar_duration = event.duration / measure_duration
+        bar_end = bar_start + bar_duration
+        bar_margin = min(_NOTE_BAR_MARGIN, bar_duration / 4)
         duration_text = format_ratio(event.duration, separator=":")
         rows.append(
             {
@@ -229,7 +243,9 @@ def _events_to_dataframe(
                 "duration_fraction": duration_text,
                 "end": float(event.end),
                 "bar_start": float(bar_start),
-                "bar_end": float(bar_start + bar_duration),
+                "bar_end": float(bar_end),
+                "bar_start_display": float(bar_start + bar_margin),
+                "bar_end_display": float(bar_end - bar_margin),
                 "start_seconds": start_seconds,
                 "duration_seconds": duration_seconds,
                 "end_seconds": start_seconds + duration_seconds,

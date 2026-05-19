@@ -5,7 +5,6 @@ from notebooks.utils.encoded import (
     load_encoded_shard,
 )
 from notebooks.utils.file_browser import FileSelection, selected_file, selected_musicxml_file
-from notebooks.utils.model_notation import UnsupportedNotationDurationError, score_data_html, segment_to_score_data
 from notebooks.utils.model_output import (
     GeneratedOutput,
     GenerationRequest,
@@ -77,7 +76,6 @@ __all__ = [
     "GenerationRequest",
     "LoadedModel",
     "EncodedShard",
-    "UnsupportedNotationDurationError",
     "categorical_distribution",
     "default_duration_vocabulary",
     "default_encoded_browser_root",
@@ -110,7 +108,6 @@ __all__ = [
     "table_records",
     "token_histogram_distribution",
     "score_summary",
-    "score_data_html",
     "selected_file",
     "selected_musicxml_file",
     "sample_autoregressive",
@@ -118,7 +115,6 @@ __all__ = [
     "segment_decode_error",
     "segment_event_count",
     "segment_piano_roll_view_data",
-    "segment_to_score_data",
     "sampling_result_to_segment",
     "token_summary_rows",
     "token_label",
