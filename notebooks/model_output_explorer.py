@@ -396,6 +396,7 @@ def _(
                 max_onset_span_semitones=request.max_onset_span,
                 max_melodic_gap_semitones=request.max_gap,
                 static_hand_span_degrees=request.max_span,
+                bar_count=request.target_bars,
             ),
         )
         with mo.status.progress_bar(

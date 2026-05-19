@@ -200,10 +200,8 @@ def segment_to_notation_events(
                 hand=active_hand,
                 start=joined_start,
             )
-            cursors[active_hand] = max(
-                cursors[active_hand] - previous_event.duration,
-                previous_event.end - bar_index * measure_duration,
-            )
+            joined_end = max(events[index].end for index in last_attack_indices[active_hand])
+            cursors[active_hand] = joined_end - bar_index * measure_duration
             continue
 
     return events

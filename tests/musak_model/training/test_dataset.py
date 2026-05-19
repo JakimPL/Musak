@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 from musak_model.conditioning.config import ConditioningConfig
-from musak_model.conditioning.structural import StructuralControlVocabulary
+from musak_model.conditioning.structural import UNKNOWN_CONTROL_ID, StructuralControlName, StructuralControlVocabulary
 from musak_model.conditioning.time_signature import TimeSignatureVocabulary, TimeSignatureVocabularyConfig
 from musak_model.data.schema import SegmentMetadata
 from musak_model.tokens.duration import DurationVocabulary
@@ -26,6 +26,7 @@ def _sample(
     *,
     difficulty_level: int | None = 3,
     time_signature: tuple[int, int] = (4, 4),
+    bar_count: int = 1,
 ) -> EncodedExercise:
     return EncodedExercise(
         token_ids=token_ids,
@@ -35,7 +36,7 @@ def _sample(
             scale_type=ScaleType.MAJOR,
             time_numerator=time_signature[0],
             time_denominator=time_signature[1],
-            bar_count=1,
+            bar_count=bar_count,
             window_start_bar=0,
             source_file=Path("piece.mxl"),
             difficulty_level=difficulty_level,
@@ -212,8 +213,34 @@ def test_dataset_builds_structural_control_ids_when_enabled(
         structural_control_vocabulary=StructuralControlVocabulary(ConditioningConfig.load().structural),
     )
 
-    assert dataset[0].structural_control_ids.numel() == 7
+    assert dataset[0].structural_control_ids.numel() == 8
     assert dataset[0].structural_control_ids.tolist()[1] == 1
+    assert dataset[0].structural_control_ids.tolist()[-1] == UNKNOWN_CONTROL_ID
+
+
+def test_dataset_uses_bar_count_control_only_when_enabled(
+    duration_vocabulary: DurationVocabulary,
+    token_vocabulary: TokenVocabulary,
+) -> None:
+    quarter_id = duration_vocabulary.fraction_to_id(Fraction(1, 4))
+    token_ids = token_vocabulary.encode(
+        [
+            HandToken(hand=Hand.RIGHT),
+            NoteToken(degree=1, accidental=0, octave_offset=0, duration_id=quarter_id),
+        ]
+    )
+    structural_control_vocabulary = StructuralControlVocabulary(ConditioningConfig.load().structural)
+    dataset = EncodedExerciseDataset(
+        [_sample(token_ids, [0, 0], bar_count=4)],
+        include_structural_controls=True,
+        include_bar_count_control=True,
+        time_signature_vocabulary=_time_signature_vocabulary(),
+        token_vocabulary=token_vocabulary,
+        structural_control_vocabulary=structural_control_vocabulary,
+    )
+    bar_count_index = structural_control_vocabulary.control_index(StructuralControlName.BAR_COUNT)
+
+    assert dataset[0].structural_control_ids.tolist()[bar_count_index] == 3
 
 
 def test_dataset_requires_structural_vocabulary_when_structural_controls_are_enabled(

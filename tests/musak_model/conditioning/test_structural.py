@@ -59,6 +59,7 @@ def test_extract_structural_control_features_from_tokens(duration_vocabulary: Du
     assert features.max_onset_span_semitones == 4
     assert features.max_melodic_gap_semitones == 3
     assert features.static_hand_span_degrees == 5
+    assert features.bar_count is None
 
 
 def test_structural_control_vocabulary_maps_features_to_bucket_ids() -> None:
@@ -70,6 +71,7 @@ def test_structural_control_vocabulary_maps_features_to_bucket_ids() -> None:
             max_onset_span_semitones=IntegerBucketConfig(thresholds=(4, 12)),
             max_melodic_gap_semitones=IntegerBucketConfig(thresholds=(2, 7)),
             static_hand_span_degrees=IntegerBucketConfig(thresholds=(3, 5)),
+            bar_count=IntegerBucketConfig(thresholds=(1, 2, 4)),
         )
     )
     features = StructuralControlFeatures(
@@ -80,16 +82,17 @@ def test_structural_control_vocabulary_maps_features_to_bucket_ids() -> None:
         max_onset_span_semitones=12,
         max_melodic_gap_semitones=7,
         static_hand_span_degrees=5,
+        bar_count=4,
     )
 
-    assert vocabulary.features_to_ids(features) == (1, TRUE_CONTROL_ID, 3, 3, 2, 2, 2)
-    assert vocabulary.vocabulary_sizes == (4, 3, 4, 5, 4, 4, 4)
+    assert vocabulary.features_to_ids(features) == (1, TRUE_CONTROL_ID, 3, 3, 2, 2, 2, 3)
+    assert vocabulary.vocabulary_sizes == (4, 3, 4, 5, 4, 4, 4, 5)
 
 
 def test_structural_control_vocabulary_maps_missing_features_to_unknown() -> None:
     vocabulary = StructuralControlVocabulary(StructuralConditioningConfig())
 
-    assert vocabulary.features_to_ids(None) == (UNKNOWN_CONTROL_ID,) * 7
+    assert vocabulary.features_to_ids(None) == (UNKNOWN_CONTROL_ID,) * 8
 
 
 def test_structural_control_config_rejects_unsorted_thresholds() -> None:

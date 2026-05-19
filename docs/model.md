@@ -86,6 +86,8 @@ exists, stage two can be run on the same dataset as stage one to validate the tw
 
 Stage two keeps the next-token objective and the same auxiliary validity penalty. Auxiliary heads,
 masked-token objectives, and layer freezing are deferred research options, not part of the initial pipeline.
+Bar count is a structural control for finetuning and generation requests, but pretraining leaves that control
+in the unknown bucket because song segments are not concrete exercise-length examples.
 
 Structural controls are derived automatically from tokenized segments and metadata. They are optional:
 each control vocabulary has an explicit unknown/no-control bucket so generation requests can omit a
@@ -101,7 +103,8 @@ Pilot structural controls:
 - maximum same-hand onset span in semitones;
 - maximum same-hand melodic gap;
 - static hand placement span;
-- scale type, time signature, and bar count from metadata.
+- target bar count for finetuning and generation;
+- scale type and time signature from metadata.
 
 Static hand placement means each hand independently stays within a fixed 5-degree inclusive diatonic
 range, computed as `octave_offset * 7 + degree`. Accidentals do not change this placement coordinate.
@@ -228,7 +231,8 @@ The implemented tie slices add:
 - Music21 export of held notes/chords as tied fragments split at barlines.
 - a model-agnostic hard constraint state for next-token generation masks.
 - hard controls for shortest duration, dotted-duration policy, chord size, onset span, and maximum melodic gap.
-- finetune structural control extraction, bucketed conditioning IDs, and fine-tuning entrypoint.
+- finetune structural control extraction, bucketed conditioning IDs, target bar-count conditioning, and fine-tuning
+  entrypoint.
 - an auxiliary training loss that penalizes probability assigned to hard-invalid next tokens.
 
 Remaining work:

@@ -65,6 +65,7 @@ def finetune(
         num_workers=training_config.runtime.num_workers,
         conditioning=training_config.conditioning,
         include_structural_controls=training_config.conditioning.use_structural_conditioning,
+        include_bar_count_control=training_config.conditioning.use_structural_conditioning,
         time_signature_vocabulary=time_signature_vocabulary,
         token_vocabulary=token_vocabulary,
         structural_control_vocabulary=structural_control_vocabulary,

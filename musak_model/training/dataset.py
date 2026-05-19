@@ -67,6 +67,7 @@ class EncodedExerciseDataset(Dataset[TrainingExample]):
         structural_control_vocabulary: StructuralControlVocabulary | None = None,
         conditioning: TrainingConditioningConfig = TrainingConditioningConfig(),
         include_structural_controls: bool = False,
+        include_bar_count_control: bool = False,
         max_sequence_length: int | None = None,
     ) -> None:
         if include_structural_controls and structural_control_vocabulary is None:
@@ -101,6 +102,7 @@ class EncodedExerciseDataset(Dataset[TrainingExample]):
                 sample,
                 conditioning=conditioning,
                 include_structural_controls=include_structural_controls,
+                include_bar_count_control=include_bar_count_control,
                 time_signature_vocabulary=time_signature_vocabulary,
                 token_vocabulary=token_vocabulary,
                 structural_control_vocabulary=structural_control_vocabulary,
@@ -132,12 +134,14 @@ def build_dataloaders(
     structural_control_vocabulary: StructuralControlVocabulary | None = None,
     conditioning: TrainingConditioningConfig = TrainingConditioningConfig(),
     include_structural_controls: bool = False,
+    include_bar_count_control: bool = False,
     max_sequence_length: int | None = None,
 ) -> tuple[DataLoader[TrainingBatch], DataLoader[TrainingBatch]]:
     train_dataset = EncodedExerciseDataset(
         split.train,
         conditioning=conditioning,
         include_structural_controls=include_structural_controls,
+        include_bar_count_control=include_bar_count_control,
         time_signature_vocabulary=time_signature_vocabulary,
         token_vocabulary=token_vocabulary,
         structural_control_vocabulary=structural_control_vocabulary,
@@ -147,6 +151,7 @@ def build_dataloaders(
         split.validation,
         conditioning=conditioning,
         include_structural_controls=include_structural_controls,
+        include_bar_count_control=include_bar_count_control,
         time_signature_vocabulary=time_signature_vocabulary,
         token_vocabulary=token_vocabulary,
         structural_control_vocabulary=structural_control_vocabulary,
@@ -235,6 +240,7 @@ def _to_training_example(
     *,
     conditioning: TrainingConditioningConfig,
     include_structural_controls: bool,
+    include_bar_count_control: bool,
     time_signature_vocabulary: TimeSignatureVocabulary,
     token_vocabulary: TokenVocabulary,
     structural_control_vocabulary: StructuralControlVocabulary | None,
@@ -251,6 +257,7 @@ def _to_training_example(
     structural_control_ids = _structural_control_ids(
         sample,
         include_structural_controls=include_structural_controls,
+        include_bar_count_control=include_bar_count_control,
         structural_control_vocabulary=structural_control_vocabulary,
         token_vocabulary=token_vocabulary,
     )
@@ -294,6 +301,7 @@ def _structural_control_ids(
     sample: EncodedExercise,
     *,
     include_structural_controls: bool,
+    include_bar_count_control: bool,
     structural_control_vocabulary: StructuralControlVocabulary | None,
     token_vocabulary: TokenVocabulary,
 ) -> Tensor:
@@ -307,6 +315,8 @@ def _structural_control_ids(
         sample.to_segment(token_vocabulary=token_vocabulary),
         duration_vocabulary=token_vocabulary.duration_vocabulary,
     )
+    if include_bar_count_control:
+        features = features.model_copy(update={"bar_count": sample.metadata.bar_count})
 
     return torch.tensor(
         structural_control_vocabulary.features_to_ids(features),

@@ -27,6 +27,7 @@ class StructuralControlName(StrEnum):
     MAX_ONSET_SPAN_SEMITONES = "max_onset_span_semitones"
     MAX_MELODIC_GAP_SEMITONES = "max_melodic_gap_semitones"
     STATIC_HAND_SPAN_DEGREES = "static_hand_span_degrees"
+    BAR_COUNT = "bar_count"
 
 
 STRUCTURAL_CONTROL_ORDER: Final[tuple[StructuralControlName, ...]] = (
@@ -37,6 +38,7 @@ STRUCTURAL_CONTROL_ORDER: Final[tuple[StructuralControlName, ...]] = (
     StructuralControlName.MAX_ONSET_SPAN_SEMITONES,
     StructuralControlName.MAX_MELODIC_GAP_SEMITONES,
     StructuralControlName.STATIC_HAND_SPAN_DEGREES,
+    StructuralControlName.BAR_COUNT,
 )
 
 
@@ -88,6 +90,7 @@ class StructuralConditioningConfig(BaseModel):
     max_onset_span_semitones: IntegerBucketConfig = IntegerBucketConfig(thresholds=(3, 7, 12))
     max_melodic_gap_semitones: IntegerBucketConfig = IntegerBucketConfig(thresholds=(2, 4, 7, 12))
     static_hand_span_degrees: IntegerBucketConfig = IntegerBucketConfig(thresholds=(1, 3, 5, 7, 14))
+    bar_count: IntegerBucketConfig = IntegerBucketConfig(thresholds=(1, 2, 4, 8, 16, 32))
 
 
 class StructuralControlFeatures(BaseModel):
@@ -100,6 +103,7 @@ class StructuralControlFeatures(BaseModel):
     max_onset_span_semitones: int | None
     max_melodic_gap_semitones: int | None
     static_hand_span_degrees: int | None
+    bar_count: int | None
 
 
 class StructuralControlVocabulary:
@@ -109,6 +113,9 @@ class StructuralControlVocabulary:
     @property
     def vocabulary_sizes(self) -> tuple[int, ...]:
         return tuple(self.vocabulary_size(control_name) for control_name in STRUCTURAL_CONTROL_ORDER)
+
+    def control_index(self, control_name: StructuralControlName) -> int:
+        return STRUCTURAL_CONTROL_ORDER.index(control_name)
 
     def vocabulary_size(self, control_name: StructuralControlName) -> int:
         match control_name:
@@ -126,6 +133,8 @@ class StructuralControlVocabulary:
                 return _bucket_size(self._config.max_melodic_gap_semitones.thresholds)
             case StructuralControlName.STATIC_HAND_SPAN_DEGREES:
                 return _bucket_size(self._config.static_hand_span_degrees.thresholds)
+            case StructuralControlName.BAR_COUNT:
+                return _bucket_size(self._config.bar_count.thresholds)
 
     def features_to_ids(self, features: StructuralControlFeatures | None) -> tuple[int, ...]:
         if features is None:
@@ -139,6 +148,7 @@ class StructuralControlVocabulary:
             _integer_bucket_id(features.max_onset_span_semitones, self._config.max_onset_span_semitones.thresholds),
             _integer_bucket_id(features.max_melodic_gap_semitones, self._config.max_melodic_gap_semitones.thresholds),
             _integer_bucket_id(features.static_hand_span_degrees, self._config.static_hand_span_degrees.thresholds),
+            _integer_bucket_id(features.bar_count, self._config.bar_count.thresholds),
         )
 
 
@@ -228,6 +238,7 @@ class _FeatureState(BaseModel):
                 _inclusive_span(self.right_static_positions),
                 _inclusive_span(self.left_static_positions),
             ),
+            bar_count=None,
         )
 
     def add_static_position(self, position: int, *, hand: Hand) -> _FeatureState:

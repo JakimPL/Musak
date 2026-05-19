@@ -16,12 +16,16 @@ PRETRAIN_EPOCHS ?= $(EPOCHS)
 PRETRAIN_DEVICE ?= $(DEVICE)
 PRETRAIN_NUM_WORKERS ?= $(NUM_WORKERS)
 PRETRAIN_OVERWRITE ?= $(OVERWRITE)
+PRETRAIN_CHECKPOINT_DIR ?=
+PRETRAIN_RESUME_CHECKPOINT ?= $(if $(PRETRAIN_CHECKPOINT_DIR),$(PRETRAIN_CHECKPOINT_DIR)/latest.pt,checkpoints/pretraining/latest.pt)
 
 FINETUNE_DATA_DIR ?= $(PRETRAIN_DATA_DIR)
 FINETUNE_PROCESSED_DIR ?= $(PRETRAIN_PROCESSED_DIR)
 FINETUNE_EPOCHS ?= $(EPOCHS)
 FINETUNE_DEVICE ?= $(DEVICE)
 FINETUNE_NUM_WORKERS ?= $(NUM_WORKERS)
+FINETUNE_CHECKPOINT_DIR ?=
+FINETUNE_RESUME_CHECKPOINT ?= $(if $(FINETUNE_CHECKPOINT_DIR),$(FINETUNE_CHECKPOINT_DIR)/latest.pt,checkpoints/finetuning/latest.pt)
 PRETRAIN_CHECKPOINT ?= checkpoints/pretraining/best.pt
 
 help:
@@ -58,11 +62,15 @@ help:
 	@printf '%s\n' '  MLFLOW_PORT           MLflow dashboard port. Default: 5000'
 	@printf '%s\n' '  PRETRAIN_DATA_DIR     Raw pretrain dataset root.'
 	@printf '%s\n' '  PRETRAIN_PROCESSED_DIR Dataset-specific pretrain artifacts, e.g. processed/PDMX.'
+	@printf '%s\n' '  PRETRAIN_CHECKPOINT_DIR Optional checkpoint output directory override for pretrain.'
 	@printf '%s\n' '  FINETUNE_DATA_DIR     Raw finetune dataset root. Defaults to PRETRAIN_DATA_DIR.'
 	@printf '%s\n' '  FINETUNE_PROCESSED_DIR Dataset-specific finetune artifacts. Defaults to PRETRAIN_PROCESSED_DIR.'
+	@printf '%s\n' '  FINETUNE_CHECKPOINT_DIR Optional checkpoint output directory override for finetune.'
 	@printf '%s\n' '  PRETRAIN_CHECKPOINT   Checkpoint used by finetune. Default: checkpoints/pretraining/best.pt'
 	@printf '%s\n' '  EPOCHS, DEVICE, NUM_WORKERS provide shared defaults.'
 	@printf '%s\n' '  OVERWRITE=1 passes --overwrite to pretrain checkpoint safety checks.'
+	@printf '%s\n' '  RESUME=1 resumes from each stage latest checkpoint and takes precedence over OVERWRITE.'
+	@printf '%s\n' '  PRETRAIN_RESUME_CHECKPOINT, FINETUNE_RESUME_CHECKPOINT override resume paths.'
 	@printf '%s\n' '  PRETRAIN_EPOCHS, PRETRAIN_DEVICE, PRETRAIN_NUM_WORKERS override pretrain only.'
 	@printf '%s\n' '  FINETUNE_EPOCHS, FINETUNE_DEVICE, FINETUNE_NUM_WORKERS override finetune only.'
 
@@ -95,10 +103,12 @@ pretrain:
 	uv run python scripts/pretrain.py \
 		--data-dir "$(PRETRAIN_DATA_DIR)" \
 		--processed-dir "$(PRETRAIN_PROCESSED_DIR)" \
+		$(call optional_arg,PRETRAIN_CHECKPOINT_DIR,--checkpoint-dir) \
 		$(call optional_arg,PRETRAIN_EPOCHS,--epochs) \
 		$(call optional_arg,PRETRAIN_DEVICE,--device) \
 		$(call optional_arg,PRETRAIN_NUM_WORKERS,--num-workers) \
-		$(call optional_flag,PRETRAIN_OVERWRITE,--overwrite)
+		$(call optional_resume_checkpoint,PRETRAIN_RESUME_CHECKPOINT) \
+		$(call optional_non_resume_flag,PRETRAIN_OVERWRITE,--overwrite)
 
 finetune:
 	$(call require_var,FINETUNE_DATA_DIR)
@@ -106,10 +116,12 @@ finetune:
 	uv run python scripts/finetune.py \
 		--data-dir "$(FINETUNE_DATA_DIR)" \
 		--processed-dir "$(FINETUNE_PROCESSED_DIR)" \
+		$(call optional_arg,FINETUNE_CHECKPOINT_DIR,--checkpoint-dir) \
 		--pretrain-checkpoint "$(PRETRAIN_CHECKPOINT)" \
 		$(call optional_arg,FINETUNE_EPOCHS,--epochs) \
 		$(call optional_arg,FINETUNE_DEVICE,--device) \
-		$(call optional_arg,FINETUNE_NUM_WORKERS,--num-workers)
+		$(call optional_arg,FINETUNE_NUM_WORKERS,--num-workers) \
+		$(call optional_resume_checkpoint,FINETUNE_RESUME_CHECKPOINT)
 
 mlflow:
 	uv run mlflow ui \
@@ -127,4 +139,12 @@ endef
 
 define optional_flag
 	$(if $($(1)),$(2),)
+endef
+
+define optional_non_resume_flag
+	$(if $(RESUME),,$(call optional_flag,$(1),$(2)))
+endef
+
+define optional_resume_checkpoint
+	$(if $(RESUME),--resume-checkpoint "$($(1))",)
 endef

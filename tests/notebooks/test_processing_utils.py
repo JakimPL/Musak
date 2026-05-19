@@ -28,7 +28,7 @@ def _score() -> "ParsedScore":
 def test_process_score_safely_captures_parse_diagnostics_without_console_noise(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    capsys,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     source_path = tmp_path / "piece.mxl"
     source_path.write_text("score", encoding="utf-8")

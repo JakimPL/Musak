@@ -6,7 +6,11 @@ from pathlib import Path
 import pytest
 
 from musak_model.data.schema import Segment, SegmentMetadata
-from musak_model.decoder.notation import UnsupportedNotationDurationError, segment_to_score_data
+from musak_model.decoder.notation import (
+    UnsupportedNotationDurationError,
+    segment_to_notation_events,
+    segment_to_score_data,
+)
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import (
     BarToken,
@@ -97,6 +101,49 @@ def test_segment_to_score_data_groups_joined_chord_notes(
 
     assert chord.duration == "q"
     assert len(chord.keys) == 2
+
+
+def test_joined_chord_keeps_following_note_at_chord_end(
+    duration_vocabulary: DurationVocabulary,
+) -> None:
+    quarter_id = duration_vocabulary.fraction_to_id(Fraction(1, 4))
+    segment = _segment(
+        [
+            HandToken(hand=Hand.RIGHT),
+            _note(quarter_id, degree=1),
+            _note(quarter_id, degree=3),
+            JoinWithPreviousToken(),
+            _note(quarter_id, degree=5),
+        ]
+    )
+
+    events = segment_to_notation_events(segment, duration_vocabulary=duration_vocabulary)
+
+    assert [event.start for event in events] == [Fraction(0), Fraction(0), Fraction(1, 4)]
+
+
+def test_segment_to_score_data_does_not_insert_rest_after_joined_chord(
+    duration_vocabulary: DurationVocabulary,
+) -> None:
+    quarter_id = duration_vocabulary.fraction_to_id(Fraction(1, 4))
+    segment = _segment(
+        [
+            HandToken(hand=Hand.RIGHT),
+            _note(quarter_id, degree=1),
+            _note(quarter_id, degree=3),
+            JoinWithPreviousToken(),
+            _note(quarter_id, degree=5),
+        ]
+    )
+
+    score = segment_to_score_data(segment, duration_vocabulary=duration_vocabulary)
+    right_notes = score.rows[0][0].voices[0].notes
+
+    assert [(note.duration, note.keys) for note in right_notes] == [
+        ("q", ["c/5", "e/5"]),
+        ("q", ["g/5"]),
+        ("hr", ["b/4"]),
+    ]
 
 
 def test_segment_to_score_data_preserves_token_accidental_spelling(

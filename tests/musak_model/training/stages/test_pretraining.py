@@ -198,6 +198,62 @@ def test_trainer_resumes_from_checkpoint(tmp_path: Path) -> None:
     assert [metric.epoch for metric in result.metrics] == [1]
 
 
+def test_trainer_resumes_from_model_only_checkpoint_with_fresh_optimizer(tmp_path: Path) -> None:
+    torch.manual_seed(0)
+    first_model = HierarchicalAutoregressiveModel(_small_model_config())
+    first_trainer = PretrainingTrainer(
+        model=first_model,
+        config=_training_config(tmp_path),
+        train_loader=_loader(),
+        validation_loader=_loader(),
+    )
+    first_trainer.train()
+    latest_checkpoint = tmp_path / "latest.pt"
+    checkpoint = torch.load(latest_checkpoint, map_location=torch.device("cpu"))
+    checkpoint["optimizer_state_dict"] = {}
+    torch.save(checkpoint, latest_checkpoint)
+
+    second_model = HierarchicalAutoregressiveModel(_small_model_config())
+    second_trainer = PretrainingTrainer(
+        model=second_model,
+        config=_training_config(tmp_path, resume_checkpoint=latest_checkpoint, epochs=2),
+        train_loader=_loader(),
+        validation_loader=_loader(),
+    )
+
+    result = second_trainer.train()
+
+    assert [metric.epoch for metric in result.metrics] == [1]
+
+
+def test_trainer_resumes_from_checkpoint_with_incompatible_optimizer_state(tmp_path: Path) -> None:
+    torch.manual_seed(0)
+    first_model = HierarchicalAutoregressiveModel(_small_model_config())
+    first_trainer = PretrainingTrainer(
+        model=first_model,
+        config=_training_config(tmp_path),
+        train_loader=_loader(),
+        validation_loader=_loader(),
+    )
+    first_trainer.train()
+    latest_checkpoint = tmp_path / "latest.pt"
+    checkpoint = torch.load(latest_checkpoint, map_location=torch.device("cpu"))
+    checkpoint["optimizer_state_dict"]["param_groups"][0]["params"].append(-1)
+    torch.save(checkpoint, latest_checkpoint)
+
+    second_model = HierarchicalAutoregressiveModel(_small_model_config())
+    second_trainer = PretrainingTrainer(
+        model=second_model,
+        config=_training_config(tmp_path, resume_checkpoint=latest_checkpoint, epochs=2),
+        train_loader=_loader(),
+        validation_loader=_loader(),
+    )
+
+    result = second_trainer.train()
+
+    assert [metric.epoch for metric in result.metrics] == [1]
+
+
 def test_trainer_reports_validity_penalty_metrics(tmp_path: Path) -> None:
     token_vocabulary = _token_vocabulary()
     model = HierarchicalAutoregressiveModel(_small_model_config())

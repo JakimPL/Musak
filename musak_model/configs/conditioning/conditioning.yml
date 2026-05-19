@@ -16,4 +16,6 @@ structural:
     thresholds: [4, 7, 12]
   static_hand_span_degrees:
     thresholds: [3, 5, 7, 14]
+  bar_count:
+    thresholds: [1, 2, 4, 8, 16, 32]
 cfg_dropout_probability: 0.1
