@@ -1,5 +1,6 @@
 from fractions import Fraction
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -694,7 +695,7 @@ def test_unsupported_rest_gap_marks_segment_ineligible_before_it_can_shift_onset
 
 def test_unexpected_tokenization_value_error_is_not_swallowed(
     duration_vocabulary: DurationVocabulary,
-    monkeypatch,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     score = ParsedScore(
         key_root=0,

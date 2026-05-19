@@ -2,6 +2,9 @@ import sys
 import warnings
 from fractions import Fraction
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+import pytest
 
 from musak_model.processing.manifest import parsed_success_row, write_parsed_manifest
 from notebooks.utils.processing import (
@@ -11,8 +14,11 @@ from notebooks.utils.processing import (
 )
 from tests.musak_model.data.fixtures import bar, note_event, parsed_score
 
+if TYPE_CHECKING:
+    from musak_model.data.schema import ParsedScore
 
-def _score():
+
+def _score() -> "ParsedScore":
     return parsed_score(
         right_hand_bars=[bar([note_event(midi_pitch=72, duration=Fraction(1, 4), beat_offset=Fraction(0))])],
         left_hand_bars=[bar([note_event(midi_pitch=48, duration=Fraction(1, 4), beat_offset=Fraction(0))])],
@@ -21,13 +27,13 @@ def _score():
 
 def test_process_score_safely_captures_parse_diagnostics_without_console_noise(
     tmp_path: Path,
-    monkeypatch,
+    monkeypatch: pytest.MonkeyPatch,
     capsys,
 ) -> None:
     source_path = tmp_path / "piece.mxl"
     source_path.write_text("score", encoding="utf-8")
 
-    def noisy_parse(path: Path):
+    def noisy_parse(path: Path) -> "ParsedScore":
         warnings.warn("musicxml warning", UserWarning, stacklevel=1)
         print("stderr diagnostic", file=sys.stderr)
         return _score()
@@ -47,12 +53,12 @@ def test_process_score_safely_captures_parse_diagnostics_without_console_noise(
 
 def test_process_score_safely_preserves_parse_diagnostics_on_parse_error(
     tmp_path: Path,
-    monkeypatch,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     source_path = tmp_path / "piece.mxl"
     source_path.write_text("score", encoding="utf-8")
 
-    def noisy_parse_error(path: Path):
+    def noisy_parse_error(path: Path) -> "ParsedScore":
         warnings.warn("before failure", UserWarning, stacklevel=1)
         raise ValueError("bad score")
 

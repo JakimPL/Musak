@@ -1,5 +1,6 @@
 from fractions import Fraction
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -49,7 +50,7 @@ def test_segment_parsed_score_keeps_recoverable_segments_when_feature_extraction
 
 def test_segment_parsed_score_marks_feature_register_errors_ineligible(
     duration_vocabulary: DurationVocabulary,
-    monkeypatch,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     score = ParsedScore(
         key_root=0,
@@ -80,7 +81,7 @@ def test_segment_parsed_score_marks_feature_register_errors_ineligible(
 
 def test_segment_parsed_score_does_not_hide_unexpected_feature_extraction_errors(
     duration_vocabulary: DurationVocabulary,
-    monkeypatch,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     score = ParsedScore(
         key_root=0,

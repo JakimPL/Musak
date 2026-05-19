@@ -1,7 +1,8 @@
 from fractions import Fraction
 from pathlib import Path
-from typing import Any, Final
+from typing import Final
 
+import pytest
 from torch.optim import AdamW
 
 from musak_model.conditioning.config import ConditioningConfig, DifficultyConfig
@@ -84,7 +85,10 @@ def _sample() -> EncodedExercise:
     )
 
 
-def test_train_finetuning_loads_pretraining_checkpoint_and_runs_epoch(tmp_path: Path, monkeypatch: Any) -> None:
+def test_train_finetuning_loads_pretraining_checkpoint_and_runs_epoch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     model_config = _small_model_config()
     pretraining_model = HierarchicalAutoregressiveModel(model_config)
     optimizer = AdamW(pretraining_model.parameters(), lr=0.001)

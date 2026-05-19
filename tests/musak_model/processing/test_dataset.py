@@ -2,6 +2,7 @@ import sys
 import warnings
 from fractions import Fraction
 from pathlib import Path
+from typing import Any
 from zipfile import ZipFile
 
 import pytest
@@ -39,7 +40,7 @@ def _segmentation_config() -> SegmentationConfig:
 
 def test_process_dataset_writes_parsed_and_encoded_artifacts(
     tmp_path: Path,
-    monkeypatch,
+    monkeypatch: pytest.MonkeyPatch,
     tokenization_config: TokenizationConfig,
 ) -> None:
     dataset_root = tmp_path / "PDMX"
@@ -93,7 +94,7 @@ def test_process_dataset_writes_parsed_and_encoded_artifacts(
 )
 def test_process_dataset_records_parse_errors(
     tmp_path: Path,
-    monkeypatch,
+    monkeypatch: pytest.MonkeyPatch,
     tokenization_config: TokenizationConfig,
     exception: Exception,
     error_type: str,
@@ -128,7 +129,7 @@ def test_process_dataset_records_parse_errors(
 
 def test_process_dataset_records_parse_diagnostics_without_console_noise(
     tmp_path: Path,
-    monkeypatch,
+    monkeypatch: pytest.MonkeyPatch,
     capsys,
     tokenization_config: TokenizationConfig,
 ) -> None:
@@ -166,7 +167,7 @@ def test_process_dataset_records_parse_diagnostics_without_console_noise(
 
 def test_process_dataset_records_parse_diagnostics_on_errors(
     tmp_path: Path,
-    monkeypatch,
+    monkeypatch: pytest.MonkeyPatch,
     tokenization_config: TokenizationConfig,
 ) -> None:
     dataset_root = tmp_path / "PDMX"
@@ -242,7 +243,7 @@ def test_process_dataset_parallel_parse_keeps_manifest_order(
 
 def test_process_dataset_reuses_error_rows_from_parsed_manifest(
     tmp_path: Path,
-    monkeypatch,
+    monkeypatch: pytest.MonkeyPatch,
     caplog,
     tokenization_config: TokenizationConfig,
 ) -> None:
@@ -288,7 +289,7 @@ def test_process_dataset_reuses_error_rows_from_parsed_manifest(
 
 def test_process_dataset_reuses_success_rows_from_parsed_manifest(
     tmp_path: Path,
-    monkeypatch,
+    monkeypatch: pytest.MonkeyPatch,
     tokenization_config: TokenizationConfig,
 ) -> None:
     dataset_root = tmp_path / "PDMX"
@@ -328,7 +329,7 @@ def test_process_dataset_reuses_success_rows_from_parsed_manifest(
 
 def test_process_dataset_writes_partial_parsed_manifest_on_interrupt(
     tmp_path: Path,
-    monkeypatch,
+    monkeypatch: pytest.MonkeyPatch,
     tokenization_config: TokenizationConfig,
 ) -> None:
     dataset_root = tmp_path / "PDMX"
@@ -370,7 +371,7 @@ def test_process_dataset_writes_partial_parsed_manifest_on_interrupt(
 
 def test_process_dataset_rebuilds_incomplete_encoded_outputs(
     tmp_path: Path,
-    monkeypatch,
+    monkeypatch: pytest.MonkeyPatch,
     tokenization_config: TokenizationConfig,
     duration_vocabulary: DurationVocabulary,
     token_vocabulary: TokenVocabulary,
