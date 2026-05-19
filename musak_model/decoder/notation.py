@@ -17,6 +17,7 @@ from musak_model.tokens.schema import (
     JoinWithPreviousToken,
     NoteToken,
     RestToken,
+    ScaleType,
     StartToken,
 )
 from musak_shared.elements import MIDI_MAX_PITCH
@@ -49,6 +50,34 @@ _MAX_DOTS: Final[int] = 2
 _REST_KEY: Final[str] = "b/4"
 _NOTE_KIND: Final[Literal["note"]] = "note"
 _REST_KIND: Final[Literal["rest"]] = "rest"
+_MAJOR_KEY_SIGNATURES_BY_FIFTHS: Final[dict[int, str]] = {
+    -7: "Cb",
+    -6: "Gb",
+    -5: "Db",
+    -4: "Ab",
+    -3: "Eb",
+    -2: "Bb",
+    -1: "F",
+    0: "C",
+    1: "G",
+    2: "D",
+    3: "A",
+    4: "E",
+    5: "B",
+    6: "F#",
+    7: "C#",
+}
+_PARENT_MAJOR_OFFSET_BY_SCALE_TYPE: Final[dict[ScaleType, int]] = {
+    ScaleType.MAJOR: 0,
+    ScaleType.DORIAN: -2,
+    ScaleType.PHRYGIAN: -4,
+    ScaleType.LYDIAN: -5,
+    ScaleType.MIXOLYDIAN: -7,
+    ScaleType.AEOLIAN: -9,
+    ScaleType.HARMONIC_MINOR: -9,
+    ScaleType.MELODIC_MINOR: -9,
+    ScaleType.LOCRIAN: -11,
+}
 _REPRESENTABLE_DURATIONS: Final[tuple[Fraction, ...]] = tuple(
     sorted(
         {
@@ -107,6 +136,7 @@ def segment_to_score_data(
     measure_duration = Fraction(segment.time_numerator, segment.time_denominator)
     bar_count = max(segment.bar_count, _token_bar_count(segment))
     displayed_bar_count = bar_count if max_bars is None else min(bar_count, max_bars)
+    key_signature = key_signature_name(key_root=segment.key_root, scale_type=segment.scale_type)
     rows: list[list[StaveData]] = []
     for first_measure in range(0, displayed_bar_count, measures_per_row or max(displayed_bar_count, 1)):
         last_measure = min(first_measure + (measures_per_row or displayed_bar_count), displayed_bar_count)
@@ -116,6 +146,7 @@ def segment_to_score_data(
                 measure_duration=measure_duration,
                 first_measure=first_measure,
                 last_measure=last_measure,
+                key_signature=key_signature,
                 time_signature=(segment.time_numerator, segment.time_denominator),
             )
         )
@@ -207,6 +238,19 @@ def segment_to_notation_events(
     return events
 
 
+def key_signature_name(*, key_root: int, scale_type: ScaleType) -> str:
+    parent_major_root = (key_root + _PARENT_MAJOR_OFFSET_BY_SCALE_TYPE[scale_type]) % 12
+    return _MAJOR_KEY_SIGNATURES_BY_FIFTHS[_major_fifths_for_key_root(parent_major_root)]
+
+
+def _major_fifths_for_key_root(key_root: int) -> int:
+    for fifths in range(-7, 8):
+        if (fifths * 7) % 12 == key_root:
+            return fifths
+
+    raise ValueError(f"cannot derive key signature for key root {key_root}")
+
+
 def _extend_last_attack(
     events: list[DecodedNotationEvent],
     *,
@@ -250,6 +294,7 @@ def _score_rows_for_measure_range(
     measure_duration: Fraction,
     first_measure: int,
     last_measure: int,
+    key_signature: str,
     time_signature: tuple[int, int],
 ) -> list[list[StaveData]]:
     rows: list[list[StaveData]] = []
@@ -260,6 +305,7 @@ def _score_rows_for_measure_range(
         measure_duration=measure_duration,
         first_measure=first_measure,
         last_measure=last_measure,
+        key_signature=key_signature,
         time_signature=time_signature,
     )
     left_staves = _staves_for_hand(
@@ -269,6 +315,7 @@ def _score_rows_for_measure_range(
         measure_duration=measure_duration,
         first_measure=first_measure,
         last_measure=last_measure,
+        key_signature=key_signature,
         time_signature=time_signature,
     )
     rows.append(right_staves)
@@ -285,6 +332,7 @@ def _staves_for_hand(
     measure_duration: Fraction,
     first_measure: int,
     last_measure: int,
+    key_signature: str,
     time_signature: tuple[int, int],
 ) -> list[StaveData]:
     staves: list[StaveData] = []
@@ -298,6 +346,7 @@ def _staves_for_hand(
         staves.append(
             StaveData(
                 clef=clef,
+                key_signature=key_signature if measure_index == first_measure else None,
                 time_signature=time_signature if measure_index == first_measure else None,
                 voices=[
                     VoiceData(

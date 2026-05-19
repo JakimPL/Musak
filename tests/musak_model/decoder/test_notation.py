@@ -27,6 +27,8 @@ from musak_model.tokens.schema import (
 def _segment(
     tokens: list[object],
     *,
+    key_root: int = 0,
+    scale_type: ScaleType = ScaleType.MAJOR,
     time_numerator: int = 4,
     time_denominator: int = 4,
     bar_count: int = 1,
@@ -34,8 +36,8 @@ def _segment(
     return Segment(
         tokens=tokens,
         metadata=SegmentMetadata(
-            key_root=0,
-            scale_type=ScaleType.MAJOR,
+            key_root=key_root,
+            scale_type=scale_type,
             time_numerator=time_numerator,
             time_denominator=time_denominator,
             bar_count=bar_count,
@@ -67,6 +69,38 @@ def test_segment_to_score_data_outputs_two_hand_rows(
     assert len(score.rows) == 2
     assert score.rows[0][0].clef == "treble"
     assert score.rows[1][0].clef == "bass"
+
+
+def test_segment_to_score_data_sets_first_measure_key_and_time_signatures(
+    duration_vocabulary: DurationVocabulary,
+) -> None:
+    segment = _segment(
+        [],
+        key_root=2,
+        scale_type=ScaleType.MAJOR,
+        time_numerator=3,
+        time_denominator=4,
+        bar_count=2,
+    )
+
+    score = segment_to_score_data(segment, duration_vocabulary=duration_vocabulary)
+
+    assert score.rows[0][0].key_signature == "D"
+    assert score.rows[0][0].time_signature == (3, 4)
+    assert score.rows[0][1].key_signature is None
+    assert score.rows[0][1].time_signature is None
+    assert score.rows[1][0].key_signature == "D"
+    assert score.rows[1][0].time_signature == (3, 4)
+
+
+def test_segment_to_score_data_uses_parent_major_key_signature_for_modes(
+    duration_vocabulary: DurationVocabulary,
+) -> None:
+    segment = _segment([], key_root=2, scale_type=ScaleType.DORIAN)
+
+    score = segment_to_score_data(segment, duration_vocabulary=duration_vocabulary)
+
+    assert score.rows[0][0].key_signature == "C"
 
 
 def test_segment_to_score_data_fills_rests(

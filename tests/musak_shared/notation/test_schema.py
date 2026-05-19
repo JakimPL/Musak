@@ -36,6 +36,10 @@ class TestStaveData:
         stave = StaveData(clef="treble", time_signature=None, voices=[])
         assert stave.time_signature is None
 
+    def test_accepts_key_signature(self) -> None:
+        stave = StaveData(clef="treble", key_signature="D", voices=[])
+        assert stave.key_signature == "D"
+
 
 class TestScoreData:
     def test_rejects_non_positive_tempo(self) -> None:

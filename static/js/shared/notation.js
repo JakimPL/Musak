@@ -59,7 +59,7 @@ function drawVoice(voiceData, stave, staveData, context) {
     const beatValue = staveData.time_signature ? staveData.time_signature[1] : DEFAULT_BEAT_VALUE;
     const voice = new Voice({ num_beats: numBeats, beat_value: beatValue }).setStrict(false);
     voice.addTickables(vfNotes);
-    const formatWidth = staveData.time_signature
+    const formatWidth = hasMeasureHeader(staveData)
         ? stave.getNoteEndX() - stave.getNoteStartX()
         : Math.min(stave.getWidth() - STAVE_PADDING, vfNotes.length * NOTE_WIDTH);
     new Formatter().joinVoices([voice]).format([voice], formatWidth);
@@ -109,6 +109,9 @@ function drawStave(staveData, context, x, y, width, showClef) {
     if (showClef) {
         stave.addClef(staveData.clef);
     }
+    if (staveData.key_signature) {
+        stave.addKeySignature(staveData.key_signature);
+    }
     if (staveData.time_signature) {
         stave.addTimeSignature(`${staveData.time_signature[0]}/${staveData.time_signature[1]}`);
     }
@@ -120,6 +123,10 @@ function drawStave(staveData, context, x, y, width, showClef) {
         voiceResults.push(drawVoice(voice, stave, staveData, context));
     }
     return { staveData, voiceResults };
+}
+
+function hasMeasureHeader(staveData) {
+    return Boolean(staveData.key_signature || staveData.time_signature);
 }
 
 function drawExplicitBarline(context, stave, x) {
@@ -164,9 +171,9 @@ export function renderScore(scoreData, containerElement) {
     const containerWidth = containerElement.clientWidth || DEFAULT_WIDTH;
     const rows = scoreData.rows;
 
-    const hasTimeSig = rows.some(row => row.some(stave => stave.time_signature));
+    const hasMeasureHeaders = rows.some(row => row.some(stave => hasMeasureHeader(stave)));
     let naturalWidth = containerWidth;
-    if (hasTimeSig) {
+    if (hasMeasureHeaders) {
         const maxStaves = Math.max(...rows.map(r => r.length));
         const maxNotes = scoreData.max_notes_per_measure ?? MAX_NOTES_PER_MEASURE;
         const normalMeasureWidth = STAVE_PADDING + maxNotes * NOTE_SPACING;
@@ -185,7 +192,7 @@ export function renderScore(scoreData, containerElement) {
         const rowResults = [];
         row.forEach((staveData, colIndex) => {
             let width;
-            if (!hasTimeSig) {
+            if (!hasMeasureHeaders) {
                 width = (naturalWidth - 2 * STAVE_X_OFFSET) / row.length;
             } else {
                 const normalWidth = (naturalWidth - 2 * STAVE_X_OFFSET - FIRST_STAVE_OVERHEAD) / row.length;

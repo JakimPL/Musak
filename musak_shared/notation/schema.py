@@ -54,6 +54,7 @@ class StaveData(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     clef: Clef
+    key_signature: str | None = None
     time_signature: TimeSignatureType | None = None
     voices: list[VoiceData]
 
