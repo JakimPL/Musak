@@ -2,7 +2,7 @@ from unittest.mock import patch
 
 from musak.core.intervals.schema import IntervalRequest, IntervalResponse
 from musak.core.intervals.service import IntervalService
-from musak.core.notation.schema import ScoreData
+from musak_shared.notation.schema import ScoreData
 
 
 def test_get_config_returns_groups() -> None:

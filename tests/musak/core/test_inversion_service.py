@@ -2,7 +2,7 @@ from unittest.mock import patch
 
 from musak.core.inversions.schema import InversionRequest, InversionResponse
 from musak.core.inversions.service import InversionService
-from musak.core.notation.schema import ScoreData
+from musak_shared.notation.schema import ScoreData
 
 
 def test_get_config_returns_groups() -> None:

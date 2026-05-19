@@ -5,10 +5,9 @@ from collections.abc import Sequence
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from musak.config.defaults import TIME_SIGNATURE
-from musak.modules.elements.misc import is_power_of_two
 from musak.modules.elements.note import Note, NoteType
 from musak.modules.elements.phrase import Phrase, PhraseType
-from musak.modules.elements.time_signature import TimeSignatureType
+from musak_shared.time_signature import TimeSignatureType, validate_time_signature
 
 
 class GroupSettings(BaseModel):
@@ -69,11 +68,7 @@ class Settings(BaseModel):
             raise ValueError(f"expected a 2-element sequence, got length {len(v)}")
 
         numerator, denominator = int(v[0]), int(v[1])
-        if numerator <= 0 or denominator <= 0:
-            raise ValueError(f"non-positive element in signature: ({numerator}, {denominator})")
-
-        if not is_power_of_two(denominator):
-            raise ValueError("time signature denominator has to be a power of two")
+        validate_time_signature((numerator, denominator))
 
         return numerator, denominator
 

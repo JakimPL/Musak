@@ -53,7 +53,7 @@ class GenerationConstraints:
 
 
 @dataclass(frozen=True)
-class _OnsetState:
+class OnsetState:
     start: Fraction
     duration: Fraction
     note_count: int
@@ -63,7 +63,7 @@ class _OnsetState:
 @dataclass(frozen=True)
 class _PendingJoin:
     hand: Hand
-    target: _OnsetState
+    target: OnsetState
     cursor_before_note: Fraction
     cursor_after_note: Fraction
     duration: Fraction
@@ -79,8 +79,8 @@ class GenerationConstraintState:
     left_cursor: Fraction = Fraction(0)
     right_last_attack_end: Fraction | None = None
     left_last_attack_end: Fraction | None = None
-    right_last_onset: _OnsetState | None = None
-    left_last_onset: _OnsetState | None = None
+    right_last_onset: OnsetState | None = None
+    left_last_onset: OnsetState | None = None
     right_static_positions: tuple[int, ...] = ()
     left_static_positions: tuple[int, ...] = ()
     pending_join: _PendingJoin | None = None
@@ -154,12 +154,12 @@ class GenerationConstraintState:
     ) -> GenerationConstraintState:
         self._raise_if_complete_bar_count(token_name="NoteToken")
         duration = self._checked_duration(token.duration_id, duration_vocabulary=duration_vocabulary)
-        remaining = self._remaining_duration(self.active_hand)
-        join_target = self._join_target(duration)
+        remaining = self.remaining_duration(self.active_hand)
+        join_target = self.join_target(duration)
         can_join = join_target is not None
         midi_pitch = self._note_midi_pitch(token)
-        exceeds_pitch_gap = self._exceeds_pitch_gap(midi_pitch)
-        exceeds_onset_span = self._exceeds_onset_span(join_target, midi_pitch)
+        exceeds_pitch_gap = self.exceeds_pitch_gap(midi_pitch)
+        exceeds_onset_span = self.exceeds_onset_span(join_target, midi_pitch)
         static_position = note_token_to_static_hand_position(token)
         if duration > remaining and not can_join:
             raise GenerationConstraintError("note duration exceeds remaining active-hand measure time")
@@ -170,10 +170,10 @@ class GenerationConstraintState:
         if exceeds_onset_span:
             raise GenerationConstraintError("note exceeds maximum same-hand onset span")
 
-        if self._exceeds_static_hand_span(static_position):
+        if self.exceeds_static_hand_span(static_position):
             raise GenerationConstraintError("note exceeds maximum static hand span")
 
-        cursor = self._cursor(self.active_hand)
+        cursor = self.cursor(self.active_hand)
         cursor_after = cursor + duration
         pending_join = (
             _PendingJoin(
@@ -193,7 +193,7 @@ class GenerationConstraintState:
         state = state.with_static_position(self.active_hand, static_position)
         state = state.with_last_onset(
             self.active_hand,
-            _OnsetState(
+            OnsetState(
                 start=cursor,
                 duration=duration,
                 note_count=1,
@@ -210,11 +210,11 @@ class GenerationConstraintState:
     ) -> GenerationConstraintState:
         self._raise_if_complete_bar_count(token_name="RestToken")
         duration = self._checked_duration(token.duration_id, duration_vocabulary=duration_vocabulary)
-        if duration > self._remaining_duration(self.active_hand):
+        if duration > self.remaining_duration(self.active_hand):
             raise GenerationConstraintError("rest duration exceeds remaining active-hand measure time")
 
         return replace(
-            self.with_cursor(self.active_hand, self._cursor(self.active_hand) + duration),
+            self.with_cursor(self.active_hand, self.cursor(self.active_hand) + duration),
             pending_join=None,
         )
 
@@ -226,11 +226,11 @@ class GenerationConstraintState:
     ) -> GenerationConstraintState:
         self._raise_if_complete_bar_count(token_name="HoldToken")
         duration = self._checked_duration(token.duration_id, duration_vocabulary=duration_vocabulary)
-        if duration > self._remaining_duration(self.active_hand):
+        if duration > self.remaining_duration(self.active_hand):
             raise GenerationConstraintError("hold duration exceeds remaining active-hand measure time")
 
-        cursor = self._cursor(self.active_hand)
-        if self._last_attack_end(self.active_hand) != cursor:
+        cursor = self.cursor(self.active_hand)
+        if self.last_attack_end(self.active_hand) != cursor:
             raise GenerationConstraintError("hold token needs a contiguous previous same-hand note or chord")
 
         cursor_after = cursor + duration
@@ -243,10 +243,10 @@ class GenerationConstraintState:
             raise GenerationConstraintError("join token needs a previous same-hand chord note candidate")
 
         pending = self.pending_join
-        if not self._can_add_note_to_onset(pending.target):
+        if not self.can_add_note_to_onset(pending.target):
             raise GenerationConstraintError("maximum notes per same-hand onset exceeded")
 
-        if self._exceeds_onset_span(pending.target, pending.midi_pitch):
+        if self.exceeds_onset_span(pending.target, pending.midi_pitch):
             raise GenerationConstraintError("note exceeds maximum same-hand onset span")
 
         joined_cursor = max(pending.cursor_before_note, pending.target.start + pending.duration)
@@ -308,22 +308,22 @@ class GenerationConstraintState:
             hand=self.active_hand,
         )
 
-    def _exceeds_pitch_gap(self, midi_pitch: int | None) -> bool:
+    def exceeds_pitch_gap(self, midi_pitch: int | None) -> bool:
         maximum = self.constraints.maximum_pitch_gap_semitones
-        previous_onset = self._last_onset(self.active_hand)
+        previous_onset = self.last_onset(self.active_hand)
         if maximum is None or midi_pitch is None or previous_onset is None or not previous_onset.midi_pitches:
             return False
 
         return min(abs(midi_pitch - previous_pitch) for previous_pitch in previous_onset.midi_pitches) > maximum
 
-    def _exceeds_onset_span(self, join_target: _OnsetState | None, midi_pitch: int | None) -> bool:
+    def exceeds_onset_span(self, join_target: OnsetState | None, midi_pitch: int | None) -> bool:
         maximum = self.constraints.maximum_onset_span_semitones
         if maximum is None or join_target is None or midi_pitch is None:
             return False
 
         return _pitch_span((*join_target.midi_pitches, midi_pitch)) > maximum
 
-    def _exceeds_static_hand_span(self, static_position: int) -> bool:
+    def exceeds_static_hand_span(self, static_position: int) -> bool:
         maximum = self.constraints.maximum_static_hand_span_degrees
         if maximum is None:
             return False
@@ -331,12 +331,12 @@ class GenerationConstraintState:
         positions = (*self._static_positions(self.active_hand), static_position)
         return _static_span(positions) > maximum
 
-    def _remaining_duration(self, hand: Hand) -> Fraction:
-        return (self.bar_index + 1) * self.constraints.measure_duration - self._cursor(hand)
+    def remaining_duration(self, hand: Hand) -> Fraction:
+        return (self.bar_index + 1) * self.constraints.measure_duration - self.cursor(hand)
 
-    def _join_target(self, duration: Fraction) -> _OnsetState | None:
-        target = self._last_onset(self.active_hand)
-        cursor = self._cursor(self.active_hand)
+    def join_target(self, duration: Fraction) -> OnsetState | None:
+        target = self.last_onset(self.active_hand)
+        cursor = self.cursor(self.active_hand)
         if target is None:
             return None
 
@@ -346,25 +346,30 @@ class GenerationConstraintState:
         if target.start + target.duration != cursor:
             return None
 
-        if not self._can_add_note_to_onset(target):
+        if not self.can_add_note_to_onset(target):
             return None
 
         return target
 
-    def _can_add_note_to_onset(self, onset: _OnsetState) -> bool:
+    def can_add_note_to_onset(self, onset: OnsetState) -> bool:
         requested_maximums = (
             self.constraints.max_notes_per_onset_per_hand,
             self.constraints.max_notes_per_hand,
         )
+
         active_maximums = tuple(maximum for maximum in requested_maximums if maximum is not None)
         maximum = min((*active_maximums, MAX_NOTES_PER_HAND))
         return onset.note_count < maximum
 
-    def _raise_if_complete_bar_count(self, *, token_name: str) -> None:
+    def _raise_if_complete_bar_count(
+        self,
+        *,
+        token_name: str,
+    ) -> None:
         if self.bar_index >= self.constraints.bar_count:
             raise GenerationConstraintError(f"{token_name} cannot be emitted after requested bars are complete")
 
-    def _cursor(self, hand: Hand) -> Fraction:
+    def cursor(self, hand: Hand) -> Fraction:
         return self.right_cursor if hand == Hand.RIGHT else self.left_cursor
 
     def with_cursor(self, hand: Hand, cursor: Fraction) -> GenerationConstraintState:
@@ -373,7 +378,7 @@ class GenerationConstraintState:
 
         return replace(self, left_cursor=cursor)
 
-    def _last_attack_end(self, hand: Hand) -> Fraction | None:
+    def last_attack_end(self, hand: Hand) -> Fraction | None:
         return self.right_last_attack_end if hand == Hand.RIGHT else self.left_last_attack_end
 
     def with_last_attack_end(self, hand: Hand, attack_end: Fraction) -> GenerationConstraintState:
@@ -382,10 +387,10 @@ class GenerationConstraintState:
 
         return replace(self, left_last_attack_end=attack_end)
 
-    def _last_onset(self, hand: Hand) -> _OnsetState | None:
+    def last_onset(self, hand: Hand) -> OnsetState | None:
         return self.right_last_onset if hand == Hand.RIGHT else self.left_last_onset
 
-    def with_last_onset(self, hand: Hand, onset: _OnsetState) -> GenerationConstraintState:
+    def with_last_onset(self, hand: Hand, onset: OnsetState) -> GenerationConstraintState:
         if hand == Hand.RIGHT:
             return replace(self, right_last_onset=onset)
 

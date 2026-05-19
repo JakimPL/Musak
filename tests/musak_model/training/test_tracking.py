@@ -154,7 +154,7 @@ def test_mlflow_tracker_logs_setup_metrics_artifacts_and_invalid_files(
         tracker.log_invalid_files(invalid_files=_split().invalid_files)
 
     assert fake_mlflow.tracking_uri == "file:///tmp/mlruns"
-    assert fake_mlflow.experiment_name == "musak-stage-one"
+    assert fake_mlflow.experiment_name == "musak-pretrain"
     assert fake_mlflow.run_name == "test-run"
     assert fake_mlflow.ended_status == "FINISHED"
     assert fake_mlflow.params["training.optimization.epochs"] == 1

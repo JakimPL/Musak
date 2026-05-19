@@ -6,12 +6,12 @@ from music21 import chord, note, stream, tie
 from music21.base import Music21Object
 from music21.meter.base import TimeSignature
 
-from musak_model.common.ratios import format_ratio
 from musak_model.data.schema import Segment
 from musak_model.decoder.piano_roll import PianoRollEvent, segment_to_piano_roll_events
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import Hand
 from musak_shared.elements import QUARTER_NOTE_DURATION
+from musak_shared.ratios import format_ratio
 
 
 def segment_to_music21_score(

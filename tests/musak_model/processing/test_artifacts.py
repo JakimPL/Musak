@@ -4,7 +4,7 @@ from pathlib import Path
 from musak_model.data.schema import SegmentMetadata
 from musak_model.processing.ids import segment_id, source_id
 from musak_model.processing.io import append_jsonl, load_encoded_jsonl, load_parsed_score_json, write_json_model
-from musak_model.processing.snapshot import SpecialTokenSnapshotField, build_tokenizer_snapshot
+from musak_model.processing.snapshot import SpecialTokenSnapshotField, TokenizerSnapshot, build_tokenizer_snapshot
 from musak_model.tokens.config import TokenizationConfig
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import ScaleType
@@ -76,7 +76,7 @@ def test_tokenizer_snapshot_hash_changes_with_tokenization_config(tokenization_c
     assert first_snapshot.special_token_ids[SpecialTokenSnapshotField.BAR] < first_snapshot.vocabulary_size
 
 
-def _snapshot(config: TokenizationConfig):
+def _snapshot(config: TokenizationConfig) -> TokenizerSnapshot:
     duration_vocabulary = DurationVocabulary(config)
     token_vocabulary = TokenVocabulary(duration_vocabulary)
     return build_tokenizer_snapshot(

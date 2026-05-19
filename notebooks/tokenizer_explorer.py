@@ -109,7 +109,7 @@ def _(DEFAULT_DATA_DIR, mo, processed_browser_path):
     )
     file_browser = mo.ui.file_browser(
         initial_path=DEFAULT_DATA_DIR,
-        filetypes=[".mxl", ".musicxml", ".xml"],
+        filetypes=list(MUSICXML_EXTENSIONS),
         selection_mode="file",
         multiple=False,
         label="MusicXML file",

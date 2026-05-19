@@ -6,7 +6,7 @@ from functools import cached_property
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from musak.modules.elements.exceptions import NoteNotSupportedError
-from musak.modules.elements.misc import is_power_of_two
+from musak_shared.misc import is_power_of_two
 
 
 class Note(BaseModel):

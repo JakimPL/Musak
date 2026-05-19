@@ -95,13 +95,13 @@ processed/PDMX/
 Training can work from encoded JSONL, parsed JSON, or raw MusicXML. `--processed-dir` is the processed artifact directory with the dataset name. `--data-dir` is optional when processed artifacts are usable, and is required only when raw MusicXML fallback is needed.
 
 ```bash
-uv run python scripts/train_stage_one.py --processed-dir processed/PDMX
+uv run python scripts/pretrain.py --processed-dir processed/PDMX
 ```
 
 To allow raw fallback, pass both directories:
 
 ```bash
-uv run python scripts/train_stage_one.py --data-dir data/PDMX --processed-dir processed/PDMX
+uv run python scripts/pretrain.py --data-dir data/PDMX --processed-dir processed/PDMX
 ```
 
 When both directories are supplied, their dataset names must match. For example, `--data-dir data/PDMX --processed-dir processed/PDMX` is valid; `--data-dir data/PDMX --processed-dir processed` is not a training path. Processing still takes a processed root and writes the dataset subdirectory, while training takes the resolved processed dataset directory.

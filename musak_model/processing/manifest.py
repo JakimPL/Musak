@@ -3,9 +3,9 @@ from enum import StrEnum
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Final
 
-from musak_model.common.ratios import format_ratio
 from musak_model.data.schema import ParsedScore, Segment
 from musak_model.processing.ids import segment_id
+from musak_shared.ratios import format_ratio
 
 if TYPE_CHECKING:
     from musak_model.training.ingestion.schema import EncodedExercise

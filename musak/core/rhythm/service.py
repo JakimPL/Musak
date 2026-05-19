@@ -1,6 +1,8 @@
 import re
 from typing import Any
 
+from pydantic import ValidationError
+
 from musak.config.defaults import (
     GROUPS,
     MAX_GROUPS,
@@ -14,7 +16,6 @@ from musak.config.defaults import (
     MIN_TEMPO,
     MIN_TIME_SIGNATURE_NUMERATOR,
     TEMPO,
-    TIME_SIGNATURE,
     TIME_SIGNATURE_DENOMINATOR,
     TIME_SIGNATURE_DENOMINATOR_OPTIONS,
     TIME_SIGNATURE_NUMERATOR,
@@ -28,7 +29,6 @@ from musak.core.rhythm.schema import (
     RhythmResponse,
 )
 from musak.core.schemas.common import FieldGroupSchema, FieldSchema
-from musak.modules.elements.misc import is_power_of_two
 from musak.modules.elements.note import Note
 from musak.modules.elements.phrase import Phrase
 from musak.modules.rhythm.conversion import phrases_to_midi
@@ -360,28 +360,25 @@ class RhythmService:
             ]
         )
 
-    def _build_settings(self, request: RhythmRequest) -> tuple[Settings, bool]:
+    def _build_settings(self, request: RhythmRequest) -> Settings:
         config = _load_config()
         notes, phrases = self._collect_notes_phrases(request)
         if notes or phrases:
             default_group_settings = GroupSettings.model_validate({"notes": notes, "phrases": phrases})
         else:
             default_group_settings = GroupSettings.model_validate(config.default_group.model_dump())
-        time_signature = request.time_signature
-        time_signature_error = not is_power_of_two(time_signature[1])
-        if time_signature_error:
-            time_signature = TIME_SIGNATURE
 
-        return (
-            Settings(
-                tempo=request.tempo,
-                groups=request.groups,
-                measures=request.measures,
-                time_signature=time_signature,
-                default_group_settings=default_group_settings,
-            ),
-            time_signature_error,
+        return Settings(
+            tempo=request.tempo,
+            groups=request.groups,
+            measures=request.measures,
+            time_signature=request.time_signature,
+            default_group_settings=default_group_settings,
         )
+
+    @staticmethod
+    def _is_time_signature_error(exception: ValidationError) -> bool:
+        return any(error["loc"] == ("time_signature",) for error in exception.errors())
 
     def _collect_notes_phrases(self, request: RhythmRequest) -> tuple[list[Note], list[Phrase]]:
         notes = [Note.model_validate(note) for note in request.notes]
@@ -391,7 +388,12 @@ class RhythmService:
 
     def generate(self, request: RhythmRequest) -> RhythmResponse:
         try:
-            settings, time_signature_error = self._build_settings(request)
+            settings = self._build_settings(request)
+        except ValidationError as exception:
+            return RhythmResponse(
+                exception=str(exception),
+                time_signature_error=self._is_time_signature_error(exception),
+            )
         except ValueError as exception:
             return RhythmResponse(exception=str(exception))
 
@@ -401,7 +403,7 @@ class RhythmService:
         except RhygenException as exception:
             return RhythmResponse(
                 exception=str(exception),
-                time_signature_error=time_signature_error,
+                time_signature_error=False,
             )
 
         score_data = phrases_to_score_data(
@@ -423,5 +425,5 @@ class RhythmService:
             audio_data=audio_data,
             score_data=score_data,
             exception=None,
-            time_signature_error=time_signature_error,
+            time_signature_error=False,
         )

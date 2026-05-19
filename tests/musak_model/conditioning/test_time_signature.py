@@ -39,13 +39,13 @@ def test_time_signature_vocabulary_rejects_values_outside_generated_range() -> N
 
 
 def test_time_signature_vocabulary_config_requires_power_of_two_denominator() -> None:
-    with pytest.raises(ValueError, match="power of 2"):
+    with pytest.raises(ValueError, match="power of two"):
         TimeSignatureVocabularyConfig(max_denominator=12, relative_numerator_range=2)
 
 
 def test_time_signature_vocabulary_config_has_no_defaults() -> None:
-    with pytest.raises(ValueError, match="max_denominator"):
-        TimeSignatureVocabularyConfig.model_validate({"relative_numerator_range": 2})
+    with pytest.raises(ValueError, match="time signature denominator must be a power of two"):
+        TimeSignatureVocabularyConfig.model_validate({"relative_numerator_range": 2, "max_denominator": 12})
 
     with pytest.raises(ValueError, match="relative_numerator_range"):
-        TimeSignatureVocabularyConfig.model_validate({"max_denominator": 4})
+        TimeSignatureVocabularyConfig.model_validate({"max_denominator": 4, "relative_numerator_range": -1})

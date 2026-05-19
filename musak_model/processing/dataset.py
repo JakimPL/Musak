@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import logging
+import multiprocessing
 from collections.abc import Iterable
 from concurrent.futures import Future, ProcessPoolExecutor, as_completed
 from dataclasses import dataclass
 from enum import StrEnum
+from multiprocessing.context import BaseContext
 from pathlib import Path
 from typing import Literal, TypeVar, cast
 from xml.etree import ElementTree
@@ -14,7 +16,6 @@ from zipfile import BadZipFile, ZipFile
 from music21.exceptions21 import Music21Exception
 from tqdm.auto import tqdm
 
-from musak_model.common.files import collect_musicxml_files
 from musak_model.data.cleaning import clean_parsed_score
 from musak_model.data.config import SegmentationConfig
 from musak_model.data.parser import parse_score
@@ -41,6 +42,7 @@ from musak_model.tokens.config import TokenizationConfig
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.vocabulary import TokenVocabulary
 from musak_model.training.ingestion.split import _encode_segment
+from musak_shared.files import collect_musicxml_files
 
 type ProcessingStage = Literal["parsed", "encoded", "all"]
 _T = TypeVar("_T")
@@ -257,7 +259,7 @@ def _run_parsed_score_tasks(
             ordered_results[result.index] = result
         return
 
-    with ProcessPoolExecutor(max_workers=workers) as executor:
+    with ProcessPoolExecutor(max_workers=workers, mp_context=_process_pool_context()) as executor:
         futures: dict[Future[_ParsedScoreResult], int] = {
             executor.submit(_process_parsed_score_task, task): task.index for task in tasks
         }
@@ -271,6 +273,17 @@ def _run_parsed_score_tasks(
         ):
             result = future.result()
             ordered_results[result.index] = result
+
+
+def _process_pool_context() -> BaseContext:
+    available_methods = multiprocessing.get_all_start_methods()
+    if "forkserver" in available_methods:
+        return multiprocessing.get_context("forkserver")
+
+    if "spawn" in available_methods:
+        return multiprocessing.get_context("spawn")
+
+    return multiprocessing.get_context()
 
 
 def _filled_results(results: list[_ParsedScoreResult | None]) -> list[_ParsedScoreResult]:

@@ -1,9 +1,9 @@
 from pathlib import Path
-from typing import Any, Final
+from typing import Any
 
 import yaml
 
-MUSICXML_EXTENSIONS: Final[frozenset[str]] = frozenset({".xml", ".mxl", ".musicxml"})
+from musak_shared.elements import MUSICXML_EXTENSIONS
 
 
 def collect_musicxml_files(source_directory: Path) -> list[Path]:

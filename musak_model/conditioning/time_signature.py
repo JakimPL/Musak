@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from musak_shared.common import is_power_of_two
+from musak_shared.time_signature import validate_time_denominator
 
 
 class TimeSignatureVocabularyConfig(BaseModel):
@@ -14,9 +14,7 @@ class TimeSignatureVocabularyConfig(BaseModel):
     @field_validator("max_denominator")
     @classmethod
     def _validate_max_denominator_power_of_two(cls, value: int) -> int:
-        if not is_power_of_two(value):
-            raise ValueError("max_denominator must be a power of 2")
-
+        validate_time_denominator(value)
         return value
 
 

@@ -11,12 +11,14 @@ conditioning:
   use_scale_type: true
   use_difficulty: false
   use_structural_conditioning: true
+  use_validity_penalty: true
+  validity_penalty_weight: 0.02
 checkpoints:
-  checkpoint_dir: checkpoints/stage_two
+  checkpoint_dir: checkpoints/finetuning
   resume_checkpoint: null
-  stage_one_checkpoint: checkpoints/stage_one/best.pt
+  pretraining_checkpoint: checkpoints/pretraining/best.pt
 mlflow:
   enable_mlflow: true
-  mlflow_experiment_name: musak-stage-two
+  mlflow_experiment_name: musak-finetune
   mlflow_run_name: null
   mlflow_tracking_uri: null

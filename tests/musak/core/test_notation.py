@@ -1,6 +1,3 @@
-import pytest
-from pydantic import ValidationError
-
 from musak.core.notation.chord_serializer import (
     interval_to_score_data,
     inversion_to_score_data,
@@ -10,97 +7,10 @@ from musak.core.notation.rhythm_serializer import (
     phrases_to_score_data,
     split_into_measures,
 )
-from musak.core.notation.schema import NoteData, ScoreData, StaveData, VoiceData
 from musak.modules.elements.interval import Interval
 from musak.modules.elements.inversion import ChordInversion
-from musak.modules.elements.names import midi_to_vexflow_key
 from musak.modules.elements.note import Note
 from musak.modules.elements.phrase import Phrase
-from musak.modules.elements.time_signature import validate_time_signature
-
-
-class TestMidiToVexflowKey:
-    def test_middle_c(self) -> None:
-        assert midi_to_vexflow_key(60) == "c/4"
-
-    def test_sharp(self) -> None:
-        assert midi_to_vexflow_key(61) == "c#/4"
-
-    def test_below_middle_c(self) -> None:
-        assert midi_to_vexflow_key(59) == "b/3"
-
-    def test_octave_boundary(self) -> None:
-        assert midi_to_vexflow_key(48) == "c/3"
-        assert midi_to_vexflow_key(72) == "c/5"
-
-
-class TestValidateTimeSignature:
-    def test_accepts_valid(self) -> None:
-        assert validate_time_signature((4, 4)) == (4, 4)
-        assert validate_time_signature((3, 8)) == (3, 8)
-        assert validate_time_signature((7, 16)) == (7, 16)
-
-    def test_rejects_zero_numerator(self) -> None:
-        with pytest.raises(ValueError):
-            validate_time_signature((0, 4))
-
-    def test_rejects_negative_numerator(self) -> None:
-        with pytest.raises(ValueError):
-            validate_time_signature((-1, 4))
-
-    def test_rejects_non_power_of_two_denominator(self) -> None:
-        with pytest.raises(ValueError):
-            validate_time_signature((4, 3))
-
-    def test_rejects_zero_denominator(self) -> None:
-        with pytest.raises(ValueError):
-            validate_time_signature((4, 0))
-
-
-class TestNoteData:
-    def test_rejects_invalid_duration(self) -> None:
-        with pytest.raises(ValidationError):
-            NoteData(keys=["c/4"], duration="xyz")
-
-    def test_rejects_negative_dots(self) -> None:
-        with pytest.raises(ValidationError):
-            NoteData(keys=["c/4"], duration="w", dots=-1)
-
-    def test_rejects_too_many_dots(self) -> None:
-        with pytest.raises(ValidationError):
-            NoteData(keys=["c/4"], duration="w", dots=3)
-
-    def test_accepts_rest_duration(self) -> None:
-        note = NoteData(keys=[], duration="wr")
-        assert note.duration == "wr"
-        assert note.keys == []
-
-
-class TestStaveData:
-    def test_rejects_invalid_clef(self) -> None:
-        with pytest.raises(ValidationError):
-            StaveData(clef="unknown", voices=[])
-
-    def test_rejects_invalid_time_signature(self) -> None:
-        with pytest.raises(ValidationError):
-            StaveData(clef="treble", time_signature=(4, 3), voices=[])
-
-    def test_accepts_none_time_signature(self) -> None:
-        stave = StaveData(clef="treble", time_signature=None, voices=[])
-        assert stave.time_signature is None
-
-
-class TestScoreData:
-    def test_rejects_non_positive_tempo(self) -> None:
-        with pytest.raises(ValidationError):
-            ScoreData(rows=[], tempo=0)
-
-        with pytest.raises(ValidationError):
-            ScoreData(rows=[], tempo=-1)
-
-    def test_accepts_none_tempo(self) -> None:
-        score = ScoreData(rows=[], tempo=None)
-        assert score.tempo is None
 
 
 class TestIntervalToScoreData:

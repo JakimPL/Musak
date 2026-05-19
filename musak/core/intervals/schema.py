@@ -14,8 +14,8 @@ from musak.config.defaults import (
     SEQUENTIAL,
     TEMPO,
 )
-from musak.core.notation.schema import ScoreData
 from musak.core.schemas.common import ConfigResponse
+from musak_shared.notation.schema import ScoreData
 
 
 class IntervalRequest(BaseModel):

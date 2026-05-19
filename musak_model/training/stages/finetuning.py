@@ -15,24 +15,25 @@ from musak_model.tokens.config import TokenizationConfig
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.vocabulary import TokenVocabulary
 from musak_model.training.checkpoint import load_model_weights
-from musak_model.training.config import StageTwoTrainingConfig
+from musak_model.training.config import FinetuningTrainingConfig
 from musak_model.training.dataset import build_dataloaders
 from musak_model.training.ingestion.config import IngestionConfig
 from musak_model.training.ingestion.split import build_split
 from musak_model.training.metrics import build_token_kind_ids
 from musak_model.training.progress import log_split_summary
+from musak_model.training.stages.pretraining import PretrainingTrainer, TrainingResult
 from musak_model.training.tracking import build_training_tracker
-from musak_model.training.trainer import StageOneTrainer, TrainingResult
+from musak_model.training.validity import TrainingValidityMaskBuilder
 
 _LOGGER = logging.getLogger(__name__)
 
 
-def train_stage_two(
+def finetune(
     source_directory: Path,
     *,
     ingestion_config: IngestionConfig,
     segmentation_config: SegmentationConfig,
-    training_config: StageTwoTrainingConfig,
+    training_config: FinetuningTrainingConfig,
     tokenization_config: TokenizationConfig,
     model_config: ModelConfig | None = None,
     conditioning_config_path: Path = CONDITIONING_CONFIG_PATH,
@@ -70,9 +71,9 @@ def train_stage_two(
         max_sequence_length=resolved_model_config.transformer.max_sequence_length,
     )
     model = HierarchicalAutoregressiveModel(resolved_model_config)
-    _LOGGER.info("Loading stage-one model weights from: %s", training_config.checkpoints.stage_one_checkpoint)
+    _LOGGER.info("Loading pretrain model weights from: %s", training_config.checkpoints.pretraining_checkpoint)
     load_model_weights(
-        training_config.checkpoints.stage_one_checkpoint,
+        training_config.checkpoints.pretraining_checkpoint,
         model=model,
         device=torch.device(training_config.runtime.device),
     )
@@ -85,7 +86,7 @@ def train_stage_two(
             split=split,
         )
 
-        trainer = StageOneTrainer(
+        trainer = PretrainingTrainer(
             model=model,
             config=training_config,
             train_loader=train_loader,
@@ -93,6 +94,7 @@ def train_stage_two(
             tracker=tracker,
             show_progress=show_progress,
             token_kind_ids=build_token_kind_ids(token_vocabulary),
+            validity_mask_builder=TrainingValidityMaskBuilder(token_vocabulary),
         )
 
         return trainer.train(invalid_files=split.invalid_files)

@@ -1,8 +1,7 @@
 from fractions import Fraction
 from pathlib import Path
-from typing import Final
+from typing import Any, Final
 
-import torch
 from torch.optim import AdamW
 
 from musak_model.conditioning.config import ConditioningConfig, DifficultyConfig
@@ -17,16 +16,16 @@ from musak_model.tokens.schema import Hand, HandToken, NoteToken, ScaleType
 from musak_model.tokens.vocabulary import TokenVocabulary
 from musak_model.training.checkpoint import save_checkpoint
 from musak_model.training.config import (
+    FinetuningCheckpointConfig,
+    FinetuningTrainingConfig,
     MlflowConfig,
     OptimizationConfig,
     RuntimeConfig,
-    StageTwoCheckpointConfig,
-    StageTwoTrainingConfig,
     TrainingConditioningConfig,
 )
 from musak_model.training.ingestion.config import IngestionConfig
 from musak_model.training.ingestion.schema import EncodedExercise, IngestionSplit
-from musak_model.training.stage_two import train_stage_two
+from musak_model.training.stages.finetuning import finetune
 
 HIDDEN_SIZE: Final[int] = 16
 
@@ -85,31 +84,31 @@ def _sample() -> EncodedExercise:
     )
 
 
-def test_train_stage_two_loads_stage_one_checkpoint_and_runs_epoch(tmp_path: Path, monkeypatch) -> None:
+def test_train_finetuning_loads_pretraining_checkpoint_and_runs_epoch(tmp_path: Path, monkeypatch: Any) -> None:
     model_config = _small_model_config()
-    stage_one_model = HierarchicalAutoregressiveModel(model_config)
-    optimizer = AdamW(stage_one_model.parameters(), lr=0.001)
-    stage_one_checkpoint = tmp_path / "stage_one.pt"
+    pretraining_model = HierarchicalAutoregressiveModel(model_config)
+    optimizer = AdamW(pretraining_model.parameters(), lr=0.001)
+    pretraining_checkpoint = tmp_path / "pretraining.pt"
     save_checkpoint(
-        stage_one_checkpoint,
-        model=stage_one_model,
+        pretraining_checkpoint,
+        model=pretraining_model,
         optimizer=optimizer,
         epoch=0,
         best_validation_loss=None,
     )
     split = IngestionSplit(train=[_sample(), _sample()], validation=[_sample()], invalid_files=[])
-    monkeypatch.setattr("musak_model.training.stage_two.build_split", lambda *args, **kwargs: split)
+    monkeypatch.setattr("musak_model.training.stages.finetuning.build_split", lambda *args, **kwargs: split)
 
-    result = train_stage_two(
+    result = finetune(
         tmp_path,
         ingestion_config=IngestionConfig(validation_fraction=0.0, split_seed=1, processed_root=None),
         segmentation_config=SegmentationConfig(window_bars=1, stride_bars=1),
-        training_config=StageTwoTrainingConfig(
+        training_config=FinetuningTrainingConfig(
             optimization=OptimizationConfig(epochs=1, batch_size=2, learning_rate=0.001, weight_decay=0.0),
             runtime=RuntimeConfig(num_workers=0, device="cpu"),
-            checkpoints=StageTwoCheckpointConfig(
-                checkpoint_dir=tmp_path / "stage_two",
-                stage_one_checkpoint=stage_one_checkpoint,
+            checkpoints=FinetuningCheckpointConfig(
+                checkpoint_dir=tmp_path / "finetuning",
+                pretraining_checkpoint=pretraining_checkpoint,
             ),
             conditioning=TrainingConditioningConfig(
                 use_time_signature=True,
@@ -123,5 +122,5 @@ def test_train_stage_two_loads_stage_one_checkpoint_and_runs_epoch(tmp_path: Pat
     )
 
     assert len(result.metrics) == 1
-    assert result.latest_checkpoint_path == tmp_path / "stage_two" / "latest.pt"
+    assert result.latest_checkpoint_path == tmp_path / "finetuning" / "latest.pt"
     assert result.latest_checkpoint_path.exists()

@@ -3,7 +3,6 @@ from typing import Any, Final
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from musak_model.common.ratios import format_ratio
 from musak_model.processing.ids import tokenizer_hash
 from musak_model.tokens.config import TokenizationConfig
 from musak_model.tokens.duration import DurationVocabulary
@@ -20,6 +19,7 @@ from musak_model.tokens.schema import (
 )
 from musak_model.tokens.vocabulary import TokenVocabulary
 from musak_model.version import TOKENIZER_SCHEMA_VERSION, SchemaVersion
+from musak_shared.ratios import format_ratio
 
 
 class TokenizerSnapshotField(StrEnum):

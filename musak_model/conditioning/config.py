@@ -4,11 +4,11 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from musak_model.common.files import load_yaml_config
 from musak_model.conditioning.structural import StructuralConditioningConfig, StructuralControlVocabulary
 from musak_model.conditioning.time_signature import TimeSignatureVocabulary, TimeSignatureVocabularyConfig
 from musak_model.paths import CONDITIONING_CONFIG_PATH
 from musak_model.tokens.schema import ScaleType
+from musak_shared.files import load_yaml_config
 
 
 class DifficultyConfig(BaseModel):

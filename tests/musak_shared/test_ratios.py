@@ -2,7 +2,7 @@ from fractions import Fraction
 
 import pytest
 
-from musak_model.common.ratios import format_ratio, parse_ratio
+from musak_shared.ratios import format_ratio, parse_ratio
 
 
 def test_format_ratio_accepts_fraction() -> None:

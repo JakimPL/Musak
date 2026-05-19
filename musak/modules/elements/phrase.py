@@ -10,7 +10,7 @@ from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 from musak.config.defaults import TIME_SIGNATURE
 from musak.modules.elements.exceptions import EmptyScoreException
 from musak.modules.elements.note import Note, NoteType
-from musak.modules.elements.time_signature import TimeSignatureType
+from musak_shared.time_signature import TimeSignatureType
 
 
 class Phrase(BaseModel):

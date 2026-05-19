@@ -4,9 +4,9 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from musak_model.common.files import load_yaml_config
 from musak_model.conditioning.config import ConditioningConfig
 from musak_model.paths import CONDITIONING_CONFIG_PATH, MODEL_CONFIG_DIR
+from musak_shared.files import load_yaml_config
 
 
 class CNNConfig(BaseModel):

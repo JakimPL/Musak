@@ -30,9 +30,14 @@ class TrainingExample:
     target_token_ids: Tensor
     bar_positions: Tensor
     structural_control_ids: Tensor
-    difficulty_id: int | None
+    key_root: int
     scale_type_id: int
-    time_signature_id: int
+    time_numerator: int
+    time_denominator: int
+    bar_count: int
+    difficulty_id: int | None
+    conditioning_scale_type_id: int
+    conditioning_time_signature_id: int
 
 
 @dataclass(frozen=True)
@@ -41,10 +46,15 @@ class TrainingBatch:
     target_token_ids: Tensor
     bar_positions: Tensor
     structural_control_ids: Tensor
+    key_roots: Tensor
+    scale_type_ids: Tensor
+    time_numerators: Tensor
+    time_denominators: Tensor
+    bar_counts: Tensor
     token_padding_mask: Tensor
     difficulty_ids: Tensor | None
-    scale_type_ids: Tensor
-    time_signature_ids: Tensor
+    conditioning_scale_type_ids: Tensor
+    conditioning_time_signature_ids: Tensor
 
 
 class EncodedExerciseDataset(Dataset[TrainingExample]):
@@ -176,6 +186,11 @@ def collate_training_examples(examples: list[TrainingExample]) -> TrainingBatch:
     token_padding_mask = torch.ones((len(examples), max_length), dtype=torch.bool)
     structural_control_count = examples[0].structural_control_ids.size(0)
     structural_control_ids = torch.zeros((len(examples), structural_control_count), dtype=torch.long)
+    key_roots = torch.tensor([example.key_root for example in examples], dtype=torch.long)
+    scale_type_ids = torch.tensor([example.scale_type_id for example in examples], dtype=torch.long)
+    time_numerators = torch.tensor([example.time_numerator for example in examples], dtype=torch.long)
+    time_denominators = torch.tensor([example.time_denominator for example in examples], dtype=torch.long)
+    bar_counts = torch.tensor([example.bar_count for example in examples], dtype=torch.long)
 
     for row_index, example in enumerate(examples):
         length = example.input_token_ids.size(0)
@@ -189,18 +204,29 @@ def collate_training_examples(examples: list[TrainingExample]) -> TrainingBatch:
         structural_control_ids[row_index] = example.structural_control_ids
 
     difficulty_ids = _optional_tensor([example.difficulty_id for example in examples])
-    scale_type_ids = torch.tensor([example.scale_type_id for example in examples], dtype=torch.long)
-    time_signature_ids = torch.tensor([example.time_signature_id for example in examples], dtype=torch.long)
+    conditioning_scale_type_ids = torch.tensor(
+        [example.conditioning_scale_type_id for example in examples],
+        dtype=torch.long,
+    )
+    conditioning_time_signature_ids = torch.tensor(
+        [example.conditioning_time_signature_id for example in examples],
+        dtype=torch.long,
+    )
 
     return TrainingBatch(
         input_token_ids=input_token_ids,
         target_token_ids=target_token_ids,
         bar_positions=bar_positions,
         structural_control_ids=structural_control_ids,
+        key_roots=key_roots,
+        scale_type_ids=scale_type_ids,
+        time_numerators=time_numerators,
+        time_denominators=time_denominators,
+        bar_counts=bar_counts,
         token_padding_mask=token_padding_mask,
         difficulty_ids=difficulty_ids,
-        scale_type_ids=scale_type_ids,
-        time_signature_ids=time_signature_ids,
+        conditioning_scale_type_ids=conditioning_scale_type_ids,
+        conditioning_time_signature_ids=conditioning_time_signature_ids,
     )
 
 
@@ -243,9 +269,14 @@ def _to_training_example(
         target_token_ids=token_ids,
         bar_positions=input_bar_positions,
         structural_control_ids=structural_control_ids,
+        key_root=sample.key_root,
+        scale_type_id=scale_type_to_id(sample.scale_type),
+        time_numerator=sample.time_numerator,
+        time_denominator=sample.time_denominator,
+        bar_count=sample.metadata.bar_count,
         difficulty_id=difficulty_id,
-        scale_type_id=scale_type_id,
-        time_signature_id=time_signature_id,
+        conditioning_scale_type_id=scale_type_id,
+        conditioning_time_signature_id=time_signature_id,
     )
 
 

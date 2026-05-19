@@ -5,8 +5,8 @@ from typing import Final
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from musak_model.common.files import load_yaml_config
 from musak_model.paths import INGESTION_CONFIG_PATH
+from musak_shared.files import load_yaml_config
 
 _DEFAULT_SPLIT_SEED: Final[int] = 17
 

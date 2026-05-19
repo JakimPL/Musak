@@ -7,7 +7,12 @@ from fractions import Fraction
 from pathlib import Path
 from typing import Final, Literal
 
-from musak.core.notation.schema import (
+from musak_model.data.schema import Segment
+from musak_model.decoder import PianoRollEvent, segment_to_piano_roll_events
+from musak_model.tokens.duration import DurationVocabulary
+from musak_model.tokens.schema import Hand
+from musak_shared.names import midi_to_vexflow_key
+from musak_shared.notation.schema import (
     EIGHTH,
     HALF,
     QUARTER,
@@ -21,11 +26,6 @@ from musak.core.notation.schema import (
     VexflowDuration,
     VoiceData,
 )
-from musak.modules.elements.names import midi_to_vexflow_key
-from musak_model.data.schema import Segment
-from musak_model.decoder import PianoRollEvent, segment_to_piano_roll_events
-from musak_model.tokens.duration import DurationVocabulary
-from musak_model.tokens.schema import Hand
 
 _POWER_DURATION_BY_FRACTION: Final[dict[Fraction, str]] = {
     Fraction(1, 1): WHOLE,

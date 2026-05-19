@@ -34,6 +34,7 @@ from musak_model.training.metrics import (
 )
 from musak_model.training.progress import log_split_summary, progress
 from musak_model.training.tracking import NoOpTrainingTracker, TrainingTracker, build_training_tracker
+from musak_model.training.validity import TrainingValidityMaskBuilder
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -47,7 +48,7 @@ class TrainingResult(BaseModel):
     invalid_files: list[IngestionErrorRecord]
 
 
-class StageOneTrainer:
+class PretrainingTrainer:
     def __init__(
         self,
         *,
@@ -58,6 +59,7 @@ class StageOneTrainer:
         tracker: TrainingTracker | None = None,
         show_progress: bool = False,
         token_kind_ids: Tensor | None = None,
+        validity_mask_builder: TrainingValidityMaskBuilder | None = None,
     ) -> None:
         self._model = model
         self._config = config
@@ -73,6 +75,10 @@ class StageOneTrainer:
         self._tracker = tracker or NoOpTrainingTracker()
         self._show_progress = show_progress
         self._token_kind_ids = token_kind_ids.to(self._device) if token_kind_ids is not None else None
+        if config.conditioning.use_validity_penalty and validity_mask_builder is None:
+            raise ValueError("validity_mask_builder is required when use_validity_penalty is true")
+
+        self._validity_mask_builder = validity_mask_builder
 
     def train(self, *, invalid_files: list[IngestionErrorRecord] | None = None) -> TrainingResult:
         if len(self._train_loader) == 0:
@@ -106,6 +112,9 @@ class StageOneTrainer:
                 train_perplexity=train_metrics.perplexity,
                 train_token_accuracy=train_metrics.token_accuracy,
                 train_token_kind_accuracy=train_metrics.token_kind_accuracy,
+                train_validity_penalty_loss=train_metrics.validity_penalty_loss,
+                train_invalid_probability_mass=train_metrics.invalid_probability_mass,
+                train_invalid_target_rate=train_metrics.invalid_target_rate,
                 train_cnn_gradient_norm=train_metrics.cnn_gradient_norm,
                 train_gru_gradient_norm=train_metrics.gru_gradient_norm,
                 train_transformer_gradient_norm=train_metrics.transformer_gradient_norm,
@@ -115,15 +124,27 @@ class StageOneTrainer:
                 validation_token_kind_accuracy=(
                     validation_metrics.token_kind_accuracy if validation_metrics is not None else None
                 ),
+                validation_validity_penalty_loss=(
+                    validation_metrics.validity_penalty_loss if validation_metrics is not None else None
+                ),
+                validation_invalid_probability_mass=(
+                    validation_metrics.invalid_probability_mass if validation_metrics is not None else None
+                ),
+                validation_invalid_target_rate=(
+                    validation_metrics.invalid_target_rate if validation_metrics is not None else None
+                ),
             )
             metrics.append(metric)
             self._tracker.log_epoch(metrics=metric)
             _LOGGER.info(
                 (
                     "Epoch %s/%s finished: train_loss=%.6f train_perplexity=%.6f "
-                    "train_token_accuracy=%.6f train_token_kind_accuracy=%s train_cnn_gradient_norm=%s "
+                    "train_token_accuracy=%.6f train_token_kind_accuracy=%s train_validity_penalty_loss=%s "
+                    "train_invalid_probability_mass=%s train_invalid_target_rate=%s train_cnn_gradient_norm=%s "
                     "train_gru_gradient_norm=%s train_transformer_gradient_norm=%s validation_loss=%s "
-                    "validation_perplexity=%s validation_token_accuracy=%s validation_token_kind_accuracy=%s"
+                    "validation_perplexity=%s validation_token_accuracy=%s validation_token_kind_accuracy=%s "
+                    "validation_validity_penalty_loss=%s validation_invalid_probability_mass=%s "
+                    "validation_invalid_target_rate=%s"
                 ),
                 epoch + 1,
                 self._config.optimization.epochs,
@@ -131,6 +152,9 @@ class StageOneTrainer:
                 metric.train_perplexity,
                 metric.train_token_accuracy,
                 metric.train_token_kind_accuracy,
+                metric.train_validity_penalty_loss,
+                metric.train_invalid_probability_mass,
+                metric.train_invalid_target_rate,
                 metric.train_cnn_gradient_norm,
                 metric.train_gru_gradient_norm,
                 metric.train_transformer_gradient_norm,
@@ -138,6 +162,9 @@ class StageOneTrainer:
                 metric.validation_perplexity,
                 metric.validation_token_accuracy,
                 metric.validation_token_kind_accuracy,
+                metric.validation_validity_penalty_loss,
+                metric.validation_invalid_probability_mass,
+                metric.validation_invalid_target_rate,
             )
 
             save_checkpoint(
@@ -221,20 +248,22 @@ class StageOneTrainer:
             batch.input_token_ids,
             bar_positions=batch.bar_positions,
             difficulty_ids=batch.difficulty_ids if self._config.conditioning.use_difficulty else None,
-            scale_type_ids=batch.scale_type_ids if self._config.conditioning.use_scale_type else None,
-            time_signature_ids=batch.time_signature_ids if self._config.conditioning.use_time_signature else None,
+            scale_type_ids=batch.conditioning_scale_type_ids if self._config.conditioning.use_scale_type else None,
+            time_signature_ids=(
+                batch.conditioning_time_signature_ids if self._config.conditioning.use_time_signature else None
+            ),
             structural_control_ids=(
                 batch.structural_control_ids if self._config.conditioning.use_structural_conditioning else None
             ),
             token_padding_mask=batch.token_padding_mask,
         )
-        flat_loss = nn.functional.cross_entropy(
-            logits.reshape(-1, logits.size(-1)),
-            batch.target_token_ids.reshape(-1),
-            reduction="none",
+        log_probabilities = nn.functional.log_softmax(logits, dim=-1)
+        flat_loss = (
+            -log_probabilities.gather(dim=-1, index=batch.target_token_ids.unsqueeze(-1)).squeeze(-1).reshape(-1)
         )
         valid_mask = ~batch.token_padding_mask.reshape(-1)
-        loss = flat_loss[valid_mask].sum() / int(valid_mask.sum().item())
+        cross_entropy_loss = flat_loss[valid_mask].sum() / int(valid_mask.sum().item())
+        loss = cross_entropy_loss
         batch_metrics = batch_metrics_from_logits(
             logits,
             target_token_ids=batch.target_token_ids,
@@ -242,10 +271,59 @@ class StageOneTrainer:
             loss=loss,
             token_kind_ids=self._token_kind_ids,
         )
+        if self._config.conditioning.use_validity_penalty:
+            validity_metrics = self._validity_penalty_metrics(
+                log_probabilities,
+                batch=batch,
+                valid_mask=valid_mask.reshape(batch.token_padding_mask.shape),
+            )
+            loss = loss + self._config.conditioning.validity_penalty_weight * validity_metrics["penalty_loss"]
+            batch_metrics = batch_metrics.model_copy(
+                update={
+                    "loss": float(loss.detach().item()),
+                    "validity_penalty_loss": float(validity_metrics["penalty_loss"].detach().item()),
+                    "invalid_probability_mass": float(validity_metrics["invalid_mass"].detach().item()),
+                    "invalid_target_count": int(validity_metrics["invalid_target_count"].detach().item()),
+                    "validity_penalty_token_count": int(validity_metrics["penalty_token_count"].detach().item()),
+                }
+            )
         return loss, batch_metrics
 
+    def _validity_penalty_metrics(
+        self,
+        log_probabilities: Tensor,
+        *,
+        batch: TrainingBatch,
+        valid_mask: Tensor,
+    ) -> dict[str, Tensor]:
+        if self._validity_mask_builder is None:
+            raise ValueError("validity_mask_builder is required")
 
-def train_stage_one(
+        masks = self._validity_mask_builder.masks_for_batch(batch, device=log_probabilities.device)
+        target_is_invalid = masks.invalid_target_mask & valid_mask
+        penalty_mask = valid_mask & ~target_is_invalid
+        penalty_token_count = penalty_mask.sum()
+        if int(penalty_token_count.item()) == 0:
+            zero = log_probabilities.sum() * 0.0
+            return {
+                "penalty_loss": zero,
+                "invalid_mass": zero,
+                "invalid_target_count": target_is_invalid.sum(),
+                "penalty_token_count": penalty_token_count,
+            }
+
+        invalid_log_probabilities = log_probabilities.masked_fill(~masks.invalid_token_mask, float("-inf"))
+        invalid_mass = torch.logsumexp(invalid_log_probabilities, dim=-1).exp()
+        penalty_loss = invalid_mass[penalty_mask].mean()
+        return {
+            "penalty_loss": penalty_loss,
+            "invalid_mass": penalty_loss.detach(),
+            "invalid_target_count": target_is_invalid.sum(),
+            "penalty_token_count": penalty_token_count,
+        }
+
+
+def pretrain(
     source_directory: Path,
     *,
     ingestion_config: IngestionConfig,
@@ -294,7 +372,7 @@ def train_stage_one(
             model_config=resolved_model_config,
             split=split,
         )
-        trainer = StageOneTrainer(
+        trainer = PretrainingTrainer(
             model=model,
             config=training_config,
             train_loader=train_loader,
@@ -302,6 +380,7 @@ def train_stage_one(
             tracker=tracker,
             show_progress=show_progress,
             token_kind_ids=build_token_kind_ids(vocabulary),
+            validity_mask_builder=TrainingValidityMaskBuilder(vocabulary),
         )
         return trainer.train(invalid_files=split.invalid_files)
 
@@ -313,8 +392,13 @@ def _move_batch_to_device(batch: TrainingBatch, *, device: torch.device) -> Trai
         target_token_ids=batch.target_token_ids.to(device),
         bar_positions=batch.bar_positions.to(device),
         structural_control_ids=batch.structural_control_ids.to(device),
+        key_roots=batch.key_roots.to(device),
+        scale_type_ids=batch.scale_type_ids.to(device),
+        time_numerators=batch.time_numerators.to(device),
+        time_denominators=batch.time_denominators.to(device),
+        bar_counts=batch.bar_counts.to(device),
         token_padding_mask=batch.token_padding_mask.to(device),
         difficulty_ids=difficulty_ids,
-        scale_type_ids=batch.scale_type_ids.to(device),
-        time_signature_ids=batch.time_signature_ids.to(device),
+        conditioning_scale_type_ids=batch.conditioning_scale_type_ids.to(device),
+        conditioning_time_signature_ids=batch.conditioning_time_signature_ids.to(device),
     )

@@ -6,12 +6,12 @@ from typing import Final
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from musak_model.common.ratios import parse_ratio
 from musak_model.data.schema import Segment
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.pitch import note_token_to_midi_pitch, note_token_to_static_hand_position
 from musak_model.tokens.schema import Hand, HandToken, JoinWithPreviousToken, NoteToken
 from musak_shared.elements import is_dotted_duration
+from musak_shared.ratios import parse_ratio
 
 UNKNOWN_CONTROL_ID: Final[int] = 0
 FALSE_CONTROL_ID: Final[int] = 1

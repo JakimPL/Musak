@@ -4,7 +4,6 @@ import os
 from collections.abc import Sequence
 from pathlib import Path
 
-from musak_model.common.files import collect_musicxml_files
 from musak_model.data.config import load_difficulty_labels, load_segmentation_config
 from musak_model.paths import (
     DEFAULT_PROCESSED_ROOT,
@@ -13,6 +12,7 @@ from musak_model.paths import (
 )
 from musak_model.processing.dataset import process_dataset
 from musak_model.tokens.config import TokenizationConfig
+from musak_shared.files import collect_musicxml_files
 
 _LOGGER = logging.getLogger(__name__)
 

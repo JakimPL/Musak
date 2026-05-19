@@ -5,7 +5,6 @@ from typing import Final
 
 from music21.exceptions21 import Music21Exception
 
-from musak_model.common.files import collect_musicxml_files
 from musak_model.data.config import SegmentationConfig
 from musak_model.data.pipeline import process_file, segment_parsed_score
 from musak_model.data.schema import Segment
@@ -19,6 +18,7 @@ from musak_model.tokens.schema import BarToken, EndToken, Token
 from musak_model.tokens.vocabulary import TokenVocabulary, encode
 from musak_model.training.ingestion.config import IngestionConfig
 from musak_model.training.ingestion.schema import EncodedExercise, IngestionErrorRecord, IngestionSplit
+from musak_shared.files import collect_musicxml_files
 
 _LOGGER = logging.getLogger(__name__)
 _FILE_PROCESSING_ERRORS: Final[tuple[type[Exception], ...]] = (

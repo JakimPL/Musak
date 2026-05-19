@@ -5,7 +5,6 @@ from collections.abc import Sequence
 from fractions import Fraction
 from typing import Final
 
-from musak_model.common.ratios import format_ratio
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import (
     MAX_OCTAVE_OFFSET,
@@ -40,6 +39,7 @@ from musak_model.tokens.symbols import (
     TEXT_FLAT_SYMBOL,
     TEXT_SHARP_SYMBOL,
 )
+from musak_shared.ratios import format_ratio
 
 _DURATION_PATTERN: Final[str] = (
     rf"{re.escape(DURATION_OPEN_SYMBOL)}(?P<num>\d+)"

@@ -1,5 +1,5 @@
 optimization:
-  epochs: 25
+  epochs: 30
   batch_size: 16
   learning_rate: 3e-4
   weight_decay: 0.01
@@ -11,11 +11,13 @@ conditioning:
   use_scale_type: true
   use_difficulty: false
   use_structural_conditioning: true
+  use_validity_penalty: true
+  validity_penalty_weight: 0.10
 checkpoints:
-  checkpoint_dir: checkpoints/stage_one
+  checkpoint_dir: checkpoints/pretraining
   resume_checkpoint: null
 mlflow:
   enable_mlflow: true
-  mlflow_experiment_name: musak-stage-one
+  mlflow_experiment_name: musak-pretrain
   mlflow_run_name: null
   mlflow_tracking_uri: null

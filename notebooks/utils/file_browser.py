@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-SUPPORTED_MUSICXML_SUFFIXES = frozenset({".mxl", ".musicxml", ".xml"})
+from musak_shared.elements import MUSICXML_EXTENSIONS
 
 
 @dataclass(frozen=True)
@@ -21,7 +21,7 @@ class FileSelection:
 def selected_musicxml_file(file_browser: Any) -> FileSelection:
     return selected_file(
         file_browser,
-        supported_suffixes=SUPPORTED_MUSICXML_SUFFIXES,
+        supported_suffixes=MUSICXML_EXTENSIONS,
         description="MusicXML",
     )
 
@@ -36,10 +36,10 @@ def selected_file(
 
     try:
         selected_path = file_browser.path(0)
-    except (AttributeError, IndexError, TypeError, ValueError) as exc:
+    except (AttributeError, IndexError, TypeError, ValueError) as exception:
         return FileSelection(
             path=None,
-            message=f"Could not read the selected file path: {type(exc).__name__}: {exc}",
+            message=f"Could not read the selected file path: {type(exception).__name__}: {exception}",
             value_repr=value_repr,
         )
 

@@ -1,7 +1,7 @@
 from typing import NamedTuple
 
 from musak.modules.elements.constants import INTERVAL_NAMES
-from musak.modules.elements.names import get_note_name
+from musak_shared.names import get_note_name
 
 
 class Interval(NamedTuple):

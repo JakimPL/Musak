@@ -4,7 +4,7 @@ from typing import Annotated, Final, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from musak.modules.elements.time_signature import (
+from musak_shared.time_signature import (
     TimeSignatureType,
     validate_time_signature,
 )

@@ -5,11 +5,11 @@ import pytest
 
 from musak_model.training.config import (
     CheckpointConfig,
+    FinetuningCheckpointConfig,
+    FinetuningTrainingConfig,
     MlflowConfig,
     OptimizationConfig,
     RuntimeConfig,
-    StageTwoCheckpointConfig,
-    StageTwoTrainingConfig,
     TrainingConditioningConfig,
     TrainingConfig,
 )
@@ -30,7 +30,7 @@ def _args(**overrides: object) -> argparse.Namespace:
         "segmentation_config": Path("musak_model/configs/data/segmentation.yml"),
         "tokenization_config": Path("musak_model/configs/tokens/tokenization.yml"),
         "conditioning_config": Path("musak_model/configs/conditioning/conditioning.yml"),
-        "training_config": Path("musak_model/configs/training/stage_one.yml"),
+        "training_config": Path("musak_model/configs/training/pretraining.yml"),
         "mlflow_dir": Path("mlruns"),
         "log_level": "INFO",
         "no_progress": False,
@@ -60,18 +60,18 @@ def _training_config(checkpoint_dir: Path, *, epochs: int = 25) -> TrainingConfi
     )
 
 
-def test_resume_command_for_stage_one_copies_resolved_arguments(tmp_path: Path) -> None:
-    checkpoint = tmp_path / "stage_one" / "latest.pt"
+def test_resume_command_for_pretraining_copies_resolved_arguments(tmp_path: Path) -> None:
+    checkpoint = tmp_path / "pretraining" / "latest.pt"
     config = _training_config(checkpoint.parent, epochs=25)
 
     command = resume_command(
-        stage=TrainingStage.STAGE_ONE,
+        stage=TrainingStage.PRETRAINING,
         args=_args(no_progress=True),
         training_config=config,
         checkpoint_path=checkpoint,
     )
 
-    assert "uv run python scripts/train_stage_one.py" in command
+    assert "uv run python scripts/pretrain.py" in command
     assert "--data-dir data/PDMX" in command
     assert "--processed-dir processed/PDMX" in command
     assert f"--checkpoint-dir {checkpoint.parent}" in command
@@ -83,36 +83,36 @@ def test_resume_command_for_stage_one_copies_resolved_arguments(tmp_path: Path) 
     assert "--no-progress" in command
 
 
-def test_resume_command_for_stage_two_includes_pretrain_checkpoint(tmp_path: Path) -> None:
-    latest_checkpoint = tmp_path / "stage_two" / "latest.pt"
-    pretrain_checkpoint = tmp_path / "stage_one" / "best.pt"
-    config = StageTwoTrainingConfig(
+def test_resume_command_for_finetuning_includes_pretrain_checkpoint(tmp_path: Path) -> None:
+    latest_checkpoint = tmp_path / "finetuning" / "latest.pt"
+    pretrain_checkpoint = tmp_path / "pretraining" / "best.pt"
+    config = FinetuningTrainingConfig(
         optimization=OptimizationConfig(epochs=8, batch_size=8, learning_rate=0.001, weight_decay=0.0),
         runtime=RuntimeConfig(num_workers=4, device="cuda"),
-        checkpoints=StageTwoCheckpointConfig(
+        checkpoints=FinetuningCheckpointConfig(
             checkpoint_dir=latest_checkpoint.parent,
-            stage_one_checkpoint=pretrain_checkpoint,
+            pretraining_checkpoint=pretrain_checkpoint,
         ),
     )
 
     command = resume_command(
-        stage=TrainingStage.STAGE_TWO,
-        args=_args(training_config=Path("musak_model/configs/training/stage_two.yml")),
+        stage=TrainingStage.FINETUNING,
+        args=_args(training_config=Path("musak_model/configs/training/finetuning.yml")),
         training_config=config,
         checkpoint_path=latest_checkpoint,
     )
 
-    assert "uv run python scripts/train_stage_two.py" in command
+    assert "uv run python scripts/finetune.py" in command
     assert f"--resume-checkpoint {latest_checkpoint}" in command
     assert "--epochs 8" in command
-    assert f"--stage-one-checkpoint {pretrain_checkpoint}" in command
+    assert f"--pretrain-checkpoint {pretrain_checkpoint}" in command
 
 
 def test_keyboard_interrupt_prints_resume_command_when_latest_checkpoint_exists(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    checkpoint = tmp_path / "stage_one" / "latest.pt"
+    checkpoint = tmp_path / "pretraining" / "latest.pt"
     checkpoint.parent.mkdir(parents=True)
     checkpoint.write_text("checkpoint", encoding="utf-8")
     config = _training_config(checkpoint.parent)
@@ -120,7 +120,7 @@ def test_keyboard_interrupt_prints_resume_command_when_latest_checkpoint_exists(
     with pytest.raises(SystemExit) as exit_info:
         run_training_safely(
             lambda: (_ for _ in ()).throw(KeyboardInterrupt()),
-            stage=TrainingStage.STAGE_ONE,
+            stage=TrainingStage.PRETRAINING,
             args=_args(),
             training_config=config,
         )
@@ -135,12 +135,12 @@ def test_keyboard_interrupt_reports_missing_latest_checkpoint(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    config = _training_config(tmp_path / "stage_one")
+    config = _training_config(tmp_path / "pretraining")
 
     with pytest.raises(SystemExit) as exit_info:
         run_training_safely(
             lambda: (_ for _ in ()).throw(KeyboardInterrupt()),
-            stage=TrainingStage.STAGE_ONE,
+            stage=TrainingStage.PRETRAINING,
             args=_args(),
             training_config=config,
         )
@@ -154,7 +154,7 @@ def test_pretraining_checkpoint_prompt_skips_by_default(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    latest_checkpoint = tmp_path / "stage_one" / "latest.pt"
+    latest_checkpoint = tmp_path / "pretraining" / "latest.pt"
     latest_checkpoint.parent.mkdir(parents=True)
     latest_checkpoint.write_text("checkpoint", encoding="utf-8")
 
@@ -167,7 +167,7 @@ def test_pretraining_checkpoint_prompt_runs_when_user_confirms(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    best_checkpoint = tmp_path / "stage_one" / "best.pt"
+    best_checkpoint = tmp_path / "pretraining" / "best.pt"
     best_checkpoint.parent.mkdir(parents=True)
     best_checkpoint.write_text("checkpoint", encoding="utf-8")
 
@@ -180,7 +180,7 @@ def test_pretraining_overwrite_bypasses_checkpoint_prompt(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    latest_checkpoint = tmp_path / "stage_one" / "latest.pt"
+    latest_checkpoint = tmp_path / "pretraining" / "latest.pt"
     latest_checkpoint.parent.mkdir(parents=True)
     latest_checkpoint.write_text("checkpoint", encoding="utf-8")
 
@@ -196,12 +196,12 @@ def test_pretraining_overwrite_bypasses_checkpoint_prompt(
 
 
 def test_finetune_requires_pretrain_checkpoint(tmp_path: Path) -> None:
-    config = StageTwoTrainingConfig(
+    config = FinetuningTrainingConfig(
         optimization=OptimizationConfig(epochs=8, batch_size=8, learning_rate=0.001, weight_decay=0.0),
         runtime=RuntimeConfig(num_workers=4, device="cuda"),
-        checkpoints=StageTwoCheckpointConfig(
-            checkpoint_dir=tmp_path / "stage_two",
-            stage_one_checkpoint=tmp_path / "stage_one" / "best.pt",
+        checkpoints=FinetuningCheckpointConfig(
+            checkpoint_dir=tmp_path / "finetuning",
+            pretraining_checkpoint=tmp_path / "pretraining" / "best.pt",
         ),
     )
 
@@ -210,15 +210,15 @@ def test_finetune_requires_pretrain_checkpoint(tmp_path: Path) -> None:
 
 
 def test_finetune_accepts_existing_pretrain_checkpoint(tmp_path: Path) -> None:
-    checkpoint = tmp_path / "stage_one" / "best.pt"
+    checkpoint = tmp_path / "pretraining" / "best.pt"
     checkpoint.parent.mkdir(parents=True)
     checkpoint.write_text("checkpoint", encoding="utf-8")
-    config = StageTwoTrainingConfig(
+    config = FinetuningTrainingConfig(
         optimization=OptimizationConfig(epochs=8, batch_size=8, learning_rate=0.001, weight_decay=0.0),
         runtime=RuntimeConfig(num_workers=4, device="cuda"),
-        checkpoints=StageTwoCheckpointConfig(
-            checkpoint_dir=tmp_path / "stage_two",
-            stage_one_checkpoint=checkpoint,
+        checkpoints=FinetuningCheckpointConfig(
+            checkpoint_dir=tmp_path / "finetuning",
+            pretraining_checkpoint=checkpoint,
         ),
     )
 

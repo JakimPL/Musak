@@ -2,11 +2,11 @@ import math
 import random
 from fractions import Fraction
 
-from musak.modules.elements import misc
 from musak.modules.elements.note import Note
 from musak.modules.elements.phrase import Phrase
 from musak.modules.rhythm.exceptions import InvalidPhraseSetError
 from musak.modules.rhythm.settings import Settings
+from musak_shared import misc
 
 
 class RhythmGenerator:

@@ -1,6 +1,5 @@
 from pathlib import Path
 
-from musak_model.common.files import collect_musicxml_files
 from musak_model.data.cleaning import clean_parsed_score
 from musak_model.data.config import SegmentationConfig
 from musak_model.data.converter import PitchDegreeRegisterError
@@ -10,6 +9,7 @@ from musak_model.data.schema import ParsedScore, Segment, SegmentIneligibilityRe
 from musak_model.data.segmenter import segment_score
 from musak_model.tokens.config import TokenizationConfig
 from musak_model.tokens.duration import DurationVocabulary
+from musak_shared.files import collect_musicxml_files
 
 
 def process_directory(

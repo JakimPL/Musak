@@ -1,4 +1,4 @@
-from musak_shared.common import is_power_of_two
+from musak_shared.misc import is_power_of_two
 
 
 def test_is_power_of_two() -> None:

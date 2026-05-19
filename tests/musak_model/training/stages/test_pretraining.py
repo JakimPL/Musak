@@ -14,11 +14,18 @@ from musak_model.tokens.config import TokenizationConfig
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import ScaleType
 from musak_model.tokens.vocabulary import TokenVocabulary
-from musak_model.training.config import CheckpointConfig, OptimizationConfig, RuntimeConfig, TrainingConfig
+from musak_model.training.config import (
+    CheckpointConfig,
+    OptimizationConfig,
+    RuntimeConfig,
+    TrainingConditioningConfig,
+    TrainingConfig,
+)
 from musak_model.training.dataset import EncodedExerciseDataset, TrainingBatch, collate_training_examples
 from musak_model.training.ingestion.schema import EncodedExercise, IngestionErrorRecord, IngestionSplit
 from musak_model.training.metrics import EpochMetrics
-from musak_model.training.trainer import StageOneTrainer
+from musak_model.training.stages.pretraining import PretrainingTrainer
+from musak_model.training.validity import TrainingValidityMaskBuilder
 
 HIDDEN_SIZE: Final[int] = 16
 
@@ -74,10 +81,17 @@ def _small_model_config() -> ModelConfig:
     )
 
 
-def _training_config(checkpoint_dir: Path, *, resume_checkpoint: Path | None = None, epochs: int = 1) -> TrainingConfig:
+def _training_config(
+    checkpoint_dir: Path,
+    *,
+    resume_checkpoint: Path | None = None,
+    epochs: int = 1,
+    conditioning: TrainingConditioningConfig = TrainingConditioningConfig(),
+) -> TrainingConfig:
     return TrainingConfig(
         optimization=OptimizationConfig(epochs=epochs, batch_size=2, learning_rate=0.001, weight_decay=0.0),
         runtime=RuntimeConfig(num_workers=0, device="cpu"),
+        conditioning=conditioning,
         checkpoints=CheckpointConfig(checkpoint_dir=checkpoint_dir, resume_checkpoint=resume_checkpoint),
     )
 
@@ -122,7 +136,7 @@ def _token_vocabulary() -> TokenVocabulary:
 def test_trainer_runs_one_epoch_and_writes_checkpoints(tmp_path: Path) -> None:
     torch.manual_seed(0)
     model = HierarchicalAutoregressiveModel(_small_model_config())
-    trainer = StageOneTrainer(
+    trainer = PretrainingTrainer(
         model=model,
         config=_training_config(tmp_path),
         train_loader=_loader(),
@@ -145,7 +159,7 @@ def test_trainer_runs_one_epoch_and_writes_checkpoints(tmp_path: Path) -> None:
 def test_trainer_logs_to_tracker(tmp_path: Path) -> None:
     tracker = FakeTracker()
     model = HierarchicalAutoregressiveModel(_small_model_config())
-    trainer = StageOneTrainer(
+    trainer = PretrainingTrainer(
         model=model,
         config=_training_config(tmp_path),
         train_loader=_loader(),
@@ -163,7 +177,7 @@ def test_trainer_logs_to_tracker(tmp_path: Path) -> None:
 def test_trainer_resumes_from_checkpoint(tmp_path: Path) -> None:
     torch.manual_seed(0)
     first_model = HierarchicalAutoregressiveModel(_small_model_config())
-    first_trainer = StageOneTrainer(
+    first_trainer = PretrainingTrainer(
         model=first_model,
         config=_training_config(tmp_path),
         train_loader=_loader(),
@@ -172,7 +186,7 @@ def test_trainer_resumes_from_checkpoint(tmp_path: Path) -> None:
     first_trainer.train()
 
     second_model = HierarchicalAutoregressiveModel(_small_model_config())
-    second_trainer = StageOneTrainer(
+    second_trainer = PretrainingTrainer(
         model=second_model,
         config=_training_config(tmp_path, resume_checkpoint=tmp_path / "latest.pt", epochs=2),
         train_loader=_loader(),
@@ -182,3 +196,24 @@ def test_trainer_resumes_from_checkpoint(tmp_path: Path) -> None:
     result = second_trainer.train()
 
     assert [metric.epoch for metric in result.metrics] == [1]
+
+
+def test_trainer_reports_validity_penalty_metrics(tmp_path: Path) -> None:
+    token_vocabulary = _token_vocabulary()
+    model = HierarchicalAutoregressiveModel(_small_model_config())
+    trainer = PretrainingTrainer(
+        model=model,
+        config=_training_config(
+            tmp_path,
+            conditioning=TrainingConditioningConfig(use_validity_penalty=True, validity_penalty_weight=0.05),
+        ),
+        train_loader=_loader(),
+        validation_loader=_loader(),
+        validity_mask_builder=TrainingValidityMaskBuilder(token_vocabulary),
+    )
+
+    result = trainer.train()
+
+    assert result.metrics[0].train_validity_penalty_loss is not None
+    assert result.metrics[0].train_invalid_probability_mass is not None
+    assert result.metrics[0].train_invalid_target_rate is not None

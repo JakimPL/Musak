@@ -7,14 +7,15 @@ from fastapi.templating import Jinja2Templates
 
 from musak.api.routers import intervals, inversions, rhythm
 from musak_shared.exporter import AudioExportError
+from musak_shared.paths import STATIC_DIR, TEMPLATES_DIR
 
 DEBUG = os.getenv("DEBUG", "0") == "1"
 
 app = FastAPI(title="Musak", debug=DEBUG)
 
-app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
-templates = Jinja2Templates(directory="templates")
+templates = Jinja2Templates(directory=TEMPLATES_DIR)
 
 app.include_router(intervals.router, prefix="/api/intervals", tags=["intervals"])
 app.include_router(inversions.router, prefix="/api/inversions", tags=["inversions"])

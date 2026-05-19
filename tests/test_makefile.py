@@ -32,8 +32,8 @@ def test_make_help_documents_examples_and_variables() -> None:
     output = _make_dry_run("help")
 
     assert "Musak development commands" in output
-    assert "make train-pretrain" in output
-    assert "make train-finetune" in output
+    assert "make pretrain" in output
+    assert "make finetune" in output
     assert "make mlflow" in output
     assert "PRETRAIN_PROCESSED_DIR" in output
     assert "FINETUNE_PROCESSED_DIR" in output
@@ -52,7 +52,7 @@ def test_make_process_uses_data_dir_and_processed_root() -> None:
 
 def test_make_train_pretrain_uses_descriptive_variables() -> None:
     output = _make_dry_run(
-        "train-pretrain",
+        "pretrain",
         "PRETRAIN_DATA_DIR=data/PDMX",
         "PRETRAIN_PROCESSED_DIR=processed/PDMX",
         "PRETRAIN_EPOCHS=25",
@@ -61,7 +61,7 @@ def test_make_train_pretrain_uses_descriptive_variables() -> None:
         "OVERWRITE=1",
     )
 
-    assert "scripts/train_stage_one.py" in output
+    assert "scripts/pretrain.py" in output
     assert '--data-dir "data/PDMX"' in output
     assert '--processed-dir "processed/PDMX"' in output
     assert '--epochs "25"' in output
@@ -77,15 +77,15 @@ def test_make_train_runs_pretrain_then_finetune_with_distinct_datasets() -> None
         "PRETRAIN_PROCESSED_DIR=processed/PDMX",
         "FINETUNE_DATA_DIR=data/Exercises",
         "FINETUNE_PROCESSED_DIR=processed/Exercises",
-        "PRETRAIN_CHECKPOINT=checkpoints/stage_one/best.pt",
+        "PRETRAIN_CHECKPOINT=checkpoints/pretraining/best.pt",
     )
 
-    assert output.index("scripts/train_stage_one.py") < output.index("scripts/train_stage_two.py")
+    assert output.index("scripts/pretrain.py") < output.index("scripts/finetune.py")
     assert '--data-dir "data/PDMX"' in output
     assert '--processed-dir "processed/PDMX"' in output
     assert '--data-dir "data/Exercises"' in output
     assert '--processed-dir "processed/Exercises"' in output
-    assert '--stage-one-checkpoint "checkpoints/stage_one/best.pt"' in output
+    assert '--pretrain-checkpoint "checkpoints/pretraining/best.pt"' in output
 
 
 def test_make_mlflow_starts_dashboard_with_configurable_address() -> None:

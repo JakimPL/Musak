@@ -1,8 +1,10 @@
-from __future__ import annotations
-
 from typing import Final
 
-from musak.core.notation.schema import (
+from musak.modules.elements.interval import Interval
+from musak.modules.elements.inversion import ChordInversion
+from musak_shared.elements import MIDDLE_C
+from musak_shared.names import midi_to_vexflow_key
+from musak_shared.notation.schema import (
     QUARTER,
     WHOLE,
     Clef,
@@ -11,11 +13,7 @@ from musak.core.notation.schema import (
     StaveData,
     VoiceData,
 )
-from musak.modules.elements.interval import Interval
-from musak.modules.elements.inversion import ChordInversion
-from musak.modules.elements.names import midi_to_vexflow_key
 
-MIDDLE_C: Final[int] = 60
 WIDE_SPAN_THRESHOLD: Final[int] = 30
 
 

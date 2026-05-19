@@ -1,4 +1,5 @@
 import torch
+from pytest import approx
 
 from musak_model.tokens.schema import BarToken, Hand, HandToken, NoteToken, RestToken
 from musak_model.tokens.vocabulary import TokenVocabulary
@@ -43,6 +44,10 @@ def test_metrics_accumulator_averages_loss_accuracy_and_gradient_norms() -> None
             token_count=2,
             exact_match_count=1,
             token_kind_match_count=2,
+            validity_penalty_loss=0.2,
+            invalid_probability_mass=0.4,
+            invalid_target_count=1,
+            validity_penalty_token_count=2,
             cnn_gradient_norm=0.5,
             gru_gradient_norm=1.0,
             transformer_gradient_norm=1.5,
@@ -54,6 +59,10 @@ def test_metrics_accumulator_averages_loss_accuracy_and_gradient_norms() -> None
             token_count=6,
             exact_match_count=3,
             token_kind_match_count=4,
+            validity_penalty_loss=0.6,
+            invalid_probability_mass=0.8,
+            invalid_target_count=2,
+            validity_penalty_token_count=6,
             cnn_gradient_norm=1.5,
             gru_gradient_norm=2.0,
             transformer_gradient_norm=2.5,
@@ -65,6 +74,9 @@ def test_metrics_accumulator_averages_loss_accuracy_and_gradient_norms() -> None
     assert metrics.loss == 1.75
     assert metrics.token_accuracy == 0.5
     assert metrics.token_kind_accuracy == 0.75
+    assert metrics.validity_penalty_loss == approx(0.5)
+    assert metrics.invalid_probability_mass == approx(0.7)
+    assert metrics.invalid_target_rate == 0.375
     assert metrics.cnn_gradient_norm == 1.25
     assert metrics.gru_gradient_norm == 1.75
     assert metrics.transformer_gradient_norm == 2.25

@@ -12,36 +12,36 @@ import torch
 from musak_model.data.config import load_difficulty_labels, load_segmentation_config
 from musak_model.paths import (
     CONDITIONING_CONFIG_PATH,
+    DEFAULT_FINETUNING_CHECKPOINT_DIR,
     DEFAULT_MLFLOW_DIR,
-    DEFAULT_STAGE_ONE_CHECKPOINT_DIR,
-    DEFAULT_STAGE_TWO_CHECKPOINT_DIR,
+    DEFAULT_PRETRAINING_CHECKPOINT_DIR,
+    FINETUNING_CONFIG_PATH,
     INGESTION_CONFIG_PATH,
+    PRETRAINING_CONFIG_PATH,
     SEGMENTATION_CONFIG_PATH,
-    STAGE_TWO_TRAINING_CONFIG_PATH,
     TOKENIZATION_CONFIG_PATH,
-    TRAINING_CONFIG_PATH,
 )
 from musak_model.tokens.config import TokenizationConfig
 from musak_model.training.config import (
     CheckpointConfig,
+    FinetuningCheckpointConfig,
+    FinetuningTrainingConfig,
     MlflowConfig,
     OptimizationConfig,
     RuntimeConfig,
-    StageTwoCheckpointConfig,
-    StageTwoTrainingConfig,
     TrainingConditioningConfig,
     TrainingConfig,
 )
 from musak_model.training.ingestion.config import IngestionConfig
-from musak_model.training.stage_two import train_stage_two
-from musak_model.training.trainer import TrainingResult, train_stage_one
+from musak_model.training.stages.finetuning import finetune
+from musak_model.training.stages.pretraining import TrainingResult, pretrain
 
 _LOGGER = logging.getLogger(__name__)
 
 
 class TrainingStage(StrEnum):
-    STAGE_ONE = "stage-one"
-    STAGE_TWO = "stage-two"
+    PRETRAINING = "pretrain"
+    FINETUNING = "finetune"
 
 
 class TrainHelpFormatter(
@@ -64,8 +64,8 @@ def run_training(stage: TrainingStage) -> None:
     )
     tokenization_config = TokenizationConfig.load(args.tokenization_config)
     match stage:
-        case TrainingStage.STAGE_ONE:
-            training_config = build_stage_one_training_config(args)
+        case TrainingStage.PRETRAINING:
+            training_config = build_pretraining_training_config(args)
             if should_skip_pretraining(args=args, training_config=training_config):
                 _LOGGER.info("Skipping pretraining because checkpoint files already exist.")
                 print("Skipping pretraining because checkpoint files already exist.")
@@ -78,7 +78,7 @@ def run_training(stage: TrainingStage) -> None:
                 training_config=training_config,
             )
             result = run_training_safely(
-                lambda: train_stage_one(
+                lambda: pretrain(
                     source_directory,
                     ingestion_config=ingestion_config,
                     segmentation_config=segmentation_config,
@@ -92,8 +92,8 @@ def run_training(stage: TrainingStage) -> None:
                 args=args,
                 training_config=training_config,
             )
-        case TrainingStage.STAGE_TWO:
-            training_config = build_stage_two_training_config(args)
+        case TrainingStage.FINETUNING:
+            training_config = build_finetuning_training_config(args)
             validate_finetune_checkpoint(training_config)
             log_training_start(
                 stage,
@@ -102,7 +102,7 @@ def run_training(stage: TrainingStage) -> None:
                 training_config=training_config,
             )
             result = run_training_safely(
-                lambda: train_stage_two(
+                lambda: finetune(
                     source_directory,
                     ingestion_config=ingestion_config,
                     segmentation_config=segmentation_config,
@@ -142,8 +142,8 @@ def existing_training_checkpoints(training_config: TrainingConfig) -> tuple[Path
     return tuple(path for path in candidates if path.exists())
 
 
-def validate_finetune_checkpoint(training_config: StageTwoTrainingConfig) -> None:
-    checkpoint_path = training_config.checkpoints.stage_one_checkpoint
+def validate_finetune_checkpoint(training_config: FinetuningTrainingConfig) -> None:
+    checkpoint_path = training_config.checkpoints.pretraining_checkpoint
     if not checkpoint_path.exists():
         raise FileNotFoundError(f"Stage-one pretrain checkpoint does not exist: {checkpoint_path}")
 
@@ -239,8 +239,9 @@ def resume_command(
         command.append("--overwrite")
     if not training_config.mlflow.enable_mlflow:
         command.append("--disable-mlflow")
-    if isinstance(training_config, StageTwoTrainingConfig):
-        command.extend(["--stage-one-checkpoint", str(training_config.checkpoints.stage_one_checkpoint)])
+    if isinstance(training_config, FinetuningTrainingConfig):
+        command.extend(["--pretrain-checkpoint", str(training_config.checkpoints.pretraining_checkpoint)])
+
     return shlex.join(command)
 
 
@@ -268,7 +269,11 @@ def parse_training_args(stage: TrainingStage) -> argparse.Namespace:
     return parser.parse_args()
 
 
-def add_common_training_arguments(parser: argparse.ArgumentParser, *, stage: TrainingStage) -> None:
+def add_common_training_arguments(
+    parser: argparse.ArgumentParser,
+    *,
+    stage: TrainingStage,
+) -> None:
     parser.add_argument(
         "--data-dir",
         type=Path,
@@ -306,12 +311,12 @@ def add_common_training_arguments(parser: argparse.ArgumentParser, *, stage: Tra
         default=None,
         help="Directory for training checkpoints.",
     )
-    if stage == TrainingStage.STAGE_TWO:
+    if stage == TrainingStage.FINETUNING:
         parser.add_argument(
-            "--stage-one-checkpoint",
+            "--pretrain-checkpoint",
             type=Path,
             default=None,
-            help="Stage-one checkpoint whose model weights initialize stage-two fine-tuning.",
+            help="Stage-one checkpoint whose model weights initialize finetune fine-tuning.",
         )
     parser.add_argument("--resume-checkpoint", type=Path, default=None, help="Checkpoint to resume from.")
     parser.add_argument("--overwrite", action="store_true", help="Allow pretraining to overwrite existing checkpoints.")
@@ -391,35 +396,35 @@ def training_source_dir(args: argparse.Namespace) -> Path:
     return Path(processed_dir.name)
 
 
-def build_stage_one_training_config(args: argparse.Namespace) -> TrainingConfig:
+def build_pretraining_training_config(args: argparse.Namespace) -> TrainingConfig:
     config = TrainingConfig.load(args.training_config)
     return config.model_copy(
         update=common_training_section_updates(
             args,
             config=config,
-            default_checkpoint_dir=DEFAULT_STAGE_ONE_CHECKPOINT_DIR,
+            default_checkpoint_dir=DEFAULT_PRETRAINING_CHECKPOINT_DIR,
         )
     )
 
 
-def build_stage_two_training_config(args: argparse.Namespace) -> StageTwoTrainingConfig:
-    config = StageTwoTrainingConfig.load(args.training_config)
+def build_finetuning_training_config(args: argparse.Namespace) -> FinetuningTrainingConfig:
+    config = FinetuningTrainingConfig.load(args.training_config)
     updates = common_training_section_updates(
         args,
         config=config,
-        default_checkpoint_dir=DEFAULT_STAGE_TWO_CHECKPOINT_DIR,
+        default_checkpoint_dir=DEFAULT_FINETUNING_CHECKPOINT_DIR,
     )
     checkpoint_config = updates["checkpoints"]
     if not isinstance(checkpoint_config, CheckpointConfig):
         raise TypeError("checkpoint update must be a CheckpointConfig")
 
-    updates["checkpoints"] = StageTwoCheckpointConfig(
+    updates["checkpoints"] = FinetuningCheckpointConfig(
         checkpoint_dir=checkpoint_config.checkpoint_dir,
         resume_checkpoint=checkpoint_config.resume_checkpoint,
-        stage_one_checkpoint=(
-            args.stage_one_checkpoint
-            if args.stage_one_checkpoint is not None
-            else config.checkpoints.stage_one_checkpoint
+        pretraining_checkpoint=(
+            args.pretraining_checkpoint
+            if args.pretraining_checkpoint is not None
+            else config.checkpoints.pretraining_checkpoint
         ),
     )
     return config.model_copy(update=updates)
@@ -503,8 +508,8 @@ def log_training_start(
     _LOGGER.info("Checkpoint directory: %s", training_config.checkpoints.checkpoint_dir)
     _LOGGER.info("Latest checkpoint target: %s", training_config.checkpoints.checkpoint_dir / "latest.pt")
     _LOGGER.info("Best checkpoint target: %s", training_config.checkpoints.checkpoint_dir / "best.pt")
-    if isinstance(training_config, StageTwoTrainingConfig):
-        _LOGGER.info("Stage-one checkpoint: %s", training_config.checkpoints.stage_one_checkpoint)
+    if isinstance(training_config, FinetuningTrainingConfig):
+        _LOGGER.info("Stage-one checkpoint: %s", training_config.checkpoints.pretraining_checkpoint)
 
 
 def print_training_result(result: TrainingResult) -> None:
@@ -523,12 +528,12 @@ def print_training_result(result: TrainingResult) -> None:
 
 def _description(stage: TrainingStage) -> str:
     match stage:
-        case TrainingStage.STAGE_ONE:
+        case TrainingStage.PRETRAINING:
             return (
                 "Train the Musak Stage 1 autoregressive model. Pass --processed-dir processed/PDMX for "
                 "processed-only training, or add --data-dir data/PDMX to allow raw MusicXML fallback."
             )
-        case TrainingStage.STAGE_TWO:
+        case TrainingStage.FINETUNING:
             return (
                 "Fine-tune the Musak Stage 2 constrained autoregressive model from a Stage 1 checkpoint. "
                 "Use the same explicit dataset directory policy as Stage 1."
@@ -537,15 +542,15 @@ def _description(stage: TrainingStage) -> str:
 
 def _epilog(stage: TrainingStage) -> str:
     executable = _executable(stage)
-    stage_two_extra = ""
-    if stage == TrainingStage.STAGE_TWO:
-        stage_two_extra = " --stage-one-checkpoint checkpoints/stage_one/best.pt"
+    finetuning_extra = ""
+    if stage == TrainingStage.FINETUNING:
+        finetuning_extra = " --pretrain-checkpoint checkpoints/pretraining/best.pt"
     return (
         "Examples:\n"
-        f"  uv run python {executable} --processed-dir processed/PDMX{stage_two_extra}\n"
+        f"  uv run python {executable} --processed-dir processed/PDMX{finetuning_extra}\n"
         f"  uv run python {executable} --data-dir data/PDMX --processed-dir processed/PDMX "
         "--tokenization-config musak_model/configs/tokens/tokenization.yml"
-        f"{stage_two_extra}\n\n"
+        f"{finetuning_extra}\n\n"
         "Artifact lookup:\n"
         "  --processed-dir must include the dataset name, for example processed/PDMX.\n"
         "  --data-dir is optional when processed artifacts are usable. Provide it to allow raw fallback.\n"
@@ -559,15 +564,15 @@ def _epilog(stage: TrainingStage) -> str:
 
 def _executable(stage: TrainingStage) -> str:
     match stage:
-        case TrainingStage.STAGE_ONE:
-            return "scripts/train_stage_one.py"
-        case TrainingStage.STAGE_TWO:
-            return "scripts/train_stage_two.py"
+        case TrainingStage.PRETRAINING:
+            return "scripts/pretrain.py"
+        case TrainingStage.FINETUNING:
+            return "scripts/finetune.py"
 
 
 def _training_config_path(stage: TrainingStage) -> Path:
     match stage:
-        case TrainingStage.STAGE_ONE:
-            return TRAINING_CONFIG_PATH
-        case TrainingStage.STAGE_TWO:
-            return STAGE_TWO_TRAINING_CONFIG_PATH
+        case TrainingStage.PRETRAINING:
+            return PRETRAINING_CONFIG_PATH
+        case TrainingStage.FINETUNING:
+            return FINETUNING_CONFIG_PATH

@@ -15,8 +15,8 @@ from musak_model.tokens.schema import (
     ScaleType,
     Token,
 )
-from musak_shared.common import is_power_of_two
 from musak_shared.elements import MIDI_MAX_PITCH, PITCHES_PER_OCTAVE
+from musak_shared.time_signature import validate_time_denominator
 
 
 class TieType(StrEnum):
@@ -73,9 +73,7 @@ class ParsedBar(BaseModel):
     @field_validator("time_denominator")
     @classmethod
     def check_time_denominator(cls, value: int) -> int:
-        if not is_power_of_two(value):
-            raise ValueError("time_denominator must be a power of two")
-
+        validate_time_denominator(value)
         return value
 
 
@@ -93,8 +91,7 @@ class ParsedScore(BaseModel):
     @field_validator("time_denominator")
     @classmethod
     def check_time_denominator(cls, value: int) -> int:
-        if not is_power_of_two(value):
-            raise ValueError("time_denominator must be a power of two")
+        validate_time_denominator(value)
 
         return value
 
@@ -151,9 +148,7 @@ class SegmentMetadata(BaseModel):
     @field_validator("time_denominator")
     @classmethod
     def check_time_denominator(cls, value: int) -> int:
-        if not is_power_of_two(value):
-            raise ValueError("time_denominator must be a power of two")
-
+        validate_time_denominator(value)
         return value
 
 

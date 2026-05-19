@@ -1,8 +1,8 @@
 from unittest.mock import patch
 
-from musak.core.notation.schema import ScoreData
 from musak.core.rhythm.schema import RhythmRequest, RhythmResponse
 from musak.core.rhythm.service import RhythmService
+from musak_shared.notation.schema import ScoreData
 
 
 def test_get_config_returns_groups() -> None:

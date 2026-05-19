@@ -14,8 +14,8 @@ from musak.modules.elements.constants import (
 )
 from musak.modules.elements.exceptions import EmptyScoreException
 from musak.modules.elements.phrase import Phrase
-from musak.modules.elements.time_signature import TimeSignatureType
 from musak.modules.rhythm.exceptions import InvalidBeatException
+from musak_shared.time_signature import TimeSignatureType
 
 
 def _tempo_to_us(tempo: int) -> int:

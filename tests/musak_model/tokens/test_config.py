@@ -19,5 +19,5 @@ class TestTokenizationConfig:
             TokenizationConfig(shortest_duration=16, allowed_tuplets=(1,), max_dots=1)
 
     def test_rejects_non_power_of_two_shortest_duration(self) -> None:
-        with pytest.raises(ValidationError, match="power of 2"):
+        with pytest.raises(ValidationError, match="power of two"):
             TokenizationConfig(shortest_duration=12, allowed_tuplets=(), max_dots=1)

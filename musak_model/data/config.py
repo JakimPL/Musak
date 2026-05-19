@@ -4,8 +4,8 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from musak_model.common.files import load_yaml_config
 from musak_model.paths import SEGMENTATION_CONFIG_PATH
+from musak_shared.files import load_yaml_config
 
 
 class SegmentationConfig(BaseModel):

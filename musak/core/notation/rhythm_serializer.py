@@ -3,7 +3,9 @@ from __future__ import annotations
 from fractions import Fraction
 from typing import Final
 
-from musak.core.notation.schema import (
+from musak.modules.elements.note import Note
+from musak.modules.elements.phrase import Phrase
+from musak_shared.notation.schema import (
     EIGHTH,
     HALF,
     QUARTER,
@@ -18,9 +20,7 @@ from musak.core.notation.schema import (
     VexflowDuration,
     VoiceData,
 )
-from musak.modules.elements.note import Note
-from musak.modules.elements.phrase import Phrase
-from musak.modules.elements.time_signature import TimeSignatureType
+from musak_shared.time_signature import TimeSignatureType
 
 PERCUSSION_CLEF: Final[Clef] = "percussion"
 PERCUSSION_KEY: Final[str] = "b/4"
@@ -94,4 +94,9 @@ def phrases_to_score_data(
             for measure_index, measure in enumerate(measures)
         ]
         rows.append(row)
-    return ScoreData(rows=rows, tempo=tempo, max_notes_per_measure=max_notes_per_measure)
+
+    return ScoreData(
+        rows=rows,
+        tempo=tempo,
+        max_notes_per_measure=max_notes_per_measure,
+    )

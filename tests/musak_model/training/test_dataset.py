@@ -122,7 +122,7 @@ def test_dataset_keeps_unsupported_time_signature_when_time_signature_conditioni
     )
 
     assert len(dataset) == 1
-    assert dataset[0].time_signature_id == 0
+    assert dataset[0].conditioning_time_signature_id == 0
     assert dataset[0].scale_type_id == scale_type_to_id(ScaleType.MAJOR)
 
 
@@ -142,7 +142,10 @@ def test_dataset_builds_independent_metadata_conditioning_ids(token_vocabulary: 
 
     assert example.difficulty_id == 3
     assert example.scale_type_id == scale_type_to_id(ScaleType.MAJOR)
-    assert example.time_signature_id == time_signature_to_id((4, 4), vocabulary=_time_signature_vocabulary())
+    assert example.conditioning_time_signature_id == time_signature_to_id(
+        (4, 4),
+        vocabulary=_time_signature_vocabulary(),
+    )
 
 
 def test_dataset_omits_difficulty_when_disabled(token_vocabulary: TokenVocabulary) -> None:

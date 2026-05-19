@@ -1,9 +1,12 @@
 from fractions import Fraction
 from typing import Final
 
-from musak_shared.common import is_power_of_two
+from musak_shared.misc import is_power_of_two
+
+MUSICXML_EXTENSIONS: Final[frozenset[str]] = frozenset({".xml", ".mxl", ".musicxml"})
 
 MIDI_MAX_PITCH: Final[int] = 127
+MIDDLE_C: Final[int] = 60
 
 PITCHES_PER_OCTAVE: Final[int] = 12
 MIDI_OCTAVE_OFFSET: Final[int] = 1
@@ -13,6 +16,10 @@ PITCH_CLASS_NAMES: Final[tuple[str, ...]] = SHARP_PITCH_CLASS_NAMES
 KEYS: Final[dict[int, str]] = dict(enumerate(PITCH_CLASS_NAMES))
 
 QUARTER_NOTE_DURATION: Final[Fraction] = Fraction(1, 4)
+QUARTERS_PER_WHOLE: Final[int] = 4
+DEFAULT_TICKS_PER_BEAT: Final[int] = 480
+PIANO_PROGRAM: Final[int] = 0
+DEFAULT_VELOCITY: Final[int] = 72
 
 DOTTED_LIKE_DURATIONS: Final[frozenset[Fraction]] = frozenset(
     {

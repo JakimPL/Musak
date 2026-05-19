@@ -6,12 +6,12 @@ from typing import Any, Final
 
 import pandas as pd
 
-from musak_model.common.ratios import format_ratio
 from musak_model.data.schema import ParsedScore, Segment
 from musak_model.decoder import PianoRollEvent, parsed_score_to_piano_roll_events, segment_to_piano_roll_events
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import Hand
 from musak_shared.elements import MIDI_MAX_PITCH
+from musak_shared.ratios import format_ratio
 
 _QUARTERS_PER_WHOLE: Final[int] = 4
 _SECONDS_PER_MINUTE: Final[int] = 60

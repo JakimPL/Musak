@@ -7,12 +7,9 @@ import mido
 
 from musak_model.decoder import PianoRollEvent
 from musak_model.tokens.schema import Hand
+from musak_shared.elements import DEFAULT_TICKS_PER_BEAT, DEFAULT_VELOCITY, PIANO_PROGRAM, QUARTERS_PER_WHOLE
 from musak_shared.exporter import Exporter
 
-_QUARTERS_PER_WHOLE: Final[int] = 4
-_DEFAULT_TICKS_PER_BEAT: Final[int] = 480
-_PIANO_PROGRAM: Final[int] = 0
-_DEFAULT_VELOCITY: Final[int] = 72
 _HAND_CHANNELS: Final[dict[Hand, int]] = {
     Hand.RIGHT: 0,
     Hand.LEFT: 1,
@@ -24,7 +21,7 @@ def piano_roll_events_to_midi_file(
     *,
     bpm: int,
     hands: frozenset[Hand] = frozenset(Hand),
-    ticks_per_beat: int = _DEFAULT_TICKS_PER_BEAT,
+    ticks_per_beat: int = DEFAULT_TICKS_PER_BEAT,
 ) -> mido.MidiFile:
     midi_file = mido.MidiFile(ticks_per_beat=ticks_per_beat)
     tempo_track = mido.MidiTrack()
@@ -35,7 +32,13 @@ def piano_roll_events_to_midi_file(
     for hand in Hand:
         hand_events = [event for event in events if event.hand == hand and event.hand in hands]
         if hand_events:
-            midi_file.tracks.append(_events_to_track(hand_events, hand=hand, ticks_per_beat=ticks_per_beat))
+            midi_file.tracks.append(
+                _events_to_track(
+                    hand_events,
+                    hand=hand,
+                    ticks_per_beat=ticks_per_beat,
+                )
+            )
 
     return midi_file
 
@@ -61,7 +64,7 @@ def midi_file_bytes(midi_file: mido.MidiFile) -> bytes:
 def _events_to_track(events: list[PianoRollEvent], *, hand: Hand, ticks_per_beat: int) -> mido.MidiTrack:
     channel = _HAND_CHANNELS[hand]
     track = mido.MidiTrack()
-    track.append(mido.Message("program_change", channel=channel, program=_PIANO_PROGRAM, time=0))
+    track.append(mido.Message("program_change", channel=channel, program=PIANO_PROGRAM, time=0))
     timed_messages: list[tuple[int, int, mido.Message]] = []
 
     for event in events:
@@ -75,7 +78,7 @@ def _events_to_track(events: list[PianoRollEvent], *, hand: Hand, ticks_per_beat
                     "note_on",
                     channel=channel,
                     note=event.midi_pitch,
-                    velocity=_DEFAULT_VELOCITY,
+                    velocity=DEFAULT_VELOCITY,
                     time=0,
                 ),
             )
@@ -84,7 +87,13 @@ def _events_to_track(events: list[PianoRollEvent], *, hand: Hand, ticks_per_beat
             (
                 end_tick,
                 0,
-                mido.Message("note_off", channel=channel, note=event.midi_pitch, velocity=0, time=0),
+                mido.Message(
+                    "note_off",
+                    channel=channel,
+                    note=event.midi_pitch,
+                    velocity=0,
+                    time=0,
+                ),
             )
         )
 
@@ -98,5 +107,9 @@ def _events_to_track(events: list[PianoRollEvent], *, hand: Hand, ticks_per_beat
     return track
 
 
-def _whole_note_fraction_to_ticks(value: Fraction, *, ticks_per_beat: int) -> int:
-    return round(float(value * _QUARTERS_PER_WHOLE * ticks_per_beat))
+def _whole_note_fraction_to_ticks(
+    value: Fraction,
+    *,
+    ticks_per_beat: int,
+) -> int:
+    return round(float(value * QUARTERS_PER_WHOLE * ticks_per_beat))

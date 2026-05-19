@@ -45,7 +45,7 @@ Scale type is also metadata, but it affects pitch-class decoding. The tokenizer 
 
 ## Current Training Logic
 
-`StageOneTrainer` trains an autoregressive next-token model with teacher forcing:
+`PretrainingTrainer` trains an autoregressive next-token model with teacher forcing:
 
 - dataset rows are converted to input and target token IDs;
 - `StartToken` is prepended to the model input;
@@ -66,19 +66,26 @@ but disabled by default until labels are reliable enough to train against. Enabl
 into one prefix vector.
 `key_root` is not currently a model condition and should remain decode metadata for transposition control.
 
+Training can also add an auxiliary validity penalty. The penalty builds a hard-constraint mask from each
+teacher-forced prefix and penalizes probability mass assigned to tokens that the generation constraints would
+reject from that state. It does not replace the next-token objective. If the ground-truth target is already
+invalid for its prefix, that position is excluded from the auxiliary penalty and counted as an invalid-target
+metric instead of pushing the model away from the observed token.
+
 ## Stage Two Constrained Fine-Tuning
 
 Stage one remains the grammar/vocabulary pretraining phase. It uses the same autoregressive next-token
 objective and is not expected to be the final exercise generator by itself. It uses stable metadata
 conditioning for scale type and time signature so the model learns controllable meter and mode preferences
-from the start.
+from the start. The pretrain default config also enables the auxiliary validity penalty so invalid grammar
+choices are discouraged during pretraining without running full constrained decoding inside training.
 
-Stage two is a separate fine-tuning phase. It loads a stage-one checkpoint into the same model shape,
+Stage two is a separate fine-tuning phase. It loads a pretrain checkpoint into the same model shape,
 then trains on exercise-style data with conditioning enabled. Until a dedicated exercise-only dataset
 exists, stage two can be run on the same dataset as stage one to validate the two-stage pipeline.
 
-Stage two keeps the next-token objective. Auxiliary heads, masked-token objectives, and layer freezing
-are deferred research options, not part of the initial pipeline.
+Stage two keeps the next-token objective and the same auxiliary validity penalty. Auxiliary heads,
+masked-token objectives, and layer freezing are deferred research options, not part of the initial pipeline.
 
 Structural controls are derived automatically from tokenized segments and metadata. They are optional:
 each control vocabulary has an explicit unknown/no-control bucket so generation requests can omit a
@@ -221,7 +228,8 @@ The implemented tie slices add:
 - Music21 export of held notes/chords as tied fragments split at barlines.
 - a model-agnostic hard constraint state for next-token generation masks.
 - hard controls for shortest duration, dotted-duration policy, chord size, onset span, and maximum melodic gap.
-- stage-two structural control extraction, bucketed conditioning IDs, and fine-tuning entrypoint.
+- finetune structural control extraction, bucketed conditioning IDs, and fine-tuning entrypoint.
+- an auxiliary training loss that penalizes probability assigned to hard-invalid next tokens.
 
 Remaining work:
 
