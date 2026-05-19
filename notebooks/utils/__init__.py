@@ -20,6 +20,7 @@ from notebooks.utils.model_output import (
     sample_autoregressive,
     sampling_result_to_segment,
     segment_decode_error,
+    segment_diagnostic_rows,
     segment_event_count,
     trace_rows,
 )
@@ -44,6 +45,8 @@ from notebooks.utils.score import score_summary
 from notebooks.utils.statistics import (
     DatasetStatistics,
     categorical_distribution,
+    diagnostic_bucket_distribution,
+    diagnostic_summary_rows,
     eligibility_distribution,
     encoded_run_dirs,
     encoded_table_frame,
@@ -79,6 +82,8 @@ __all__ = [
     "categorical_distribution",
     "default_duration_vocabulary",
     "default_encoded_browser_root",
+    "diagnostic_bucket_distribution",
+    "diagnostic_summary_rows",
     "empty_prompt",
     "encoded_sample_to_segment",
     "encoded_run_dirs",
@@ -113,6 +118,7 @@ __all__ = [
     "sample_autoregressive",
     "segment_parsed_score_safely",
     "segment_decode_error",
+    "segment_diagnostic_rows",
     "segment_event_count",
     "segment_piano_roll_view_data",
     "sampling_result_to_segment",

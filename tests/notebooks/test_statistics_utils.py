@@ -7,6 +7,8 @@ from notebooks.utils.statistics import (
     COUNT_COLUMN,
     VALUE_COLUMN,
     DatasetStatistics,
+    diagnostic_bucket_distribution,
+    diagnostic_summary_rows,
     eligibility_distribution,
     ineligibility_reason_distribution,
     key_root_distribution,
@@ -122,6 +124,53 @@ def test_encoded_statistics_expand_reasons_and_token_summary(tmp_path: Path) -> 
     assert token_rows[0] == {"Metric": "min", "Value": "10"}
     assert token_rows[2] == {"Metric": "median", "Value": "20"}
     assert token_rows[-1] == {"Metric": "max", "Value": "30"}
+
+
+def test_diagnostic_statistics_parse_and_summarize_encoded_manifest(tmp_path: Path) -> None:
+    dataset_dir = tmp_path / "PDMX"
+    encoded_dir = dataset_dir / "encoded" / "abc"
+    encoded_dir.mkdir(parents=True)
+    _write_csv(dataset_dir / "parsed.csv", ParsedManifestField, [{ParsedManifestField.SOURCE_ID: "a"}])
+    _write_csv(
+        encoded_dir / "encoded.csv",
+        EncodedManifestField,
+        [
+            {
+                EncodedManifestField.SEGMENT_ID: "a-0",
+                EncodedManifestField.EMPTY_SCORE: "True",
+                EncodedManifestField.ONE_HAND_ONLY: "False",
+                EncodedManifestField.RIGHT_SILENCE_FRACTION: "1.0",
+                EncodedManifestField.LEFT_SILENCE_FRACTION: "1.0",
+                EncodedManifestField.BOTH_HANDS_SILENCE_FRACTION: "1.0",
+                EncodedManifestField.BOTH_HANDS_ACTIVE_FRACTION: "0.0",
+                EncodedManifestField.HAND_ACTIVITY_BALANCE: "1.0",
+                EncodedManifestField.NOTE_TOKEN_FRACTION: "0.0",
+                EncodedManifestField.REST_TOKEN_FRACTION: "0.5",
+            },
+            {
+                EncodedManifestField.SEGMENT_ID: "a-1",
+                EncodedManifestField.EMPTY_SCORE: "False",
+                EncodedManifestField.ONE_HAND_ONLY: "True",
+                EncodedManifestField.RIGHT_SILENCE_FRACTION: "0.5",
+                EncodedManifestField.LEFT_SILENCE_FRACTION: "1.0",
+                EncodedManifestField.BOTH_HANDS_SILENCE_FRACTION: "0.5",
+                EncodedManifestField.BOTH_HANDS_ACTIVE_FRACTION: "0.0",
+                EncodedManifestField.HAND_ACTIVITY_BALANCE: "0.0",
+                EncodedManifestField.NOTE_TOKEN_FRACTION: "0.5",
+                EncodedManifestField.REST_TOKEN_FRACTION: "0.0",
+            },
+        ],
+    )
+    stats = load_dataset_statistics(dataset_dir, encoded_dir)
+    assert stats.encoded is not None
+
+    summary = diagnostic_summary_rows(stats.encoded)
+    buckets = diagnostic_bucket_distribution(stats.encoded, EncodedManifestField.RIGHT_SILENCE_FRACTION, bins=2)
+
+    assert stats.encoded[EncodedManifestField.EMPTY_SCORE].tolist() == [True, False]
+    assert {"Metric": "empty score rate", "Value": "50.0%"} in summary
+    assert {"Metric": "right silence", "Value": "75.0%"} in summary
+    assert int(buckets[COUNT_COLUMN].sum()) == 2
 
 
 def test_key_root_distribution_maps_pitch_classes_to_names(tmp_path: Path) -> None:

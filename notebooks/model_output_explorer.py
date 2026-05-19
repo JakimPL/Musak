@@ -34,6 +34,7 @@ def _():
         sample_autoregressive,
         sampling_result_to_segment,
         segment_decode_error,
+        segment_diagnostic_rows,
         segment_event_count,
         segment_piano_roll_view_data,
         selected_file,
@@ -64,6 +65,7 @@ def _():
         sampling_result_to_segment,
         score_data_html,
         segment_decode_error,
+        segment_diagnostic_rows,
         segment_event_count,
         segment_piano_roll_view_data,
         segment_to_score_data,
@@ -548,6 +550,7 @@ def _(mo, output):
 def _(
     mo,
     output,
+    segment_diagnostic_rows,
     segment_event_count,
     token_rows,
     trace_rows,
@@ -562,6 +565,11 @@ def _(
         )
         trace_table = mo.ui.table(trace_rows(output.sampling_result), selection=None, label="Sample trace")
         raw_text = " ".join(row["token"] for row in trace_rows(output.sampling_result))
+        diagnostic_rows = (
+            segment_diagnostic_rows(output.decoded_segment, duration_vocabulary=output.duration_vocabulary)
+            if output.decode_error is None
+            else []
+        )
         summary_rows = [
             {"metric": "display bars", "value": output.decoded_segment.bar_count},
             {"metric": "tokens total", "value": len(output.decoded_segment.tokens)},
@@ -581,6 +589,7 @@ def _(
             [
                 mo.md("## Diagnostics"),
                 mo.ui.table(summary_rows, selection=None, label="Summary"),
+                mo.ui.table(diagnostic_rows, selection=None, label="Musical diagnostics"),
                 token_table,
                 mo.accordion(
                     {

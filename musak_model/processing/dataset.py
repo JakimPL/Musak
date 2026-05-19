@@ -480,6 +480,7 @@ def _process_encoded_segments(
                     parsed_path=parsed_path,
                     processed_root=paths.root,
                     segment=segment,
+                    duration_vocabulary=duration_vocabulary,
                     encoded_sample=encoded_sample,
                     encoded_shard=encoded_jsonl_path,
                     encoded_line=encoded_line,

@@ -16,6 +16,8 @@ def _():
     from musak_model.processing.manifest import EncodedManifestField, ParsedManifestField
     from notebooks.utils import (
         categorical_distribution,
+        diagnostic_bucket_distribution,
+        diagnostic_summary_rows,
         eligibility_distribution,
         encoded_run_dirs,
         encoded_table_frame,
@@ -43,6 +45,8 @@ def _():
         VALUE_COLUMN,
         alt,
         categorical_distribution,
+        diagnostic_bucket_distribution,
+        diagnostic_summary_rows,
         eligibility_distribution,
         encoded_run_dirs,
         encoded_table_frame,
@@ -422,6 +426,54 @@ def _(
             gap=2,
         )
     music_output
+    return
+
+
+@app.cell
+def _(
+    EncodedManifestField,
+    chart_output,
+    diagnostic_bucket_distribution,
+    diagnostic_summary_rows,
+    chart_grid,
+    horizontal_bar_chart,
+    mo,
+    stats,
+):
+    if stats is None or stats.encoded is None:
+        diagnostics_output = mo.callout("No encoded manifest is loaded.", kind="warn")
+    else:
+        diagnostic_charts = [
+            horizontal_bar_chart(
+                diagnostic_bucket_distribution(stats.encoded, EncodedManifestField.RIGHT_SILENCE_FRACTION),
+                title="Right hand silence",
+                value_title="Fraction",
+            ),
+            horizontal_bar_chart(
+                diagnostic_bucket_distribution(stats.encoded, EncodedManifestField.LEFT_SILENCE_FRACTION),
+                title="Left hand silence",
+                value_title="Fraction",
+            ),
+            horizontal_bar_chart(
+                diagnostic_bucket_distribution(stats.encoded, EncodedManifestField.BOTH_HANDS_SILENCE_FRACTION),
+                title="Both hands silent",
+                value_title="Fraction",
+            ),
+            horizontal_bar_chart(
+                diagnostic_bucket_distribution(stats.encoded, EncodedManifestField.HAND_ACTIVITY_BALANCE),
+                title="Hand activity balance",
+                value_title="Fraction",
+            ),
+        ]
+        diagnostics_output = mo.vstack(
+            [
+                mo.md("## Segment Diagnostics"),
+                chart_grid([chart_output(chart) for chart in diagnostic_charts]),
+                mo.ui.table(diagnostic_summary_rows(stats.encoded), selection=None, label="Diagnostic summary"),
+            ],
+            gap=2,
+        )
+    diagnostics_output
     return
 
 

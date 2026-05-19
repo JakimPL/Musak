@@ -28,6 +28,27 @@ TOKEN_BAR_END_COLUMN: Final[str] = "token_bar_end"
 
 _TRUE_TEXT: Final[str] = "True"
 _REASON_SEPARATOR: Final[str] = "|"
+_DIAGNOSTIC_NUMERIC_FIELDS: Final[tuple[EncodedManifestField, ...]] = (
+    EncodedManifestField.RIGHT_SILENCE_FRACTION,
+    EncodedManifestField.LEFT_SILENCE_FRACTION,
+    EncodedManifestField.BOTH_HANDS_SILENCE_FRACTION,
+    EncodedManifestField.BOTH_HANDS_ACTIVE_FRACTION,
+    EncodedManifestField.RIGHT_ONLY_ACTIVE_FRACTION,
+    EncodedManifestField.LEFT_ONLY_ACTIVE_FRACTION,
+    EncodedManifestField.LONGEST_RIGHT_SILENCE_BEATS,
+    EncodedManifestField.LONGEST_LEFT_SILENCE_BEATS,
+    EncodedManifestField.LONGEST_BOTH_HANDS_SILENCE_BEATS,
+    EncodedManifestField.RIGHT_NOTE_ONSETS_PER_BAR,
+    EncodedManifestField.LEFT_NOTE_ONSETS_PER_BAR,
+    EncodedManifestField.HAND_ACTIVITY_BALANCE,
+    EncodedManifestField.NOTE_TOKEN_FRACTION,
+    EncodedManifestField.REST_TOKEN_FRACTION,
+    EncodedManifestField.HOLD_TOKEN_FRACTION,
+)
+_DIAGNOSTIC_BOOLEAN_FIELDS: Final[tuple[EncodedManifestField, ...]] = (
+    EncodedManifestField.EMPTY_SCORE,
+    EncodedManifestField.ONE_HAND_ONLY,
+)
 
 
 @dataclass(frozen=True)
@@ -81,6 +102,10 @@ def read_encoded_manifest_frame(path: Path) -> pd.DataFrame:
     frame[EncodedManifestField.BAR_COUNT] = _numeric_series(frame[EncodedManifestField.BAR_COUNT])
     frame[EncodedManifestField.TOKEN_COUNT] = _numeric_series(frame[EncodedManifestField.TOKEN_COUNT])
     frame[EncodedManifestField.DIFFICULTY_LEVEL] = _numeric_series(frame[EncodedManifestField.DIFFICULTY_LEVEL])
+    for field in _DIAGNOSTIC_NUMERIC_FIELDS:
+        frame[field] = _numeric_series(frame[field])
+    for field in _DIAGNOSTIC_BOOLEAN_FIELDS:
+        frame[field] = frame[field] == _TRUE_TEXT
     return frame
 
 
@@ -180,6 +205,57 @@ def token_summary_rows(encoded: pd.DataFrame) -> list[dict[str, str]]:
     ]
 
 
+def diagnostic_summary_rows(encoded: pd.DataFrame) -> list[dict[str, str]]:
+    rows = [
+        _metric_row(
+            "empty score rate",
+            _percent(int(encoded[EncodedManifestField.EMPTY_SCORE].sum()), len(encoded)),
+        ),
+        _metric_row(
+            "one hand only rate",
+            _percent(int(encoded[EncodedManifestField.ONE_HAND_ONLY].sum()), len(encoded)),
+        ),
+    ]
+    rows.extend(
+        [
+            _mean_metric_row("right silence", encoded[EncodedManifestField.RIGHT_SILENCE_FRACTION], percent=True),
+            _mean_metric_row("left silence", encoded[EncodedManifestField.LEFT_SILENCE_FRACTION], percent=True),
+            _mean_metric_row(
+                "both hands silence",
+                encoded[EncodedManifestField.BOTH_HANDS_SILENCE_FRACTION],
+                percent=True,
+            ),
+            _mean_metric_row(
+                "both hands active",
+                encoded[EncodedManifestField.BOTH_HANDS_ACTIVE_FRACTION],
+                percent=True,
+            ),
+            _mean_metric_row("hand activity balance", encoded[EncodedManifestField.HAND_ACTIVITY_BALANCE]),
+            _mean_metric_row("note token share", encoded[EncodedManifestField.NOTE_TOKEN_FRACTION], percent=True),
+            _mean_metric_row("rest token share", encoded[EncodedManifestField.REST_TOKEN_FRACTION], percent=True),
+        ]
+    )
+    return rows
+
+
+def diagnostic_bucket_distribution(
+    encoded: pd.DataFrame,
+    column: str,
+    *,
+    bins: int = 10,
+) -> pd.DataFrame:
+    values = encoded[column].dropna().clip(lower=0, upper=1)
+    if values.empty:
+        return pd.DataFrame(columns=[VALUE_COLUMN, COUNT_COLUMN, PERCENT_COLUMN])
+
+    bin_edges = [index / bins for index in range(bins + 1)]
+    buckets = pd.cut(values, bins=bin_edges, include_lowest=True, right=True)
+    counts = buckets.value_counts(sort=False).rename_axis("_bucket").reset_index(name=COUNT_COLUMN)
+    counts[VALUE_COLUMN] = counts["_bucket"].map(lambda interval: f"{interval.left:.1f}-{interval.right:.1f}")
+    counts[PERCENT_COLUMN] = counts[COUNT_COLUMN] / max(len(values), 1)
+    return counts[[VALUE_COLUMN, COUNT_COLUMN, PERCENT_COLUMN]]
+
+
 def token_histogram_distribution(encoded: pd.DataFrame, *, bins: int = 40) -> pd.DataFrame:
     tokens = encoded[EncodedManifestField.TOKEN_COUNT].dropna()
     if tokens.empty:
@@ -268,6 +344,12 @@ def encoded_table_frame(encoded: pd.DataFrame) -> pd.DataFrame:
         EncodedManifestField.SCALE_TYPE,
         EncodedManifestField.TIME_SIGNATURE,
         EncodedManifestField.DIFFICULTY_LEVEL,
+        EncodedManifestField.RIGHT_SILENCE_FRACTION,
+        EncodedManifestField.LEFT_SILENCE_FRACTION,
+        EncodedManifestField.BOTH_HANDS_SILENCE_FRACTION,
+        EncodedManifestField.HAND_ACTIVITY_BALANCE,
+        EncodedManifestField.EMPTY_SCORE,
+        EncodedManifestField.ONE_HAND_ONLY,
     ]
     return _table_frame(encoded, columns)
 
@@ -312,6 +394,18 @@ def _numeric_series(series: pd.Series) -> pd.Series:
 
 def _metric_row(label: str, value: object) -> dict[str, str]:
     return {LABEL_COLUMN: label, METRIC_VALUE_COLUMN: str(value)}
+
+
+def _mean_metric_row(label: str, values: pd.Series, *, percent: bool = False) -> dict[str, str]:
+    clean_values = values.dropna()
+    if clean_values.empty:
+        return _metric_row(label, "")
+
+    mean_value = float(clean_values.mean())
+    if percent:
+        return _metric_row(label, f"{100 * mean_value:.1f}%")
+
+    return _metric_row(label, f"{mean_value:.3f}")
 
 
 def _percent(numerator: int, denominator: int) -> str:

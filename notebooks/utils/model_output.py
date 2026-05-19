@@ -12,6 +12,7 @@ from musak_model.conditioning.structural import StructuralControlFeatures, Struc
 from musak_model.conditioning.time_signature import TimeSignatureVocabulary
 from musak_model.data.schema import Segment, SegmentMetadata
 from musak_model.decoder import segment_to_piano_roll_events
+from musak_model.evaluation import diagnose_segment
 from musak_model.generation.constraints import (
     GenerationConstraintError,
     GenerationConstraints,
@@ -382,6 +383,36 @@ def segment_event_count(segment: Segment, *, duration_vocabulary: DurationVocabu
         return len(segment_to_piano_roll_events(segment, duration_vocabulary=duration_vocabulary))
     except ValueError:
         return None
+
+
+def segment_diagnostic_rows(segment: Segment, *, duration_vocabulary: DurationVocabulary) -> list[dict[str, object]]:
+    diagnostics = diagnose_segment(segment, duration_vocabulary=duration_vocabulary)
+    return [
+        {"metric": "right silence", "value": _format_percent(diagnostics.right_silence_fraction)},
+        {"metric": "left silence", "value": _format_percent(diagnostics.left_silence_fraction)},
+        {"metric": "both hands silence", "value": _format_percent(diagnostics.both_hands_silence_fraction)},
+        {"metric": "both hands active", "value": _format_percent(diagnostics.both_hands_active_fraction)},
+        {"metric": "right only active", "value": _format_percent(diagnostics.right_only_active_fraction)},
+        {"metric": "left only active", "value": _format_percent(diagnostics.left_only_active_fraction)},
+        {"metric": "longest right silence", "value": f"{diagnostics.longest_right_silence_beats:.2f} beats"},
+        {"metric": "longest left silence", "value": f"{diagnostics.longest_left_silence_beats:.2f} beats"},
+        {
+            "metric": "longest both-hands silence",
+            "value": f"{diagnostics.longest_both_hands_silence_beats:.2f} beats",
+        },
+        {"metric": "right note onsets/bar", "value": f"{diagnostics.right_note_onsets_per_bar:.2f}"},
+        {"metric": "left note onsets/bar", "value": f"{diagnostics.left_note_onsets_per_bar:.2f}"},
+        {"metric": "hand activity balance", "value": f"{diagnostics.hand_activity_balance:.3f}"},
+        {"metric": "empty score", "value": diagnostics.empty_score},
+        {"metric": "one hand only", "value": diagnostics.one_hand_only},
+        {"metric": "note token share", "value": _format_percent(diagnostics.note_token_fraction)},
+        {"metric": "rest token share", "value": _format_percent(diagnostics.rest_token_fraction)},
+        {"metric": "hold token share", "value": _format_percent(diagnostics.hold_token_fraction)},
+    ]
+
+
+def _format_percent(value: float) -> str:
+    return f"{100 * value:.1f}%"
 
 
 def _display_bar_count(tokens: list[Token]) -> int:

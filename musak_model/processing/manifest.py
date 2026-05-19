@@ -4,7 +4,9 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Final
 
 from musak_model.data.schema import ParsedScore, Segment
+from musak_model.evaluation import diagnose_segment
 from musak_model.processing.ids import segment_id
+from musak_model.tokens.duration import DurationVocabulary
 from musak_shared.ratios import format_ratio
 
 if TYPE_CHECKING:
@@ -45,6 +47,23 @@ class EncodedManifestField(StrEnum):
     SCALE_TYPE = "scale_type"
     TIME_SIGNATURE = "time_signature"
     DIFFICULTY_LEVEL = "difficulty_level"
+    RIGHT_SILENCE_FRACTION = "right_silence_fraction"
+    LEFT_SILENCE_FRACTION = "left_silence_fraction"
+    BOTH_HANDS_SILENCE_FRACTION = "both_hands_silence_fraction"
+    BOTH_HANDS_ACTIVE_FRACTION = "both_hands_active_fraction"
+    RIGHT_ONLY_ACTIVE_FRACTION = "right_only_active_fraction"
+    LEFT_ONLY_ACTIVE_FRACTION = "left_only_active_fraction"
+    LONGEST_RIGHT_SILENCE_BEATS = "longest_right_silence_beats"
+    LONGEST_LEFT_SILENCE_BEATS = "longest_left_silence_beats"
+    LONGEST_BOTH_HANDS_SILENCE_BEATS = "longest_both_hands_silence_beats"
+    RIGHT_NOTE_ONSETS_PER_BAR = "right_note_onsets_per_bar"
+    LEFT_NOTE_ONSETS_PER_BAR = "left_note_onsets_per_bar"
+    HAND_ACTIVITY_BALANCE = "hand_activity_balance"
+    EMPTY_SCORE = "empty_score"
+    ONE_HAND_ONLY = "one_hand_only"
+    NOTE_TOKEN_FRACTION = "note_token_fraction"
+    REST_TOKEN_FRACTION = "rest_token_fraction"
+    HOLD_TOKEN_FRACTION = "hold_token_fraction"
 
 
 class ParsedManifestStatus(StrEnum):
@@ -86,6 +105,23 @@ ENCODED_MANIFEST_FIELDS: Final[tuple[EncodedManifestField, ...]] = (
     EncodedManifestField.SCALE_TYPE,
     EncodedManifestField.TIME_SIGNATURE,
     EncodedManifestField.DIFFICULTY_LEVEL,
+    EncodedManifestField.RIGHT_SILENCE_FRACTION,
+    EncodedManifestField.LEFT_SILENCE_FRACTION,
+    EncodedManifestField.BOTH_HANDS_SILENCE_FRACTION,
+    EncodedManifestField.BOTH_HANDS_ACTIVE_FRACTION,
+    EncodedManifestField.RIGHT_ONLY_ACTIVE_FRACTION,
+    EncodedManifestField.LEFT_ONLY_ACTIVE_FRACTION,
+    EncodedManifestField.LONGEST_RIGHT_SILENCE_BEATS,
+    EncodedManifestField.LONGEST_LEFT_SILENCE_BEATS,
+    EncodedManifestField.LONGEST_BOTH_HANDS_SILENCE_BEATS,
+    EncodedManifestField.RIGHT_NOTE_ONSETS_PER_BAR,
+    EncodedManifestField.LEFT_NOTE_ONSETS_PER_BAR,
+    EncodedManifestField.HAND_ACTIVITY_BALANCE,
+    EncodedManifestField.EMPTY_SCORE,
+    EncodedManifestField.ONE_HAND_ONLY,
+    EncodedManifestField.NOTE_TOKEN_FRACTION,
+    EncodedManifestField.REST_TOKEN_FRACTION,
+    EncodedManifestField.HOLD_TOKEN_FRACTION,
 )
 
 
@@ -171,10 +207,12 @@ def encoded_row(
     parsed_path: Path,
     processed_root: Path,
     segment: Segment,
+    duration_vocabulary: DurationVocabulary,
     encoded_sample: "EncodedExercise | None",
     encoded_shard: Path,
     encoded_line: int | None,
 ) -> dict[str, Any]:
+    diagnostics = diagnose_segment(segment, duration_vocabulary=duration_vocabulary)
     return {
         EncodedManifestField.SEGMENT_ID: segment_id(
             source_id_value,
@@ -203,6 +241,23 @@ def encoded_row(
         EncodedManifestField.DIFFICULTY_LEVEL: (
             segment.metadata.difficulty_level if segment.metadata.difficulty_level is not None else ""
         ),
+        EncodedManifestField.RIGHT_SILENCE_FRACTION: diagnostics.right_silence_fraction,
+        EncodedManifestField.LEFT_SILENCE_FRACTION: diagnostics.left_silence_fraction,
+        EncodedManifestField.BOTH_HANDS_SILENCE_FRACTION: diagnostics.both_hands_silence_fraction,
+        EncodedManifestField.BOTH_HANDS_ACTIVE_FRACTION: diagnostics.both_hands_active_fraction,
+        EncodedManifestField.RIGHT_ONLY_ACTIVE_FRACTION: diagnostics.right_only_active_fraction,
+        EncodedManifestField.LEFT_ONLY_ACTIVE_FRACTION: diagnostics.left_only_active_fraction,
+        EncodedManifestField.LONGEST_RIGHT_SILENCE_BEATS: diagnostics.longest_right_silence_beats,
+        EncodedManifestField.LONGEST_LEFT_SILENCE_BEATS: diagnostics.longest_left_silence_beats,
+        EncodedManifestField.LONGEST_BOTH_HANDS_SILENCE_BEATS: diagnostics.longest_both_hands_silence_beats,
+        EncodedManifestField.RIGHT_NOTE_ONSETS_PER_BAR: diagnostics.right_note_onsets_per_bar,
+        EncodedManifestField.LEFT_NOTE_ONSETS_PER_BAR: diagnostics.left_note_onsets_per_bar,
+        EncodedManifestField.HAND_ACTIVITY_BALANCE: diagnostics.hand_activity_balance,
+        EncodedManifestField.EMPTY_SCORE: diagnostics.empty_score,
+        EncodedManifestField.ONE_HAND_ONLY: diagnostics.one_hand_only,
+        EncodedManifestField.NOTE_TOKEN_FRACTION: diagnostics.note_token_fraction,
+        EncodedManifestField.REST_TOKEN_FRACTION: diagnostics.rest_token_fraction,
+        EncodedManifestField.HOLD_TOKEN_FRACTION: diagnostics.hold_token_fraction,
     }
 
 
