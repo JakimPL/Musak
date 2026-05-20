@@ -5,8 +5,10 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from musak_model.data.config import (
-    DEFAULT_SCALE_MATCH_MINIMUM_BEST_MARGIN,
-    DEFAULT_SCALE_MATCH_MINIMUM_IN_SCALE_WEIGHT_FRACTION,
+    DEFAULT_SCALE_MATCH_MAXIMUM_EXPLANATION_PITCH_CLASS_COUNT,
+    DEFAULT_SCALE_MATCH_MAXIMUM_UNEXPLAINED_WEIGHT_FRACTION,
+    DEFAULT_SCALE_MATCH_SELECTION_SCORE_MARGIN,
+    DEFAULT_SCALE_MATCH_SUPPORT_SCORE_MARGIN,
     DataProcessingConfig,
     load_difficulty_labels,
     load_segmentation_config,
@@ -77,8 +79,12 @@ def main() -> None:
             tokenization_config=tokenization_config,
             data_processing_config=DataProcessingConfig(
                 remove_segments_with_silent_bars=args.remove_segments_with_silent_bars,
-                scale_match_minimum_in_scale_weight_fraction=args.scale_match_minimum_in_scale_weight_fraction,
-                scale_match_minimum_best_margin=args.scale_match_minimum_best_margin,
+                scale_match_support_score_margin=args.scale_match_support_score_margin,
+                scale_match_selection_score_margin=args.scale_match_selection_score_margin,
+                scale_match_maximum_unexplained_weight_fraction=(args.scale_match_maximum_unexplained_weight_fraction),
+                scale_match_maximum_explanation_pitch_class_count=(
+                    args.scale_match_maximum_explanation_pitch_class_count
+                ),
             ),
             stage=args.stage,
             difficulty_labels=difficulty_labels,
@@ -161,16 +167,28 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="Mark any segment containing a fully silent bar as ineligible for training.",
     )
     parser.add_argument(
-        "--scale-match-minimum-in-scale-weight-fraction",
+        "--scale-match-support-score-margin",
         type=float,
-        default=DEFAULT_SCALE_MATCH_MINIMUM_IN_SCALE_WEIGHT_FRACTION,
-        help="Minimum duration-weighted in-scale pitch fraction for a segment to remain training-eligible.",
+        default=DEFAULT_SCALE_MATCH_SUPPORT_SCORE_MARGIN,
+        help="Maximum score gap for alternate scale candidates that may explain chromatic pitch classes.",
     )
     parser.add_argument(
-        "--scale-match-minimum-best-margin",
+        "--scale-match-selection-score-margin",
         type=float,
-        default=DEFAULT_SCALE_MATCH_MINIMUM_BEST_MARGIN,
-        help="Minimum margin between the best and next scale match unless the declared key resolves the tie.",
+        default=DEFAULT_SCALE_MATCH_SELECTION_SCORE_MARGIN,
+        help="Maximum score gap for considering a more explanatory candidate over the strict best match.",
+    )
+    parser.add_argument(
+        "--scale-match-maximum-unexplained-weight-fraction",
+        type=float,
+        default=DEFAULT_SCALE_MATCH_MAXIMUM_UNEXPLAINED_WEIGHT_FRACTION,
+        help="Maximum duration-weighted pitch fraction not explained by the selected scale or close variants.",
+    )
+    parser.add_argument(
+        "--scale-match-maximum-explanation-pitch-class-count",
+        type=int,
+        default=DEFAULT_SCALE_MATCH_MAXIMUM_EXPLANATION_PITCH_CLASS_COUNT,
+        help="Maximum pitch-class count allowed in the selected scale plus close explanatory variants.",
     )
     parser.add_argument(
         "--difficulty-labels",

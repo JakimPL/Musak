@@ -94,27 +94,37 @@ Each candidate scale defines seven pitch classes. Its score is:
 in_scale_weight_fraction = duration weight inside candidate pitch classes / total pitched duration weight
 ```
 
-The best candidate is the one with the highest `in_scale_weight_fraction`. If multiple candidates tie for the best
-score and the declared key-signature pitch set is one of those tied candidates, the declared candidate is selected.
-Otherwise, selection is deterministic: prefer the configured scale-family order, then the simpler key-signature root,
-then the lower numeric root. This tie policy prevents random dataset churn while making declared metadata useful only
-when the notes do not disambiguate the scale.
+The strict best candidate is the one with the highest `in_scale_weight_fraction`. The matcher then builds an
+explanation set from nearby candidates: candidates within `scale_match_support_score_margin` of the selected candidate
+and with substantial pitch-class overlap are allowed to explain out-of-scale pitch classes. This makes melodic-minor and
+harmonic-minor mixtures visible as related scale variants instead of treating every natural or raised 6th and 7th as
+unexplained chromatic noise.
+
+Selection considers candidates within `scale_match_selection_score_margin` of the strict best score. Among these close
+candidates, it prefers the one with the least unexplained duration weight, then the highest strict score, then the
+declared key-signature pitch set when it applies. Final deterministic ordering uses the configured scale-family order,
+then the simpler key-signature root, then the lower numeric root. This tie policy prevents random dataset churn while
+making declared metadata useful only when the notes do not disambiguate the scale. Natural minor is represented by its
+relative major pitch set, so the major root can differ from the harmonic- or melodic-minor root by a minor third.
 
 The matcher records these diagnostics for every encoded-manifest row:
 
 - `in_scale_weight_fraction` and `out_of_scale_weight_fraction`;
+- `explained_out_of_scale_weight_fraction` and `unexplained_out_of_scale_weight_fraction`;
 - `best_margin`, the score gap between the selected candidate and the next distinct score;
 - `observed_pitch_class_count`;
+- `explanation_pitch_class_count`;
+- `support_candidate_count`;
 - `tied_best_candidate_count`;
 - `declared_match_used`;
 - `low_confidence`, `ambiguous`, and `no_pitches`.
 
 Processing can mark segments ineligible based on configurable thresholds. The default policy excludes weak matches:
-`minimum_in_scale_weight_fraction = 0.90` and `minimum_best_margin = 0.03`. A segment is marked
-`scale_match_low_confidence` when too much duration falls outside the selected scale, when the best margin is too
-small, or when there are no pitches. A segment is marked `scale_match_ambiguous` when multiple best candidates tie and
-the declared key signature does not resolve the tie. A segment with no pitched events is also marked
-`scale_match_no_pitches`.
+`scale_match_maximum_unexplained_weight_fraction = 0.10` and
+`scale_match_maximum_explanation_pitch_class_count = 9`. A segment is marked `scale_match_low_confidence` when too much
+pitched duration remains unexplained by the selected scale and close variants, when the explanation set becomes too
+broad, or when there are no pitches. Ambiguity is logged as a diagnostic only, because an ambiguous but musically narrow
+pitch set is still usable for training. A segment with no pitched events is also marked `scale_match_no_pitches`.
 
 This procedure is intentionally not a full tonal analysis. It does not infer cadences, tonic function, modulation,
 borrowed harmony, or enharmonic spelling intent. It only chooses a stable pitch-set basis for scale-relative

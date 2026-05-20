@@ -137,7 +137,6 @@ class SegmentIneligibilityReason(StrEnum):
     SILENT_BAR = "silent_bar"
     SILENT_EDGE_BAR = "silent_edge_bar"
     SCALE_MATCH_LOW_CONFIDENCE = "scale_match_low_confidence"
-    SCALE_MATCH_AMBIGUOUS = "scale_match_ambiguous"
     SCALE_MATCH_NO_PITCHES = "scale_match_no_pitches"
 
 
@@ -147,8 +146,12 @@ class ScaleMatchDiagnostics(BaseModel):
     declared_key_fifths: int | None = Field(default=None, ge=-7, le=7)
     in_scale_weight_fraction: float = Field(ge=0, le=1)
     out_of_scale_weight_fraction: float = Field(ge=0, le=1)
+    explained_out_of_scale_weight_fraction: float = Field(ge=0, le=1)
+    unexplained_out_of_scale_weight_fraction: float = Field(ge=0, le=1)
     best_margin: float = Field(ge=0, le=1)
     observed_pitch_class_count: int = Field(ge=0, le=PITCHES_PER_OCTAVE)
+    explanation_pitch_class_count: int = Field(ge=0, le=PITCHES_PER_OCTAVE)
+    support_candidate_count: int = Field(ge=0)
     tied_best_candidate_count: int = Field(ge=1)
     declared_match_used: bool
     low_confidence: bool

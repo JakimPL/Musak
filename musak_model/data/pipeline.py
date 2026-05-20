@@ -2,8 +2,10 @@ from pathlib import Path
 
 from musak_model.data.cleaning import clean_parsed_score
 from musak_model.data.config import (
-    DEFAULT_SCALE_MATCH_MINIMUM_BEST_MARGIN,
-    DEFAULT_SCALE_MATCH_MINIMUM_IN_SCALE_WEIGHT_FRACTION,
+    DEFAULT_SCALE_MATCH_MAXIMUM_EXPLANATION_PITCH_CLASS_COUNT,
+    DEFAULT_SCALE_MATCH_MAXIMUM_UNEXPLAINED_WEIGHT_FRACTION,
+    DEFAULT_SCALE_MATCH_SELECTION_SCORE_MARGIN,
+    DEFAULT_SCALE_MATCH_SUPPORT_SCORE_MARGIN,
     SegmentationConfig,
 )
 from musak_model.data.converter import PitchDegreeRegisterError
@@ -60,8 +62,10 @@ def segment_parsed_score(
     *,
     segmentation_config: SegmentationConfig,
     difficulty_labels: dict[str, int] | None = None,
-    scale_match_minimum_in_scale_weight_fraction: float = DEFAULT_SCALE_MATCH_MINIMUM_IN_SCALE_WEIGHT_FRACTION,
-    scale_match_minimum_best_margin: float = DEFAULT_SCALE_MATCH_MINIMUM_BEST_MARGIN,
+    scale_match_support_score_margin: float = DEFAULT_SCALE_MATCH_SUPPORT_SCORE_MARGIN,
+    scale_match_selection_score_margin: float = DEFAULT_SCALE_MATCH_SELECTION_SCORE_MARGIN,
+    scale_match_maximum_unexplained_weight_fraction: float = DEFAULT_SCALE_MATCH_MAXIMUM_UNEXPLAINED_WEIGHT_FRACTION,
+    scale_match_maximum_explanation_pitch_class_count: int = DEFAULT_SCALE_MATCH_MAXIMUM_EXPLANATION_PITCH_CLASS_COUNT,
 ) -> list[Segment]:
     difficulty_level = _resolve_difficulty_level(
         source_file,
@@ -74,8 +78,10 @@ def segment_parsed_score(
         duration_vocabulary=duration_vocabulary,
         segmentation=segmentation_config,
         difficulty_level=difficulty_level,
-        scale_match_minimum_in_scale_weight_fraction=scale_match_minimum_in_scale_weight_fraction,
-        scale_match_minimum_best_margin=scale_match_minimum_best_margin,
+        scale_match_support_score_margin=scale_match_support_score_margin,
+        scale_match_selection_score_margin=scale_match_selection_score_margin,
+        scale_match_maximum_unexplained_weight_fraction=scale_match_maximum_unexplained_weight_fraction,
+        scale_match_maximum_explanation_pitch_class_count=scale_match_maximum_explanation_pitch_class_count,
     )
 
     return [

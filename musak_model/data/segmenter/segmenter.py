@@ -1,8 +1,10 @@
 from pathlib import Path
 
 from musak_model.data.config import (
-    DEFAULT_SCALE_MATCH_MINIMUM_BEST_MARGIN,
-    DEFAULT_SCALE_MATCH_MINIMUM_IN_SCALE_WEIGHT_FRACTION,
+    DEFAULT_SCALE_MATCH_MAXIMUM_EXPLANATION_PITCH_CLASS_COUNT,
+    DEFAULT_SCALE_MATCH_MAXIMUM_UNEXPLAINED_WEIGHT_FRACTION,
+    DEFAULT_SCALE_MATCH_SELECTION_SCORE_MARGIN,
+    DEFAULT_SCALE_MATCH_SUPPORT_SCORE_MARGIN,
     SegmentationConfig,
 )
 from musak_model.data.scale_match import match_scale
@@ -19,8 +21,10 @@ def segment_score(
     duration_vocabulary: DurationVocabulary,
     segmentation: SegmentationConfig,
     difficulty_level: int | None = None,
-    scale_match_minimum_in_scale_weight_fraction: float = DEFAULT_SCALE_MATCH_MINIMUM_IN_SCALE_WEIGHT_FRACTION,
-    scale_match_minimum_best_margin: float = DEFAULT_SCALE_MATCH_MINIMUM_BEST_MARGIN,
+    scale_match_support_score_margin: float = DEFAULT_SCALE_MATCH_SUPPORT_SCORE_MARGIN,
+    scale_match_selection_score_margin: float = DEFAULT_SCALE_MATCH_SELECTION_SCORE_MARGIN,
+    scale_match_maximum_unexplained_weight_fraction: float = DEFAULT_SCALE_MATCH_MAXIMUM_UNEXPLAINED_WEIGHT_FRACTION,
+    scale_match_maximum_explanation_pitch_class_count: int = DEFAULT_SCALE_MATCH_MAXIMUM_EXPLANATION_PITCH_CLASS_COUNT,
 ) -> list[Segment]:
     total_bars = min(len(score.right_hand_bars), len(score.left_hand_bars))
     segments: list[Segment] = []
@@ -29,8 +33,10 @@ def segment_score(
         scale_match = match_scale(
             score.right_hand_bars[start:end],
             score.left_hand_bars[start:end],
-            minimum_in_scale_weight_fraction=scale_match_minimum_in_scale_weight_fraction,
-            minimum_best_margin=scale_match_minimum_best_margin,
+            support_score_margin=scale_match_support_score_margin,
+            selection_score_margin=scale_match_selection_score_margin,
+            maximum_unexplained_weight_fraction=scale_match_maximum_unexplained_weight_fraction,
+            maximum_explanation_pitch_class_count=scale_match_maximum_explanation_pitch_class_count,
         )
         tokenization_score = score.model_copy(
             update={

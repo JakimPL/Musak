@@ -18,8 +18,10 @@ from tqdm.auto import tqdm
 
 from musak_model.data.cleaning import clean_parsed_score
 from musak_model.data.config import (
-    DEFAULT_SCALE_MATCH_MINIMUM_BEST_MARGIN,
-    DEFAULT_SCALE_MATCH_MINIMUM_IN_SCALE_WEIGHT_FRACTION,
+    DEFAULT_SCALE_MATCH_MAXIMUM_EXPLANATION_PITCH_CLASS_COUNT,
+    DEFAULT_SCALE_MATCH_MAXIMUM_UNEXPLAINED_WEIGHT_FRACTION,
+    DEFAULT_SCALE_MATCH_SELECTION_SCORE_MARGIN,
+    DEFAULT_SCALE_MATCH_SUPPORT_SCORE_MARGIN,
     DataProcessingConfig,
     SegmentationConfig,
 )
@@ -67,8 +69,10 @@ class ProcessDatasetResult:
     parsed_count: int
     encoded_count: int
     error_count: int
-    scale_match_minimum_in_scale_weight_fraction: float = DEFAULT_SCALE_MATCH_MINIMUM_IN_SCALE_WEIGHT_FRACTION
-    scale_match_minimum_best_margin: float = DEFAULT_SCALE_MATCH_MINIMUM_BEST_MARGIN
+    scale_match_support_score_margin: float = DEFAULT_SCALE_MATCH_SUPPORT_SCORE_MARGIN
+    scale_match_selection_score_margin: float = DEFAULT_SCALE_MATCH_SELECTION_SCORE_MARGIN
+    scale_match_maximum_unexplained_weight_fraction: float = DEFAULT_SCALE_MATCH_MAXIMUM_UNEXPLAINED_WEIGHT_FRACTION
+    scale_match_maximum_explanation_pitch_class_count: int = DEFAULT_SCALE_MATCH_MAXIMUM_EXPLANATION_PITCH_CLASS_COUNT
 
 
 @dataclass(frozen=True)
@@ -162,10 +166,14 @@ def process_dataset(
         error_count=sum(
             1 for row in parsed_rows if row[ParsedManifestField.STATUS] == ParsedManifestStatus.ERROR.value
         ),
-        scale_match_minimum_in_scale_weight_fraction=(
-            data_processing_config.scale_match_minimum_in_scale_weight_fraction
+        scale_match_support_score_margin=data_processing_config.scale_match_support_score_margin,
+        scale_match_selection_score_margin=data_processing_config.scale_match_selection_score_margin,
+        scale_match_maximum_unexplained_weight_fraction=(
+            data_processing_config.scale_match_maximum_unexplained_weight_fraction
         ),
-        scale_match_minimum_best_margin=data_processing_config.scale_match_minimum_best_margin,
+        scale_match_maximum_explanation_pitch_class_count=(
+            data_processing_config.scale_match_maximum_explanation_pitch_class_count
+        ),
     )
 
 
@@ -477,10 +485,14 @@ def _process_encoded_segments(
             duration_vocabulary,
             segmentation_config=segmentation_config,
             difficulty_labels=difficulty_labels,
-            scale_match_minimum_in_scale_weight_fraction=(
-                data_processing_config.scale_match_minimum_in_scale_weight_fraction
+            scale_match_support_score_margin=data_processing_config.scale_match_support_score_margin,
+            scale_match_selection_score_margin=data_processing_config.scale_match_selection_score_margin,
+            scale_match_maximum_unexplained_weight_fraction=(
+                data_processing_config.scale_match_maximum_unexplained_weight_fraction
             ),
-            scale_match_minimum_best_margin=data_processing_config.scale_match_minimum_best_margin,
+            scale_match_maximum_explanation_pitch_class_count=(
+                data_processing_config.scale_match_maximum_explanation_pitch_class_count
+            ),
         )
         for segment in segments:
             segment = _apply_processing_filters(

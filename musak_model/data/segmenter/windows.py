@@ -117,8 +117,6 @@ def _scale_match_ineligibility_reasons(scale_match: ScaleMatch | None) -> frozen
     reasons: set[SegmentIneligibilityReason] = set()
     if scale_match.diagnostics.no_pitches:
         reasons.add(SegmentIneligibilityReason.SCALE_MATCH_NO_PITCHES)
-    if scale_match.diagnostics.ambiguous:
-        reasons.add(SegmentIneligibilityReason.SCALE_MATCH_AMBIGUOUS)
     if scale_match.diagnostics.low_confidence:
         reasons.add(SegmentIneligibilityReason.SCALE_MATCH_LOW_CONFIDENCE)
 

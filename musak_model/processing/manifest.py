@@ -46,8 +46,12 @@ class EncodedManifestField(StrEnum):
     DECLARED_KEY_FIFTHS = "declared_key_fifths"
     SCALE_MATCH_IN_SCALE_WEIGHT_FRACTION = "scale_match_in_scale_weight_fraction"
     SCALE_MATCH_OUT_OF_SCALE_WEIGHT_FRACTION = "scale_match_out_of_scale_weight_fraction"
+    SCALE_MATCH_EXPLAINED_OUT_OF_SCALE_WEIGHT_FRACTION = "scale_match_explained_out_of_scale_weight_fraction"
+    SCALE_MATCH_UNEXPLAINED_OUT_OF_SCALE_WEIGHT_FRACTION = "scale_match_unexplained_out_of_scale_weight_fraction"
     SCALE_MATCH_BEST_MARGIN = "scale_match_best_margin"
     SCALE_MATCH_OBSERVED_PITCH_CLASS_COUNT = "scale_match_observed_pitch_class_count"
+    SCALE_MATCH_EXPLANATION_PITCH_CLASS_COUNT = "scale_match_explanation_pitch_class_count"
+    SCALE_MATCH_SUPPORT_CANDIDATE_COUNT = "scale_match_support_candidate_count"
     SCALE_MATCH_TIED_BEST_CANDIDATE_COUNT = "scale_match_tied_best_candidate_count"
     SCALE_MATCH_DECLARED_MATCH_USED = "scale_match_declared_match_used"
     SCALE_MATCH_LOW_CONFIDENCE = "scale_match_low_confidence"
@@ -115,8 +119,12 @@ ENCODED_MANIFEST_FIELDS: Final[tuple[EncodedManifestField, ...]] = (
     EncodedManifestField.DECLARED_KEY_FIFTHS,
     EncodedManifestField.SCALE_MATCH_IN_SCALE_WEIGHT_FRACTION,
     EncodedManifestField.SCALE_MATCH_OUT_OF_SCALE_WEIGHT_FRACTION,
+    EncodedManifestField.SCALE_MATCH_EXPLAINED_OUT_OF_SCALE_WEIGHT_FRACTION,
+    EncodedManifestField.SCALE_MATCH_UNEXPLAINED_OUT_OF_SCALE_WEIGHT_FRACTION,
     EncodedManifestField.SCALE_MATCH_BEST_MARGIN,
     EncodedManifestField.SCALE_MATCH_OBSERVED_PITCH_CLASS_COUNT,
+    EncodedManifestField.SCALE_MATCH_EXPLANATION_PITCH_CLASS_COUNT,
+    EncodedManifestField.SCALE_MATCH_SUPPORT_CANDIDATE_COUNT,
     EncodedManifestField.SCALE_MATCH_TIED_BEST_CANDIDATE_COUNT,
     EncodedManifestField.SCALE_MATCH_DECLARED_MATCH_USED,
     EncodedManifestField.SCALE_MATCH_LOW_CONFIDENCE,
@@ -267,9 +275,21 @@ def encoded_row(
         EncodedManifestField.SCALE_MATCH_OUT_OF_SCALE_WEIGHT_FRACTION: (
             scale_match.out_of_scale_weight_fraction if scale_match is not None else ""
         ),
+        EncodedManifestField.SCALE_MATCH_EXPLAINED_OUT_OF_SCALE_WEIGHT_FRACTION: (
+            scale_match.explained_out_of_scale_weight_fraction if scale_match is not None else ""
+        ),
+        EncodedManifestField.SCALE_MATCH_UNEXPLAINED_OUT_OF_SCALE_WEIGHT_FRACTION: (
+            scale_match.unexplained_out_of_scale_weight_fraction if scale_match is not None else ""
+        ),
         EncodedManifestField.SCALE_MATCH_BEST_MARGIN: scale_match.best_margin if scale_match is not None else "",
         EncodedManifestField.SCALE_MATCH_OBSERVED_PITCH_CLASS_COUNT: (
             scale_match.observed_pitch_class_count if scale_match is not None else ""
+        ),
+        EncodedManifestField.SCALE_MATCH_EXPLANATION_PITCH_CLASS_COUNT: (
+            scale_match.explanation_pitch_class_count if scale_match is not None else ""
+        ),
+        EncodedManifestField.SCALE_MATCH_SUPPORT_CANDIDATE_COUNT: (
+            scale_match.support_candidate_count if scale_match is not None else ""
         ),
         EncodedManifestField.SCALE_MATCH_TIED_BEST_CANDIDATE_COUNT: (
             scale_match.tied_best_candidate_count if scale_match is not None else ""

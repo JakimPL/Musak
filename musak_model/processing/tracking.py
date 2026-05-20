@@ -135,10 +135,14 @@ def _processing_params(
         "data.processed_artifact_dir": str(result.parsed_manifest_path.parent),
         "processing.stage": stage,
         "processing.overwrite": overwrite,
-        "processing.scale_match_minimum_in_scale_weight_fraction": (
-            result.scale_match_minimum_in_scale_weight_fraction
+        "processing.scale_match_support_score_margin": result.scale_match_support_score_margin,
+        "processing.scale_match_selection_score_margin": result.scale_match_selection_score_margin,
+        "processing.scale_match_maximum_unexplained_weight_fraction": (
+            result.scale_match_maximum_unexplained_weight_fraction
         ),
-        "processing.scale_match_minimum_best_margin": result.scale_match_minimum_best_margin,
+        "processing.scale_match_maximum_explanation_pitch_class_count": (
+            result.scale_match_maximum_explanation_pitch_class_count
+        ),
         "data.parsed_manifest_sha256": file_sha256(result.parsed_manifest_path),
     }
     if result.encoded_manifest_path is not None and result.encoded_manifest_path.exists():
@@ -234,6 +238,14 @@ def _processing_metrics(*, result: ProcessDatasetResult) -> dict[str, float]:
                 encoded_rows,
                 EncodedManifestField.SCALE_MATCH_OUT_OF_SCALE_WEIGHT_FRACTION,
             ),
+            "dataset/scale_match/mean/explained_out_of_scale_weight_fraction": _numeric_mean(
+                encoded_rows,
+                EncodedManifestField.SCALE_MATCH_EXPLAINED_OUT_OF_SCALE_WEIGHT_FRACTION,
+            ),
+            "dataset/scale_match/mean/unexplained_out_of_scale_weight_fraction": _numeric_mean(
+                encoded_rows,
+                EncodedManifestField.SCALE_MATCH_UNEXPLAINED_OUT_OF_SCALE_WEIGHT_FRACTION,
+            ),
             "dataset/scale_match/mean/best_margin": _numeric_mean(
                 encoded_rows,
                 EncodedManifestField.SCALE_MATCH_BEST_MARGIN,
@@ -241,6 +253,14 @@ def _processing_metrics(*, result: ProcessDatasetResult) -> dict[str, float]:
             "dataset/scale_match/mean/observed_pitch_class_count": _numeric_mean(
                 encoded_rows,
                 EncodedManifestField.SCALE_MATCH_OBSERVED_PITCH_CLASS_COUNT,
+            ),
+            "dataset/scale_match/mean/explanation_pitch_class_count": _numeric_mean(
+                encoded_rows,
+                EncodedManifestField.SCALE_MATCH_EXPLANATION_PITCH_CLASS_COUNT,
+            ),
+            "dataset/scale_match/mean/support_candidate_count": _numeric_mean(
+                encoded_rows,
+                EncodedManifestField.SCALE_MATCH_SUPPORT_CANDIDATE_COUNT,
             ),
             "dataset/scale_match/mean/tied_best_candidate_count": _numeric_mean(
                 encoded_rows,

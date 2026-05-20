@@ -51,8 +51,12 @@ _DIAGNOSTIC_NUMERIC_FIELDS: Final[tuple[EncodedManifestField, ...]] = (
     EncodedManifestField.HOLD_TOKEN_FRACTION,
     EncodedManifestField.SCALE_MATCH_IN_SCALE_WEIGHT_FRACTION,
     EncodedManifestField.SCALE_MATCH_OUT_OF_SCALE_WEIGHT_FRACTION,
+    EncodedManifestField.SCALE_MATCH_EXPLAINED_OUT_OF_SCALE_WEIGHT_FRACTION,
+    EncodedManifestField.SCALE_MATCH_UNEXPLAINED_OUT_OF_SCALE_WEIGHT_FRACTION,
     EncodedManifestField.SCALE_MATCH_BEST_MARGIN,
     EncodedManifestField.SCALE_MATCH_OBSERVED_PITCH_CLASS_COUNT,
+    EncodedManifestField.SCALE_MATCH_EXPLANATION_PITCH_CLASS_COUNT,
+    EncodedManifestField.SCALE_MATCH_SUPPORT_CANDIDATE_COUNT,
     EncodedManifestField.SCALE_MATCH_TIED_BEST_CANDIDATE_COUNT,
 )
 _DIAGNOSTIC_BOOLEAN_FIELDS: Final[tuple[EncodedManifestField, ...]] = (
@@ -395,7 +399,9 @@ def encoded_table_frame(encoded: pd.DataFrame) -> pd.DataFrame:
         EncodedManifestField.SCALE_TYPE,
         EncodedManifestField.DECLARED_KEY_FIFTHS,
         EncodedManifestField.SCALE_MATCH_IN_SCALE_WEIGHT_FRACTION,
+        EncodedManifestField.SCALE_MATCH_UNEXPLAINED_OUT_OF_SCALE_WEIGHT_FRACTION,
         EncodedManifestField.SCALE_MATCH_BEST_MARGIN,
+        EncodedManifestField.SCALE_MATCH_EXPLANATION_PITCH_CLASS_COUNT,
         EncodedManifestField.SCALE_MATCH_LOW_CONFIDENCE,
         EncodedManifestField.SCALE_MATCH_AMBIGUOUS,
         EncodedManifestField.TIME_SIGNATURE,

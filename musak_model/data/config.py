@@ -8,8 +8,10 @@ from pydantic import BaseModel, ConfigDict, Field
 from musak_model.paths import SEGMENTATION_CONFIG_PATH
 from musak_shared.files import load_yaml_config
 
-DEFAULT_SCALE_MATCH_MINIMUM_IN_SCALE_WEIGHT_FRACTION: Final[float] = 0.90
-DEFAULT_SCALE_MATCH_MINIMUM_BEST_MARGIN: Final[float] = 0.03
+DEFAULT_SCALE_MATCH_SUPPORT_SCORE_MARGIN: Final[float] = 0.08
+DEFAULT_SCALE_MATCH_SELECTION_SCORE_MARGIN: Final[float] = 0.03
+DEFAULT_SCALE_MATCH_MAXIMUM_UNEXPLAINED_WEIGHT_FRACTION: Final[float] = 0.10
+DEFAULT_SCALE_MATCH_MAXIMUM_EXPLANATION_PITCH_CLASS_COUNT: Final[int] = 9
 
 
 class SegmentationConfig(BaseModel):
@@ -47,12 +49,18 @@ class DataProcessingConfig(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     remove_segments_with_silent_bars: bool
-    scale_match_minimum_in_scale_weight_fraction: float = Field(
-        DEFAULT_SCALE_MATCH_MINIMUM_IN_SCALE_WEIGHT_FRACTION,
+    scale_match_support_score_margin: float = Field(DEFAULT_SCALE_MATCH_SUPPORT_SCORE_MARGIN, ge=0, le=1)
+    scale_match_selection_score_margin: float = Field(DEFAULT_SCALE_MATCH_SELECTION_SCORE_MARGIN, ge=0, le=1)
+    scale_match_maximum_unexplained_weight_fraction: float = Field(
+        DEFAULT_SCALE_MATCH_MAXIMUM_UNEXPLAINED_WEIGHT_FRACTION,
         ge=0,
         le=1,
     )
-    scale_match_minimum_best_margin: float = Field(DEFAULT_SCALE_MATCH_MINIMUM_BEST_MARGIN, ge=0, le=1)
+    scale_match_maximum_explanation_pitch_class_count: int = Field(
+        DEFAULT_SCALE_MATCH_MAXIMUM_EXPLANATION_PITCH_CLASS_COUNT,
+        ge=0,
+        le=12,
+    )
 
 
 def load_difficulty_labels(path: Path | None) -> dict[str, int] | None:
