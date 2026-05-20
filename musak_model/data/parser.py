@@ -30,13 +30,12 @@ _DEFAULT_SCALE_TYPE: Final[ScaleType] = ScaleType.MAJOR
 
 def parse_score(path: Path) -> ParsedScore:
     raw = converter.parse(str(path))
-    if not isinstance(raw, Score):
-        raise ValueError(f"expected a Score, got {type(raw).__name__}")
+    score = _score_from_music21(raw)
 
-    key_root, key_fifths, scale_type = _detect_key(raw)
-    time_numerator, time_denominator = _detect_time_signature(raw)
+    key_root, key_fifths, scale_type = _detect_key(score)
+    time_numerator, time_denominator = _detect_time_signature(score)
     right_hand_bars, left_hand_bars = _extract_hands(
-        raw,
+        score,
         default_time_signature=(time_numerator, time_denominator),
         default_key_fifths=key_fifths,
     )
@@ -52,10 +51,14 @@ def parse_score(path: Path) -> ParsedScore:
     )
 
 
-def _detect_key(score: object) -> tuple[int, int, ScaleType]:
-    if not isinstance(score, Score):
-        raise TypeError(f"expected Score, got {type(score).__name__}")
+def _score_from_music21(raw: object) -> Score:
+    if not isinstance(raw, Score):
+        raise ValueError(f"expected a Score, got {type(raw).__name__}")
 
+    return raw
+
+
+def _detect_key(score: Score) -> tuple[int, int, ScaleType]:
     key_signature = _first_score_key_signature(score)
     if key_signature is None:
         key_fifths = _DEFAULT_KEY_FIFTHS
@@ -69,11 +72,17 @@ def _detect_key(score: object) -> tuple[int, int, ScaleType]:
 
 
 def _first_score_key_signature(score: Score) -> m21_key.KeySignature | None:
-    key_signatures = list(score.recurse().getElementsByClass(m21_key.KeySignature))
-    if not key_signatures:
-        return None
+    for key_signature in score.recurse().getElementsByClass(m21_key.KeySignature):
+        return _key_signature_from_music21(key_signature)
 
-    return key_signatures[0]
+    return None
+
+
+def _key_signature_from_music21(raw: object) -> m21_key.KeySignature:
+    if not isinstance(raw, m21_key.KeySignature):
+        raise TypeError(f"expected KeySignature, got {type(raw).__name__}")
+
+    return raw
 
 
 def _key_signature_scale_type(key_signature: m21_key.KeySignature) -> ScaleType:
@@ -95,27 +104,27 @@ def _key_root_from_fifths(key_fifths: int, *, scale_type: ScaleType) -> int:
     raise ValueError(f"unsupported key signature scale type: {scale_type.value}")
 
 
-def _detect_time_signature(score: object) -> tuple[int, int]:
-    if not isinstance(score, Score):
-        raise TypeError(f"expected Score, got {type(score).__name__}")
+def _detect_time_signature(score: Score) -> tuple[int, int]:
+    for time_signature in score.recurse().getElementsByClass(TimeSignature):
+        first = _time_signature_from_music21(time_signature)
+        return int(first.numerator), int(first.denominator)
 
-    time_signatures = list(score.recurse().getElementsByClass(TimeSignature))
-    if not time_signatures:
-        raise ValueError("no time signature found in score")
+    raise ValueError("no time signature found in score")
 
-    first = time_signatures[0]
-    return int(first.numerator), int(first.denominator)
+
+def _time_signature_from_music21(raw: object) -> TimeSignature:
+    if not isinstance(raw, TimeSignature):
+        raise TypeError(f"expected TimeSignature, got {type(raw).__name__}")
+
+    return raw
 
 
 def _extract_hands(
-    score: object,
+    score: Score,
     *,
     default_time_signature: tuple[int, int],
     default_key_fifths: int,
 ) -> tuple[list[ParsedBar], list[ParsedBar]]:
-    if not isinstance(score, Score):
-        raise TypeError(f"expected Score, got {type(score).__name__}")
-
     hand_parts = select_piano_hand_parts(score)
 
     right_hand_bars = _extract_bars(
@@ -132,34 +141,34 @@ def _extract_hands(
 
 
 def _extract_bars(
-    part: object,
+    part: Part,
     *,
     default_time_signature: tuple[int, int],
     default_key_fifths: int,
 ) -> list[ParsedBar]:
-    if not isinstance(part, Part):
-        raise TypeError(f"expected Part, got {type(part).__name__}")
-
-    measures = list(part.getElementsByClass(Measure))
     return [
         _parse_measure(
-            measure,
+            _measure_from_music21(measure),
             default_time_signature=default_time_signature,
             default_key_fifths=default_key_fifths,
         )
-        for measure in measures
+        for measure in part.getElementsByClass(Measure)
     ]
 
 
+def _measure_from_music21(raw: object) -> Measure:
+    if not isinstance(raw, Measure):
+        raise TypeError(f"expected Measure, got {type(raw).__name__}")
+
+    return raw
+
+
 def _parse_measure(
-    measure: object,
+    measure: Measure,
     *,
     default_time_signature: tuple[int, int],
     default_key_fifths: int,
 ) -> ParsedBar:
-    if not isinstance(measure, Measure):
-        raise TypeError(f"expected Measure, got {type(measure).__name__}")
-
     time_numerator, time_denominator = _measure_time_signature(
         measure,
         default_time_signature=default_time_signature,

@@ -69,7 +69,6 @@ def test_segment_metadata_uses_first_bar_time_signature(duration_vocabulary: Dur
             ]
         ),
         Path("piece.mxl"),
-        scale_type=ScaleType.MAJOR,
         duration_vocabulary=duration_vocabulary,
         segmentation=SegmentationConfig(window_bars=1, stride_bars=1),
     )
@@ -89,7 +88,6 @@ def test_segment_crossing_time_signature_change_is_not_training_eligible(
             ]
         ),
         Path("piece.mxl"),
-        scale_type=ScaleType.MAJOR,
         duration_vocabulary=duration_vocabulary,
         segmentation=SegmentationConfig(window_bars=2, stride_bars=1),
     )
@@ -105,7 +103,6 @@ def test_segment_crossing_key_signature_change_is_not_training_eligible(
     segments = segment_score(
         _score(bars=[_note_bar(), _note_bar().model_copy(update={"key_fifths": 1})]),
         Path("piece.mxl"),
-        scale_type=ScaleType.MAJOR,
         duration_vocabulary=duration_vocabulary,
         segmentation=SegmentationConfig(window_bars=2, stride_bars=1),
     )
@@ -123,7 +120,6 @@ def test_segment_starting_with_silent_bar_is_not_training_eligible(
     segments = segment_score(
         score,
         Path("piece.mxl"),
-        scale_type=ScaleType.MAJOR,
         duration_vocabulary=duration_vocabulary,
         segmentation=SegmentationConfig(window_bars=2, stride_bars=1),
     )
@@ -140,7 +136,6 @@ def test_segment_ending_with_silent_bar_is_not_training_eligible(
     segments = segment_score(
         score,
         Path("piece.mxl"),
-        scale_type=ScaleType.MAJOR,
         duration_vocabulary=duration_vocabulary,
         segmentation=SegmentationConfig(window_bars=2, stride_bars=1),
     )
@@ -157,7 +152,6 @@ def test_segment_with_interior_silent_bar_remains_training_eligible(
     segments = segment_score(
         score,
         Path("piece.mxl"),
-        scale_type=ScaleType.MAJOR,
         duration_vocabulary=duration_vocabulary,
         segmentation=SegmentationConfig(window_bars=3, stride_bars=1),
     )
@@ -192,7 +186,6 @@ def test_cleaned_duplicate_note_events_do_not_make_segment_ineligible(
     segments = segment_score(
         cleaned,
         Path("piece.mxl"),
-        scale_type=ScaleType.MAJOR,
         duration_vocabulary=duration_vocabulary,
         segmentation=SegmentationConfig(window_bars=1, stride_bars=1),
     )
@@ -224,7 +217,6 @@ def test_register_error_marks_only_affected_segments_ineligible(duration_vocabul
     segments = segment_score(
         score,
         Path("piece.mxl"),
-        scale_type=ScaleType.MAJOR,
         duration_vocabulary=duration_vocabulary,
         segmentation=SegmentationConfig(window_bars=1, stride_bars=1),
     )
@@ -256,7 +248,6 @@ def test_overlapping_events_mark_segment_ineligible(duration_vocabulary: Duratio
     segments = segment_score(
         score,
         Path("piece.mxl"),
-        scale_type=ScaleType.MAJOR,
         duration_vocabulary=duration_vocabulary,
         segmentation=SegmentationConfig(window_bars=1, stride_bars=1),
     )
@@ -302,7 +293,6 @@ def test_cleaned_overlapping_sequences_tokenize_after_truncating_to_next_onset_a
     segments = segment_score(
         clean_parsed_score(score),
         Path("piece.mxl"),
-        scale_type=ScaleType.MAJOR,
         duration_vocabulary=duration_vocabulary,
         segmentation=SegmentationConfig(window_bars=1, stride_bars=1),
     )
@@ -339,7 +329,6 @@ def test_bar_duration_overflow_marks_segment_ineligible(duration_vocabulary: Dur
     segments = segment_score(
         score,
         Path("piece.mxl"),
-        scale_type=ScaleType.MAJOR,
         duration_vocabulary=duration_vocabulary,
         segmentation=SegmentationConfig(window_bars=1, stride_bars=1),
     )
@@ -379,7 +368,6 @@ def test_tied_note_across_bars_tokenizes_as_hold(duration_vocabulary: DurationVo
     segments = segment_score(
         score,
         Path("piece.mxl"),
-        scale_type=ScaleType.MAJOR,
         duration_vocabulary=duration_vocabulary,
         segmentation=SegmentationConfig(window_bars=2, stride_bars=1),
     )
@@ -433,7 +421,6 @@ def test_window_starting_on_tie_continuation_is_not_training_eligible(
     segments = segment_score(
         score,
         Path("piece.mxl"),
-        scale_type=ScaleType.MAJOR,
         duration_vocabulary=duration_vocabulary,
         segmentation=SegmentationConfig(window_bars=1, stride_bars=1),
     )
@@ -485,7 +472,6 @@ def test_tied_chord_across_bars_tokenizes_as_single_hold_for_same_pitch_set(
     segments = segment_score(
         score,
         Path("piece.mxl"),
-        scale_type=ScaleType.MAJOR,
         duration_vocabulary=duration_vocabulary,
         segmentation=SegmentationConfig(window_bars=2, stride_bars=1),
     )
@@ -552,7 +538,6 @@ def test_multi_bar_ligature_tokenizes_continue_and_stop_as_holds(
     segments = segment_score(
         score,
         Path("piece.mxl"),
-        scale_type=ScaleType.MAJOR,
         duration_vocabulary=duration_vocabulary,
         segmentation=SegmentationConfig(window_bars=3, stride_bars=1),
     )
@@ -607,7 +592,6 @@ def test_one_hand_can_hold_while_other_hand_plays_regular_notes(
     segments = segment_score(
         score,
         Path("piece.mxl"),
-        scale_type=ScaleType.MAJOR,
         duration_vocabulary=duration_vocabulary,
         segmentation=SegmentationConfig(window_bars=2, stride_bars=1),
     )
@@ -652,7 +636,6 @@ def test_tie_continuation_without_matching_pitch_marks_segment_ineligible(
     segments = segment_score(
         score,
         Path("piece.mxl"),
-        scale_type=ScaleType.MAJOR,
         duration_vocabulary=duration_vocabulary,
         segmentation=SegmentationConfig(window_bars=2, stride_bars=1),
     )
@@ -691,7 +674,6 @@ def test_tie_continuation_without_open_tie_marks_segment_ineligible(
     segments = segment_score(
         score,
         Path("piece.mxl"),
-        scale_type=ScaleType.MAJOR,
         duration_vocabulary=duration_vocabulary,
         segmentation=SegmentationConfig(window_bars=1, stride_bars=1),
     )
@@ -728,7 +710,6 @@ def test_partial_chord_tie_marks_segment_ineligible(duration_vocabulary: Duratio
     segments = segment_score(
         score,
         Path("piece.mxl"),
-        scale_type=ScaleType.MAJOR,
         duration_vocabulary=duration_vocabulary,
         segmentation=SegmentationConfig(window_bars=1, stride_bars=1),
     )
@@ -762,7 +743,6 @@ def test_ambiguous_simultaneous_durations_mark_segment_ineligible(
     segments = segment_score(
         score,
         Path("piece.mxl"),
-        scale_type=ScaleType.MAJOR,
         duration_vocabulary=duration_vocabulary,
         segmentation=SegmentationConfig(window_bars=1, stride_bars=1),
     )
@@ -799,7 +779,6 @@ def test_cleaned_simultaneous_mixed_durations_are_tokenized_as_chord(
     segments = segment_score(
         score,
         Path("piece.mxl"),
-        scale_type=ScaleType.MAJOR,
         duration_vocabulary=duration_vocabulary,
         segmentation=SegmentationConfig(window_bars=1, stride_bars=1),
     )
@@ -830,7 +809,6 @@ def test_unsupported_quantized_duration_marks_segment_ineligible(
     segments = segment_score(
         score,
         Path("piece.mxl"),
-        scale_type=ScaleType.MAJOR,
         duration_vocabulary=duration_vocabulary,
         segmentation=SegmentationConfig(window_bars=1, stride_bars=1),
     )
@@ -864,7 +842,6 @@ def test_unsupported_rest_gap_marks_segment_ineligible_before_it_can_shift_onset
     segments = segment_score(
         score,
         Path("piece.mxl"),
-        scale_type=ScaleType.MAJOR,
         duration_vocabulary=duration_vocabulary,
         segmentation=SegmentationConfig(window_bars=1, stride_bars=1),
     )
@@ -903,7 +880,6 @@ def test_unexpected_tokenization_value_error_is_not_swallowed(
         segment_score(
             score,
             Path("piece.mxl"),
-            scale_type=ScaleType.MAJOR,
             duration_vocabulary=duration_vocabulary,
             segmentation=SegmentationConfig(window_bars=1, stride_bars=1),
         )

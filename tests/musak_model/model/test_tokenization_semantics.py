@@ -33,7 +33,6 @@ def test_chord_tokenization_preserves_all_chord_pitches(duration_vocabulary: Dur
         chord,
         score=_score(right_hand_bars=[], left_hand_bars=[]),
         hand=Hand.RIGHT,
-        scale_type=ScaleType.MAJOR,
         duration_vocabulary=duration_vocabulary,
     )
 
@@ -55,7 +54,6 @@ def test_unified_stream_adds_join_suffixes_for_chord_notes(duration_vocabulary: 
 
     tokenized_bars = _tokenize_unified_stream(
         score=score,
-        scale_type=ScaleType.MAJOR,
         duration_vocabulary=duration_vocabulary,
     )
 
@@ -82,6 +80,5 @@ def test_unified_stream_rejects_overlapping_non_chord_notes(duration_vocabulary:
     with pytest.raises(ValueError, match="overlapping events"):
         _tokenize_unified_stream(
             score=score,
-            scale_type=ScaleType.MAJOR,
             duration_vocabulary=duration_vocabulary,
         )

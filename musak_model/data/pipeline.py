@@ -57,12 +57,14 @@ def segment_parsed_score(
     segmentation_config: SegmentationConfig,
     difficulty_labels: dict[str, int] | None = None,
 ) -> list[Segment]:
-    difficulty_level = _resolve_difficulty_level(source_file, difficulty_labels=difficulty_labels)
+    difficulty_level = _resolve_difficulty_level(
+        source_file,
+        difficulty_labels=difficulty_labels,
+    )
 
     segments = segment_score(
         score,
         source_file,
-        scale_type=score.scale_type,
         duration_vocabulary=duration_vocabulary,
         segmentation=segmentation_config,
         difficulty_level=difficulty_level,

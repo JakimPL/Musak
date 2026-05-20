@@ -29,7 +29,6 @@ from musak_model.tokens.schema import (
     JoinWithPreviousToken,
     NoteToken,
     RestToken,
-    ScaleType,
     Token,
 )
 
@@ -69,14 +68,12 @@ def segment_score(
     score: ParsedScore,
     source_file: Path,
     *,
-    scale_type: ScaleType,
     duration_vocabulary: DurationVocabulary,
     segmentation: SegmentationConfig,
     difficulty_level: int | None = None,
 ) -> list[Segment]:
     unified_tokens = _tokenize_unified_stream_safely(
         score=score,
-        scale_type=scale_type,
         duration_vocabulary=duration_vocabulary,
     )
 
@@ -84,7 +81,6 @@ def segment_score(
         unified_tokens=unified_tokens,
         score=score,
         source_file=source_file,
-        scale_type=scale_type,
         segmentation=segmentation,
         difficulty_level=difficulty_level,
     )
@@ -95,7 +91,6 @@ def _tokenize_hand_safely(
     *,
     score: ParsedScore,
     hand: Hand,
-    scale_type: ScaleType,
     duration_vocabulary: DurationVocabulary,
 ) -> list[_BarTokenization]:
     tokenized_bars: list[_BarTokenization] = []
@@ -107,7 +102,6 @@ def _tokenize_hand_safely(
                 bar_index=index,
                 hand=hand,
                 score=score,
-                scale_type=scale_type,
                 duration_vocabulary=duration_vocabulary,
                 measure_duration=_bar_measure_duration(bar),
                 tie_state=tie_state,
@@ -132,7 +126,6 @@ def _tokenize_hand(
     *,
     score: ParsedScore,
     hand: Hand,
-    scale_type: ScaleType,
     duration_vocabulary: DurationVocabulary,
 ) -> list[list[Token]]:
     tokenized_bars: list[list[Token]] = []
@@ -143,7 +136,6 @@ def _tokenize_hand(
             bar_index=index,
             hand=hand,
             score=score,
-            scale_type=scale_type,
             duration_vocabulary=duration_vocabulary,
             measure_duration=_bar_measure_duration(bar),
             tie_state=tie_state,
@@ -157,7 +149,6 @@ def _tokenize_hand(
 def _tokenize_unified_stream_safely(
     *,
     score: ParsedScore,
-    scale_type: ScaleType,
     duration_vocabulary: DurationVocabulary,
 ) -> list[_BarTokenization]:
     total_bars = min(len(score.right_hand_bars), len(score.left_hand_bars))
@@ -172,7 +163,6 @@ def _tokenize_unified_stream_safely(
                 bar_index=bar_index,
                 hand=Hand.RIGHT,
                 score=score,
-                scale_type=scale_type,
                 duration_vocabulary=duration_vocabulary,
                 measure_duration=_bar_measure_duration(score.right_hand_bars[bar_index]),
                 tie_state=right_tie_state,
@@ -182,7 +172,6 @@ def _tokenize_unified_stream_safely(
                 bar_index=bar_index,
                 hand=Hand.LEFT,
                 score=score,
-                scale_type=scale_type,
                 duration_vocabulary=duration_vocabulary,
                 measure_duration=_bar_measure_duration(score.left_hand_bars[bar_index]),
                 tie_state=left_tie_state,
@@ -208,7 +197,6 @@ def _tokenize_unified_stream_safely(
 def _tokenize_unified_stream(
     *,
     score: ParsedScore,
-    scale_type: ScaleType,
     duration_vocabulary: DurationVocabulary,
 ) -> list[list[Token]]:
     total_bars = min(len(score.right_hand_bars), len(score.left_hand_bars))
@@ -222,7 +210,6 @@ def _tokenize_unified_stream(
             bar_index=bar_index,
             hand=Hand.RIGHT,
             score=score,
-            scale_type=scale_type,
             duration_vocabulary=duration_vocabulary,
             measure_duration=_bar_measure_duration(score.right_hand_bars[bar_index]),
             tie_state=right_tie_state,
@@ -232,7 +219,6 @@ def _tokenize_unified_stream(
             bar_index=bar_index,
             hand=Hand.LEFT,
             score=score,
-            scale_type=scale_type,
             duration_vocabulary=duration_vocabulary,
             measure_duration=_bar_measure_duration(score.left_hand_bars[bar_index]),
             tie_state=left_tie_state,
@@ -250,7 +236,6 @@ def _normalize_bar_events(
     bar_index: int,
     hand: Hand,
     score: ParsedScore,
-    scale_type: ScaleType,
     duration_vocabulary: DurationVocabulary,
     measure_duration: Fraction,
     tie_state: _TieState | None = None,
@@ -309,7 +294,6 @@ def _normalize_bar_events(
             event,
             score=score,
             hand=hand,
-            scale_type=scale_type,
             duration_vocabulary=duration_vocabulary,
             tie_state=current_tie_state,
         )
@@ -531,7 +515,6 @@ def _tokenize_bar(
     *,
     score: ParsedScore,
     hand: Hand,
-    scale_type: ScaleType,
     duration_vocabulary: DurationVocabulary,
 ) -> list[Token]:
     normalized = _normalize_bar_events(
@@ -539,7 +522,6 @@ def _tokenize_bar(
         bar_index=0,
         score=score,
         hand=hand,
-        scale_type=scale_type,
         duration_vocabulary=duration_vocabulary,
         measure_duration=_bar_measure_duration(bar),
     )
@@ -553,7 +535,6 @@ def _tokenize_event(
     *,
     score: ParsedScore,
     hand: Hand,
-    scale_type: ScaleType,
     duration_vocabulary: DurationVocabulary,
     tie_state: _TieState | None,
 ) -> tuple[list[Token], _TieState | None]:
@@ -566,7 +547,6 @@ def _tokenize_event(
                         event,
                         score=score,
                         hand=hand,
-                        scale_type=scale_type,
                         duration_vocabulary=duration_vocabulary,
                     )
                 ],
@@ -598,7 +578,6 @@ def _tokenize_event(
                     event,
                     score=score,
                     hand=hand,
-                    scale_type=scale_type,
                     duration_vocabulary=duration_vocabulary,
                 ),
                 duration_vocabulary=duration_vocabulary,
@@ -660,13 +639,11 @@ def _note_to_token(
     *,
     score: ParsedScore,
     hand: Hand,
-    scale_type: ScaleType,
     duration_vocabulary: DurationVocabulary,
 ) -> NoteToken:
     pitch_degree = _pitch_to_degree_for_tokenization(
         event,
         score=score,
-        scale_type=scale_type,
         hand=hand,
     )
     duration_id = _exact_duration_id(event.duration, vocabulary=duration_vocabulary)
@@ -683,7 +660,6 @@ def _chord_to_tokens(
     *,
     score: ParsedScore,
     hand: Hand,
-    scale_type: ScaleType,
     duration_vocabulary: DurationVocabulary,
 ) -> list[Token]:
     sorted_pitches = sorted(event.midi_pitches)
@@ -693,7 +669,6 @@ def _chord_to_tokens(
             ParsedNote(midi_pitch=midi_pitch, duration=event.duration, beat_offset=event.beat_offset),
             score=score,
             hand=hand,
-            scale_type=scale_type,
             duration_vocabulary=duration_vocabulary,
         )
         tokens.append(note_token)
@@ -706,7 +681,6 @@ def _create_windows(
     score: ParsedScore,
     source_file: Path,
     *,
-    scale_type: ScaleType,
     segmentation: SegmentationConfig,
     difficulty_level: int | None,
 ) -> list[Segment]:
@@ -736,7 +710,7 @@ def _create_windows(
                 tokens=unified_window,
                 metadata=SegmentMetadata(
                     key_root=score.key_root,
-                    scale_type=scale_type,
+                    scale_type=score.scale_type,
                     time_numerator=first_bar.time_numerator,
                     time_denominator=first_bar.time_denominator,
                     bar_count=segmentation.window_bars,
@@ -836,7 +810,6 @@ def _pitch_to_degree_for_tokenization(
     event: ParsedNote,
     *,
     score: ParsedScore,
-    scale_type: ScaleType,
     hand: Hand,
 ) -> PitchDegree:
     try:
@@ -844,14 +817,14 @@ def _pitch_to_degree_for_tokenization(
             event.midi_pitch,
             key_root=score.key_root,
             key_fifths=score.key_fifths,
-            scale_type=scale_type,
+            scale_type=score.scale_type,
             hand=hand,
         )
     except PitchDegreeRegisterError as exception:
         raise TokenizationIneligibilityError(
             (
                 f"pitch {event.midi_pitch} is outside supported {hand.value} hand register "
-                f"for key {score.key_root} {scale_type.value}"
+                f"for key {score.key_root} {score.scale_type.value}"
             ),
             reason=SegmentIneligibilityReason.REGISTER_OUT_OF_RANGE,
         ) from exception
