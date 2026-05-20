@@ -229,6 +229,7 @@ def _(active_selection, mo):
 def _(
     encoded_sample_to_segment,
     encoded_segments_result,
+    duration_vocabulary,
     load_encoded_shard,
     load_parsed_score_json,
     mo,
@@ -250,6 +251,7 @@ def _(
         with mo.status.spinner(title="Parsing and tokenizing selected file..."):
             processing_result = process_score_safely(
                 selected_path,
+                duration_vocabulary,
                 window_bars=window_slider.value,
                 stride_bars=stride_slider.value,
             )
@@ -279,6 +281,7 @@ def _(
             processing_result = segment_parsed_score_safely(
                 loaded_parsed_score,
                 selected_path,
+                duration_vocabulary,
                 window_bars=window_slider.value,
                 stride_bars=stride_slider.value,
                 parse_diagnostics=parse_diagnostics,

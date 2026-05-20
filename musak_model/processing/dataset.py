@@ -463,9 +463,9 @@ def _process_encoded_segments(
         segments = segment_parsed_score(
             score,
             source_metadata_path,
-            segmentation=segmentation_config,
+            duration_vocabulary,
+            segmentation_config=segmentation_config,
             difficulty_labels=difficulty_labels,
-            duration_vocabulary=duration_vocabulary,
         )
         for segment in segments:
             segment = _apply_processing_filters(

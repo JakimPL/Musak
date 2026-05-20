@@ -83,12 +83,11 @@ def test_build_ingestion_split_is_deterministic(
 
     def fake_process_file(
         path: Path,
+        duration_vocabulary: DurationVocabulary,
         *,
-        segmentation: SegmentationConfig,
+        segmentation_config: SegmentationConfig,
         difficulty_labels: dict[str, int] | None,
-        duration_vocabulary: DurationVocabulary | None = None,
     ) -> list[Segment]:
-        assert duration_vocabulary is not None
         return [_segment(path, duration_vocabulary=duration_vocabulary)]
 
     monkeypatch.setattr("musak_model.training.ingestion.split.process_file", fake_process_file)
@@ -126,14 +125,13 @@ def test_build_ingestion_split_collects_invalid_file_errors(
 
     def fake_process_file(
         path: Path,
+        duration_vocabulary: DurationVocabulary,
         *,
-        segmentation: SegmentationConfig,
+        segmentation_config: SegmentationConfig,
         difficulty_labels: dict[str, int] | None,
-        duration_vocabulary: DurationVocabulary | None = None,
     ) -> list[Segment]:
         if path.name == "bad.mxl":
             raise ValueError("parse failed")
-        assert duration_vocabulary is not None
         return [_segment(path, duration_vocabulary=duration_vocabulary)]
 
     monkeypatch.setattr("musak_model.training.ingestion.split.process_file", fake_process_file)
@@ -189,12 +187,11 @@ def test_build_ingestion_split_filters_ineligible_segments(
 
     def fake_process_file(
         path: Path,
+        duration_vocabulary: DurationVocabulary,
         *,
-        segmentation: SegmentationConfig,
+        segmentation_config: SegmentationConfig,
         difficulty_labels: dict[str, int] | None,
-        duration_vocabulary: DurationVocabulary | None = None,
     ) -> list[Segment]:
-        assert duration_vocabulary is not None
         return [
             _segment(path, duration_vocabulary=duration_vocabulary),
             _ineligible_segment(path, duration_vocabulary=duration_vocabulary),

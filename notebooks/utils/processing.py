@@ -16,6 +16,7 @@ from musak_model.data.schema import ParsedScore, Segment
 from musak_model.processing.diagnostics import ParseDiagnosticsCapture
 from musak_model.processing.manifest import ParsedManifestField, read_parsed_manifest
 from musak_model.processing.paths import PARSED_MANIFEST_NAME
+from musak_model.tokens.duration import DurationVocabulary
 
 _PROCESSING_ERRORS: tuple[type[Exception], ...] = (
     Music21Exception,
@@ -46,6 +47,7 @@ class ProcessingResult(BaseModel):
 
 def process_score_safely(
     path: Path,
+    duration_vocabulary: DurationVocabulary,
     *,
     window_bars: int,
     stride_bars: int,
@@ -73,7 +75,8 @@ def process_score_safely(
         segments = segment_parsed_score(
             parsed_score,
             path,
-            segmentation=SegmentationConfig(window_bars=window_bars, stride_bars=stride_bars),
+            duration_vocabulary,
+            segmentation_config=SegmentationConfig(window_bars=window_bars, stride_bars=stride_bars),
         )
     except _PROCESSING_ERRORS as exception:
         return ProcessingResult(
@@ -97,6 +100,7 @@ def process_score_safely(
 def segment_parsed_score_safely(
     parsed_score: ParsedScore,
     path: Path,
+    duration_vocabulary: DurationVocabulary,
     *,
     window_bars: int,
     stride_bars: int,
@@ -106,7 +110,8 @@ def segment_parsed_score_safely(
         segments = segment_parsed_score(
             parsed_score,
             path,
-            segmentation=SegmentationConfig(window_bars=window_bars, stride_bars=stride_bars),
+            duration_vocabulary,
+            segmentation_config=SegmentationConfig(window_bars=window_bars, stride_bars=stride_bars),
         )
     except _PROCESSING_ERRORS as exception:
         return ProcessingResult(

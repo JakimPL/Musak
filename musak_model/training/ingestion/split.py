@@ -78,9 +78,9 @@ def build_split(
         try:
             segments = process_file(
                 file_path,
-                segmentation=segmentation,
+                duration_vocabulary,
+                segmentation_config=segmentation,
                 difficulty_labels=config.difficulty_labels,
-                duration_vocabulary=duration_vocabulary,
             )
         except _FILE_PROCESSING_ERRORS as exception:
             invalid_files.append(
@@ -250,9 +250,9 @@ def _split_from_parsed_scores(
             segments = segment_parsed_score(
                 score,
                 relative_source_path,
-                segmentation=segmentation,
+                duration_vocabulary,
+                segmentation_config=segmentation,
                 difficulty_labels=difficulty_labels,
-                duration_vocabulary=duration_vocabulary,
             )
         except _FILE_PROCESSING_ERRORS as exception:
             invalid_files.append(

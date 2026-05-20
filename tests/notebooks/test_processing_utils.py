@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from musak_model.processing.manifest import parsed_success_row, write_parsed_manifest
+from musak_model.tokens.duration import DurationVocabulary
 from notebooks.utils.processing import (
     encoded_segments_result,
     parsed_score_manifest_diagnostics,
@@ -29,6 +30,7 @@ def test_process_score_safely_captures_parse_diagnostics_without_console_noise(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
+    duration_vocabulary: DurationVocabulary,
 ) -> None:
     source_path = tmp_path / "piece.mxl"
     source_path.write_text("score", encoding="utf-8")
@@ -41,7 +43,7 @@ def test_process_score_safely_captures_parse_diagnostics_without_console_noise(
     monkeypatch.setattr("notebooks.utils.processing.parse_score", noisy_parse)
     monkeypatch.setattr("notebooks.utils.processing.segment_parsed_score", lambda *args, **kwargs: [])
 
-    result = process_score_safely(source_path, window_bars=1, stride_bars=1)
+    result = process_score_safely(source_path, duration_vocabulary, window_bars=1, stride_bars=1)
     captured = capsys.readouterr()
 
     assert result.succeeded
@@ -54,6 +56,7 @@ def test_process_score_safely_captures_parse_diagnostics_without_console_noise(
 def test_process_score_safely_preserves_parse_diagnostics_on_parse_error(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    duration_vocabulary: DurationVocabulary,
 ) -> None:
     source_path = tmp_path / "piece.mxl"
     source_path.write_text("score", encoding="utf-8")
@@ -64,7 +67,7 @@ def test_process_score_safely_preserves_parse_diagnostics_on_parse_error(
 
     monkeypatch.setattr("notebooks.utils.processing.parse_score", noisy_parse_error)
 
-    result = process_score_safely(source_path, window_bars=1, stride_bars=1)
+    result = process_score_safely(source_path, duration_vocabulary, window_bars=1, stride_bars=1)
 
     assert not result.succeeded
     assert result.error_type == "ValueError"

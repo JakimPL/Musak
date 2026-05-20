@@ -115,8 +115,8 @@ def _segment_from_manifest_row(
     segments = segment_parsed_score(
         score,
         Path(_string_field(row, EncodedManifestField.SOURCE_PATH, default=parsed_path.name)),
-        segmentation=SegmentationConfig(window_bars=bar_count, stride_bars=1),
-        duration_vocabulary=duration_vocabulary,
+        duration_vocabulary,
+        segmentation_config=SegmentationConfig(window_bars=bar_count, stride_bars=1),
     )
     for segment in segments:
         if segment.metadata.window_start_bar == window_start_bar:

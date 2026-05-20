@@ -47,8 +47,8 @@ def test_segment_parsed_score_keeps_recoverable_segments_when_feature_extraction
     segments = segment_parsed_score(
         score,
         Path("piece.mxl"),
-        segmentation=SegmentationConfig(window_bars=1, stride_bars=1),
-        duration_vocabulary=duration_vocabulary,
+        duration_vocabulary,
+        segmentation_config=SegmentationConfig(window_bars=1, stride_bars=1),
     )
 
     assert [segment.metadata.eligible_for_training for segment in segments] == [True, False, True]
@@ -79,8 +79,8 @@ def test_segment_parsed_score_marks_feature_register_errors_ineligible(
     segments = segment_parsed_score(
         score,
         Path("piece.mxl"),
-        segmentation=SegmentationConfig(window_bars=1, stride_bars=1),
-        duration_vocabulary=duration_vocabulary,
+        duration_vocabulary,
+        segmentation_config=SegmentationConfig(window_bars=1, stride_bars=1),
     )
 
     assert segments[0].metadata.eligible_for_training is False
@@ -111,6 +111,6 @@ def test_segment_parsed_score_does_not_hide_unexpected_feature_extraction_errors
         segment_parsed_score(
             score,
             Path("piece.mxl"),
-            segmentation=SegmentationConfig(window_bars=1, stride_bars=1),
-            duration_vocabulary=duration_vocabulary,
+            duration_vocabulary,
+            segmentation_config=SegmentationConfig(window_bars=1, stride_bars=1),
         )
