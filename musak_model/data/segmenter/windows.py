@@ -74,7 +74,7 @@ def create_window(
             scale_type=scale_match.scale_type if scale_match is not None else score.scale_type,
             time_numerator=first_bar.time_numerator,
             time_denominator=first_bar.time_denominator,
-            bar_count=segmentation.window_bars,
+            bar_count=end - start,
             window_start_bar=start,
             source_file=source_file,
             difficulty_level=difficulty_level,

@@ -76,6 +76,13 @@ class ProcessDatasetResult:
 
 
 @dataclass(frozen=True)
+class _DifficultyLabelStats:
+    labeled: int
+    explicit_unlabeled: int
+    unspecified: int
+
+
+@dataclass(frozen=True)
 class _ParsedScoreTask:
     index: int
     source_path: Path
@@ -108,7 +115,7 @@ def process_dataset(
     tokenization_config: TokenizationConfig,
     data_processing_config: DataProcessingConfig,
     stage: ProcessingStage = "all",
-    difficulty_labels: dict[str, int] | None = None,
+    difficulty_labels: dict[str, int | None] | None = None,
     overwrite: bool = False,
     workers: int = 1,
     show_progress: bool = False,
@@ -442,7 +449,7 @@ def _process_encoded_segments(
     segmentation_config: SegmentationConfig,
     duration_vocabulary: DurationVocabulary,
     token_vocabulary: TokenVocabulary,
-    difficulty_labels: dict[str, int] | None,
+    difficulty_labels: dict[str, int | None] | None,
     data_processing_config: DataProcessingConfig,
     overwrite: bool,
     show_progress: bool,
@@ -469,6 +476,7 @@ def _process_encoded_segments(
     )
 
     _LOGGER.info("Encoding %s parsed score(s)", len(parsed_scores))
+    _log_difficulty_label_stats(parsed_scores, dataset_root=dataset_root, difficulty_labels=difficulty_labels)
     write_json_model(snapshot, tokenizer_snapshot_path, overwrite=True)
     rows: list[dict[str, object]] = []
     encoded_count = 0
@@ -549,6 +557,63 @@ def _apply_processing_filters(
         }
     )
     return segment.model_copy(update={"metadata": metadata})
+
+
+def _log_difficulty_label_stats(
+    parsed_scores: list[tuple[str, Path, Path, ParsedScore]],
+    *,
+    dataset_root: Path,
+    difficulty_labels: dict[str, int | None] | None,
+) -> None:
+    if difficulty_labels is None:
+        return
+
+    stats = _difficulty_label_stats(parsed_scores, dataset_root=dataset_root, difficulty_labels=difficulty_labels)
+    message = "Difficulty labels: labeled=%s explicit_unlabeled=%s unspecified=%s" % (
+        stats.labeled,
+        stats.explicit_unlabeled,
+        stats.unspecified,
+    )
+    if stats.unspecified > 0:
+        _LOGGER.warning(message)
+    else:
+        _LOGGER.info(message)
+
+
+def _difficulty_label_stats(
+    parsed_scores: list[tuple[str, Path, Path, ParsedScore]],
+    *,
+    dataset_root: Path,
+    difficulty_labels: dict[str, int | None],
+) -> _DifficultyLabelStats:
+    labeled = 0
+    explicit_unlabeled = 0
+    unspecified = 0
+    for _, source_path, _, _ in parsed_scores:
+        relative_source_path = Path(source_path.resolve().relative_to(dataset_root.resolve()).as_posix())
+        matching_key = _first_difficulty_label_key(relative_source_path, difficulty_labels)
+        if matching_key is None:
+            unspecified += 1
+            continue
+
+        if difficulty_labels[matching_key] is None:
+            explicit_unlabeled += 1
+        else:
+            labeled += 1
+
+    return _DifficultyLabelStats(
+        labeled=labeled,
+        explicit_unlabeled=explicit_unlabeled,
+        unspecified=unspecified,
+    )
+
+
+def _first_difficulty_label_key(path: Path, labels: dict[str, int | None]) -> str | None:
+    for key in (path.as_posix(), path.name, path.stem):
+        if key in labels:
+            return key
+
+    return None
 
 
 def _prepare_encoded_outputs(

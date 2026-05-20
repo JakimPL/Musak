@@ -16,7 +16,7 @@ class IngestionConfig(BaseModel):
 
     validation_fraction: float = Field(ge=0, lt=1)
     split_seed: int = _DEFAULT_SPLIT_SEED
-    difficulty_labels: dict[str, int] | None = None
+    difficulty_labels: dict[str, int | None] | None = None
     processed_root: Path | None = None
 
     @classmethod

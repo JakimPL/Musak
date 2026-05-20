@@ -22,7 +22,7 @@ def process_directory(
     duration_vocabulary: DurationVocabulary,
     *,
     segmentation_config: SegmentationConfig,
-    difficulty_labels: dict[str, int] | None = None,
+    difficulty_labels: dict[str, int | None] | None = None,
 ) -> list[Segment]:
     musicxml_files = collect_musicxml_files(source_directory)
     segments: list[Segment] = []
@@ -43,7 +43,7 @@ def process_file(
     duration_vocabulary: DurationVocabulary,
     *,
     segmentation_config: SegmentationConfig,
-    difficulty_labels: dict[str, int] | None = None,
+    difficulty_labels: dict[str, int | None] | None = None,
 ) -> list[Segment]:
     score = clean_parsed_score(parse_score(path))
     return segment_parsed_score(
@@ -61,7 +61,7 @@ def segment_parsed_score(
     duration_vocabulary: DurationVocabulary,
     *,
     segmentation_config: SegmentationConfig,
-    difficulty_labels: dict[str, int] | None = None,
+    difficulty_labels: dict[str, int | None] | None = None,
     scale_match_support_score_margin: float = DEFAULT_SCALE_MATCH_SUPPORT_SCORE_MARGIN,
     scale_match_selection_score_margin: float = DEFAULT_SCALE_MATCH_SELECTION_SCORE_MARGIN,
     scale_match_maximum_unexplained_weight_fraction: float = DEFAULT_SCALE_MATCH_MAXIMUM_UNEXPLAINED_WEIGHT_FRACTION,
@@ -127,9 +127,17 @@ def _attach_difficulty_features(
 def _resolve_difficulty_level(
     path: Path,
     *,
-    difficulty_labels: dict[str, int] | None,
+    difficulty_labels: dict[str, int | None] | None,
 ) -> int | None:
     if difficulty_labels is None:
         return None
 
-    return difficulty_labels.get(path.stem)
+    for key in _difficulty_label_keys(path):
+        if key in difficulty_labels:
+            return difficulty_labels[key]
+
+    return None
+
+
+def _difficulty_label_keys(path: Path) -> tuple[str, ...]:
+    return (path.as_posix(), path.name, path.stem)

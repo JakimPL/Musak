@@ -10,6 +10,7 @@ from musak_model.data.config import (
     DEFAULT_SCALE_MATCH_SELECTION_SCORE_MARGIN,
     DEFAULT_SCALE_MATCH_SUPPORT_SCORE_MARGIN,
     DataProcessingConfig,
+    SegmentationMode,
     load_difficulty_labels,
     load_segmentation_config,
 )
@@ -40,6 +41,7 @@ def main() -> None:
         args.segmentation_config,
         window_bars=args.window_bars,
         stride_bars=args.stride_bars,
+        mode=SegmentationMode.WHOLE_FILE if args.whole_file_segments else None,
     )
     tokenization_config = TokenizationConfig.load(args.tokenization_config)
     difficulty_labels = load_difficulty_labels(args.difficulty_labels)
@@ -52,6 +54,7 @@ def main() -> None:
     _LOGGER.info("Overwrite: %s", args.overwrite)
     _LOGGER.info("Progress bars: %s", not args.no_progress)
     _LOGGER.info("Segmentation config: %s", args.segmentation_config)
+    _LOGGER.info("Segmentation mode: %s", segmentation_config.mode.value)
     _LOGGER.info("Tokenization config: %s", args.tokenization_config)
     _LOGGER.info("Remove segments with silent bars: %s", args.remove_segments_with_silent_bars)
     source_files = collect_musicxml_files(args.data_dir)
@@ -160,6 +163,11 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--window-bars", type=int, default=None, help="Override segmentation window size in bars.")
     parser.add_argument("--stride-bars", type=int, default=None, help="Override segmentation stride in bars.")
+    parser.add_argument(
+        "--whole-file-segments",
+        action="store_true",
+        help="Encode each source file as one segment and populate bar_count with the full file length.",
+    )
     parser.add_argument(
         "--remove-segments-with-silent-bars",
         action=argparse.BooleanOptionalAction,

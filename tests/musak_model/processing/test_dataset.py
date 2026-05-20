@@ -7,7 +7,7 @@ from zipfile import ZipFile
 
 import pytest
 
-from musak_model.data.config import DataProcessingConfig, SegmentationConfig
+from musak_model.data.config import DataProcessingConfig, SegmentationConfig, SegmentationMode
 from musak_model.data.schema import SegmentIneligibilityReason
 from musak_model.processing import dataset as dataset_module
 from musak_model.processing.dataset import process_dataset
@@ -42,6 +42,15 @@ def _score_with_interior_silent_bar():
     return parsed_score(
         right_hand_bars=[right_note_bar, silent_bar, right_note_bar],
         left_hand_bars=[left_note_bar, silent_bar, left_note_bar],
+    )
+
+
+def _score_with_three_active_bars():
+    right_note_bar = bar([note_event(midi_pitch=72, duration=Fraction(1, 4), beat_offset=Fraction(0))])
+    left_note_bar = bar([note_event(midi_pitch=48, duration=Fraction(1, 4), beat_offset=Fraction(0))])
+    return parsed_score(
+        right_hand_bars=[right_note_bar, right_note_bar, right_note_bar],
+        left_hand_bars=[left_note_bar, left_note_bar, left_note_bar],
     )
 
 
@@ -158,6 +167,67 @@ def test_process_dataset_can_keep_segments_with_silent_bars(
     assert encoded_rows[0][EncodedManifestField.ELIGIBLE_FOR_TRAINING] == "True"
     assert encoded_rows[0][EncodedManifestField.INELIGIBILITY_REASONS] == ""
     assert encoded_rows[0][EncodedManifestField.SILENT_BAR_COUNT] == "1"
+
+
+def test_process_dataset_whole_file_segmentation_records_full_bar_count(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    tokenization_config: TokenizationConfig,
+) -> None:
+    dataset_root = tmp_path / "exercises"
+    source_path = dataset_root / "piece.mxl"
+    source_path.parent.mkdir(parents=True)
+    source_path.write_text("score")
+
+    monkeypatch.setattr("musak_model.processing.dataset.parse_score", lambda path: _score_with_three_active_bars())
+    monkeypatch.setattr("musak_model.processing.dataset._score_title", lambda path: "Piece")
+
+    result = process_dataset(
+        dataset_root,
+        processed_root=tmp_path / "processed",
+        segmentation_config=SegmentationConfig(window_bars=1, stride_bars=1, mode=SegmentationMode.WHOLE_FILE),
+        tokenization_config=tokenization_config,
+        data_processing_config=DataProcessingConfig(remove_segments_with_silent_bars=True),
+        stage="all",
+        overwrite=True,
+    )
+
+    encoded_rows = read_encoded_manifest(result.encoded_manifest_path or Path())
+    encoded_sample = load_encoded_jsonl(result.encoded_manifest_path.parent / "data-00000.jsonl")[0]
+
+    assert result.encoded_count == 1
+    assert len(encoded_rows) == 1
+    assert encoded_rows[0][EncodedManifestField.BAR_COUNT] == "3"
+    assert encoded_sample.metadata.bar_count == 3
+
+
+def test_process_dataset_warns_about_unspecified_difficulty_labels(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    tokenization_config: TokenizationConfig,
+) -> None:
+    dataset_root = tmp_path / "exercises"
+    source_path = dataset_root / "piece.mxl"
+    source_path.parent.mkdir(parents=True)
+    source_path.write_text("score")
+
+    monkeypatch.setattr("musak_model.processing.dataset.parse_score", lambda path: _score())
+    monkeypatch.setattr("musak_model.processing.dataset._score_title", lambda path: "Piece")
+
+    with caplog.at_level("WARNING", logger="musak_model.processing.dataset"):
+        process_dataset(
+            dataset_root,
+            processed_root=tmp_path / "processed",
+            segmentation_config=_segmentation_config(),
+            tokenization_config=tokenization_config,
+            data_processing_config=DataProcessingConfig(remove_segments_with_silent_bars=True),
+            stage="all",
+            difficulty_labels={"other.mxl": 2},
+            overwrite=True,
+        )
+
+    assert "Difficulty labels: labeled=0 explicit_unlabeled=0 unspecified=1" in caplog.text
 
 
 @pytest.mark.parametrize(

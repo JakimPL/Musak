@@ -4,7 +4,12 @@ from typing import Any
 
 import pytest
 
-from musak_model.data.config import SegmentationConfig
+from musak_model.data.config import (
+    SegmentationConfig,
+    SegmentationMode,
+    load_difficulty_labels,
+    load_segmentation_config,
+)
 from musak_model.data.converter import PitchDegreeRegisterError
 from musak_model.data.pipeline import segment_parsed_score
 from musak_model.data.schema import ParsedBar, ParsedNote, ParsedScore, SegmentIneligibilityReason
@@ -114,3 +119,45 @@ def test_segment_parsed_score_does_not_hide_unexpected_feature_extraction_errors
             duration_vocabulary,
             segmentation_config=SegmentationConfig(window_bars=1, stride_bars=1),
         )
+
+
+def test_segment_parsed_score_resolves_relative_path_difficulty_label(
+    duration_vocabulary: DurationVocabulary,
+) -> None:
+    score = ParsedScore(
+        scale_root=0,
+        key_fifths=0,
+        scale_type=ScaleType.MAJOR,
+        time_numerator=4,
+        time_denominator=4,
+        right_hand_bars=[_note_bar()],
+        left_hand_bars=[_note_bar()],
+    )
+
+    segments = segment_parsed_score(
+        score,
+        Path("1/0001.mxl"),
+        duration_vocabulary,
+        segmentation_config=SegmentationConfig(window_bars=1, stride_bars=1),
+        difficulty_labels={"1/0001.mxl": 1},
+    )
+
+    assert segments[0].metadata.difficulty_level == 1
+
+
+def test_load_segmentation_config_can_override_mode(tmp_path: Path) -> None:
+    config_path = tmp_path / "segmentation.yml"
+    config_path.write_text("window_bars: 4\nstride_bars: 2\n", encoding="utf-8")
+
+    config = load_segmentation_config(config_path, mode=SegmentationMode.WHOLE_FILE)
+
+    assert config.window_bars == 4
+    assert config.stride_bars == 2
+    assert config.mode == SegmentationMode.WHOLE_FILE
+
+
+def test_load_difficulty_labels_accepts_json_null_labels(tmp_path: Path) -> None:
+    labels_path = tmp_path / "difficulty_labels.json"
+    labels_path.write_text('{"1/0001.mxl": 1, "unlabeled/example.mxl": null}\n', encoding="utf-8")
+
+    assert load_difficulty_labels(labels_path) == {"1/0001.mxl": 1, "unlabeled/example.mxl": None}

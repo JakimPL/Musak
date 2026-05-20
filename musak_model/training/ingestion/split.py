@@ -234,7 +234,7 @@ def _split_from_parsed_scores(
     source_directory: Path,
     validation_keys: set[str],
     segmentation: SegmentationConfig,
-    difficulty_labels: dict[str, int] | None,
+    difficulty_labels: dict[str, int | None] | None,
     duration_vocabulary: DurationVocabulary,
     token_vocabulary: TokenVocabulary,
     invalid_files: list[IngestionErrorRecord],

@@ -6,6 +6,7 @@ from musak_model.data.config import (
     DEFAULT_SCALE_MATCH_SELECTION_SCORE_MARGIN,
     DEFAULT_SCALE_MATCH_SUPPORT_SCORE_MARGIN,
     SegmentationConfig,
+    SegmentationMode,
 )
 from musak_model.data.scale_match import match_scale
 from musak_model.data.schema import ParsedScore, Segment
@@ -27,9 +28,53 @@ def segment_score(
     scale_match_maximum_explanation_pitch_class_count: int = DEFAULT_SCALE_MATCH_MAXIMUM_EXPLANATION_PITCH_CLASS_COUNT,
 ) -> list[Segment]:
     total_bars = min(len(score.right_hand_bars), len(score.left_hand_bars))
+    if segmentation.mode == SegmentationMode.WHOLE_FILE:
+        return _segment_ranges(
+            [(0, total_bars)] if total_bars > 0 else [],
+            score,
+            source_file,
+            duration_vocabulary=duration_vocabulary,
+            segmentation=segmentation,
+            difficulty_level=difficulty_level,
+            scale_match_support_score_margin=scale_match_support_score_margin,
+            scale_match_selection_score_margin=scale_match_selection_score_margin,
+            scale_match_maximum_unexplained_weight_fraction=scale_match_maximum_unexplained_weight_fraction,
+            scale_match_maximum_explanation_pitch_class_count=scale_match_maximum_explanation_pitch_class_count,
+        )
+
+    ranges = [
+        (start, start + segmentation.window_bars)
+        for start in range(0, total_bars - segmentation.window_bars + 1, segmentation.stride_bars)
+    ]
+    return _segment_ranges(
+        ranges,
+        score,
+        source_file,
+        duration_vocabulary=duration_vocabulary,
+        segmentation=segmentation,
+        difficulty_level=difficulty_level,
+        scale_match_support_score_margin=scale_match_support_score_margin,
+        scale_match_selection_score_margin=scale_match_selection_score_margin,
+        scale_match_maximum_unexplained_weight_fraction=scale_match_maximum_unexplained_weight_fraction,
+        scale_match_maximum_explanation_pitch_class_count=scale_match_maximum_explanation_pitch_class_count,
+    )
+
+
+def _segment_ranges(
+    ranges: list[tuple[int, int]],
+    score: ParsedScore,
+    source_file: Path,
+    *,
+    duration_vocabulary: DurationVocabulary,
+    segmentation: SegmentationConfig,
+    difficulty_level: int | None,
+    scale_match_support_score_margin: float,
+    scale_match_selection_score_margin: float,
+    scale_match_maximum_unexplained_weight_fraction: float,
+    scale_match_maximum_explanation_pitch_class_count: int,
+) -> list[Segment]:
     segments: list[Segment] = []
-    for start in range(0, total_bars - segmentation.window_bars + 1, segmentation.stride_bars):
-        end = start + segmentation.window_bars
+    for start, end in ranges:
         scale_match = match_scale(
             score.right_hand_bars[start:end],
             score.left_hand_bars[start:end],

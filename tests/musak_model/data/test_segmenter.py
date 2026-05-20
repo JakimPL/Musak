@@ -5,7 +5,7 @@ from typing import Any
 import pytest
 
 from musak_model.data.cleaning import clean_parsed_score
-from musak_model.data.config import SegmentationConfig
+from musak_model.data.config import SegmentationConfig, SegmentationMode
 from musak_model.data.schema import (
     ParsedBar,
     ParsedChord,
@@ -75,6 +75,23 @@ def test_segment_metadata_uses_first_bar_time_signature(duration_vocabulary: Dur
 
     assert [(segment.time_numerator, segment.time_denominator) for segment in segments] == [(4, 4), (3, 4)]
     assert [segment.metadata.eligible_for_training for segment in segments] == [True, True]
+
+
+def test_whole_file_segmentation_creates_one_segment_with_full_bar_count(
+    duration_vocabulary: DurationVocabulary,
+) -> None:
+    score = _score(bars=[_note_bar(), _note_bar(), _note_bar(), _note_bar(), _note_bar()])
+
+    segments = segment_score(
+        score,
+        Path("piece.mxl"),
+        duration_vocabulary=duration_vocabulary,
+        segmentation=SegmentationConfig(window_bars=2, stride_bars=1, mode=SegmentationMode.WHOLE_FILE),
+    )
+
+    assert len(segments) == 1
+    assert segments[0].metadata.bar_count == 5
+    assert segments[0].metadata.window_start_bar == 0
 
 
 def test_segment_crossing_time_signature_change_is_not_training_eligible(

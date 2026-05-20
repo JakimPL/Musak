@@ -28,6 +28,14 @@ Data processing uses `DataProcessingConfig.remove_segments_with_silent_bars=True
 records silent-bar diagnostics, but processing marks any segment with a fully silent bar as ineligible with
 `silent_bar` before writing encoded samples. Edge-silent windows keep the more specific `silent_edge_bar` reason too.
 
+Segmentation defaults to fixed-size sliding windows from `musak_model/configs/data/segmentation.yml`. For curated
+exercise datasets, processing can be run with `--whole-file-segments` to encode each source file as one segment. In
+that mode, `metadata.bar_count` is the full parsed file length and can be used by structural bar-count conditioning.
+
+Difficulty labels are supplied as a mapping keyed by source paths relative to the dataset root, for example
+`{"1/0001.mxl": 1}`. `null` values are explicit unlabeled entries, and missing entries are treated as unlabeled while
+processing logs the unspecified count.
+
 ## Current Token Semantics
 
 Tokens represent music relative to segment metadata:
