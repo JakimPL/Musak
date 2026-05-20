@@ -382,7 +382,7 @@ def _(mo, segment):
         rows = [
             {"Property": "Source", "Value": str(segment.source_file)},
             {"Property": "Window start", "Value": str(segment.metadata.window_start_bar)},
-            {"Property": "Key", "Value": f"{key_names[segment.key_root]} {segment.scale_type.value}"},
+            {"Property": "Key", "Value": f"{key_names[segment.scale_root]} {segment.scale_type.value}"},
             {"Property": "Time signature", "Value": f"{segment.time_numerator}/{segment.time_denominator}"},
             {"Property": "Bars", "Value": str(segment.bar_count)},
             {"Property": "Tokens", "Value": str(len(segment.tokens))},

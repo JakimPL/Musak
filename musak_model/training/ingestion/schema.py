@@ -20,8 +20,8 @@ class EncodedExercise(BaseModel):
         return self.metadata.source_file
 
     @property
-    def key_root(self) -> int:
-        return self.metadata.key_root
+    def scale_root(self) -> int:
+        return self.metadata.scale_root
 
     @property
     def scale_type(self) -> ScaleType:

@@ -420,7 +420,7 @@ def _move_batch_to_device(batch: TrainingBatch, *, device: torch.device) -> Trai
         target_token_ids=batch.target_token_ids.to(device),
         bar_positions=batch.bar_positions.to(device),
         structural_control_ids=batch.structural_control_ids.to(device),
-        key_roots=batch.key_roots.to(device),
+        scale_roots=batch.scale_roots.to(device),
         scale_type_ids=batch.scale_type_ids.to(device),
         time_numerators=batch.time_numerators.to(device),
         time_denominators=batch.time_denominators.to(device),

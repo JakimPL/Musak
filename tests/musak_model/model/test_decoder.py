@@ -26,7 +26,7 @@ from musak_model.tokens.schema import (
 
 def _metadata() -> SegmentMetadata:
     return SegmentMetadata(
-        key_root=0,
+        scale_root=0,
         scale_type=ScaleType.MAJOR,
         time_numerator=4,
         time_denominator=4,
@@ -252,7 +252,7 @@ def test_segment_to_piano_roll_events_decodes_canonical_unified_tokens(
 
 def test_parsed_score_to_piano_roll_events_does_not_require_tokenized_segment() -> None:
     score = ParsedScore(
-        key_root=0,
+        scale_root=0,
         key_fifths=0,
         scale_type=ScaleType.MAJOR,
         time_numerator=4,

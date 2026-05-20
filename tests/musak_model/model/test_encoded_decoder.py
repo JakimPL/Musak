@@ -17,7 +17,7 @@ def test_encoded_exercise_to_segment_decodes_token_ids(token_vocabulary: TokenVo
         token_ids=token_vocabulary.encode(tokens),
         bar_positions=[0, 0, 0],
         metadata=SegmentMetadata(
-            key_root=0,
+            scale_root=0,
             scale_type=ScaleType.MAJOR,
             time_numerator=4,
             time_denominator=4,

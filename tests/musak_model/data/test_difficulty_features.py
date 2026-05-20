@@ -52,7 +52,7 @@ def _segment_with_tokens(
     return Segment(
         tokens=[HandToken(hand=Hand.RIGHT), *right_tokens, HandToken(hand=Hand.LEFT), *left_tokens],
         metadata=SegmentMetadata(
-            key_root=0,
+            scale_root=0,
             scale_type=ScaleType.MAJOR,
             time_numerator=4,
             time_denominator=4,
@@ -143,7 +143,7 @@ class TestNotesPerBeat:
             )
         ]
         score = ParsedScore(
-            key_root=0,
+            scale_root=0,
             key_fifths=0,
             scale_type=ScaleType.MAJOR,
             time_numerator=4,
@@ -169,7 +169,7 @@ class TestNotesPerBeat:
             )
         ]
         score = ParsedScore(
-            key_root=0,
+            scale_root=0,
             key_fifths=0,
             scale_type=ScaleType.MAJOR,
             time_numerator=4,
@@ -273,17 +273,20 @@ class TestHasAccidentals:
                 ],
             )
         ]
-        score = ParsedScore(
-            key_root=0,
-            key_fifths=0,
-            scale_type=ScaleType.MAJOR,
-            time_numerator=4,
-            time_denominator=4,
-            right_hand_bars=bars,
-            left_hand_bars=[],
+        segment = Segment(
+            tokens=[],
+            metadata=SegmentMetadata(
+                scale_root=0,
+                scale_type=ScaleType.MAJOR,
+                time_numerator=4,
+                time_denominator=4,
+                bar_count=1,
+                window_start_bar=0,
+                source_file=Path("/test/score.musicxml"),
+            ),
         )
 
-        has_acc = _has_accidentals(bars, score=score, scale_type=ScaleType.MAJOR, hand=Hand.RIGHT)
+        has_acc = _has_accidentals(bars, segment=segment, hand=Hand.RIGHT)
         assert has_acc is False
 
     def test_accidental_detected_in_chromatic_note(self) -> None:
@@ -297,17 +300,20 @@ class TestHasAccidentals:
                 ],
             )
         ]
-        score = ParsedScore(
-            key_root=0,
-            key_fifths=0,
-            scale_type=ScaleType.MAJOR,
-            time_numerator=4,
-            time_denominator=4,
-            right_hand_bars=bars,
-            left_hand_bars=[],
+        segment = Segment(
+            tokens=[],
+            metadata=SegmentMetadata(
+                scale_root=0,
+                scale_type=ScaleType.MAJOR,
+                time_numerator=4,
+                time_denominator=4,
+                bar_count=1,
+                window_start_bar=0,
+                source_file=Path("/test/score.musicxml"),
+            ),
         )
 
-        has_acc = _has_accidentals(bars, score=score, scale_type=ScaleType.MAJOR, hand=Hand.RIGHT)
+        has_acc = _has_accidentals(bars, segment=segment, hand=Hand.RIGHT)
         assert has_acc is True
 
 
@@ -389,7 +395,7 @@ class TestExtractDifficultyFeaturesIntegration:
         )
 
         score = ParsedScore(
-            key_root=0,
+            scale_root=0,
             key_fifths=0,
             scale_type=ScaleType.MAJOR,
             time_numerator=4,
@@ -433,7 +439,7 @@ class TestExtractDifficultyFeaturesIntegration:
             ],
         )
         score = ParsedScore(
-            key_root=0,
+            scale_root=0,
             key_fifths=0,
             scale_type=ScaleType.MAJOR,
             time_numerator=4,

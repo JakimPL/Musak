@@ -14,7 +14,7 @@ from musak_model.tokens.schema import Hand, HandToken, JoinWithPreviousToken, No
 
 def _parsed_score() -> ParsedScore:
     return ParsedScore(
-        key_root=0,
+        scale_root=0,
         key_fifths=0,
         scale_type=ScaleType.MAJOR,
         time_numerator=4,
@@ -90,7 +90,7 @@ class TestNoteToToken:
         NoteTokenCase(
             note=ParsedNote(midi_pitch=68, duration=Fraction(1, 4), beat_offset=Fraction(1, 4)),
             score=ParsedScore(
-                key_root=9,
+                scale_root=9,
                 key_fifths=0,
                 scale_type=ScaleType.HARMONIC_MINOR,
                 time_numerator=4,
@@ -187,7 +187,7 @@ def testchord_to_tokens_preserves_all_chord_pitches(duration_vocabulary: Duratio
 
 def test_unified_stream_adds_join_suffixes_for_chord_notes(duration_vocabulary: DurationVocabulary) -> None:
     score = ParsedScore(
-        key_root=0,
+        scale_root=0,
         key_fifths=0,
         scale_type=ScaleType.MAJOR,
         time_numerator=4,
@@ -214,7 +214,7 @@ def test_unified_stream_adds_join_suffixes_for_chord_notes(duration_vocabulary: 
 
 def test_unified_stream_rejects_overlapping_non_chord_notes(duration_vocabulary: DurationVocabulary) -> None:
     score = ParsedScore(
-        key_root=0,
+        scale_root=0,
         key_fifths=0,
         scale_type=ScaleType.MAJOR,
         time_numerator=4,
@@ -241,7 +241,7 @@ def test_unified_stream_rejects_overlap_smaller_than_shortest_supported_duration
     duration_vocabulary: DurationVocabulary,
 ) -> None:
     score = ParsedScore(
-        key_root=0,
+        scale_root=0,
         key_fifths=0,
         scale_type=ScaleType.MAJOR,
         time_numerator=4,
@@ -268,7 +268,7 @@ def test_cleaned_unified_stream_preserves_notes_after_truncating_overlaps(
     duration_vocabulary: DurationVocabulary,
 ) -> None:
     score = ParsedScore(
-        key_root=0,
+        scale_root=0,
         key_fifths=0,
         scale_type=ScaleType.MAJOR,
         time_numerator=4,
@@ -305,7 +305,7 @@ def test_cleaned_unified_stream_preserves_notes_after_truncating_overlaps(
 class TestTokenizationWithDifferentKeys:
     def test_note_in_c_major_stays_same(self, duration_vocabulary: DurationVocabulary) -> None:
         score = ParsedScore(
-            key_root=0,  # C
+            scale_root=0,  # C
             key_fifths=0,
             scale_type=ScaleType.MAJOR,
             time_numerator=4,

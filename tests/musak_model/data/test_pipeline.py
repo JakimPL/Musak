@@ -35,7 +35,7 @@ def test_segment_parsed_score_keeps_recoverable_segments_when_feature_extraction
         events=[ParsedNote(midi_pitch=24, duration=Fraction(1, 4), beat_offset=Fraction(0))],
     )
     score = ParsedScore(
-        key_root=0,
+        scale_root=0,
         key_fifths=0,
         scale_type=ScaleType.MAJOR,
         time_numerator=4,
@@ -62,7 +62,7 @@ def test_segment_parsed_score_marks_feature_register_errors_ineligible(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     score = ParsedScore(
-        key_root=0,
+        scale_root=0,
         key_fifths=0,
         scale_type=ScaleType.MAJOR,
         time_numerator=4,
@@ -93,7 +93,7 @@ def test_segment_parsed_score_does_not_hide_unexpected_feature_extraction_errors
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     score = ParsedScore(
-        key_root=0,
+        scale_root=0,
         key_fifths=0,
         scale_type=ScaleType.MAJOR,
         time_numerator=4,

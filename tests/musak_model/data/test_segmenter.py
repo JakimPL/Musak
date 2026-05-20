@@ -50,7 +50,7 @@ def _note_bar() -> ParsedBar:
 
 def _score(*, bars: list[ParsedBar]) -> ParsedScore:
     return ParsedScore(
-        key_root=0,
+        scale_root=0,
         key_fifths=0,
         scale_type=ScaleType.MAJOR,
         time_numerator=bars[0].time_numerator,
@@ -101,7 +101,7 @@ def test_segment_crossing_key_signature_change_is_not_training_eligible(
     duration_vocabulary: DurationVocabulary,
 ) -> None:
     segments = segment_score(
-        _score(bars=[_note_bar(), _note_bar().model_copy(update={"key_fifths": 1})]),
+        _score(bars=[_note_bar(), _note_bar().model_copy(update={"declared_key_fifths": 1})]),
         Path("piece.mxl"),
         duration_vocabulary=duration_vocabulary,
         segmentation=SegmentationConfig(window_bars=2, stride_bars=1),
@@ -173,7 +173,7 @@ def test_cleaned_duplicate_note_events_do_not_make_segment_ineligible(
         ],
     )
     score = ParsedScore(
-        key_root=0,
+        scale_root=0,
         key_fifths=0,
         scale_type=ScaleType.MAJOR,
         time_numerator=4,
@@ -205,7 +205,7 @@ def test_register_error_marks_only_affected_segments_ineligible(duration_vocabul
         events=[ParsedNote(midi_pitch=24, duration=Fraction(1, 4), beat_offset=Fraction(0))],
     )
     score = ParsedScore(
-        key_root=0,
+        scale_root=0,
         key_fifths=0,
         scale_type=ScaleType.MAJOR,
         time_numerator=4,
@@ -236,7 +236,7 @@ def test_overlapping_events_mark_segment_ineligible(duration_vocabulary: Duratio
         ],
     )
     score = ParsedScore(
-        key_root=0,
+        scale_root=0,
         key_fifths=0,
         scale_type=ScaleType.MAJOR,
         time_numerator=4,
@@ -260,7 +260,7 @@ def test_cleaned_overlapping_sequences_tokenize_after_truncating_to_next_onset_a
     duration_vocabulary: DurationVocabulary,
 ) -> None:
     score = ParsedScore(
-        key_root=0,
+        scale_root=0,
         key_fifths=0,
         scale_type=ScaleType.MAJOR,
         time_numerator=4,
@@ -317,7 +317,7 @@ def test_bar_duration_overflow_marks_segment_ineligible(duration_vocabulary: Dur
         events=[ParsedNote(midi_pitch=60, duration=Fraction(1, 1), beat_offset=Fraction(1, 4))],
     )
     score = ParsedScore(
-        key_root=0,
+        scale_root=0,
         key_fifths=0,
         scale_type=ScaleType.MAJOR,
         time_numerator=4,
@@ -339,7 +339,7 @@ def test_bar_duration_overflow_marks_segment_ineligible(duration_vocabulary: Dur
 
 def test_tied_note_across_bars_tokenizes_as_hold(duration_vocabulary: DurationVocabulary) -> None:
     score = ParsedScore(
-        key_root=0,
+        scale_root=0,
         key_fifths=0,
         scale_type=ScaleType.MAJOR,
         time_numerator=4,
@@ -382,7 +382,7 @@ def test_window_starting_on_tie_continuation_is_not_training_eligible(
     duration_vocabulary: DurationVocabulary,
 ) -> None:
     score = ParsedScore(
-        key_root=0,
+        scale_root=0,
         key_fifths=0,
         scale_type=ScaleType.MAJOR,
         time_numerator=4,
@@ -433,7 +433,7 @@ def test_tied_chord_across_bars_tokenizes_as_single_hold_for_same_pitch_set(
     duration_vocabulary: DurationVocabulary,
 ) -> None:
     score = ParsedScore(
-        key_root=0,
+        scale_root=0,
         key_fifths=0,
         scale_type=ScaleType.MAJOR,
         time_numerator=4,
@@ -486,7 +486,7 @@ def test_multi_bar_ligature_tokenizes_continue_and_stop_as_holds(
     duration_vocabulary: DurationVocabulary,
 ) -> None:
     score = ParsedScore(
-        key_root=0,
+        scale_root=0,
         key_fifths=0,
         scale_type=ScaleType.MAJOR,
         time_numerator=4,
@@ -552,7 +552,7 @@ def test_one_hand_can_hold_while_other_hand_plays_regular_notes(
     duration_vocabulary: DurationVocabulary,
 ) -> None:
     score = ParsedScore(
-        key_root=0,
+        scale_root=0,
         key_fifths=0,
         scale_type=ScaleType.MAJOR,
         time_numerator=4,
@@ -607,7 +607,7 @@ def test_tie_continuation_without_matching_pitch_marks_segment_ineligible(
     duration_vocabulary: DurationVocabulary,
 ) -> None:
     score = ParsedScore(
-        key_root=0,
+        scale_root=0,
         key_fifths=0,
         scale_type=ScaleType.MAJOR,
         time_numerator=4,
@@ -648,7 +648,7 @@ def test_tie_continuation_without_open_tie_marks_segment_ineligible(
     duration_vocabulary: DurationVocabulary,
 ) -> None:
     score = ParsedScore(
-        key_root=0,
+        scale_root=0,
         key_fifths=0,
         scale_type=ScaleType.MAJOR,
         time_numerator=4,
@@ -684,7 +684,7 @@ def test_tie_continuation_without_open_tie_marks_segment_ineligible(
 
 def test_partial_chord_tie_marks_segment_ineligible(duration_vocabulary: DurationVocabulary) -> None:
     score = ParsedScore(
-        key_root=0,
+        scale_root=0,
         key_fifths=0,
         scale_type=ScaleType.MAJOR,
         time_numerator=4,
@@ -731,7 +731,7 @@ def test_ambiguous_simultaneous_durations_mark_segment_ineligible(
         ],
     )
     score = ParsedScore(
-        key_root=0,
+        scale_root=0,
         key_fifths=0,
         scale_type=ScaleType.MAJOR,
         time_numerator=4,
@@ -766,7 +766,7 @@ def test_cleaned_simultaneous_mixed_durations_are_tokenized_as_chord(
     )
     score = clean_parsed_score(
         ParsedScore(
-            key_root=0,
+            scale_root=0,
             key_fifths=0,
             scale_type=ScaleType.MAJOR,
             time_numerator=4,
@@ -797,7 +797,7 @@ def test_unsupported_quantized_duration_marks_segment_ineligible(
         events=[ParsedNote(midi_pitch=60, duration=Fraction(1, 9), beat_offset=Fraction(0))],
     )
     score = ParsedScore(
-        key_root=0,
+        scale_root=0,
         key_fifths=0,
         scale_type=ScaleType.MAJOR,
         time_numerator=4,
@@ -830,7 +830,7 @@ def test_unsupported_rest_gap_marks_segment_ineligible_before_it_can_shift_onset
         ],
     )
     score = ParsedScore(
-        key_root=0,
+        scale_root=0,
         key_fifths=0,
         scale_type=ScaleType.MAJOR,
         time_numerator=4,
@@ -855,7 +855,7 @@ def test_unexpected_tokenization_value_error_is_not_swallowed(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     score = ParsedScore(
-        key_root=0,
+        scale_root=0,
         key_fifths=0,
         scale_type=ScaleType.MAJOR,
         time_numerator=4,

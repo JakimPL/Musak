@@ -23,7 +23,7 @@ def test_conditioning_config_loads_yaml_and_derives_vocab_sizes(tmp_path: Path) 
     config = ConditioningConfig.load(config_path)
 
     assert config.num_difficulty_levels == 6
-    assert config.num_scale_types == 9
+    assert config.num_scale_types == 3
     assert config.num_time_signatures == 11
 
 

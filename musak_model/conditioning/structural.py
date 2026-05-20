@@ -210,7 +210,7 @@ class _FeatureState(BaseModel):
         duration = duration_vocabulary.id_to_fraction(token.duration_id)
         midi_pitch = note_token_to_midi_pitch(
             token,
-            key_root=segment.key_root,
+            scale_root=segment.scale_root,
             scale_type=segment.scale_type,
             hand=hand,
         )

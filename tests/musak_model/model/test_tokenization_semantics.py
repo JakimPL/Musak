@@ -11,7 +11,7 @@ from musak_model.tokens.schema import Hand, HandToken, JoinWithPreviousToken, No
 
 def _score(*, right_hand_bars: list[ParsedBar], left_hand_bars: list[ParsedBar]) -> ParsedScore:
     return ParsedScore(
-        key_root=0,
+        scale_root=0,
         key_fifths=0,
         scale_type=ScaleType.MAJOR,
         time_numerator=4,

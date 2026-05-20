@@ -138,7 +138,7 @@ def tokens_to_piano_roll_events(
                 hand=active_hand,
                 midi_pitch=note_token_to_midi_pitch(
                     token,
-                    key_root=metadata.key_root,
+                    scale_root=metadata.scale_root,
                     scale_type=metadata.scale_type,
                     hand=active_hand,
                 ),

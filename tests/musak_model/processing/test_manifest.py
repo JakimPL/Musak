@@ -24,7 +24,7 @@ def test_encoded_row_includes_segment_diagnostics(duration_vocabulary: DurationV
             NoteToken(degree=1, accidental=0, octave_offset=0, duration_id=half_id),
         ],
         metadata=SegmentMetadata(
-            key_root=0,
+            scale_root=0,
             scale_type=ScaleType.MAJOR,
             time_numerator=4,
             time_denominator=4,

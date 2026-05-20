@@ -115,7 +115,7 @@ def _sample(token_ids: list[int], bar_positions: list[int]) -> EncodedExercise:
         token_ids=token_ids,
         bar_positions=bar_positions,
         metadata=SegmentMetadata(
-            key_root=0,
+            scale_root=0,
             scale_type=ScaleType.MAJOR,
             time_numerator=4,
             time_denominator=4,

@@ -36,7 +36,7 @@ class GenerationEvaluationOptions(Protocol):
     seed: int
     temperature: float
     top_k: int | None
-    key_root: int
+    scale_root: int
     scale_type: ScaleType
     time_numerator: int
     time_denominator: int
@@ -369,7 +369,7 @@ def _constraints_from_config(config: GenerationEvaluationOptions) -> GenerationC
         maximum_onset_span_semitones=config.maximum_onset_span_semitones,
         maximum_pitch_gap_semitones=config.maximum_pitch_gap_semitones,
         maximum_static_hand_span_degrees=config.maximum_static_hand_span_degrees,
-        key_root=config.key_root,
+        scale_root=config.scale_root,
         scale_type=config.scale_type,
     )
 
@@ -378,7 +378,7 @@ def _segment_from_tokens(tokens: list[Token], *, config: GenerationEvaluationOpt
     return Segment(
         tokens=tokens,
         metadata=SegmentMetadata(
-            key_root=config.key_root,
+            scale_root=config.scale_root,
             scale_type=config.scale_type,
             time_numerator=config.time_numerator,
             time_denominator=config.time_denominator,

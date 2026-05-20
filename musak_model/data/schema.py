@@ -2,7 +2,7 @@ from enum import StrEnum
 from fractions import Fraction
 from pathlib import Path
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
 
 from musak_model.tokens.schema import (
     MAX_ACCIDENTAL,
@@ -67,7 +67,12 @@ class ParsedBar(BaseModel):
 
     time_numerator: int = Field(gt=0)
     time_denominator: int
-    key_fifths: int = Field(ge=-7, le=7)
+    declared_key_fifths: int | None = Field(
+        default=None,
+        ge=-7,
+        le=7,
+        validation_alias=AliasChoices("declared_key_fifths", "key_fifths"),
+    )
     events: list[ParsedEvent]
 
     @field_validator("time_denominator")
@@ -80,7 +85,9 @@ class ParsedBar(BaseModel):
 class ParsedScore(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid", frozen=True)
 
-    key_root: int = Field(ge=0, lt=PITCHES_PER_OCTAVE)
+    declared_key_fifths: int | None = Field(default=None, ge=-7, le=7)
+    declared_scale_root: int | None = Field(default=None, ge=0, lt=PITCHES_PER_OCTAVE)
+    scale_root: int = Field(ge=0, lt=PITCHES_PER_OCTAVE)
     key_fifths: int = Field(ge=-7, le=7)
     scale_type: ScaleType
     time_numerator: int = Field(gt=0)
@@ -130,12 +137,31 @@ class SegmentIneligibilityReason(StrEnum):
     TIE_CONTINUATION_AT_WINDOW_START = "tie_continuation_at_window_start"
     SILENT_BAR = "silent_bar"
     SILENT_EDGE_BAR = "silent_edge_bar"
+    SCALE_MATCH_LOW_CONFIDENCE = "scale_match_low_confidence"
+    SCALE_MATCH_AMBIGUOUS = "scale_match_ambiguous"
+    SCALE_MATCH_NO_PITCHES = "scale_match_no_pitches"
+
+
+class ScaleMatchDiagnostics(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    declared_key_fifths: int | None = Field(default=None, ge=-7, le=7)
+    declared_scale_root: int | None = Field(default=None, ge=0, lt=PITCHES_PER_OCTAVE)
+    in_scale_weight_fraction: float = Field(ge=0, le=1)
+    out_of_scale_weight_fraction: float = Field(ge=0, le=1)
+    best_margin: float = Field(ge=0, le=1)
+    observed_pitch_class_count: int = Field(ge=0, le=PITCHES_PER_OCTAVE)
+    tied_best_candidate_count: int = Field(ge=1)
+    declared_match_used: bool
+    low_confidence: bool
+    ambiguous: bool
+    no_pitches: bool
 
 
 class SegmentMetadata(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True, frozen=True)
 
-    key_root: int = Field(ge=0, lt=PITCHES_PER_OCTAVE)
+    scale_root: int = Field(ge=0, lt=PITCHES_PER_OCTAVE)
     scale_type: ScaleType
     time_numerator: int = Field(gt=0)
     time_denominator: int
@@ -144,6 +170,7 @@ class SegmentMetadata(BaseModel):
     source_file: Path
     difficulty_level: int | None = Field(None, ge=MIN_DIFFICULTY_LEVEL)
     difficulty_features: DifficultyFeatures | None = None
+    scale_match: ScaleMatchDiagnostics | None = None
     eligible_for_training: bool = True
     ineligibility_reasons: frozenset[SegmentIneligibilityReason] = Field(default_factory=frozenset)
 
@@ -161,8 +188,8 @@ class Segment(BaseModel):
     metadata: SegmentMetadata
 
     @property
-    def key_root(self) -> int:
-        return self.metadata.key_root
+    def scale_root(self) -> int:
+        return self.metadata.scale_root
 
     @property
     def scale_type(self) -> ScaleType:

@@ -12,13 +12,13 @@ from notebooks.utils.statistics import (
     eligibility_distribution,
     encoded_table_frame,
     ineligibility_reason_distribution,
-    key_root_distribution,
     load_dataset_statistics,
     overview_rows,
     parse_error_table_frame,
     parsed_table_frame,
     read_encoded_manifest_frame,
     reason_by_column,
+    scale_root_distribution,
     selected_table_row,
     table_records,
     token_histogram_distribution,
@@ -175,7 +175,7 @@ def test_diagnostic_statistics_parse_and_summarize_encoded_manifest(tmp_path: Pa
     assert int(buckets[COUNT_COLUMN].sum()) == 2
 
 
-def test_key_root_distribution_maps_pitch_classes_to_names(tmp_path: Path) -> None:
+def test_scale_root_distribution_maps_pitch_classes_to_names(tmp_path: Path) -> None:
     dataset_dir = tmp_path / "PDMX"
     encoded_dir = dataset_dir / "encoded" / "abc"
     encoded_dir.mkdir(parents=True)
@@ -184,15 +184,15 @@ def test_key_root_distribution_maps_pitch_classes_to_names(tmp_path: Path) -> No
         encoded_dir / "encoded.csv",
         EncodedManifestField,
         [
-            {EncodedManifestField.SEGMENT_ID: "a-0", EncodedManifestField.KEY_ROOT: "0"},
-            {EncodedManifestField.SEGMENT_ID: "a-1", EncodedManifestField.KEY_ROOT: "1"},
-            {EncodedManifestField.SEGMENT_ID: "a-2", EncodedManifestField.KEY_ROOT: "10"},
+            {EncodedManifestField.SEGMENT_ID: "a-0", EncodedManifestField.SCALE_ROOT: "0"},
+            {EncodedManifestField.SEGMENT_ID: "a-1", EncodedManifestField.SCALE_ROOT: "1"},
+            {EncodedManifestField.SEGMENT_ID: "a-2", EncodedManifestField.SCALE_ROOT: "10"},
         ],
     )
     stats = load_dataset_statistics(dataset_dir, encoded_dir)
     assert stats.encoded is not None
 
-    distribution = key_root_distribution(stats.encoded, EncodedManifestField.KEY_ROOT, top_n=12)
+    distribution = scale_root_distribution(stats.encoded, EncodedManifestField.SCALE_ROOT, top_n=12)
 
     assert set(distribution[VALUE_COLUMN]) == {"C", "C#", "A#"}
 

@@ -17,7 +17,12 @@ from music21.exceptions21 import Music21Exception
 from tqdm.auto import tqdm
 
 from musak_model.data.cleaning import clean_parsed_score
-from musak_model.data.config import DataProcessingConfig, SegmentationConfig
+from musak_model.data.config import (
+    DEFAULT_SCALE_MATCH_MINIMUM_BEST_MARGIN,
+    DEFAULT_SCALE_MATCH_MINIMUM_IN_SCALE_WEIGHT_FRACTION,
+    DataProcessingConfig,
+    SegmentationConfig,
+)
 from musak_model.data.parser import parse_score
 from musak_model.data.pipeline import segment_parsed_score
 from musak_model.data.schema import ParsedScore, Segment, SegmentIneligibilityReason
@@ -62,6 +67,8 @@ class ProcessDatasetResult:
     parsed_count: int
     encoded_count: int
     error_count: int
+    scale_match_minimum_in_scale_weight_fraction: float = DEFAULT_SCALE_MATCH_MINIMUM_IN_SCALE_WEIGHT_FRACTION
+    scale_match_minimum_best_margin: float = DEFAULT_SCALE_MATCH_MINIMUM_BEST_MARGIN
 
 
 @dataclass(frozen=True)
@@ -155,6 +162,10 @@ def process_dataset(
         error_count=sum(
             1 for row in parsed_rows if row[ParsedManifestField.STATUS] == ParsedManifestStatus.ERROR.value
         ),
+        scale_match_minimum_in_scale_weight_fraction=(
+            data_processing_config.scale_match_minimum_in_scale_weight_fraction
+        ),
+        scale_match_minimum_best_margin=data_processing_config.scale_match_minimum_best_margin,
     )
 
 
@@ -466,6 +477,10 @@ def _process_encoded_segments(
             duration_vocabulary,
             segmentation_config=segmentation_config,
             difficulty_labels=difficulty_labels,
+            scale_match_minimum_in_scale_weight_fraction=(
+                data_processing_config.scale_match_minimum_in_scale_weight_fraction
+            ),
+            scale_match_minimum_best_margin=data_processing_config.scale_match_minimum_best_margin,
         )
         for segment in segments:
             segment = _apply_processing_filters(

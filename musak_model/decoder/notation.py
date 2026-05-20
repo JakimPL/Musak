@@ -69,14 +69,8 @@ _MAJOR_KEY_SIGNATURES_BY_FIFTHS: Final[dict[int, str]] = {
 }
 _PARENT_MAJOR_OFFSET_BY_SCALE_TYPE: Final[dict[ScaleType, int]] = {
     ScaleType.MAJOR: 0,
-    ScaleType.DORIAN: -2,
-    ScaleType.PHRYGIAN: -4,
-    ScaleType.LYDIAN: -5,
-    ScaleType.MIXOLYDIAN: -7,
-    ScaleType.AEOLIAN: -9,
     ScaleType.HARMONIC_MINOR: -9,
     ScaleType.MELODIC_MINOR: -9,
-    ScaleType.LOCRIAN: -11,
 }
 _REPRESENTABLE_DURATIONS: Final[tuple[Fraction, ...]] = tuple(
     sorted(
@@ -136,7 +130,7 @@ def segment_to_score_data(
     measure_duration = Fraction(segment.time_numerator, segment.time_denominator)
     bar_count = max(segment.bar_count, _token_bar_count(segment))
     displayed_bar_count = bar_count if max_bars is None else min(bar_count, max_bars)
-    key_signature = key_signature_name(key_root=segment.key_root, scale_type=segment.scale_type)
+    key_signature = key_signature_name(scale_root=segment.scale_root, scale_type=segment.scale_type)
     rows: list[list[StaveData]] = []
     for first_measure in range(0, displayed_bar_count, measures_per_row or max(displayed_bar_count, 1)):
         last_measure = min(first_measure + (measures_per_row or displayed_bar_count), displayed_bar_count)
@@ -202,7 +196,7 @@ def segment_to_notation_events(
             duration = duration_vocabulary.id_to_fraction(token.duration_id)
             midi_pitch = note_token_to_midi_pitch(
                 token,
-                key_root=segment.key_root,
+                scale_root=segment.scale_root,
                 scale_type=segment.scale_type,
                 hand=active_hand,
             )
@@ -238,17 +232,17 @@ def segment_to_notation_events(
     return events
 
 
-def key_signature_name(*, key_root: int, scale_type: ScaleType) -> str:
-    parent_major_root = (key_root + _PARENT_MAJOR_OFFSET_BY_SCALE_TYPE[scale_type]) % 12
-    return _MAJOR_KEY_SIGNATURES_BY_FIFTHS[_major_fifths_for_key_root(parent_major_root)]
+def key_signature_name(*, scale_root: int, scale_type: ScaleType) -> str:
+    parent_major_root = (scale_root + _PARENT_MAJOR_OFFSET_BY_SCALE_TYPE[scale_type]) % 12
+    return _MAJOR_KEY_SIGNATURES_BY_FIFTHS[_major_fifths_for_scale_root(parent_major_root)]
 
 
-def _major_fifths_for_key_root(key_root: int) -> int:
+def _major_fifths_for_scale_root(scale_root: int) -> int:
     for fifths in range(-7, 8):
-        if (fifths * 7) % 12 == key_root:
+        if (fifths * 7) % 12 == scale_root:
             return fifths
 
-    raise ValueError(f"cannot derive key signature for key root {key_root}")
+    raise ValueError(f"cannot derive key signature for scale root {scale_root}")
 
 
 def _extend_last_attack(

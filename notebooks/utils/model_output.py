@@ -137,7 +137,7 @@ class GenerationRequest:
     top_p: float | None
     greedy: bool
     seed: int
-    key_root: int
+    scale_root: int
     scale_type: str
     time_numerator: int
     time_denominator: int
@@ -335,7 +335,7 @@ def sample_autoregressive(
 def sampling_result_to_segment(
     result: SamplingResult,
     *,
-    key_root: int,
+    scale_root: int,
     scale_type: ScaleType,
     time_numerator: int,
     time_denominator: int,
@@ -344,7 +344,7 @@ def sampling_result_to_segment(
     return Segment(
         tokens=result.tokens,
         metadata=SegmentMetadata(
-            key_root=key_root,
+            scale_root=scale_root,
             scale_type=scale_type,
             time_numerator=time_numerator,
             time_denominator=time_denominator,

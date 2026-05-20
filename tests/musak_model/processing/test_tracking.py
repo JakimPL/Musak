@@ -187,7 +187,7 @@ def _encoded_sample(source_file: str, token_ids: list[int]) -> EncodedExercise:
         token_ids=token_ids,
         bar_positions=[0 for _ in token_ids],
         metadata=SegmentMetadata(
-            key_root=0,
+            scale_root=0,
             scale_type=ScaleType.MAJOR,
             time_numerator=4,
             time_denominator=4,

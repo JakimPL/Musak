@@ -9,7 +9,7 @@ from musak_model.tokens.schema import Hand, ScaleType
 @dataclass(frozen=True)
 class DegreeTestCase:
     midi_pitch: int
-    key_root: int
+    scale_root: int
     key_fifths: int
     scale_type: ScaleType
     hand: Hand
@@ -34,7 +34,7 @@ TEST_CASES = [
 def test_pitch_to_degree_parametrized(case: DegreeTestCase) -> None:
     result = pitch_to_degree(
         case.midi_pitch,
-        key_root=case.key_root,
+        scale_root=case.scale_root,
         key_fifths=case.key_fifths,
         scale_type=case.scale_type,
         hand=case.hand,

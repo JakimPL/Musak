@@ -46,7 +46,7 @@ def test_parsed_score_json_round_trip(tmp_path: Path) -> None:
 
 def test_encoded_jsonl_round_trip(tmp_path: Path) -> None:
     metadata = SegmentMetadata(
-        key_root=0,
+        scale_root=0,
         scale_type=ScaleType.MAJOR,
         time_numerator=4,
         time_denominator=4,

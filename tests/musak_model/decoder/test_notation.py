@@ -27,7 +27,7 @@ from musak_model.tokens.schema import (
 def _segment(
     tokens: list[object],
     *,
-    key_root: int = 0,
+    scale_root: int = 0,
     scale_type: ScaleType = ScaleType.MAJOR,
     time_numerator: int = 4,
     time_denominator: int = 4,
@@ -36,7 +36,7 @@ def _segment(
     return Segment(
         tokens=tokens,
         metadata=SegmentMetadata(
-            key_root=key_root,
+            scale_root=scale_root,
             scale_type=scale_type,
             time_numerator=time_numerator,
             time_denominator=time_denominator,
@@ -76,7 +76,7 @@ def test_segment_to_score_data_sets_first_measure_key_and_time_signatures(
 ) -> None:
     segment = _segment(
         [],
-        key_root=2,
+        scale_root=2,
         scale_type=ScaleType.MAJOR,
         time_numerator=3,
         time_denominator=4,
@@ -93,10 +93,10 @@ def test_segment_to_score_data_sets_first_measure_key_and_time_signatures(
     assert score.rows[1][0].time_signature == (3, 4)
 
 
-def test_segment_to_score_data_uses_parent_major_key_signature_for_modes(
+def test_segment_to_score_data_uses_parent_major_key_signature_for_minor_scales(
     duration_vocabulary: DurationVocabulary,
 ) -> None:
-    segment = _segment([], key_root=2, scale_type=ScaleType.DORIAN)
+    segment = _segment([], scale_root=9, scale_type=ScaleType.HARMONIC_MINOR)
 
     score = segment_to_score_data(segment, duration_vocabulary=duration_vocabulary)
 

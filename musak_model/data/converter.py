@@ -23,7 +23,7 @@ class PitchDegreeRegisterError(ValueError):
 def pitch_to_degree(
     midi_pitch: int,
     *,
-    key_root: int,
+    scale_root: int,
     key_fifths: int,
     scale_type: ScaleType,
     hand: Hand,
@@ -31,7 +31,7 @@ def pitch_to_degree(
     pitch_class = midi_pitch % PITCHES_PER_OCTAVE
     degree, accidental = _pitch_class_to_degree(
         pitch_class,
-        key_root=key_root,
+        scale_root=scale_root,
         key_fifths=key_fifths,
         scale_type=scale_type,
     )
@@ -47,12 +47,12 @@ def pitch_to_degree(
 def _pitch_class_to_degree(
     pitch_class: int,
     *,
-    key_root: int,
+    scale_root: int,
     key_fifths: int,
     scale_type: ScaleType,
 ) -> tuple[int, int]:
     intervals = SCALE_INTERVALS[scale_type]
-    relative = (pitch_class - key_root) % PITCHES_PER_OCTAVE
+    relative = (pitch_class - scale_root) % PITCHES_PER_OCTAVE
 
     if relative in intervals:
         return intervals.index(relative) + 1, 0
@@ -65,7 +65,7 @@ def _pitch_class_to_degree(
                 return index + 1, accidental
 
     raise ValueError(
-        f"cannot map pitch class {pitch_class} to a degree in key {key_root} "
+        f"cannot map pitch class {pitch_class} to a degree in key {scale_root} "
         f"(fifths={key_fifths}) scale {scale_type.value}"
     )
 

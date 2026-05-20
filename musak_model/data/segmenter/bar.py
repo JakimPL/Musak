@@ -408,7 +408,7 @@ def _pitch_to_degree_for_tokenization(
     try:
         return pitch_to_degree(
             event.midi_pitch,
-            key_root=score.key_root,
+            scale_root=score.scale_root,
             key_fifths=score.key_fifths,
             scale_type=score.scale_type,
             hand=hand,
@@ -417,7 +417,7 @@ def _pitch_to_degree_for_tokenization(
         raise TokenizationIneligibilityError(
             (
                 f"pitch {event.midi_pitch} is outside supported {hand.value} hand register "
-                f"for key {score.key_root} {score.scale_type.value}"
+                f"for key {score.scale_root} {score.scale_type.value}"
             ),
             reason=SegmentIneligibilityReason.REGISTER_OUT_OF_RANGE,
         ) from exception

@@ -11,7 +11,7 @@ from musak_model.tokens.schema import BarToken, EndToken, Hand, HandToken, NoteT
 
 def _metadata() -> SegmentMetadata:
     return SegmentMetadata(
-        key_root=0,
+        scale_root=0,
         scale_type=ScaleType.MAJOR,
         time_numerator=4,
         time_denominator=4,

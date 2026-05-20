@@ -104,7 +104,7 @@ def test_prompt_from_encoded_sample_uses_sample_ids(
         token_ids=token_vocabulary.encode([HandToken(hand=Hand.LEFT)]),
         bar_positions=[0],
         metadata=SegmentMetadata(
-            key_root=0,
+            scale_root=0,
             scale_type=ScaleType.MAJOR,
             time_numerator=4,
             time_denominator=4,
@@ -131,7 +131,7 @@ def test_segment_decode_error_reports_invalid_generated_token_stream(
     segment = Segment(
         tokens=[HandToken(hand=Hand.RIGHT), HoldToken(duration_id=quarter_id)],
         metadata=SegmentMetadata(
-            key_root=0,
+            scale_root=0,
             scale_type=ScaleType.MAJOR,
             time_numerator=4,
             time_denominator=4,
@@ -162,7 +162,7 @@ def test_sampling_result_to_segment_counts_partial_display_bar(
 
     segment = sampling_result_to_segment(
         result,
-        key_root=0,
+        scale_root=0,
         scale_type=ScaleType.MAJOR,
         time_numerator=4,
         time_denominator=4,

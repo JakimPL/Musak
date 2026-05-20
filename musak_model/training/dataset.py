@@ -30,7 +30,7 @@ class TrainingExample:
     target_token_ids: Tensor
     bar_positions: Tensor
     structural_control_ids: Tensor
-    key_root: int
+    scale_root: int
     scale_type_id: int
     time_numerator: int
     time_denominator: int
@@ -46,7 +46,7 @@ class TrainingBatch:
     target_token_ids: Tensor
     bar_positions: Tensor
     structural_control_ids: Tensor
-    key_roots: Tensor
+    scale_roots: Tensor
     scale_type_ids: Tensor
     time_numerators: Tensor
     time_denominators: Tensor
@@ -191,7 +191,7 @@ def collate_training_examples(examples: list[TrainingExample]) -> TrainingBatch:
     token_padding_mask = torch.ones((len(examples), max_length), dtype=torch.bool)
     structural_control_count = examples[0].structural_control_ids.size(0)
     structural_control_ids = torch.zeros((len(examples), structural_control_count), dtype=torch.long)
-    key_roots = torch.tensor([example.key_root for example in examples], dtype=torch.long)
+    scale_roots = torch.tensor([example.scale_root for example in examples], dtype=torch.long)
     scale_type_ids = torch.tensor([example.scale_type_id for example in examples], dtype=torch.long)
     time_numerators = torch.tensor([example.time_numerator for example in examples], dtype=torch.long)
     time_denominators = torch.tensor([example.time_denominator for example in examples], dtype=torch.long)
@@ -223,7 +223,7 @@ def collate_training_examples(examples: list[TrainingExample]) -> TrainingBatch:
         target_token_ids=target_token_ids,
         bar_positions=bar_positions,
         structural_control_ids=structural_control_ids,
-        key_roots=key_roots,
+        scale_roots=scale_roots,
         scale_type_ids=scale_type_ids,
         time_numerators=time_numerators,
         time_denominators=time_denominators,
@@ -276,7 +276,7 @@ def _to_training_example(
         target_token_ids=token_ids,
         bar_positions=input_bar_positions,
         structural_control_ids=structural_control_ids,
-        key_root=sample.key_root,
+        scale_root=sample.scale_root,
         scale_type_id=scale_type_to_id(sample.scale_type),
         time_numerator=sample.time_numerator,
         time_denominator=sample.time_denominator,

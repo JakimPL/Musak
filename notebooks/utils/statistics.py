@@ -49,10 +49,19 @@ _DIAGNOSTIC_NUMERIC_FIELDS: Final[tuple[EncodedManifestField, ...]] = (
     EncodedManifestField.NOTE_TOKEN_FRACTION,
     EncodedManifestField.REST_TOKEN_FRACTION,
     EncodedManifestField.HOLD_TOKEN_FRACTION,
+    EncodedManifestField.SCALE_MATCH_IN_SCALE_WEIGHT_FRACTION,
+    EncodedManifestField.SCALE_MATCH_OUT_OF_SCALE_WEIGHT_FRACTION,
+    EncodedManifestField.SCALE_MATCH_BEST_MARGIN,
+    EncodedManifestField.SCALE_MATCH_OBSERVED_PITCH_CLASS_COUNT,
+    EncodedManifestField.SCALE_MATCH_TIED_BEST_CANDIDATE_COUNT,
 )
 _DIAGNOSTIC_BOOLEAN_FIELDS: Final[tuple[EncodedManifestField, ...]] = (
     EncodedManifestField.EMPTY_SCORE,
     EncodedManifestField.ONE_HAND_ONLY,
+    EncodedManifestField.SCALE_MATCH_DECLARED_MATCH_USED,
+    EncodedManifestField.SCALE_MATCH_LOW_CONFIDENCE,
+    EncodedManifestField.SCALE_MATCH_AMBIGUOUS,
+    EncodedManifestField.SCALE_MATCH_NO_PITCHES,
 )
 
 
@@ -92,8 +101,8 @@ def read_parsed_manifest_frame(path: Path) -> pd.DataFrame:
     _require_columns(frame, ParsedManifestField)
     frame[ParsedManifestField.RIGHT_HAND_BARS] = _numeric_series(frame[ParsedManifestField.RIGHT_HAND_BARS])
     frame[ParsedManifestField.LEFT_HAND_BARS] = _numeric_series(frame[ParsedManifestField.LEFT_HAND_BARS])
-    frame[ParsedManifestField.KEY_ROOT] = _numeric_series(frame[ParsedManifestField.KEY_ROOT])
-    frame[ParsedManifestField.KEY_FIFTHS] = _numeric_series(frame[ParsedManifestField.KEY_FIFTHS])
+    frame[ParsedManifestField.DECLARED_SCALE_ROOT] = _numeric_series(frame[ParsedManifestField.DECLARED_SCALE_ROOT])
+    frame[ParsedManifestField.DECLARED_KEY_FIFTHS] = _numeric_series(frame[ParsedManifestField.DECLARED_KEY_FIFTHS])
     frame["has_parse_diagnostics"] = frame[ParsedManifestField.PARSE_DIAGNOSTICS] != ""
     return frame
 
@@ -157,9 +166,9 @@ def categorical_distribution(
     return counts
 
 
-def key_root_distribution(frame: pd.DataFrame, column: str, *, top_n: int) -> pd.DataFrame:
+def scale_root_distribution(frame: pd.DataFrame, column: str, *, top_n: int) -> pd.DataFrame:
     distribution = categorical_distribution(frame, column, top_n=top_n)
-    distribution[VALUE_COLUMN] = distribution[VALUE_COLUMN].map(_key_root_label)
+    distribution[VALUE_COLUMN] = distribution[VALUE_COLUMN].map(_scale_root_label)
     return distribution
 
 
@@ -267,6 +276,12 @@ def diagnostic_summary_rows(encoded: pd.DataFrame) -> list[dict[str, str]]:
             _mean_metric_row("silent edge bars", encoded[EncodedManifestField.SILENT_EDGE_BAR_COUNT]),
             _mean_metric_row("note token share", encoded[EncodedManifestField.NOTE_TOKEN_FRACTION], percent=True),
             _mean_metric_row("rest token share", encoded[EncodedManifestField.REST_TOKEN_FRACTION], percent=True),
+            _mean_metric_row(
+                "in-scale pitch duration",
+                encoded[EncodedManifestField.SCALE_MATCH_IN_SCALE_WEIGHT_FRACTION],
+                percent=True,
+            ),
+            _mean_metric_row("scale match margin", encoded[EncodedManifestField.SCALE_MATCH_BEST_MARGIN]),
         ]
     )
     return rows
@@ -356,8 +371,8 @@ def parsed_table_frame(parsed: pd.DataFrame) -> pd.DataFrame:
         ParsedManifestField.SOURCE_PATH,
         ParsedManifestField.STATUS,
         ParsedManifestField.ERROR_TYPE,
-        ParsedManifestField.KEY_ROOT,
-        ParsedManifestField.SCALE_TYPE,
+        ParsedManifestField.DECLARED_SCALE_ROOT,
+        ParsedManifestField.DECLARED_KEY_FIFTHS,
         ParsedManifestField.TIME_SIGNATURE,
         ParsedManifestField.RIGHT_HAND_BARS,
         ParsedManifestField.LEFT_HAND_BARS,
@@ -378,8 +393,13 @@ def encoded_table_frame(encoded: pd.DataFrame) -> pd.DataFrame:
         EncodedManifestField.TOKEN_COUNT,
         EncodedManifestField.ELIGIBLE_FOR_TRAINING,
         EncodedManifestField.INELIGIBILITY_REASONS,
-        EncodedManifestField.KEY_ROOT,
+        EncodedManifestField.SCALE_ROOT,
         EncodedManifestField.SCALE_TYPE,
+        EncodedManifestField.DECLARED_SCALE_ROOT,
+        EncodedManifestField.SCALE_MATCH_IN_SCALE_WEIGHT_FRACTION,
+        EncodedManifestField.SCALE_MATCH_BEST_MARGIN,
+        EncodedManifestField.SCALE_MATCH_LOW_CONFIDENCE,
+        EncodedManifestField.SCALE_MATCH_AMBIGUOUS,
         EncodedManifestField.TIME_SIGNATURE,
         EncodedManifestField.DIFFICULTY_LEVEL,
         EncodedManifestField.RIGHT_SILENCE_FRACTION,
@@ -404,7 +424,7 @@ def _explode_reasons(encoded: pd.DataFrame) -> pd.DataFrame:
                 {
                     VALUE_COLUMN: reason,
                     EncodedManifestField.TIME_SIGNATURE: row[EncodedManifestField.TIME_SIGNATURE],
-                    EncodedManifestField.KEY_ROOT: row[EncodedManifestField.KEY_ROOT],
+                    EncodedManifestField.SCALE_ROOT: row[EncodedManifestField.SCALE_ROOT],
                     EncodedManifestField.SCALE_TYPE: row[EncodedManifestField.SCALE_TYPE],
                 }
             )
@@ -459,7 +479,7 @@ def _table_frame(frame: pd.DataFrame, columns: Sequence[object]) -> pd.DataFrame
     return table
 
 
-def _key_root_label(value: object) -> str:
+def _scale_root_label(value: object) -> str:
     try:
         if not isinstance(value, (int, float, str)):
             return str(value)

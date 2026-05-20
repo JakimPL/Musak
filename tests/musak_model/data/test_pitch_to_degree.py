@@ -9,7 +9,7 @@ from musak_model.tokens.schema import Hand, ScaleType
 @dataclass(frozen=True)
 class PitchToDegreeCase:
     midi_pitch: int
-    key_root: int
+    scale_root: int
     key_fifths: int
     scale_type: ScaleType
     hand: Hand
@@ -40,7 +40,7 @@ class TestPitchToDegreeMAJOR:
     def test_major_scale_mapping(self, case: PitchToDegreeCase) -> None:
         result = pitch_to_degree(
             case.midi_pitch,
-            key_root=case.key_root,
+            scale_root=case.scale_root,
             key_fifths=case.key_fifths,
             scale_type=case.scale_type,
             hand=case.hand,
@@ -83,18 +83,18 @@ class TestPitchToDegreeHARMONIC_MINOR:
     def test_harmonic_minor_scale_mapping(self, case: PitchToDegreeCase) -> None:
         result = pitch_to_degree(
             case.midi_pitch,
-            key_root=case.key_root,
+            scale_root=case.scale_root,
             key_fifths=case.key_fifths,
             scale_type=case.scale_type,
             hand=case.hand,
         )
 
         assert result.degree == case.expected_degree, (
-            f"degree for pitch {case.midi_pitch} in harmonic minor (root={case.key_root}): "
+            f"degree for pitch {case.midi_pitch} in harmonic minor (root={case.scale_root}): "
             f"{result.degree} != {case.expected_degree}"
         )
         assert result.accidental == case.expected_accidental, (
-            f"accidental for pitch {case.midi_pitch} in harmonic minor (root={case.key_root}): "
+            f"accidental for pitch {case.midi_pitch} in harmonic minor (root={case.scale_root}): "
             f"{result.accidental} != {case.expected_accidental}"
         )
 
@@ -103,7 +103,7 @@ class TestPitchToDegreeEnharmonicPolicy:
     def test_flat_preference_negative_key_fifths(self) -> None:
         result = pitch_to_degree(
             61,  # C#/Db
-            key_root=0,
+            scale_root=0,
             key_fifths=-2,
             scale_type=ScaleType.MAJOR,
             hand=Hand.RIGHT,
@@ -114,7 +114,7 @@ class TestPitchToDegreeEnharmonicPolicy:
     def test_sharp_preference_positive_key_fifths(self) -> None:
         result = pitch_to_degree(
             61,
-            key_root=7,
+            scale_root=7,
             key_fifths=1,
             scale_type=ScaleType.MAJOR,
             hand=Hand.RIGHT,
@@ -128,7 +128,7 @@ class TestPitchToDegreeEdgeCases:
     def test_chromatic_pitch_in_scale_maps_to_accidental(self) -> None:
         result = pitch_to_degree(
             61,  # C#/Db
-            key_root=0,
+            scale_root=0,
             key_fifths=0,
             scale_type=ScaleType.MAJOR,
             hand=Hand.RIGHT,
@@ -139,7 +139,7 @@ class TestPitchToDegreeEdgeCases:
     def test_low_octave_negative_offset(self) -> None:
         result = pitch_to_degree(
             36,  # C2
-            key_root=0,
+            scale_root=0,
             key_fifths=0,
             scale_type=ScaleType.MAJOR,
             hand=Hand.LEFT,
@@ -149,7 +149,7 @@ class TestPitchToDegreeEdgeCases:
     def test_high_octave_positive_offset(self) -> None:
         result = pitch_to_degree(
             84,  # C6
-            key_root=0,
+            scale_root=0,
             key_fifths=0,
             scale_type=ScaleType.MAJOR,
             hand=Hand.RIGHT,
@@ -160,7 +160,7 @@ class TestPitchToDegreeEdgeCases:
         with pytest.raises(PitchDegreeRegisterError, match="outside supported right hand register"):
             pitch_to_degree(
                 24,
-                key_root=0,
+                scale_root=0,
                 key_fifths=0,
                 scale_type=ScaleType.MAJOR,
                 hand=Hand.RIGHT,

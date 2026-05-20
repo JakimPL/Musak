@@ -246,7 +246,7 @@ class TestAllowedNextTokenIds:
             prefix,
             constraints=_constraints(
                 maximum_pitch_gap_semitones=2,
-                key_root=0,
+                scale_root=0,
                 scale_type=ScaleType.MAJOR,
             ),
             token_vocabulary=token_vocabulary,
@@ -275,7 +275,7 @@ class TestAllowedNextTokenIds:
             prefix,
             constraints=_constraints(
                 maximum_pitch_gap_semitones=2,
-                key_root=0,
+                scale_root=0,
                 scale_type=ScaleType.MAJOR,
             ),
             token_vocabulary=token_vocabulary,
@@ -291,7 +291,7 @@ class TestAllowedNextTokenIds:
     ) -> None:
         quarter_id = duration_vocabulary.fraction_to_id(Fraction(1, 4))
 
-        with pytest.raises(GenerationConstraintError, match="requires key_root and scale_type"):
+        with pytest.raises(GenerationConstraintError, match="requires scale_root and scale_type"):
             allowed_next_token_ids(
                 _ids([_note(quarter_id)], token_vocabulary=token_vocabulary),
                 constraints=_constraints(maximum_pitch_gap_semitones=2),
@@ -338,7 +338,7 @@ class TestAllowedNextTokenIds:
             prefix,
             constraints=_constraints(
                 maximum_onset_span_semitones=12,
-                key_root=0,
+                scale_root=0,
                 scale_type=ScaleType.MAJOR,
             ),
             token_vocabulary=token_vocabulary,

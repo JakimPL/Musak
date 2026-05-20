@@ -70,7 +70,7 @@ class GenerationEvaluationConfig(BaseModel):
     seed: int = 1729
     temperature: float = Field(default=1.0, gt=0)
     top_k: int | None = Field(default=32, ge=1)
-    key_root: int = Field(default=0, ge=0, lt=12)
+    scale_root: int = Field(default=0, ge=0, lt=12)
     scale_type: ScaleType = ScaleType.MAJOR
     time_numerator: int = Field(default=4, ge=1)
     time_denominator: int = Field(default=4, ge=1)

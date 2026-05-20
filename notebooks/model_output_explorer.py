@@ -225,7 +225,7 @@ def _(GenerationRequest, ScaleType, loaded_model, mo, seed, set_generation_reque
     top_k = mo.ui.number(start=0, stop=512, step=1, value=0, label="Top-k (0 disables)")
     top_p = mo.ui.slider(start=0.05, stop=1.0, step=0.05, value=1.0, label="Top-p")
     greedy = mo.ui.checkbox(value=False, label="Greedy")
-    key_root = mo.ui.slider(start=0, stop=11, step=1, value=0, label="Key root")
+    scale_root = mo.ui.slider(start=0, stop=11, step=1, value=0, label="Scale root")
     scale_type = mo.ui.dropdown(
         options=[scale.value for scale in ScaleType], value=ScaleType.MAJOR.value, label="Scale"
     )
@@ -257,7 +257,7 @@ def _(GenerationRequest, ScaleType, loaded_model, mo, seed, set_generation_reque
                 top_p=float(top_p.value) if float(top_p.value) < 1.0 else None,
                 greedy=greedy.value,
                 seed=int(seed.value),
-                key_root=int(key_root.value),
+                scale_root=int(scale_root.value),
                 scale_type=scale_type.value,
                 time_numerator=int(time_numerator.value),
                 time_denominator=int(time_denominator.value),
@@ -285,7 +285,7 @@ def _(GenerationRequest, ScaleType, loaded_model, mo, seed, set_generation_reque
         [
             mo.md("### Musical Context"),
             mo.hstack(
-                [key_root, scale_type, time_numerator, time_denominator, target_bars],
+                [scale_root, scale_type, time_numerator, time_denominator, target_bars],
                 gap=2,
                 align="end",
                 wrap=True,
@@ -374,7 +374,7 @@ def _(
                 maximum_onset_span_semitones=request.max_onset_span,
                 maximum_pitch_gap_semitones=request.max_gap,
                 maximum_static_hand_span_degrees=request.max_span,
-                key_root=request.key_root,
+                scale_root=request.scale_root,
                 scale_type=selected_scale_type,
             )
 
@@ -425,7 +425,7 @@ def _(
             )
         decoded_segment = sampling_result_to_segment(
             sampling_result,
-            key_root=request.key_root,
+            scale_root=request.scale_root,
             scale_type=selected_scale_type,
             time_numerator=request.time_numerator,
             time_denominator=request.time_denominator,

@@ -44,7 +44,7 @@ class GenerationConstraints:
     maximum_onset_span_semitones: int | None = None
     maximum_pitch_gap_semitones: int | None = None
     maximum_static_hand_span_degrees: int | None = None
-    key_root: int | None = None
+    scale_root: int | None = None
     scale_type: ScaleType | None = None
 
     @property
@@ -298,12 +298,12 @@ class GenerationConstraintState:
         ):
             return None
 
-        if self.constraints.key_root is None or self.constraints.scale_type is None:
-            raise GenerationConstraintError("requires key_root and scale_type constraints for pitch-aware controls")
+        if self.constraints.scale_root is None or self.constraints.scale_type is None:
+            raise GenerationConstraintError("requires scale_root and scale_type constraints for pitch-aware controls")
 
         return note_token_to_midi_pitch(
             token,
-            key_root=self.constraints.key_root,
+            scale_root=self.constraints.scale_root,
             scale_type=self.constraints.scale_type,
             hand=self.active_hand,
         )

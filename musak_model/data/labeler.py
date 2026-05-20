@@ -45,8 +45,8 @@ def extract_difficulty_features(
         rhythmic_diversity=_rhythmic_diversity(segment, duration_vocabulary=duration_vocabulary),
         voice_independence=_voice_independence(segment, duration_vocabulary=duration_vocabulary),
         has_accidentals=(
-            _has_accidentals(window_bars_right, score=score, scale_type=scale_type, hand=Hand.RIGHT)
-            or _has_accidentals(window_bars_left, score=score, scale_type=scale_type, hand=Hand.LEFT)
+            _has_accidentals(window_bars_right, segment=segment, hand=Hand.RIGHT)
+            or _has_accidentals(window_bars_left, segment=segment, hand=Hand.LEFT)
         ),
         has_dotted_notes=_has_dotted_notes(segment, duration_vocabulary=duration_vocabulary),
     )
@@ -86,7 +86,11 @@ def _notes_per_beat(
     return float(note_count / total_beats) if total_beats > 0 else 0.0
 
 
-def _rhythmic_diversity(segment: Segment, *, duration_vocabulary: DurationVocabulary) -> float:
+def _rhythmic_diversity(
+    segment: Segment,
+    *,
+    duration_vocabulary: DurationVocabulary,
+) -> float:
     durations_present: set[int] = set()
     for token in segment.tokens:
         if isinstance(token, NoteToken):
@@ -95,7 +99,11 @@ def _rhythmic_diversity(segment: Segment, *, duration_vocabulary: DurationVocabu
     return len(durations_present) / duration_vocabulary.vocabulary_size()
 
 
-def _voice_independence(segment: Segment, *, duration_vocabulary: DurationVocabulary) -> float:
+def _voice_independence(
+    segment: Segment,
+    *,
+    duration_vocabulary: DurationVocabulary,
+) -> float:
     right_rhythm = _rhythm_vector(
         tokens_for_hand(segment.tokens, hand=Hand.RIGHT, include_structure=False),
         duration_vocabulary=duration_vocabulary,
@@ -112,7 +120,11 @@ def _voice_independence(segment: Segment, *, duration_vocabulary: DurationVocabu
     return 1.0 - matching / len(right_rhythm)
 
 
-def _rhythm_vector(tokens: list[Token], *, duration_vocabulary: DurationVocabulary) -> list[Fraction]:
+def _rhythm_vector(
+    tokens: list[Token],
+    *,
+    duration_vocabulary: DurationVocabulary,
+) -> list[Fraction]:
     rhythm: list[Fraction] = []
     for token in tokens:
         if isinstance(token, NoteToken):
@@ -124,18 +136,18 @@ def _rhythm_vector(tokens: list[Token], *, duration_vocabulary: DurationVocabula
 def _has_accidentals(
     bars: list[ParsedBar],
     *,
-    score: ParsedScore,
-    scale_type: ScaleType,
+    segment: Segment,
     hand: Hand,
 ) -> bool:
+    key_fifths = _segment_key_fifths(segment)
     for bar in bars:
         for event in bar.events:
             if isinstance(event, ParsedNote):
                 pitch_degree = pitch_to_degree(
                     event.midi_pitch,
-                    key_root=score.key_root,
-                    key_fifths=score.key_fifths,
-                    scale_type=scale_type,
+                    scale_root=segment.scale_root,
+                    key_fifths=key_fifths,
+                    scale_type=segment.scale_type,
                     hand=hand,
                 )
                 if pitch_degree.accidental != 0:
@@ -145,9 +157,9 @@ def _has_accidentals(
                 for midi_pitch in event.midi_pitches:
                     pitch_degree = pitch_to_degree(
                         midi_pitch,
-                        key_root=score.key_root,
-                        key_fifths=score.key_fifths,
-                        scale_type=scale_type,
+                        scale_root=segment.scale_root,
+                        key_fifths=key_fifths,
+                        scale_type=segment.scale_type,
                         hand=hand,
                     )
                     if pitch_degree.accidental != 0:
@@ -156,7 +168,18 @@ def _has_accidentals(
     return False
 
 
-def _has_dotted_notes(segment: Segment, *, duration_vocabulary: DurationVocabulary) -> bool:
+def _segment_key_fifths(segment: Segment) -> int:
+    if segment.metadata.scale_match is not None and segment.metadata.scale_match.declared_key_fifths is not None:
+        return segment.metadata.scale_match.declared_key_fifths
+
+    return 0
+
+
+def _has_dotted_notes(
+    segment: Segment,
+    *,
+    duration_vocabulary: DurationVocabulary,
+) -> bool:
     return _has_note_duration_in(
         segment,
         duration_vocabulary=duration_vocabulary,

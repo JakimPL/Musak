@@ -5,12 +5,12 @@ from musak_shared.elements import MIDI_OCTAVE_OFFSET, PITCHES_PER_OCTAVE
 def note_token_to_midi_pitch(
     token: NoteToken,
     *,
-    key_root: int,
+    scale_root: int,
     scale_type: ScaleType,
     hand: Hand,
 ) -> int:
     interval = SCALE_INTERVALS[scale_type][token.degree - 1]
-    pitch_class = (key_root + interval + token.accidental) % PITCHES_PER_OCTAVE
+    pitch_class = (scale_root + interval + token.accidental) % PITCHES_PER_OCTAVE
     octave = HAND_HOME_OCTAVES[hand] + token.octave_offset
     return (octave + MIDI_OCTAVE_OFFSET) * PITCHES_PER_OCTAVE + pitch_class
 

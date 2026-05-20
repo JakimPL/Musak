@@ -36,7 +36,7 @@ def _segment(source_file: Path, *, duration_vocabulary: DurationVocabulary) -> S
     return Segment(
         tokens=tokens,
         metadata=SegmentMetadata(
-            key_root=0,
+            scale_root=0,
             scale_type=ScaleType.MAJOR,
             time_numerator=4,
             time_denominator=4,

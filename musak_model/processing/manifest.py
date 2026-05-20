@@ -25,9 +25,8 @@ class ParsedManifestField(StrEnum):
     PARSE_DIAGNOSTICS = "parse_diagnostics"
     RIGHT_HAND_BARS = "right_hand_bars"
     LEFT_HAND_BARS = "left_hand_bars"
-    KEY_ROOT = "key_root"
-    KEY_FIFTHS = "key_fifths"
-    SCALE_TYPE = "scale_type"
+    DECLARED_SCALE_ROOT = "declared_scale_root"
+    DECLARED_KEY_FIFTHS = "declared_key_fifths"
     TIME_SIGNATURE = "time_signature"
 
 
@@ -43,8 +42,19 @@ class EncodedManifestField(StrEnum):
     TOKEN_COUNT = "token_count"
     ELIGIBLE_FOR_TRAINING = "eligible_for_training"
     INELIGIBILITY_REASONS = "ineligibility_reasons"
-    KEY_ROOT = "key_root"
+    SCALE_ROOT = "scale_root"
     SCALE_TYPE = "scale_type"
+    DECLARED_SCALE_ROOT = "declared_scale_root"
+    DECLARED_KEY_FIFTHS = "declared_key_fifths"
+    SCALE_MATCH_IN_SCALE_WEIGHT_FRACTION = "scale_match_in_scale_weight_fraction"
+    SCALE_MATCH_OUT_OF_SCALE_WEIGHT_FRACTION = "scale_match_out_of_scale_weight_fraction"
+    SCALE_MATCH_BEST_MARGIN = "scale_match_best_margin"
+    SCALE_MATCH_OBSERVED_PITCH_CLASS_COUNT = "scale_match_observed_pitch_class_count"
+    SCALE_MATCH_TIED_BEST_CANDIDATE_COUNT = "scale_match_tied_best_candidate_count"
+    SCALE_MATCH_DECLARED_MATCH_USED = "scale_match_declared_match_used"
+    SCALE_MATCH_LOW_CONFIDENCE = "scale_match_low_confidence"
+    SCALE_MATCH_AMBIGUOUS = "scale_match_ambiguous"
+    SCALE_MATCH_NO_PITCHES = "scale_match_no_pitches"
     TIME_SIGNATURE = "time_signature"
     DIFFICULTY_LEVEL = "difficulty_level"
     RIGHT_SILENCE_FRACTION = "right_silence_fraction"
@@ -86,9 +96,8 @@ PARSED_MANIFEST_FIELDS: Final[tuple[ParsedManifestField, ...]] = (
     ParsedManifestField.PARSE_DIAGNOSTICS,
     ParsedManifestField.RIGHT_HAND_BARS,
     ParsedManifestField.LEFT_HAND_BARS,
-    ParsedManifestField.KEY_ROOT,
-    ParsedManifestField.KEY_FIFTHS,
-    ParsedManifestField.SCALE_TYPE,
+    ParsedManifestField.DECLARED_SCALE_ROOT,
+    ParsedManifestField.DECLARED_KEY_FIFTHS,
     ParsedManifestField.TIME_SIGNATURE,
 )
 
@@ -104,8 +113,19 @@ ENCODED_MANIFEST_FIELDS: Final[tuple[EncodedManifestField, ...]] = (
     EncodedManifestField.TOKEN_COUNT,
     EncodedManifestField.ELIGIBLE_FOR_TRAINING,
     EncodedManifestField.INELIGIBILITY_REASONS,
-    EncodedManifestField.KEY_ROOT,
+    EncodedManifestField.SCALE_ROOT,
     EncodedManifestField.SCALE_TYPE,
+    EncodedManifestField.DECLARED_SCALE_ROOT,
+    EncodedManifestField.DECLARED_KEY_FIFTHS,
+    EncodedManifestField.SCALE_MATCH_IN_SCALE_WEIGHT_FRACTION,
+    EncodedManifestField.SCALE_MATCH_OUT_OF_SCALE_WEIGHT_FRACTION,
+    EncodedManifestField.SCALE_MATCH_BEST_MARGIN,
+    EncodedManifestField.SCALE_MATCH_OBSERVED_PITCH_CLASS_COUNT,
+    EncodedManifestField.SCALE_MATCH_TIED_BEST_CANDIDATE_COUNT,
+    EncodedManifestField.SCALE_MATCH_DECLARED_MATCH_USED,
+    EncodedManifestField.SCALE_MATCH_LOW_CONFIDENCE,
+    EncodedManifestField.SCALE_MATCH_AMBIGUOUS,
+    EncodedManifestField.SCALE_MATCH_NO_PITCHES,
     EncodedManifestField.TIME_SIGNATURE,
     EncodedManifestField.DIFFICULTY_LEVEL,
     EncodedManifestField.RIGHT_SILENCE_FRACTION,
@@ -170,9 +190,12 @@ def parsed_success_row(
         ParsedManifestField.PARSE_DIAGNOSTICS: parse_diagnostics,
         ParsedManifestField.RIGHT_HAND_BARS: len(score.right_hand_bars),
         ParsedManifestField.LEFT_HAND_BARS: len(score.left_hand_bars),
-        ParsedManifestField.KEY_ROOT: score.key_root,
-        ParsedManifestField.KEY_FIFTHS: score.key_fifths,
-        ParsedManifestField.SCALE_TYPE: score.scale_type.value,
+        ParsedManifestField.DECLARED_SCALE_ROOT: (
+            score.declared_scale_root if score.declared_scale_root is not None else ""
+        ),
+        ParsedManifestField.DECLARED_KEY_FIFTHS: (
+            score.declared_key_fifths if score.declared_key_fifths is not None else ""
+        ),
         ParsedManifestField.TIME_SIGNATURE: format_ratio((score.time_numerator, score.time_denominator)),
     }
 
@@ -198,9 +221,8 @@ def parsed_error_row(
         ParsedManifestField.PARSE_DIAGNOSTICS: parse_diagnostics,
         ParsedManifestField.RIGHT_HAND_BARS: "",
         ParsedManifestField.LEFT_HAND_BARS: "",
-        ParsedManifestField.KEY_ROOT: "",
-        ParsedManifestField.KEY_FIFTHS: "",
-        ParsedManifestField.SCALE_TYPE: "",
+        ParsedManifestField.DECLARED_SCALE_ROOT: "",
+        ParsedManifestField.DECLARED_KEY_FIFTHS: "",
         ParsedManifestField.TIME_SIGNATURE: "",
     }
 
@@ -219,6 +241,7 @@ def encoded_row(
     encoded_line: int | None,
 ) -> dict[str, Any]:
     diagnostics = diagnose_segment(segment, duration_vocabulary=duration_vocabulary)
+    scale_match = segment.metadata.scale_match
     return {
         EncodedManifestField.SEGMENT_ID: segment_id(
             source_id_value,
@@ -239,8 +262,37 @@ def encoded_row(
         EncodedManifestField.INELIGIBILITY_REASONS: "|".join(
             sorted(reason.value for reason in segment.metadata.ineligibility_reasons)
         ),
-        EncodedManifestField.KEY_ROOT: segment.metadata.key_root,
+        EncodedManifestField.SCALE_ROOT: segment.metadata.scale_root,
         EncodedManifestField.SCALE_TYPE: segment.metadata.scale_type.value,
+        EncodedManifestField.DECLARED_SCALE_ROOT: (
+            scale_match.declared_scale_root
+            if scale_match is not None and scale_match.declared_scale_root is not None
+            else ""
+        ),
+        EncodedManifestField.DECLARED_KEY_FIFTHS: (
+            scale_match.declared_key_fifths
+            if scale_match is not None and scale_match.declared_key_fifths is not None
+            else ""
+        ),
+        EncodedManifestField.SCALE_MATCH_IN_SCALE_WEIGHT_FRACTION: (
+            scale_match.in_scale_weight_fraction if scale_match is not None else ""
+        ),
+        EncodedManifestField.SCALE_MATCH_OUT_OF_SCALE_WEIGHT_FRACTION: (
+            scale_match.out_of_scale_weight_fraction if scale_match is not None else ""
+        ),
+        EncodedManifestField.SCALE_MATCH_BEST_MARGIN: scale_match.best_margin if scale_match is not None else "",
+        EncodedManifestField.SCALE_MATCH_OBSERVED_PITCH_CLASS_COUNT: (
+            scale_match.observed_pitch_class_count if scale_match is not None else ""
+        ),
+        EncodedManifestField.SCALE_MATCH_TIED_BEST_CANDIDATE_COUNT: (
+            scale_match.tied_best_candidate_count if scale_match is not None else ""
+        ),
+        EncodedManifestField.SCALE_MATCH_DECLARED_MATCH_USED: (
+            scale_match.declared_match_used if scale_match is not None else ""
+        ),
+        EncodedManifestField.SCALE_MATCH_LOW_CONFIDENCE: scale_match.low_confidence if scale_match is not None else "",
+        EncodedManifestField.SCALE_MATCH_AMBIGUOUS: scale_match.ambiguous if scale_match is not None else "",
+        EncodedManifestField.SCALE_MATCH_NO_PITCHES: scale_match.no_pitches if scale_match is not None else "",
         EncodedManifestField.TIME_SIGNATURE: format_ratio(
             (segment.metadata.time_numerator, segment.metadata.time_denominator)
         ),

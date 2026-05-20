@@ -37,7 +37,7 @@ def test_load_encoded_manifest_selection_decodes_selected_manifest_row(tmp_path:
         ),
         bar_positions=[0, 0],
         metadata=SegmentMetadata(
-            key_root=0,
+            scale_root=0,
             scale_type=ScaleType.MAJOR,
             time_numerator=4,
             time_denominator=4,
@@ -90,7 +90,7 @@ def test_load_encoded_manifest_selection_reconstructs_ineligible_row_from_parsed
     encoded_dir, _, _ = _write_encoded_run(tmp_path)
     parsed_path = tmp_path / "parsed" / "score.json"
     score = ParsedScore(
-        key_root=0,
+        scale_root=0,
         key_fifths=0,
         scale_type=ScaleType.MAJOR,
         time_numerator=4,
@@ -129,7 +129,7 @@ def test_load_encoded_manifest_selection_recovers_parsed_path_from_source_id(tmp
     source_id = "abcdef"
     parsed_path = tmp_path / "parsed" / source_id[0] / f"{source_id}.json"
     score = ParsedScore(
-        key_root=0,
+        scale_root=0,
         key_fifths=0,
         scale_type=ScaleType.MAJOR,
         time_numerator=4,
@@ -185,7 +185,7 @@ def _write_encoded_run(tmp_path: Path) -> tuple[Path, EncodedExercise, TokenVoca
         ),
         bar_positions=[0, 0],
         metadata=SegmentMetadata(
-            key_root=0,
+            scale_root=0,
             scale_type=ScaleType.MAJOR,
             time_numerator=4,
             time_denominator=4,

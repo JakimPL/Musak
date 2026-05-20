@@ -95,7 +95,7 @@ def _model_config() -> ModelConfig:
 
 def _split() -> IngestionSplit:
     metadata = SegmentMetadata(
-        key_root=0,
+        scale_root=0,
         scale_type=ScaleType.MAJOR,
         time_numerator=4,
         time_denominator=4,

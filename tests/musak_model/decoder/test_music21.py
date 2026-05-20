@@ -20,7 +20,7 @@ from musak_model.tokens.schema import (
 
 def _metadata(*, bar_count: int = 2) -> SegmentMetadata:
     return SegmentMetadata(
-        key_root=0,
+        scale_root=0,
         scale_type=ScaleType.MAJOR,
         time_numerator=4,
         time_denominator=4,

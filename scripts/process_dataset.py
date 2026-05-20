@@ -4,7 +4,13 @@ import os
 from collections.abc import Sequence
 from pathlib import Path
 
-from musak_model.data.config import DataProcessingConfig, load_difficulty_labels, load_segmentation_config
+from musak_model.data.config import (
+    DEFAULT_SCALE_MATCH_MINIMUM_BEST_MARGIN,
+    DEFAULT_SCALE_MATCH_MINIMUM_IN_SCALE_WEIGHT_FRACTION,
+    DataProcessingConfig,
+    load_difficulty_labels,
+    load_segmentation_config,
+)
 from musak_model.paths import (
     DEFAULT_PROCESSED_ROOT,
     SEGMENTATION_CONFIG_PATH,
@@ -70,7 +76,9 @@ def main() -> None:
             segmentation_config=segmentation_config,
             tokenization_config=tokenization_config,
             data_processing_config=DataProcessingConfig(
-                remove_segments_with_silent_bars=args.remove_segments_with_silent_bars
+                remove_segments_with_silent_bars=args.remove_segments_with_silent_bars,
+                scale_match_minimum_in_scale_weight_fraction=args.scale_match_minimum_in_scale_weight_fraction,
+                scale_match_minimum_best_margin=args.scale_match_minimum_best_margin,
             ),
             stage=args.stage,
             difficulty_labels=difficulty_labels,
@@ -151,6 +159,18 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         action=argparse.BooleanOptionalAction,
         default=True,
         help="Mark any segment containing a fully silent bar as ineligible for training.",
+    )
+    parser.add_argument(
+        "--scale-match-minimum-in-scale-weight-fraction",
+        type=float,
+        default=DEFAULT_SCALE_MATCH_MINIMUM_IN_SCALE_WEIGHT_FRACTION,
+        help="Minimum duration-weighted in-scale pitch fraction for a segment to remain training-eligible.",
+    )
+    parser.add_argument(
+        "--scale-match-minimum-best-margin",
+        type=float,
+        default=DEFAULT_SCALE_MATCH_MINIMUM_BEST_MARGIN,
+        help="Minimum margin between the best and next scale match unless the declared key resolves the tie.",
     )
     parser.add_argument(
         "--difficulty-labels",

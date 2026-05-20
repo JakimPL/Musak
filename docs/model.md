@@ -20,7 +20,7 @@ Each encoded JSONL row is an `EncodedExercise`:
 
 - `token_ids`: unified two-hand token sequence.
 - `bar_positions`: one bar index per token for hierarchical model context.
-- `metadata`: key root, scale type, time signature, source file, segment window, optional difficulty label, and extracted difficulty features.
+- `metadata`: scale root, scale type, time signature, source file, segment window, optional difficulty label, and extracted difficulty features.
 
 The current encoded PDMX artifact is a unified two-hand stream. It is not split into separate right-hand and left-hand samples.
 
@@ -41,11 +41,81 @@ Tokens represent music relative to segment metadata:
 - `EndToken`: sequence end.
 - `StartToken`: training/generation beginning-of-sequence token.
 
-Key root is external metadata. Because pitches are stored as scale degrees, the same token stream can be decoded in different roots by changing `metadata.key_root`.
+Scale root is external metadata. It names the root of the pitch set used for tokenization, not necessarily the
+tonal tonic. For example, natural minor and modes are represented by the corresponding `major` pitch set root.
+Because pitches are stored as scale degrees, the same token stream can be decoded in different roots by changing
+`metadata.scale_root`.
 
-Scale type is also metadata, but it affects pitch-class decoding. The tokenizer has multiple scale types, while current usable data is dominated by major-key material.
+Scale type is also metadata, but it affects pitch-class decoding. The supported scale families are `major`,
+`harmonic_minor`, and `melodic_minor`. Modes are intentionally collapsed into the `major` pitch-set family.
+
+During processing, raw parsed windows are matched to `scale_root` and `scale_type` before tokenization. The matcher
+uses duration-weighted pitch-class distributions over the segment. MusicXML key signatures are retained as declared
+hints and diagnostics; they are not trusted as the tokenization source of truth.
 
 `JoinWithPreviousToken` is not a tie token. It represents simultaneous note onsets, usually chord notes. True prolongation is represented by `HoldToken`.
+
+## Scale Matching Procedure
+
+The processing pipeline cannot rely on MusicXML key signatures as tokenization truth. Some scores omit key signatures
+and spell the pitch set with accidentals, some have incorrect declarations, and modal music often uses a major or
+minor key signature plus accidentals even though tokenization needs the actual pitch set. The goal is therefore to
+infer the segment's pitch-set root and scale family from the notes themselves, while keeping declared key signatures
+only as diagnostics and tie-break hints.
+
+Scale matching runs per segment window, before tokenization. This matters because tokenization converts MIDI pitches
+to scale degrees and accidentals; if the wrong scale is chosen first, the token sequence is already distorted. The
+matcher assumes one stable pitch set per segment. If a segment modulates without an explicit key-signature change, the
+matcher will choose the best single explanation and expose the uncertainty through metrics.
+
+The candidate space is intentionally small:
+
+- `scale_root`: every pitch class from 0 to 11;
+- `scale_type`: `major`, `harmonic_minor`, and `melodic_minor`.
+
+Natural minor and modes are represented by the `major` pitch-set family because they contain the same pitch classes as
+some major scale. For example, A natural minor maps to `scale_root=0, scale_type=major` because its pitch set is C
+major. This is a pitch-set choice, not a claim that the tonal tonic is C.
+
+For each segment, the matcher builds a duration-weighted pitch-class histogram from both hands:
+
+- a note contributes its duration to `midi_pitch % 12`;
+- each chord pitch contributes the chord duration to its own pitch class;
+- rests do not contribute.
+
+Each candidate scale defines seven pitch classes. Its score is:
+
+```text
+in_scale_weight_fraction = duration weight inside candidate pitch classes / total pitched duration weight
+```
+
+The best candidate is the one with the highest `in_scale_weight_fraction`. If multiple candidates tie for the best
+score and the declared key-signature pitch set is one of those tied candidates, the declared candidate is selected.
+Otherwise, selection is deterministic: prefer the configured scale-family order, then the simpler key-signature root,
+then the lower numeric root. This tie policy prevents random dataset churn while making declared metadata useful only
+when the notes do not disambiguate the scale.
+
+The matcher records these diagnostics for every encoded-manifest row:
+
+- `in_scale_weight_fraction` and `out_of_scale_weight_fraction`;
+- `best_margin`, the score gap between the selected candidate and the next distinct score;
+- `observed_pitch_class_count`;
+- `tied_best_candidate_count`;
+- `declared_match_used`;
+- `low_confidence`, `ambiguous`, and `no_pitches`.
+
+Processing can mark segments ineligible based on configurable thresholds. The default policy excludes weak matches:
+`minimum_in_scale_weight_fraction = 0.90` and `minimum_best_margin = 0.03`. A segment is marked
+`scale_match_low_confidence` when too much duration falls outside the selected scale, when the best margin is too
+small, or when there are no pitches. A segment is marked `scale_match_ambiguous` when multiple best candidates tie and
+the declared key signature does not resolve the tie. A segment with no pitched events is also marked
+`scale_match_no_pitches`.
+
+This procedure is intentionally not a full tonal analysis. It does not infer cadences, tonic function, modulation,
+borrowed harmony, or enharmonic spelling intent. It only chooses a stable pitch-set basis for scale-relative
+tokenization. Non-standard and atonal material may be forced into the least-bad candidate or filtered by confidence
+thresholds. The quality of this decision should be monitored with the scale-match MLflow metrics and manually through
+the dataset statistics notebook.
 
 ## Current Training Logic
 
@@ -68,7 +138,7 @@ Conditioning supports difficulty, scale type, time signature IDs, and structural
 metadata-conditioned on scale type, time signature, and structural controls by default. Difficulty is supported
 but disabled by default until labels are reliable enough to train against. Enabled conditioning IDs are summed
 into one prefix vector.
-`key_root` is not currently a model condition and should remain decode metadata for transposition control.
+`scale_root` is not currently a model condition and should remain decode metadata for transposition control.
 
 Training can also add an auxiliary validity penalty. The penalty builds a hard-constraint mask from each
 teacher-forced prefix and penalizes probability mass assigned to tokens that the generation constraints would
@@ -120,6 +190,15 @@ Current metric families:
   - `dataset/tokens/mean/note_fraction`
   - `dataset/tokens/mean/rest_fraction`
   - `dataset/tokens/mean/hold_fraction`
+  - `dataset/scale_match/mean/in_scale_weight_fraction`
+  - `dataset/scale_match/mean/out_of_scale_weight_fraction`
+  - `dataset/scale_match/mean/best_margin`
+  - `dataset/scale_match/mean/observed_pitch_class_count`
+  - `dataset/scale_match/mean/tied_best_candidate_count`
+  - `dataset/scale_match/rate/declared_match_used`
+  - `dataset/scale_match/rate/low_confidence`
+  - `dataset/scale_match/rate/ambiguous`
+  - `dataset/scale_match/rate/no_pitches`
   - `dataset/ineligibility/count/<reason>`
   - `dataset/ineligibility/rate/<reason>`
 - Model training metrics:
@@ -204,7 +283,7 @@ Generation should use hybrid control:
 
 The generation request should include:
 
-- `key_root`
+- `scale_root`
 - `scale_type`
 - `time_signature`
 - `bar_count`

@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Final
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from musak_model.paths import SEGMENTATION_CONFIG_PATH
 from musak_shared.files import load_yaml_config
+
+DEFAULT_SCALE_MATCH_MINIMUM_IN_SCALE_WEIGHT_FRACTION: Final[float] = 0.90
+DEFAULT_SCALE_MATCH_MINIMUM_BEST_MARGIN: Final[float] = 0.03
 
 
 class SegmentationConfig(BaseModel):
@@ -43,6 +47,12 @@ class DataProcessingConfig(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     remove_segments_with_silent_bars: bool
+    scale_match_minimum_in_scale_weight_fraction: float = Field(
+        DEFAULT_SCALE_MATCH_MINIMUM_IN_SCALE_WEIGHT_FRACTION,
+        ge=0,
+        le=1,
+    )
+    scale_match_minimum_best_margin: float = Field(DEFAULT_SCALE_MATCH_MINIMUM_BEST_MARGIN, ge=0, le=1)
 
 
 def load_difficulty_labels(path: Path | None) -> dict[str, int] | None:

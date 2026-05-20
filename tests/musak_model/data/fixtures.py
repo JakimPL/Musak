@@ -24,13 +24,13 @@ def parsed_score(
     *,
     right_hand_bars: list[ParsedBar],
     left_hand_bars: list[ParsedBar],
-    key_root: int = 0,
+    scale_root: int = 0,
     scale_type: ScaleType = ScaleType.MAJOR,
     time_numerator: int = 4,
     time_denominator: int = 4,
 ) -> ParsedScore:
     return ParsedScore(
-        key_root=key_root,
+        scale_root=scale_root,
         key_fifths=0,
         scale_type=scale_type,
         time_numerator=time_numerator,

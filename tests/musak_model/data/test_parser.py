@@ -24,7 +24,7 @@ class TestMeasureParsing:
 
         assert parsed.time_numerator == 3
         assert parsed.time_denominator == 4
-        assert parsed.key_fifths == 2
+        assert parsed.declared_key_fifths == 2
         assert len(parsed.events) == 1
 
     def test_skips_non_positive_duration_events(self) -> None:
@@ -166,7 +166,7 @@ class TestScoreParsing:
 
 
 class TestKeyDetection:
-    def test_uses_explicit_key_signature_without_statistical_analysis(self) -> None:
+    def test_uses_explicit_key_signature_as_declared_pitch_set(self) -> None:
         score = Score()
         part = Part()
         measure = Measure(number=1)
@@ -176,9 +176,9 @@ class TestKeyDetection:
         part.append(measure)
         score.insert(0, part)
 
-        assert _detect_key(score) == (0, 0, ScaleType.MAJOR)
+        assert _detect_key(score) == (0, 0)
 
-    def test_defaults_to_c_major_when_score_has_no_key_signature(self) -> None:
+    def test_missing_key_signature_has_no_declared_pitch_set(self) -> None:
         score = Score()
         part = Part()
         measure = Measure(number=1)
@@ -186,9 +186,9 @@ class TestKeyDetection:
         part.append(measure)
         score.insert(0, part)
 
-        assert _detect_key(score) == (0, 0, ScaleType.MAJOR)
+        assert _detect_key(score) == (None, None)
 
-    def test_derives_minor_tonic_from_key_signature_fifths(self) -> None:
+    def test_minor_key_signature_keeps_major_parent_pitch_set(self) -> None:
         score = Score()
         part = Part()
         measure = Measure(number=1)
@@ -198,4 +198,4 @@ class TestKeyDetection:
         part.append(measure)
         score.insert(0, part)
 
-        assert _detect_key(score) == (11, 2, ScaleType.HARMONIC_MINOR)
+        assert _detect_key(score) == (2, 2)

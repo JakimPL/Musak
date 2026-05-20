@@ -163,7 +163,7 @@ def _segment(tokens: list[Token], *, bar_count: int = 1) -> Segment:
     return Segment(
         tokens=tokens,
         metadata=SegmentMetadata(
-            key_root=0,
+            scale_root=0,
             scale_type=ScaleType.MAJOR,
             time_numerator=4,
             time_denominator=4,

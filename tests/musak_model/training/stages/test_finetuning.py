@@ -73,7 +73,7 @@ def _sample() -> EncodedExercise:
         token_ids=token_ids,
         bar_positions=[0, 0],
         metadata=SegmentMetadata(
-            key_root=0,
+            scale_root=0,
             scale_type=ScaleType.MAJOR,
             time_numerator=4,
             time_denominator=4,

@@ -24,26 +24,25 @@ from musak_shared.elements import PITCHES_PER_OCTAVE
 _QUARTER_NOTE_FRACTION: Final[Fraction] = Fraction(1, 4)
 _TRIPLET_DENOMINATOR_LIMIT: Final[int] = 12
 
-_DEFAULT_KEY_FIFTHS: Final[int] = 0
-_DEFAULT_SCALE_TYPE: Final[ScaleType] = ScaleType.MAJOR
-
 
 def parse_score(path: Path) -> ParsedScore:
     raw = converter.parse(str(path))
     score = _score_from_music21(raw)
 
-    key_root, key_fifths, scale_type = _detect_key(score)
+    declared_key_fifths, declared_scale_root = _detect_key(score)
     time_numerator, time_denominator = _detect_time_signature(score)
     right_hand_bars, left_hand_bars = _extract_hands(
         score,
         default_time_signature=(time_numerator, time_denominator),
-        default_key_fifths=key_fifths,
+        default_key_fifths=declared_key_fifths,
     )
 
     return ParsedScore(
-        key_root=key_root,
-        key_fifths=key_fifths,
-        scale_type=scale_type,
+        declared_key_fifths=declared_key_fifths,
+        declared_scale_root=declared_scale_root,
+        scale_root=declared_scale_root if declared_scale_root is not None else 0,
+        key_fifths=declared_key_fifths if declared_key_fifths is not None else 0,
+        scale_type=ScaleType.MAJOR,
         time_numerator=time_numerator,
         time_denominator=time_denominator,
         right_hand_bars=right_hand_bars,
@@ -58,17 +57,13 @@ def _score_from_music21(raw: object) -> Score:
     return raw
 
 
-def _detect_key(score: Score) -> tuple[int, int, ScaleType]:
+def _detect_key(score: Score) -> tuple[int | None, int | None]:
     key_signature = _first_score_key_signature(score)
     if key_signature is None:
-        key_fifths = _DEFAULT_KEY_FIFTHS
-        scale_type = _DEFAULT_SCALE_TYPE
-    else:
-        key_fifths = int(key_signature.sharps)
-        scale_type = _key_signature_scale_type(key_signature)
+        return None, None
 
-    key_root = _key_root_from_fifths(key_fifths, scale_type=scale_type)
-    return key_root, key_fifths, scale_type
+    key_fifths = int(key_signature.sharps)
+    return key_fifths, _scale_root_from_fifths(key_fifths)
 
 
 def _first_score_key_signature(score: Score) -> m21_key.KeySignature | None:
@@ -85,23 +80,8 @@ def _key_signature_from_music21(raw: object) -> m21_key.KeySignature:
     return raw
 
 
-def _key_signature_scale_type(key_signature: m21_key.KeySignature) -> ScaleType:
-    mode = getattr(key_signature, "mode", None)
-    if mode == "minor":
-        return ScaleType.HARMONIC_MINOR
-
-    return ScaleType.MAJOR
-
-
-def _key_root_from_fifths(key_fifths: int, *, scale_type: ScaleType) -> int:
-    major_tonic = (key_fifths * 7) % PITCHES_PER_OCTAVE
-    if scale_type == ScaleType.MAJOR:
-        return major_tonic
-
-    if scale_type == ScaleType.HARMONIC_MINOR:
-        return (major_tonic + 9) % PITCHES_PER_OCTAVE
-
-    raise ValueError(f"unsupported key signature scale type: {scale_type.value}")
+def _scale_root_from_fifths(key_fifths: int) -> int:
+    return (key_fifths * 7) % PITCHES_PER_OCTAVE
 
 
 def _detect_time_signature(score: Score) -> tuple[int, int]:
@@ -123,7 +103,7 @@ def _extract_hands(
     score: Score,
     *,
     default_time_signature: tuple[int, int],
-    default_key_fifths: int,
+    default_key_fifths: int | None,
 ) -> tuple[list[ParsedBar], list[ParsedBar]]:
     hand_parts = select_piano_hand_parts(score)
 
@@ -144,7 +124,7 @@ def _extract_bars(
     part: Part,
     *,
     default_time_signature: tuple[int, int],
-    default_key_fifths: int,
+    default_key_fifths: int | None,
 ) -> list[ParsedBar]:
     return [
         _parse_measure(
@@ -167,13 +147,13 @@ def _parse_measure(
     measure: Measure,
     *,
     default_time_signature: tuple[int, int],
-    default_key_fifths: int,
+    default_key_fifths: int | None,
 ) -> ParsedBar:
     time_numerator, time_denominator = _measure_time_signature(
         measure,
         default_time_signature=default_time_signature,
     )
-    key_fifths = _measure_key_fifths(measure, default_key_fifths=default_key_fifths)
+    declared_key_fifths = _measure_key_fifths(measure, default_key_fifths=default_key_fifths)
     events: list[ParsedEvent] = []
     for element in measure.flatten().notesAndRests:
         beat_offset = _to_fraction(element.offset) * _QUARTER_NOTE_FRACTION
@@ -208,7 +188,7 @@ def _parse_measure(
     return ParsedBar(
         time_numerator=time_numerator,
         time_denominator=time_denominator,
-        key_fifths=key_fifths,
+        declared_key_fifths=declared_key_fifths,
         events=events,
     )
 
@@ -226,7 +206,7 @@ def _measure_time_signature(measure: Measure, *, default_time_signature: tuple[i
     return default_time_signature
 
 
-def _measure_key_fifths(measure: Measure, *, default_key_fifths: int) -> int:
+def _measure_key_fifths(measure: Measure, *, default_key_fifths: int | None) -> int | None:
     local_key_signatures = list(measure.getElementsByClass(m21_key.KeySignature))
     if local_key_signatures:
         return int(local_key_signatures[0].sharps)

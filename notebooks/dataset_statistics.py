@@ -26,7 +26,6 @@ def _():
         encoded_table_frame,
         hand_controls,
         ineligibility_reason_distribution,
-        key_root_distribution,
         load_dataset_statistics,
         load_encoded_manifest_selection,
         overview_rows,
@@ -35,6 +34,7 @@ def _():
         piano_roll_player_panel,
         processed_dataset_dirs,
         reason_by_column,
+        scale_root_distribution,
         segment_diagnostic_rows,
         segment_piano_roll_view_data,
         selected_table_row,
@@ -62,7 +62,7 @@ def _():
         encoded_table_frame,
         hand_controls,
         ineligibility_reason_distribution,
-        key_root_distribution,
+        scale_root_distribution,
         load_encoded_manifest_selection,
         load_dataset_statistics,
         mo,
@@ -405,27 +405,36 @@ def _(
     horizontal_bar_chart,
     mo,
     stats,
-    key_root_distribution,
+    scale_root_distribution,
     top_n_slider,
 ):
     if stats is None:
         music_output = mo.callout("No parsed or encoded manifest is loaded.", kind="warn")
     else:
         source = stats.encoded if stats.encoded is not None else stats.parsed
-        key_column = EncodedManifestField.KEY_ROOT if stats.encoded is not None else ParsedManifestField.KEY_ROOT
-        scale_column = EncodedManifestField.SCALE_TYPE if stats.encoded is not None else ParsedManifestField.SCALE_TYPE
+        key_column = (
+            EncodedManifestField.SCALE_ROOT if stats.encoded is not None else ParsedManifestField.DECLARED_SCALE_ROOT
+        )
         time_column = (
             EncodedManifestField.TIME_SIGNATURE if stats.encoded is not None else ParsedManifestField.TIME_SIGNATURE
         )
         key_chart = horizontal_bar_chart(
-            key_root_distribution(source, key_column, top_n=top_n_slider.value),
-            title="Key root distribution",
-            value_title="Key root",
+            scale_root_distribution(source, key_column, top_n=top_n_slider.value),
+            title="Scale root distribution",
+            value_title="Scale root",
         )
-        scale_chart = horizontal_bar_chart(
-            categorical_distribution(source, scale_column, top_n=top_n_slider.value),
-            title="Scale type distribution",
-            value_title="Scale type",
+        scale_chart = (
+            horizontal_bar_chart(
+                categorical_distribution(source, EncodedManifestField.SCALE_TYPE, top_n=top_n_slider.value),
+                title="Scale type distribution",
+                value_title="Scale type",
+            )
+            if stats.encoded is not None
+            else horizontal_bar_chart(
+                categorical_distribution(source, ParsedManifestField.DECLARED_KEY_FIFTHS, top_n=top_n_slider.value),
+                title="Declared fifths distribution",
+                value_title="Fifths",
+            )
         )
         time_chart = horizontal_bar_chart(
             categorical_distribution(source, time_column, top_n=top_n_slider.value),

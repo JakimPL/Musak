@@ -1,7 +1,11 @@
 from pathlib import Path
 
 from musak_model.data.cleaning import clean_parsed_score
-from musak_model.data.config import SegmentationConfig
+from musak_model.data.config import (
+    DEFAULT_SCALE_MATCH_MINIMUM_BEST_MARGIN,
+    DEFAULT_SCALE_MATCH_MINIMUM_IN_SCALE_WEIGHT_FRACTION,
+    SegmentationConfig,
+)
 from musak_model.data.converter import PitchDegreeRegisterError
 from musak_model.data.labeler import extract_difficulty_features
 from musak_model.data.parser import parse_score
@@ -56,6 +60,8 @@ def segment_parsed_score(
     *,
     segmentation_config: SegmentationConfig,
     difficulty_labels: dict[str, int] | None = None,
+    scale_match_minimum_in_scale_weight_fraction: float = DEFAULT_SCALE_MATCH_MINIMUM_IN_SCALE_WEIGHT_FRACTION,
+    scale_match_minimum_best_margin: float = DEFAULT_SCALE_MATCH_MINIMUM_BEST_MARGIN,
 ) -> list[Segment]:
     difficulty_level = _resolve_difficulty_level(
         source_file,
@@ -68,6 +74,8 @@ def segment_parsed_score(
         duration_vocabulary=duration_vocabulary,
         segmentation=segmentation_config,
         difficulty_level=difficulty_level,
+        scale_match_minimum_in_scale_weight_fraction=scale_match_minimum_in_scale_weight_fraction,
+        scale_match_minimum_best_margin=scale_match_minimum_best_margin,
     )
 
     return [

@@ -8,7 +8,7 @@ def test_note_token_to_midi_pitch_uses_key_scale_and_hand_register() -> None:
     assert (
         note_token_to_midi_pitch(
             token,
-            key_root=0,
+            scale_root=0,
             scale_type=ScaleType.MAJOR,
             hand=Hand.RIGHT,
         )
@@ -22,7 +22,7 @@ def test_note_token_to_midi_pitch_applies_accidental_and_octave_offset() -> None
     assert (
         note_token_to_midi_pitch(
             token,
-            key_root=0,
+            scale_root=0,
             scale_type=ScaleType.MAJOR,
             hand=Hand.LEFT,
         )

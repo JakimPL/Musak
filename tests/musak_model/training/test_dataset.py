@@ -32,7 +32,7 @@ def _sample(
         token_ids=token_ids,
         bar_positions=bar_positions,
         metadata=SegmentMetadata(
-            key_root=0,
+            scale_root=0,
             scale_type=ScaleType.MAJOR,
             time_numerator=time_signature[0],
             time_denominator=time_signature[1],

@@ -56,7 +56,7 @@ class TrainingValidityMaskBuilder:
                 bar_count=int(batch.bar_counts[row_index].item()),
                 max_notes_per_hand=MAX_NOTES_PER_HAND,
                 maximum_onset_span_semitones=MAX_ONSET_SPAN_SEMITONES,
-                key_root=int(batch.key_roots[row_index].item()),
+                scale_root=int(batch.scale_roots[row_index].item()),
                 scale_type=tuple(ScaleType)[int(batch.scale_type_ids[row_index].item())],
             )
             state = GenerationConstraintState(constraints=constraints)
@@ -126,7 +126,7 @@ class TrainingValidityMaskBuilder:
 
         midi_pitches = metadata.midi_pitches[
             int(tuple(ScaleType).index(state.constraints.scale_type or ScaleType.MAJOR)),
-            int(state.constraints.key_root or 0),
+            int(state.constraints.scale_root or 0),
             _hand_index(state.active_hand),
         ]
         onset = state.last_onset(state.active_hand)
@@ -226,11 +226,11 @@ class _TokenValidityMetadata:
                         denominator=duration_tick_denominator,
                     )
                     for scale_index, scale_type in enumerate(ScaleType):
-                        for key_root in range(12):
+                        for scale_root in range(12):
                             for hand_index, hand in enumerate(Hand):
-                                midi_pitches[scale_index, key_root, hand_index, token_id] = note_token_to_midi_pitch(
+                                midi_pitches[scale_index, scale_root, hand_index, token_id] = note_token_to_midi_pitch(
                                     token,
-                                    key_root=key_root,
+                                    scale_root=scale_root,
                                     scale_type=scale_type,
                                     hand=hand,
                                 )

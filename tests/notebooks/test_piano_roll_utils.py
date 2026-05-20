@@ -40,7 +40,7 @@ def test_segment_piano_roll_dataframe_includes_axis_and_token_fields(duration_vo
             NoteToken(degree=1, accidental=1, octave_offset=0, duration_id=quarter_id),
         ],
         metadata=SegmentMetadata(
-            key_root=0,
+            scale_root=0,
             scale_type=ScaleType.MAJOR,
             time_numerator=4,
             time_denominator=4,
@@ -79,7 +79,7 @@ def test_segment_piano_roll_view_data_includes_events_domains_and_frame(
             NoteToken(degree=1, accidental=0, octave_offset=0, duration_id=quarter_id),
         ],
         metadata=SegmentMetadata(
-            key_root=0,
+            scale_root=0,
             scale_type=ScaleType.MAJOR,
             time_numerator=4,
             time_denominator=4,
@@ -99,7 +99,7 @@ def test_segment_piano_roll_view_data_includes_events_domains_and_frame(
 
 def test_parsed_score_piano_roll_dataframe_uses_pitch_spelling_without_token_fields() -> None:
     score = ParsedScore(
-        key_root=0,
+        scale_root=0,
         key_fifths=0,
         scale_type=ScaleType.MAJOR,
         time_numerator=4,
@@ -128,7 +128,7 @@ def test_parsed_score_piano_roll_dataframe_uses_pitch_spelling_without_token_fie
 
 def test_parsed_score_piano_roll_view_data_and_filtering() -> None:
     score = ParsedScore(
-        key_root=0,
+        scale_root=0,
         key_fifths=0,
         scale_type=ScaleType.MAJOR,
         time_numerator=4,
@@ -162,7 +162,7 @@ def test_parsed_score_piano_roll_view_data_and_filtering() -> None:
 
 def test_piano_roll_chart_uses_fixed_hand_colors_and_note_outlines() -> None:
     score = ParsedScore(
-        key_root=0,
+        scale_root=0,
         key_fifths=0,
         scale_type=ScaleType.MAJOR,
         time_numerator=4,
@@ -215,7 +215,7 @@ def test_load_encoded_shard_rebuilds_token_vocabulary(
         token_ids=token_vocabulary.encode([HandToken(hand=Hand.RIGHT)]),
         bar_positions=[0],
         metadata=SegmentMetadata(
-            key_root=0,
+            scale_root=0,
             scale_type=ScaleType.MAJOR,
             time_numerator=4,
             time_denominator=4,

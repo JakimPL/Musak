@@ -135,6 +135,10 @@ def _processing_params(
         "data.processed_artifact_dir": str(result.parsed_manifest_path.parent),
         "processing.stage": stage,
         "processing.overwrite": overwrite,
+        "processing.scale_match_minimum_in_scale_weight_fraction": (
+            result.scale_match_minimum_in_scale_weight_fraction
+        ),
+        "processing.scale_match_minimum_best_margin": result.scale_match_minimum_best_margin,
         "data.parsed_manifest_sha256": file_sha256(result.parsed_manifest_path),
     }
     if result.encoded_manifest_path is not None and result.encoded_manifest_path.exists():
@@ -221,6 +225,42 @@ def _processing_metrics(*, result: ProcessDatasetResult) -> dict[str, float]:
             "dataset/tokens/mean/hold_fraction": _numeric_mean(
                 encoded_rows,
                 EncodedManifestField.HOLD_TOKEN_FRACTION,
+            ),
+            "dataset/scale_match/mean/in_scale_weight_fraction": _numeric_mean(
+                encoded_rows,
+                EncodedManifestField.SCALE_MATCH_IN_SCALE_WEIGHT_FRACTION,
+            ),
+            "dataset/scale_match/mean/out_of_scale_weight_fraction": _numeric_mean(
+                encoded_rows,
+                EncodedManifestField.SCALE_MATCH_OUT_OF_SCALE_WEIGHT_FRACTION,
+            ),
+            "dataset/scale_match/mean/best_margin": _numeric_mean(
+                encoded_rows,
+                EncodedManifestField.SCALE_MATCH_BEST_MARGIN,
+            ),
+            "dataset/scale_match/mean/observed_pitch_class_count": _numeric_mean(
+                encoded_rows,
+                EncodedManifestField.SCALE_MATCH_OBSERVED_PITCH_CLASS_COUNT,
+            ),
+            "dataset/scale_match/mean/tied_best_candidate_count": _numeric_mean(
+                encoded_rows,
+                EncodedManifestField.SCALE_MATCH_TIED_BEST_CANDIDATE_COUNT,
+            ),
+            "dataset/scale_match/rate/declared_match_used": _boolean_rate(
+                encoded_rows,
+                EncodedManifestField.SCALE_MATCH_DECLARED_MATCH_USED,
+            ),
+            "dataset/scale_match/rate/low_confidence": _boolean_rate(
+                encoded_rows,
+                EncodedManifestField.SCALE_MATCH_LOW_CONFIDENCE,
+            ),
+            "dataset/scale_match/rate/ambiguous": _boolean_rate(
+                encoded_rows,
+                EncodedManifestField.SCALE_MATCH_AMBIGUOUS,
+            ),
+            "dataset/scale_match/rate/no_pitches": _boolean_rate(
+                encoded_rows,
+                EncodedManifestField.SCALE_MATCH_NO_PITCHES,
             ),
         }
     )
