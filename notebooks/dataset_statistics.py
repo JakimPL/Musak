@@ -413,15 +413,15 @@ def _(
     else:
         source = stats.encoded if stats.encoded is not None else stats.parsed
         key_column = (
-            EncodedManifestField.SCALE_ROOT if stats.encoded is not None else ParsedManifestField.DECLARED_SCALE_ROOT
+            EncodedManifestField.SCALE_ROOT if stats.encoded is not None else ParsedManifestField.DECLARED_KEY_FIFTHS
         )
         time_column = (
             EncodedManifestField.TIME_SIGNATURE if stats.encoded is not None else ParsedManifestField.TIME_SIGNATURE
         )
         key_chart = horizontal_bar_chart(
             scale_root_distribution(source, key_column, top_n=top_n_slider.value),
-            title="Scale root distribution",
-            value_title="Scale root",
+            title="Scale root distribution" if stats.encoded is not None else "Declared fifths distribution",
+            value_title="Scale root" if stats.encoded is not None else "Fifths",
         )
         scale_chart = (
             horizontal_bar_chart(

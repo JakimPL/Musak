@@ -22,6 +22,14 @@ class TestNoteData:
         assert note.duration == "wr"
         assert note.keys == []
 
+    def test_accepts_explicit_accidentals(self) -> None:
+        note = NoteData(keys=["f/5"], duration="q", accidentals=["n"])
+        assert note.accidentals == ["n"]
+
+    def test_rejects_invalid_accidental(self) -> None:
+        with pytest.raises(ValidationError):
+            NoteData(keys=["f/5"], duration="q", accidentals=["x"])
+
 
 class TestStaveData:
     def test_rejects_invalid_clef(self) -> None:

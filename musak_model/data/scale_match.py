@@ -4,7 +4,7 @@ from typing import Final
 
 from musak_model.data.schema import ParsedBar, ParsedChord, ParsedNote, ScaleMatchDiagnostics
 from musak_model.tokens.schema import SCALE_INTERVALS, ScaleType
-from musak_shared.elements import PITCHES_PER_OCTAVE
+from musak_shared.elements import PITCHES_PER_OCTAVE, key_fifths_from_pitch_class, pitch_class_from_key_fifths
 
 _SCORE_EPSILON: Final[float] = 1e-12
 _CANDIDATE_SCALE_TYPES: Final[tuple[ScaleType, ...]] = (
@@ -37,7 +37,7 @@ def match_scale(
 ) -> ScaleMatch:
     histogram = _pitch_class_histogram(right_hand_bars + left_hand_bars)
     declared_key_fifths = _declared_key_fifths(right_hand_bars + left_hand_bars)
-    declared_scale_root = _declared_scale_root(declared_key_fifths)
+    declared_scale_root = pitch_class_from_key_fifths(declared_key_fifths) if declared_key_fifths is not None else None
     candidates = _ranked_candidates(histogram)
     selected = _selected_candidate(candidates, declared_scale_root=declared_scale_root)
     best_score = selected.in_scale_weight_fraction
@@ -62,7 +62,6 @@ def match_scale(
         scale_type=selected.scale_type,
         diagnostics=ScaleMatchDiagnostics(
             declared_key_fifths=declared_key_fifths,
-            declared_scale_root=declared_scale_root,
             in_scale_weight_fraction=best_score,
             out_of_scale_weight_fraction=1.0 - best_score,
             best_margin=best_margin,
@@ -95,13 +94,6 @@ def _declared_key_fifths(bars: list[ParsedBar]) -> int | None:
             return bar.declared_key_fifths
 
     return None
-
-
-def _declared_scale_root(declared_key_fifths: int | None) -> int | None:
-    if declared_key_fifths is None:
-        return None
-
-    return (declared_key_fifths * 7) % PITCHES_PER_OCTAVE
 
 
 def _ranked_candidates(histogram: dict[int, Fraction]) -> list[_ScaleCandidate]:
@@ -152,7 +144,7 @@ def _scale_type_sort_index(scale_type: ScaleType) -> int:
 
 
 def _root_complexity(scale_root: int) -> int:
-    return min(abs(fifths) for fifths in range(-6, 7) if (fifths * 7) % PITCHES_PER_OCTAVE == scale_root)
+    return abs(key_fifths_from_pitch_class(scale_root))
 
 
 def _selected_candidate(

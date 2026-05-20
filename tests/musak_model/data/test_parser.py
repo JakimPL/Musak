@@ -176,7 +176,7 @@ class TestKeyDetection:
         part.append(measure)
         score.insert(0, part)
 
-        assert _detect_key(score) == (0, 0)
+        assert _detect_key(score) == 0
 
     def test_missing_key_signature_has_no_declared_pitch_set(self) -> None:
         score = Score()
@@ -186,7 +186,7 @@ class TestKeyDetection:
         part.append(measure)
         score.insert(0, part)
 
-        assert _detect_key(score) == (None, None)
+        assert _detect_key(score) is None
 
     def test_minor_key_signature_keeps_major_parent_pitch_set(self) -> None:
         score = Score()
@@ -198,4 +198,4 @@ class TestKeyDetection:
         part.append(measure)
         score.insert(0, part)
 
-        assert _detect_key(score) == (2, 2)
+        assert _detect_key(score) == 2

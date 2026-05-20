@@ -101,7 +101,6 @@ def read_parsed_manifest_frame(path: Path) -> pd.DataFrame:
     _require_columns(frame, ParsedManifestField)
     frame[ParsedManifestField.RIGHT_HAND_BARS] = _numeric_series(frame[ParsedManifestField.RIGHT_HAND_BARS])
     frame[ParsedManifestField.LEFT_HAND_BARS] = _numeric_series(frame[ParsedManifestField.LEFT_HAND_BARS])
-    frame[ParsedManifestField.DECLARED_SCALE_ROOT] = _numeric_series(frame[ParsedManifestField.DECLARED_SCALE_ROOT])
     frame[ParsedManifestField.DECLARED_KEY_FIFTHS] = _numeric_series(frame[ParsedManifestField.DECLARED_KEY_FIFTHS])
     frame["has_parse_diagnostics"] = frame[ParsedManifestField.PARSE_DIAGNOSTICS] != ""
     return frame
@@ -371,7 +370,6 @@ def parsed_table_frame(parsed: pd.DataFrame) -> pd.DataFrame:
         ParsedManifestField.SOURCE_PATH,
         ParsedManifestField.STATUS,
         ParsedManifestField.ERROR_TYPE,
-        ParsedManifestField.DECLARED_SCALE_ROOT,
         ParsedManifestField.DECLARED_KEY_FIFTHS,
         ParsedManifestField.TIME_SIGNATURE,
         ParsedManifestField.RIGHT_HAND_BARS,
@@ -395,7 +393,7 @@ def encoded_table_frame(encoded: pd.DataFrame) -> pd.DataFrame:
         EncodedManifestField.INELIGIBILITY_REASONS,
         EncodedManifestField.SCALE_ROOT,
         EncodedManifestField.SCALE_TYPE,
-        EncodedManifestField.DECLARED_SCALE_ROOT,
+        EncodedManifestField.DECLARED_KEY_FIFTHS,
         EncodedManifestField.SCALE_MATCH_IN_SCALE_WEIGHT_FRACTION,
         EncodedManifestField.SCALE_MATCH_BEST_MARGIN,
         EncodedManifestField.SCALE_MATCH_LOW_CONFIDENCE,

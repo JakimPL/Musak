@@ -20,8 +20,7 @@ from musak_model.tokens.schema import (
     ScaleType,
     StartToken,
 )
-from musak_shared.elements import MIDI_MAX_PITCH
-from musak_shared.names import midi_to_vexflow_key
+from musak_shared.elements import MIDI_MAX_PITCH, key_fifths_from_pitch_class
 from musak_shared.notation.schema import (
     EIGHTH,
     HALF,
@@ -34,6 +33,7 @@ from musak_shared.notation.schema import (
     NoteData,
     ScoreData,
     StaveData,
+    VexflowAccidental,
     VexflowDuration,
     VoiceData,
 )
@@ -50,6 +50,19 @@ _MAX_DOTS: Final[int] = 2
 _REST_KEY: Final[str] = "b/4"
 _NOTE_KIND: Final[Literal["note"]] = "note"
 _REST_KIND: Final[Literal["rest"]] = "rest"
+_LETTER_NAMES: Final[tuple[str, ...]] = ("c", "d", "e", "f", "g", "a", "b")
+_LETTER_INDEX_BY_NAME: Final[dict[str, int]] = {letter: index for index, letter in enumerate(_LETTER_NAMES)}
+_NATURAL_PITCH_CLASS_BY_LETTER: Final[dict[str, int]] = {
+    "c": 0,
+    "d": 2,
+    "e": 4,
+    "f": 5,
+    "g": 7,
+    "a": 9,
+    "b": 11,
+}
+_SHARP_KEY_SIGNATURE_LETTERS: Final[tuple[str, ...]] = ("f", "c", "g", "d", "a", "e", "b")
+_FLAT_KEY_SIGNATURE_LETTERS: Final[tuple[str, ...]] = ("b", "e", "a", "d", "g", "c", "f")
 _MAJOR_KEY_SIGNATURES_BY_FIFTHS: Final[dict[int, str]] = {
     -7: "Cb",
     -6: "Gb",
@@ -94,6 +107,7 @@ class DecodedNotationEvent(BaseModel):
     hand: Hand
     midi_pitch: int = Field(ge=0, le=MIDI_MAX_PITCH)
     vexflow_key: str
+    vexflow_accidental: VexflowAccidental = None
     start: Fraction = Field(ge=0)
     duration: Fraction = Field(gt=0)
 
@@ -110,6 +124,7 @@ class ModelNotationEvent(BaseModel):
     duration: Fraction = Field(gt=0)
     midi_pitches: tuple[int, ...] = ()
     vexflow_keys: tuple[str, ...] = ()
+    vexflow_accidentals: tuple[VexflowAccidental, ...] = ()
     tie_start: bool = False
     tie_stop: bool = False
 
@@ -155,6 +170,7 @@ def segment_to_notation_events(
     default_hand: Hand = Hand.RIGHT,
 ) -> list[DecodedNotationEvent]:
     measure_duration = Fraction(segment.time_numerator, segment.time_denominator)
+    key_fifths = key_fifths_for_scale(scale_root=segment.scale_root, scale_type=segment.scale_type)
     active_hand = default_hand
     bar_index = 0
     cursors = {Hand.RIGHT: Fraction(0), Hand.LEFT: Fraction(0)}
@@ -200,11 +216,18 @@ def segment_to_notation_events(
                 scale_type=segment.scale_type,
                 hand=active_hand,
             )
+            spelling = note_token_to_vexflow_spelling(
+                token,
+                midi_pitch=midi_pitch,
+                scale_root=segment.scale_root,
+                key_fifths=key_fifths,
+            )
             events.append(
                 DecodedNotationEvent(
                     hand=active_hand,
                     midi_pitch=midi_pitch,
-                    vexflow_key=midi_to_vexflow_key(midi_pitch, prefer_flats=token.accidental < 0),
+                    vexflow_key=spelling.key,
+                    vexflow_accidental=spelling.accidental,
                     start=bar_index * measure_duration + cursors[active_hand],
                     duration=duration,
                 )
@@ -233,16 +256,118 @@ def segment_to_notation_events(
 
 
 def key_signature_name(*, scale_root: int, scale_type: ScaleType) -> str:
+    return _MAJOR_KEY_SIGNATURES_BY_FIFTHS[key_fifths_for_scale(scale_root=scale_root, scale_type=scale_type)]
+
+
+def key_fifths_for_scale(*, scale_root: int, scale_type: ScaleType) -> int:
     parent_major_root = (scale_root + _PARENT_MAJOR_OFFSET_BY_SCALE_TYPE[scale_type]) % 12
-    return _MAJOR_KEY_SIGNATURES_BY_FIFTHS[_major_fifths_for_scale_root(parent_major_root)]
+    return key_fifths_from_pitch_class(parent_major_root)
 
 
-def _major_fifths_for_scale_root(scale_root: int) -> int:
-    for fifths in range(-7, 8):
-        if (fifths * 7) % 12 == scale_root:
-            return fifths
+class VexflowSpelling(BaseModel):
+    model_config = ConfigDict(frozen=True)
 
-    raise ValueError(f"cannot derive key signature for scale root {scale_root}")
+    key: str
+    accidental: VexflowAccidental = None
+
+
+def note_token_to_vexflow_spelling(
+    token: NoteToken,
+    *,
+    midi_pitch: int,
+    scale_root: int,
+    key_fifths: int,
+) -> VexflowSpelling:
+    root_letter = _letter_for_pitch_class_in_key_signature(scale_root, key_fifths=key_fifths)
+    letter = _LETTER_NAMES[(_LETTER_INDEX_BY_NAME[root_letter] + token.degree - 1) % len(_LETTER_NAMES)]
+    spelling_accidental = _accidental_for_letter_pitch_class(letter, midi_pitch % 12)
+    key_signature_accidental = _key_signature_accidentals_by_letter(key_fifths).get(letter)
+    accidental = _visible_accidental(
+        spelling_accidental=spelling_accidental,
+        key_signature_accidental=key_signature_accidental,
+    )
+    octave = _vexflow_octave(midi_pitch, letter=letter, spelling_accidental=spelling_accidental)
+    accidental_text = spelling_accidental or ""
+    return VexflowSpelling(key=f"{letter}{accidental_text}/{octave}", accidental=accidental)
+
+
+def _letter_for_pitch_class_in_key_signature(pitch_class: int, *, key_fifths: int) -> str:
+    key_signature_accidentals = _key_signature_accidentals_by_letter(key_fifths)
+    for letter in _LETTER_NAMES:
+        letter_pitch_class = (
+            _NATURAL_PITCH_CLASS_BY_LETTER[letter] + _accidental_offset(key_signature_accidentals.get(letter))
+        ) % 12
+        if letter_pitch_class == pitch_class:
+            return letter
+
+    raise ValueError(f"pitch class {pitch_class} is not part of key signature fifths={key_fifths}")
+
+
+def _key_signature_accidentals_by_letter(key_fifths: int) -> dict[str, VexflowAccidental]:
+    if key_fifths > 0:
+        return {letter: "#" for letter in _SHARP_KEY_SIGNATURE_LETTERS[:key_fifths]}
+
+    if key_fifths < 0:
+        return {letter: "b" for letter in _FLAT_KEY_SIGNATURE_LETTERS[: abs(key_fifths)]}
+
+    return {}
+
+
+def _accidental_for_letter_pitch_class(letter: str, pitch_class: int) -> VexflowAccidental:
+    distance = (pitch_class - _NATURAL_PITCH_CLASS_BY_LETTER[letter]) % 12
+    match distance:
+        case 0:
+            return None
+        case 1:
+            return "#"
+        case 2:
+            return "##"
+        case 10:
+            return "bb"
+        case 11:
+            return "b"
+        case _:
+            raise ValueError(f"cannot spell pitch class {pitch_class} as {letter.upper()} with simple accidentals")
+
+
+def _visible_accidental(
+    *,
+    spelling_accidental: VexflowAccidental,
+    key_signature_accidental: VexflowAccidental,
+) -> VexflowAccidental:
+    if spelling_accidental == key_signature_accidental:
+        return None
+
+    if spelling_accidental is None and key_signature_accidental is not None:
+        return "n"
+
+    return spelling_accidental
+
+
+def _vexflow_octave(
+    midi_pitch: int,
+    *,
+    letter: str,
+    spelling_accidental: VexflowAccidental,
+) -> int:
+    spelled_pitch_class = _NATURAL_PITCH_CLASS_BY_LETTER[letter] + _accidental_offset(spelling_accidental)
+    return (midi_pitch - spelled_pitch_class) // 12 - 1
+
+
+def _accidental_offset(accidental: VexflowAccidental) -> int:
+    match accidental:
+        case None:
+            return 0
+        case "#":
+            return 1
+        case "##":
+            return 2
+        case "b":
+            return -1
+        case "bb":
+            return -2
+        case "n":
+            return 0
 
 
 def _extend_last_attack(
@@ -382,6 +507,7 @@ def _measure_notation_events(
                 duration=fragment_end - fragment_start,
                 midi_pitches=tuple(event.midi_pitch for event in sorted_group),
                 vexflow_keys=tuple(event.vexflow_key for event in sorted_group),
+                vexflow_accidentals=tuple(event.vexflow_accidental for event in sorted_group),
                 tie_start=fragment_end < group_end,
                 tie_stop=fragment_start > start,
             )
@@ -427,6 +553,7 @@ def _notation_event_to_note_data(event: ModelNotationEvent) -> list[NoteData]:
             NoteData(
                 keys=list(event.vexflow_keys),
                 duration=duration,
+                accidentals=list(event.vexflow_accidentals),
                 dots=dots,
                 tie_start=event.tie_start or index < len(fragments) - 1,
                 tie_stop=event.tie_stop or index > 0,

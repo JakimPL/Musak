@@ -10,6 +10,7 @@ from musak_shared.time_signature import (
 )
 
 Clef = Literal["treble", "bass", "alto", "tenor", "percussion"]
+VexflowAccidental = Literal["#", "##", "b", "bb", "n"] | None
 VexflowDuration = Literal[
     "w",
     "h",
@@ -39,6 +40,7 @@ class NoteData(BaseModel):
 
     keys: list[str]
     duration: VexflowDuration
+    accidentals: list[VexflowAccidental] = Field(default_factory=list)
     dots: Annotated[int, Field(ge=0, le=2)] = 0
     tie_start: bool = False
     tie_stop: bool = False

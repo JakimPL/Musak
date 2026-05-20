@@ -86,7 +86,6 @@ class ParsedScore(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid", frozen=True)
 
     declared_key_fifths: int | None = Field(default=None, ge=-7, le=7)
-    declared_scale_root: int | None = Field(default=None, ge=0, lt=PITCHES_PER_OCTAVE)
     scale_root: int = Field(ge=0, lt=PITCHES_PER_OCTAVE)
     key_fifths: int = Field(ge=-7, le=7)
     scale_type: ScaleType
@@ -146,7 +145,6 @@ class ScaleMatchDiagnostics(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     declared_key_fifths: int | None = Field(default=None, ge=-7, le=7)
-    declared_scale_root: int | None = Field(default=None, ge=0, lt=PITCHES_PER_OCTAVE)
     in_scale_weight_fraction: float = Field(ge=0, le=1)
     out_of_scale_weight_fraction: float = Field(ge=0, le=1)
     best_margin: float = Field(ge=0, le=1)

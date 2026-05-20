@@ -19,7 +19,7 @@ from musak_model.data.schema import (
     TieType,
 )
 from musak_model.tokens.schema import ScaleType
-from musak_shared.elements import PITCHES_PER_OCTAVE
+from musak_shared.elements import pitch_class_from_key_fifths
 
 _QUARTER_NOTE_FRACTION: Final[Fraction] = Fraction(1, 4)
 _TRIPLET_DENOMINATOR_LIMIT: Final[int] = 12
@@ -29,7 +29,7 @@ def parse_score(path: Path) -> ParsedScore:
     raw = converter.parse(str(path))
     score = _score_from_music21(raw)
 
-    declared_key_fifths, declared_scale_root = _detect_key(score)
+    declared_key_fifths = _detect_key(score)
     time_numerator, time_denominator = _detect_time_signature(score)
     right_hand_bars, left_hand_bars = _extract_hands(
         score,
@@ -39,8 +39,7 @@ def parse_score(path: Path) -> ParsedScore:
 
     return ParsedScore(
         declared_key_fifths=declared_key_fifths,
-        declared_scale_root=declared_scale_root,
-        scale_root=declared_scale_root if declared_scale_root is not None else 0,
+        scale_root=pitch_class_from_key_fifths(declared_key_fifths) if declared_key_fifths is not None else 0,
         key_fifths=declared_key_fifths if declared_key_fifths is not None else 0,
         scale_type=ScaleType.MAJOR,
         time_numerator=time_numerator,
@@ -57,13 +56,12 @@ def _score_from_music21(raw: object) -> Score:
     return raw
 
 
-def _detect_key(score: Score) -> tuple[int | None, int | None]:
+def _detect_key(score: Score) -> int | None:
     key_signature = _first_score_key_signature(score)
     if key_signature is None:
-        return None, None
+        return None
 
-    key_fifths = int(key_signature.sharps)
-    return key_fifths, _scale_root_from_fifths(key_fifths)
+    return int(key_signature.sharps)
 
 
 def _first_score_key_signature(score: Score) -> m21_key.KeySignature | None:
@@ -78,10 +76,6 @@ def _key_signature_from_music21(raw: object) -> m21_key.KeySignature:
         raise TypeError(f"expected KeySignature, got {type(raw).__name__}")
 
     return raw
-
-
-def _scale_root_from_fifths(key_fifths: int) -> int:
-    return (key_fifths * 7) % PITCHES_PER_OCTAVE
 
 
 def _detect_time_signature(score: Score) -> tuple[int, int]:

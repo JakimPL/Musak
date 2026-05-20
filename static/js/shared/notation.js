@@ -29,8 +29,10 @@ function buildStaveNote(noteData, clef) {
     const keys = isRest ? [REST_PLACEHOLDER_KEY] : noteData.keys;
     const note = new StaveNote({ clef, keys, duration: noteData.duration });
     if (!isRest) {
-        keys.forEach((key, index) => {
-            const accidental = accidentalFromKey(key);
+        const accidentals = noteData.accidentals?.length
+            ? noteData.accidentals
+            : keys.map(key => accidentalFromKey(key));
+        accidentals.forEach((accidental, index) => {
             if (accidental) {
                 note.addModifier(new Accidental(accidental), index);
             }

@@ -196,7 +196,63 @@ def test_segment_to_score_data_preserves_token_accidental_spelling(
     notes = score.rows[0][0].voices[0].notes
 
     assert notes[0].keys == ["c#/5"]
+    assert notes[0].accidentals == ["#"]
     assert notes[1].keys == ["db/5"]
+    assert notes[1].accidentals == ["b"]
+
+
+def test_segment_to_score_data_suppresses_accidentals_declared_by_key_signature(
+    duration_vocabulary: DurationVocabulary,
+) -> None:
+    quarter_id = duration_vocabulary.fraction_to_id(Fraction(1, 4))
+    segment = _segment(
+        [HandToken(hand=Hand.RIGHT), _note(quarter_id, degree=3)],
+        scale_root=2,
+        scale_type=ScaleType.MAJOR,
+    )
+
+    score = segment_to_score_data(segment, duration_vocabulary=duration_vocabulary)
+    note = score.rows[0][0].voices[0].notes[0]
+
+    assert score.rows[0][0].key_signature == "D"
+    assert note.keys == ["f#/5"]
+    assert note.accidentals == [None]
+
+
+def test_segment_to_score_data_spells_flat_key_signature_notes_by_key_signature(
+    duration_vocabulary: DurationVocabulary,
+) -> None:
+    quarter_id = duration_vocabulary.fraction_to_id(Fraction(1, 4))
+    segment = _segment(
+        [HandToken(hand=Hand.RIGHT), _note(quarter_id, degree=1)],
+        scale_root=1,
+        scale_type=ScaleType.MAJOR,
+    )
+
+    score = segment_to_score_data(segment, duration_vocabulary=duration_vocabulary)
+    note = score.rows[0][0].voices[0].notes[0]
+
+    assert score.rows[0][0].key_signature == "Db"
+    assert note.keys == ["db/5"]
+    assert note.accidentals == [None]
+
+
+def test_segment_to_score_data_marks_natural_that_cancels_key_signature(
+    duration_vocabulary: DurationVocabulary,
+) -> None:
+    quarter_id = duration_vocabulary.fraction_to_id(Fraction(1, 4))
+    segment = _segment(
+        [HandToken(hand=Hand.RIGHT), _note(quarter_id, degree=3, accidental=-1)],
+        scale_root=2,
+        scale_type=ScaleType.MAJOR,
+    )
+
+    score = segment_to_score_data(segment, duration_vocabulary=duration_vocabulary)
+    note = score.rows[0][0].voices[0].notes[0]
+
+    assert score.rows[0][0].key_signature == "D"
+    assert note.keys == ["f/5"]
+    assert note.accidentals == ["n"]
 
 
 def test_segment_to_score_data_uses_token_bars_when_metadata_bar_count_is_lower(

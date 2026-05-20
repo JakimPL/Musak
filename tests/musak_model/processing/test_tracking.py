@@ -132,6 +132,8 @@ def test_processing_tracker_logs_complete_manifest_metrics(
     assert metrics["dataset/diagnostics/mean/silent_bar_count"] == 1.0
     assert metrics["dataset/diagnostics/mean/silent_bar_fraction"] == 0.5
     assert metrics["dataset/diagnostics/mean/silent_edge_bar_count"] == 0.0
+    assert metrics["dataset/scale_match/mean/in_scale_weight_fraction"] == 0.8
+    assert metrics["dataset/scale_match/rate/declared_match_used"] == 0.5
     assert (str(encoded_manifest_path), "dataset") in fake_mlflow.artifacts
 
 
@@ -177,6 +179,15 @@ def _encoded_row(
             EncodedManifestField.NOTE_TOKEN_FRACTION: 0.25,
             EncodedManifestField.REST_TOKEN_FRACTION: 0.5,
             EncodedManifestField.HOLD_TOKEN_FRACTION: 0.0,
+            EncodedManifestField.SCALE_MATCH_IN_SCALE_WEIGHT_FRACTION: 0.8,
+            EncodedManifestField.SCALE_MATCH_OUT_OF_SCALE_WEIGHT_FRACTION: 0.2,
+            EncodedManifestField.SCALE_MATCH_BEST_MARGIN: 0.1,
+            EncodedManifestField.SCALE_MATCH_OBSERVED_PITCH_CLASS_COUNT: 5,
+            EncodedManifestField.SCALE_MATCH_TIED_BEST_CANDIDATE_COUNT: 1,
+            EncodedManifestField.SCALE_MATCH_DECLARED_MATCH_USED: str(eligible),
+            EncodedManifestField.SCALE_MATCH_LOW_CONFIDENCE: str(not eligible),
+            EncodedManifestField.SCALE_MATCH_AMBIGUOUS: str(not eligible),
+            EncodedManifestField.SCALE_MATCH_NO_PITCHES: str(False),
         }
     )
     return row

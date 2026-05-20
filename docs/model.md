@@ -53,6 +53,11 @@ During processing, raw parsed windows are matched to `scale_root` and `scale_typ
 uses duration-weighted pitch-class distributions over the segment. MusicXML key signatures are retained as declared
 hints and diagnostics; they are not trusted as the tokenization source of truth.
 
+Declared key signatures are stored as `declared_key_fifths`, a circle-of-fifths coordinate. Scale roots are stored as
+pitch classes in semitones from C. Conversion between these coordinate systems is owned by `musak_shared.elements`:
+`pitch_class_from_key_fifths(key_fifths) = (key_fifths * 7) % 12`. The reverse conversion chooses the enharmonic
+spelling with the simpler key signature.
+
 `JoinWithPreviousToken` is not a tie token. It represents simultaneous note onsets, usually chord notes. True prolongation is represented by `HoldToken`.
 
 ## Scale Matching Procedure

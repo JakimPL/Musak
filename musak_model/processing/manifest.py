@@ -25,7 +25,6 @@ class ParsedManifestField(StrEnum):
     PARSE_DIAGNOSTICS = "parse_diagnostics"
     RIGHT_HAND_BARS = "right_hand_bars"
     LEFT_HAND_BARS = "left_hand_bars"
-    DECLARED_SCALE_ROOT = "declared_scale_root"
     DECLARED_KEY_FIFTHS = "declared_key_fifths"
     TIME_SIGNATURE = "time_signature"
 
@@ -44,7 +43,6 @@ class EncodedManifestField(StrEnum):
     INELIGIBILITY_REASONS = "ineligibility_reasons"
     SCALE_ROOT = "scale_root"
     SCALE_TYPE = "scale_type"
-    DECLARED_SCALE_ROOT = "declared_scale_root"
     DECLARED_KEY_FIFTHS = "declared_key_fifths"
     SCALE_MATCH_IN_SCALE_WEIGHT_FRACTION = "scale_match_in_scale_weight_fraction"
     SCALE_MATCH_OUT_OF_SCALE_WEIGHT_FRACTION = "scale_match_out_of_scale_weight_fraction"
@@ -96,7 +94,6 @@ PARSED_MANIFEST_FIELDS: Final[tuple[ParsedManifestField, ...]] = (
     ParsedManifestField.PARSE_DIAGNOSTICS,
     ParsedManifestField.RIGHT_HAND_BARS,
     ParsedManifestField.LEFT_HAND_BARS,
-    ParsedManifestField.DECLARED_SCALE_ROOT,
     ParsedManifestField.DECLARED_KEY_FIFTHS,
     ParsedManifestField.TIME_SIGNATURE,
 )
@@ -115,7 +112,6 @@ ENCODED_MANIFEST_FIELDS: Final[tuple[EncodedManifestField, ...]] = (
     EncodedManifestField.INELIGIBILITY_REASONS,
     EncodedManifestField.SCALE_ROOT,
     EncodedManifestField.SCALE_TYPE,
-    EncodedManifestField.DECLARED_SCALE_ROOT,
     EncodedManifestField.DECLARED_KEY_FIFTHS,
     EncodedManifestField.SCALE_MATCH_IN_SCALE_WEIGHT_FRACTION,
     EncodedManifestField.SCALE_MATCH_OUT_OF_SCALE_WEIGHT_FRACTION,
@@ -190,9 +186,6 @@ def parsed_success_row(
         ParsedManifestField.PARSE_DIAGNOSTICS: parse_diagnostics,
         ParsedManifestField.RIGHT_HAND_BARS: len(score.right_hand_bars),
         ParsedManifestField.LEFT_HAND_BARS: len(score.left_hand_bars),
-        ParsedManifestField.DECLARED_SCALE_ROOT: (
-            score.declared_scale_root if score.declared_scale_root is not None else ""
-        ),
         ParsedManifestField.DECLARED_KEY_FIFTHS: (
             score.declared_key_fifths if score.declared_key_fifths is not None else ""
         ),
@@ -221,7 +214,6 @@ def parsed_error_row(
         ParsedManifestField.PARSE_DIAGNOSTICS: parse_diagnostics,
         ParsedManifestField.RIGHT_HAND_BARS: "",
         ParsedManifestField.LEFT_HAND_BARS: "",
-        ParsedManifestField.DECLARED_SCALE_ROOT: "",
         ParsedManifestField.DECLARED_KEY_FIFTHS: "",
         ParsedManifestField.TIME_SIGNATURE: "",
     }
@@ -264,11 +256,6 @@ def encoded_row(
         ),
         EncodedManifestField.SCALE_ROOT: segment.metadata.scale_root,
         EncodedManifestField.SCALE_TYPE: segment.metadata.scale_type.value,
-        EncodedManifestField.DECLARED_SCALE_ROOT: (
-            scale_match.declared_scale_root
-            if scale_match is not None and scale_match.declared_scale_root is not None
-            else ""
-        ),
         EncodedManifestField.DECLARED_KEY_FIFTHS: (
             scale_match.declared_key_fifths
             if scale_match is not None and scale_match.declared_key_fifths is not None

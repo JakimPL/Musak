@@ -14,6 +14,8 @@ SHARP_PITCH_CLASS_NAMES: Final[tuple[str, ...]] = ("C", "C#", "D", "D#", "E", "F
 FLAT_PITCH_CLASS_NAMES: Final[tuple[str, ...]] = ("C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B")
 PITCH_CLASS_NAMES: Final[tuple[str, ...]] = SHARP_PITCH_CLASS_NAMES
 KEYS: Final[dict[int, str]] = dict(enumerate(PITCH_CLASS_NAMES))
+KEY_FIFTHS_MIN: Final[int] = -7
+KEY_FIFTHS_MAX: Final[int] = 7
 
 QUARTER_NOTE_DURATION: Final[Fraction] = Fraction(1, 4)
 QUARTERS_PER_WHOLE: Final[int] = 4
@@ -41,3 +43,22 @@ def is_dotted_duration(duration: Fraction) -> bool:
             return True
 
     return False
+
+
+def pitch_class_from_key_fifths(key_fifths: int) -> int:
+    return (key_fifths * 7) % PITCHES_PER_OCTAVE
+
+
+def key_fifths_from_pitch_class(pitch_class: int) -> int:
+    if not 0 <= pitch_class < PITCHES_PER_OCTAVE:
+        raise ValueError(f"pitch class must be in [0, {PITCHES_PER_OCTAVE})")
+
+    candidates = [
+        key_fifths
+        for key_fifths in range(KEY_FIFTHS_MIN, KEY_FIFTHS_MAX + 1)
+        if pitch_class_from_key_fifths(key_fifths) == pitch_class
+    ]
+    if candidates:
+        return min(candidates, key=lambda key_fifths: (abs(key_fifths), key_fifths))
+
+    raise ValueError(f"cannot derive key fifths for pitch class {pitch_class}")
