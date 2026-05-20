@@ -3,7 +3,8 @@ from fractions import Fraction
 import pytest
 
 from musak_model.data.schema import ParsedBar, ParsedChord, ParsedNote, ParsedScore
-from musak_model.data.segmenter import _chord_to_tokens, _tokenize_unified_stream
+from musak_model.data.segmenter.bar import chord_to_tokens
+from musak_model.data.segmenter.streams import tokenize_unified_stream
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import Hand, HandToken, JoinWithPreviousToken, NoteToken, ScaleType
 
@@ -29,7 +30,7 @@ def test_parsed_notes_accept_zero_beat_offset() -> None:
 def test_chord_tokenization_preserves_all_chord_pitches(duration_vocabulary: DurationVocabulary) -> None:
     chord = ParsedChord(midi_pitches=[60, 64, 67], duration=Fraction(1, 4), beat_offset=Fraction(0))
 
-    tokens = _chord_to_tokens(
+    tokens = chord_to_tokens(
         chord,
         score=_score(right_hand_bars=[], left_hand_bars=[]),
         hand=Hand.RIGHT,
@@ -52,7 +53,7 @@ def test_unified_stream_adds_join_suffixes_for_chord_notes(duration_vocabulary: 
         left_hand_bars=[ParsedBar(time_numerator=4, time_denominator=4, key_fifths=0, events=[])],
     )
 
-    tokenized_bars = _tokenize_unified_stream(
+    tokenized_bars = tokenize_unified_stream(
         score=score,
         duration_vocabulary=duration_vocabulary,
     )
@@ -78,7 +79,7 @@ def test_unified_stream_rejects_overlapping_non_chord_notes(duration_vocabulary:
     )
 
     with pytest.raises(ValueError, match="overlapping events"):
-        _tokenize_unified_stream(
+        tokenize_unified_stream(
             score=score,
             duration_vocabulary=duration_vocabulary,
         )

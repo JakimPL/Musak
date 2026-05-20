@@ -6,7 +6,7 @@ from musak_model.data.converter import PitchDegreeRegisterError
 from musak_model.data.labeler import extract_difficulty_features
 from musak_model.data.parser import parse_score
 from musak_model.data.schema import ParsedScore, Segment, SegmentIneligibilityReason
-from musak_model.data.segmenter import segment_score
+from musak_model.data.segmenter.segmenter import segment_score
 from musak_model.tokens.duration import DurationVocabulary
 from musak_shared.files import collect_musicxml_files
 

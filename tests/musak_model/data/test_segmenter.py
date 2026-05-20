@@ -15,7 +15,7 @@ from musak_model.data.schema import (
     SegmentIneligibilityReason,
     TieType,
 )
-from musak_model.data.segmenter import segment_score
+from musak_model.data.segmenter.segmenter import segment_score
 from musak_model.decoder.piano_roll import segment_to_piano_roll_events
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import HandToken, HoldToken, NoteToken, ScaleType
@@ -874,7 +874,7 @@ def test_unexpected_tokenization_value_error_is_not_swallowed(
     def fail_pitch_conversion(*args, **kwargs):
         raise ValueError("unexpected pitch conversion bug")
 
-    monkeypatch.setattr("musak_model.data.segmenter.pitch_to_degree", fail_pitch_conversion)
+    monkeypatch.setattr("musak_model.data.segmenter.bar.pitch_to_degree", fail_pitch_conversion)
 
     with pytest.raises(ValueError, match="unexpected pitch conversion bug"):
         segment_score(

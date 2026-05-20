@@ -6,7 +6,8 @@ import pytest
 
 from musak_model.data.cleaning import clean_parsed_score
 from musak_model.data.schema import ParsedBar, ParsedChord, ParsedNote, ParsedScore, SegmentMetadata
-from musak_model.data.segmenter import _chord_to_tokens, _note_to_token, _tokenize_unified_stream
+from musak_model.data.segmenter.bar import chord_to_tokens, note_to_token
+from musak_model.data.segmenter.streams import tokenize_unified_stream
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import Hand, HandToken, JoinWithPreviousToken, NoteToken, ScaleType
 
@@ -106,8 +107,8 @@ class TestNoteToToken:
     ]
 
     @pytest.mark.parametrize("case", CASES)
-    def test_note_to_token(self, case: NoteTokenCase, duration_vocabulary: DurationVocabulary) -> None:
-        token = _note_to_token(
+    def testnote_to_token(self, case: NoteTokenCase, duration_vocabulary: DurationVocabulary) -> None:
+        token = note_to_token(
             case.note,
             score=case.score,
             hand=case.hand,
@@ -147,7 +148,7 @@ class TestChordToTokens:
     ]
 
     @pytest.mark.parametrize("case", CHORD_CASES)
-    def test_chord_to_tokens(self, case: ChordTokenCase, duration_vocabulary: DurationVocabulary) -> None:
+    def testchord_to_tokens(self, case: ChordTokenCase, duration_vocabulary: DurationVocabulary) -> None:
         score = _parsed_score()
 
         chord = ParsedChord(
@@ -155,7 +156,7 @@ class TestChordToTokens:
             duration=case.duration,
             beat_offset=case.beat_offset,
         )
-        tokens = _chord_to_tokens(
+        tokens = chord_to_tokens(
             chord,
             score=score,
             hand=case.hand,
@@ -170,11 +171,11 @@ class TestChordToTokens:
             assert all(token.duration_id == expected_duration_id for token in note_tokens)
 
 
-def test_chord_to_tokens_preserves_all_chord_pitches(duration_vocabulary: DurationVocabulary) -> None:
+def testchord_to_tokens_preserves_all_chord_pitches(duration_vocabulary: DurationVocabulary) -> None:
     score = _parsed_score()
     chord = ParsedChord(midi_pitches=[60, 64, 67], duration=Fraction(1, 4), beat_offset=Fraction(0, 1))
 
-    tokens = _chord_to_tokens(
+    tokens = chord_to_tokens(
         chord,
         score=score,
         hand=Hand.RIGHT,
@@ -202,7 +203,7 @@ def test_unified_stream_adds_join_suffixes_for_chord_notes(duration_vocabulary: 
         left_hand_bars=[ParsedBar(time_numerator=4, time_denominator=4, key_fifths=0, events=[])],
     )
 
-    tokenized_bars = _tokenize_unified_stream(
+    tokenized_bars = tokenize_unified_stream(
         score=score,
         duration_vocabulary=duration_vocabulary,
     )
@@ -233,7 +234,7 @@ def test_unified_stream_rejects_overlapping_non_chord_notes(duration_vocabulary:
     )
 
     with pytest.raises(ValueError, match="overlapping events"):
-        _tokenize_unified_stream(score=score, duration_vocabulary=duration_vocabulary)
+        tokenize_unified_stream(score=score, duration_vocabulary=duration_vocabulary)
 
 
 def test_unified_stream_rejects_overlap_smaller_than_shortest_supported_duration(
@@ -260,7 +261,7 @@ def test_unified_stream_rejects_overlap_smaller_than_shortest_supported_duration
     )
 
     with pytest.raises(ValueError, match="overlapping events"):
-        _tokenize_unified_stream(score=score, duration_vocabulary=duration_vocabulary)
+        tokenize_unified_stream(score=score, duration_vocabulary=duration_vocabulary)
 
 
 def test_cleaned_unified_stream_preserves_notes_after_truncating_overlaps(
@@ -287,7 +288,7 @@ def test_cleaned_unified_stream_preserves_notes_after_truncating_overlaps(
         left_hand_bars=[ParsedBar(time_numerator=4, time_denominator=4, key_fifths=0, events=[])],
     )
 
-    tokenized_bars = _tokenize_unified_stream(
+    tokenized_bars = tokenize_unified_stream(
         score=clean_parsed_score(score),
         duration_vocabulary=duration_vocabulary,
     )
@@ -314,7 +315,7 @@ class TestTokenizationWithDifferentKeys:
         )
 
         note = ParsedNote(midi_pitch=60, duration=Fraction(1, 4), beat_offset=Fraction(1, 4))
-        token = _note_to_token(
+        token = note_to_token(
             note,
             score=score,
             hand=Hand.RIGHT,
@@ -352,7 +353,7 @@ class TestTokenizationEdgeCases:
             duration=case.duration,
             beat_offset=case.beat_offset,
         )
-        token = _note_to_token(
+        token = note_to_token(
             note,
             score=score,
             hand=case.hand,
