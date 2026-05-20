@@ -4,6 +4,11 @@
 
 PROCESSED_ROOT ?= processed
 PROCESS_STAGE ?= all
+PROCESS_OVERWRITE ?= $(or $(OVERWRITE),$(OVERWITE))
+PROCESS_DISABLE_MLFLOW ?=
+PROCESS_MLFLOW_EXPERIMENT ?= musak-process
+PROCESS_MLFLOW_RUN_NAME ?=
+PROCESS_MLFLOW_TRACKING_URI ?= $(MLFLOW_TRACKING_URI)
 APP_HOST ?= 127.0.0.1
 APP_PORT ?= 8000
 MLFLOW_DIR ?= mlruns
@@ -36,8 +41,8 @@ help:
 	@printf '%s\n' '  make test             Run the pytest suite used by the pre-push hook.'
 	@printf '%s\n' '  make app              Start the Musak FastAPI app with reload enabled.'
 	@printf '%s\n' '  make process          Parse and encode one MusicXML dataset.'
-	@printf '%s\n' '  make pretrain   Train the broad token-distribution pretrain model.'
-	@printf '%s\n' '  make finetune   Fine-tune from a pretrain checkpoint with conditioning controls.'
+	@printf '%s\n' '  make pretrain         Train the broad token-distribution pretrain model.'
+	@printf '%s\n' '  make finetune         Fine-tune from a pretrain checkpoint with conditioning controls.'
 	@printf '%s\n' '  make train            Run pretrain, then finetune.'
 	@printf '%s\n' '  make mlflow           Start the local MLflow dashboard.'
 	@printf '%s\n' ''
@@ -57,6 +62,9 @@ help:
 	@printf '%s\n' '  DATA_DIR              Dataset root for process.'
 	@printf '%s\n' '  PROCESSED_ROOT        Processed artifact root for process. Default: processed'
 	@printf '%s\n' '  PROCESS_STAGE         parsed, encoded, or all. Default: all'
+	@printf '%s\n' '  PROCESS_OVERWRITE=1   Pass --overwrite to process. Defaults to OVERWRITE when set.'
+	@printf '%s\n' '  PROCESS_DISABLE_MLFLOW=1 disables process MLflow dataset metrics.'
+	@printf '%s\n' '  PROCESS_MLFLOW_EXPERIMENT, PROCESS_MLFLOW_RUN_NAME, PROCESS_MLFLOW_TRACKING_URI configure process MLflow logging.'
 	@printf '%s\n' '  MLFLOW_DIR            MLflow tracking directory. Default: mlruns'
 	@printf '%s\n' '  MLFLOW_HOST           MLflow dashboard host. Default: 127.0.0.1'
 	@printf '%s\n' '  MLFLOW_PORT           MLflow dashboard port. Default: 5000'
@@ -68,7 +76,7 @@ help:
 	@printf '%s\n' '  FINETUNE_CHECKPOINT_DIR Optional checkpoint output directory override for finetune.'
 	@printf '%s\n' '  PRETRAIN_CHECKPOINT   Checkpoint used by finetune. Default: checkpoints/pretraining/best.pt'
 	@printf '%s\n' '  EPOCHS, DEVICE, NUM_WORKERS provide shared defaults.'
-	@printf '%s\n' '  OVERWRITE=1 passes --overwrite to pretrain checkpoint safety checks.'
+	@printf '%s\n' '  OVERWRITE=1 passes --overwrite to process and pretrain checkpoint safety checks.'
 	@printf '%s\n' '  RESUME=1 resumes from each stage latest checkpoint and takes precedence over OVERWRITE.'
 	@printf '%s\n' '  PRETRAIN_RESUME_CHECKPOINT, FINETUNE_RESUME_CHECKPOINT override resume paths.'
 	@printf '%s\n' '  PRETRAIN_EPOCHS, PRETRAIN_DEVICE, PRETRAIN_NUM_WORKERS override pretrain only.'
@@ -93,7 +101,12 @@ process:
 		--data-dir "$(DATA_DIR)" \
 		--processed-dir "$(PROCESSED_ROOT)" \
 		--stage "$(PROCESS_STAGE)" \
-		$(call optional_arg,NUM_WORKERS,--workers)
+		$(call optional_arg,NUM_WORKERS,--workers) \
+		$(call optional_flag,PROCESS_OVERWRITE,--overwrite) \
+		$(call optional_flag,PROCESS_DISABLE_MLFLOW,--disable-mlflow) \
+		--mlflow-experiment-name "$(PROCESS_MLFLOW_EXPERIMENT)" \
+		$(call optional_arg,PROCESS_MLFLOW_RUN_NAME,--mlflow-run-name) \
+		$(call optional_arg,PROCESS_MLFLOW_TRACKING_URI,--mlflow-tracking-uri)
 
 train: pretrain finetune
 

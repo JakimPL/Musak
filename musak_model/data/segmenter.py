@@ -2,6 +2,7 @@ from fractions import Fraction
 from pathlib import Path
 from typing import NamedTuple
 
+from musak_model.data.cleaning import is_silent_bar_pair
 from musak_model.data.config import SegmentationConfig
 from musak_model.data.converter import PitchDegreeRegisterError, pitch_to_degree
 from musak_model.data.quantizer import quantize_duration
@@ -773,7 +774,22 @@ def _segment_ineligibility_reasons(
     if any(bar.key_fifths != first_key_fifths for bar in window_bars):
         reasons.add(SegmentIneligibilityReason.KEY_SIGNATURE_CHANGE)
 
+    if _has_silent_edge_bar(score=score, start=start, end=end):
+        reasons.add(SegmentIneligibilityReason.SILENT_EDGE_BAR)
+
     return frozenset(reasons)
+
+
+def _has_silent_edge_bar(*, score: ParsedScore, start: int, end: int) -> bool:
+    first_index = start
+    last_index = end - 1
+    return is_silent_bar_pair(
+        score.right_hand_bars[first_index],
+        score.left_hand_bars[first_index],
+    ) or is_silent_bar_pair(
+        score.right_hand_bars[last_index],
+        score.left_hand_bars[last_index],
+    )
 
 
 def _window_token_ineligibility_reasons(

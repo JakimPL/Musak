@@ -2,11 +2,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Mapping
 
+from musak_model.data.config import SegmentationConfig
+from musak_model.data.pipeline import segment_parsed_score
 from musak_model.data.schema import Segment
 from musak_model.decoder import encoded_exercise_to_segment
-from musak_model.processing.io import load_encoded_jsonl, load_tokenizer_snapshot_json
-from musak_model.processing.paths import ProcessedDatasetPaths
+from musak_model.processing.io import load_encoded_jsonl, load_parsed_score_json, load_tokenizer_snapshot_json
+from musak_model.processing.manifest import EncodedManifestField
+from musak_model.processing.paths import ENCODED_JSONL_NAME, TOKENIZER_SNAPSHOT_NAME, ProcessedDatasetPaths
 from musak_model.processing.snapshot import TokenizerSnapshot
 from musak_model.tokens.config import TokenizationConfig
 from musak_model.tokens.duration import DurationVocabulary
@@ -23,8 +27,18 @@ class EncodedShard:
     token_vocabulary: TokenVocabulary
 
 
+@dataclass(frozen=True)
+class EncodedManifestSelection:
+    row: Mapping[str, object]
+    duration_vocabulary: DurationVocabulary
+    token_vocabulary: TokenVocabulary
+    segment: Segment
+    shard: EncodedShard | None = None
+    encoded_line: int | None = None
+
+
 def load_encoded_shard(path: Path) -> EncodedShard:
-    snapshot_path = path.parent / "tokenizer.json"
+    snapshot_path = path.parent / TOKENIZER_SNAPSHOT_NAME
     snapshot = load_tokenizer_snapshot_json(snapshot_path)
     tokenization_config = TokenizationConfig.model_validate(snapshot.tokenization_config)
     duration_vocabulary = DurationVocabulary(tokenization_config)
@@ -42,6 +56,136 @@ def encoded_sample_to_segment(sample: EncodedExercise, *, shard: EncodedShard) -
     return encoded_exercise_to_segment(sample, token_vocabulary=shard.token_vocabulary)
 
 
+def load_encoded_manifest_selection(
+    row: Mapping[str, object],
+    *,
+    dataset_dir: Path,
+    encoded_dir: Path | None = None,
+) -> EncodedManifestSelection:
+    if (encoded_line := _optional_encoded_line(row)) is not None:
+        encoded_shard_path = _encoded_shard_path(row, dataset_dir=dataset_dir, encoded_dir=encoded_dir)
+        shard = load_encoded_shard(encoded_shard_path)
+        if encoded_line >= len(shard.samples):
+            raise IndexError(f"encoded line {encoded_line} is outside shard with {len(shard.samples)} sample(s)")
+
+        segment = encoded_sample_to_segment(shard.samples[encoded_line], shard=shard)
+        return EncodedManifestSelection(
+            row=row,
+            duration_vocabulary=shard.duration_vocabulary,
+            token_vocabulary=shard.token_vocabulary,
+            segment=segment,
+            shard=shard,
+            encoded_line=encoded_line,
+        )
+
+    duration_vocabulary, token_vocabulary = _vocabularies_from_encoded_dir(encoded_dir)
+    segment = _segment_from_manifest_row(
+        row,
+        dataset_dir=dataset_dir,
+        duration_vocabulary=duration_vocabulary,
+    )
+    return EncodedManifestSelection(
+        row=row,
+        duration_vocabulary=duration_vocabulary,
+        token_vocabulary=token_vocabulary,
+        segment=segment,
+    )
+
+
+def _vocabularies_from_encoded_dir(encoded_dir: Path | None) -> tuple[DurationVocabulary, TokenVocabulary]:
+    if encoded_dir is None:
+        raise ValueError("select an encoded run before previewing ineligible rows")
+
+    snapshot = load_tokenizer_snapshot_json(encoded_dir / TOKENIZER_SNAPSHOT_NAME)
+    tokenization_config = TokenizationConfig.model_validate(snapshot.tokenization_config)
+    duration_vocabulary = DurationVocabulary(tokenization_config)
+    return duration_vocabulary, TokenVocabulary(duration_vocabulary)
+
+
+def _segment_from_manifest_row(
+    row: Mapping[str, object],
+    *,
+    dataset_dir: Path,
+    duration_vocabulary: DurationVocabulary,
+) -> Segment:
+    parsed_path = _parsed_path(row, dataset_dir=dataset_dir)
+    window_start_bar = _integer_field(row, EncodedManifestField.WINDOW_START_BAR)
+    bar_count = _integer_field(row, EncodedManifestField.BAR_COUNT)
+    score = load_parsed_score_json(parsed_path)
+    segments = segment_parsed_score(
+        score,
+        Path(_string_field(row, EncodedManifestField.SOURCE_PATH, default=parsed_path.name)),
+        segmentation=SegmentationConfig(window_bars=bar_count, stride_bars=1),
+        duration_vocabulary=duration_vocabulary,
+    )
+    for segment in segments:
+        if segment.metadata.window_start_bar == window_start_bar:
+            return segment
+
+    raise ValueError(f"no segment found at window_start_bar={window_start_bar}, bar_count={bar_count}")
+
+
+def _parsed_path(row: Mapping[str, object], *, dataset_dir: Path) -> Path:
+    value = row.get(str(EncodedManifestField.PARSED_PATH), row.get(EncodedManifestField.PARSED_PATH))
+    if not _is_missing(value):
+        return dataset_dir / str(value)
+
+    source_id = row.get(str(EncodedManifestField.SOURCE_ID), row.get(EncodedManifestField.SOURCE_ID))
+    if not _is_missing(source_id):
+        return ProcessedDatasetPaths(root=dataset_dir).parsed_score_path(str(source_id))
+
+    raise ValueError("selected manifest row has no parsed_path or source_id")
+
+
 def default_encoded_browser_root(processed_root: Path, dataset_root: Path) -> Path:
     paths = ProcessedDatasetPaths.from_dataset_root(processed_root=processed_root, dataset_root=dataset_root)
     return paths.root / "encoded"
+
+
+def _encoded_shard_path(row: Mapping[str, object], *, dataset_dir: Path, encoded_dir: Path | None) -> Path:
+    value = row.get(str(EncodedManifestField.ENCODED_SHARD), row.get(EncodedManifestField.ENCODED_SHARD))
+    if _is_missing(value) and encoded_dir is not None:
+        return encoded_dir / ENCODED_JSONL_NAME
+
+    if not isinstance(value, str) or value == "":
+        raise ValueError("selected manifest row has no encoded shard")
+
+    return dataset_dir / value
+
+
+def _optional_encoded_line(row: Mapping[str, object]) -> int | None:
+    value = row.get(str(EncodedManifestField.ENCODED_LINE), row.get(EncodedManifestField.ENCODED_LINE))
+    if _is_missing(value):
+        return None
+
+    if not isinstance(value, (int, float, str)):
+        raise ValueError(f"encoded line must be numeric, got {type(value).__name__}")
+
+    return int(value)
+
+
+def _integer_field(row: Mapping[str, object], field: EncodedManifestField) -> int:
+    value = row.get(str(field), row.get(field))
+    if _is_missing(value):
+        raise ValueError(f"selected manifest row has no {field.value}")
+    if not isinstance(value, (int, float, str)):
+        raise ValueError(f"{field.value} must be numeric, got {type(value).__name__}")
+
+    return int(value)
+
+
+def _string_field(row: Mapping[str, object], field: EncodedManifestField, *, default: str | None = None) -> str:
+    value = row.get(str(field), row.get(field))
+    if _is_missing(value):
+        if default is not None:
+            return default
+
+        raise ValueError(f"selected manifest row has no {field.value}")
+    if not isinstance(value, str):
+        return str(value)
+
+    return value
+
+
+def _is_missing(value: object) -> bool:
+    return value is None or value == "" or value != value

@@ -11,6 +11,7 @@ from torch.utils.data import DataLoader
 from musak_model.conditioning.structural import StructuralControlVocabulary
 from musak_model.conditioning.time_signature import TimeSignatureVocabulary
 from musak_model.data.config import SegmentationConfig
+from musak_model.evaluation import GenerationSuiteEvaluator
 from musak_model.model import HierarchicalAutoregressiveModel
 from musak_model.model.config import ModelConfig
 from musak_model.paths import CONDITIONING_CONFIG_PATH
@@ -60,6 +61,7 @@ class PretrainingTrainer:
         show_progress: bool = False,
         token_kind_ids: Tensor | None = None,
         validity_mask_builder: TrainingValidityMaskBuilder | None = None,
+        generation_evaluator: GenerationSuiteEvaluator | None = None,
     ) -> None:
         self._model = model
         self._config = config
@@ -79,6 +81,7 @@ class PretrainingTrainer:
             raise ValueError("validity_mask_builder is required when use_validity_penalty is true")
 
         self._validity_mask_builder = validity_mask_builder
+        self._generation_evaluator = generation_evaluator
 
     def train(self, *, invalid_files: list[IngestionErrorRecord] | None = None) -> TrainingResult:
         if len(self._train_loader) == 0:
@@ -136,6 +139,7 @@ class PretrainingTrainer:
             )
             metrics.append(metric)
             self._tracker.log_epoch(metrics=metric)
+            self._log_generation_evaluation(epoch=epoch)
             _LOGGER.info(
                 (
                     "Epoch %s/%s finished: train_loss=%.6f train_perplexity=%.6f "
@@ -201,6 +205,22 @@ class PretrainingTrainer:
         )
         self._tracker.log_invalid_files(invalid_files=result.invalid_files)
         return result
+
+    def _log_generation_evaluation(self, *, epoch: int) -> None:
+        evaluation_config = self._config.generation_evaluation
+        if not evaluation_config.enabled:
+            return
+
+        if self._generation_evaluator is None:
+            return
+
+        if (epoch + 1) % evaluation_config.every_epochs != 0:
+            return
+
+        _LOGGER.info("Running generation evaluation for epoch %s", epoch + 1)
+        metrics = self._generation_evaluator.evaluate(self._model, device=self._device)
+        self._tracker.log_generation_evaluation(metrics=metrics, epoch=epoch)
+        _LOGGER.info("Logged %s generation evaluation metric(s)", len(metrics))
 
     def _train_epoch(self, *, epoch: int) -> EpochSplitMetrics:
         self._model.train()
@@ -381,6 +401,14 @@ def pretrain(
             show_progress=show_progress,
             token_kind_ids=build_token_kind_ids(vocabulary),
             validity_mask_builder=TrainingValidityMaskBuilder(vocabulary),
+            generation_evaluator=GenerationSuiteEvaluator(
+                config=training_config.generation_evaluation,
+                conditioning=training_config.conditioning,
+                model_config=resolved_model_config,
+                token_vocabulary=vocabulary,
+                duration_vocabulary=vocabulary.duration_vocabulary,
+                include_bar_count_control=False,
+            ),
         )
         return trainer.train(invalid_files=split.invalid_files)
 

@@ -10,6 +10,7 @@ from notebooks.utils.statistics import (
     diagnostic_bucket_distribution,
     diagnostic_summary_rows,
     eligibility_distribution,
+    encoded_table_frame,
     ineligibility_reason_distribution,
     key_root_distribution,
     load_dataset_statistics,
@@ -18,6 +19,7 @@ from notebooks.utils.statistics import (
     parsed_table_frame,
     read_encoded_manifest_frame,
     reason_by_column,
+    selected_table_row,
     table_records,
     token_histogram_distribution,
     token_summary_rows,
@@ -227,6 +229,39 @@ def test_manifest_table_frames_are_not_truncated(tmp_path: Path) -> None:
 
     assert len(parsed_table_frame(stats.parsed)) == 3
     assert len(parse_error_table_frame(stats.parsed)) == 2
+
+
+def test_encoded_table_frame_includes_fields_needed_for_selection(tmp_path: Path) -> None:
+    dataset_dir = tmp_path / "PDMX"
+    encoded_dir = dataset_dir / "encoded" / "abc"
+    encoded_dir.mkdir(parents=True)
+    _write_csv(dataset_dir / "parsed.csv", ParsedManifestField, [{ParsedManifestField.SOURCE_ID: "a"}])
+    _write_csv(
+        encoded_dir / "encoded.csv",
+        EncodedManifestField,
+        [
+            {
+                EncodedManifestField.SEGMENT_ID: "a-0",
+                EncodedManifestField.SOURCE_ID: "a",
+                EncodedManifestField.PARSED_PATH: "parsed/a/a.json",
+            }
+        ],
+    )
+
+    stats = load_dataset_statistics(dataset_dir, encoded_dir)
+    assert stats.encoded is not None
+    frame = encoded_table_frame(stats.encoded)
+
+    assert "source_id" in frame.columns
+    assert "parsed_path" in frame.columns
+
+
+def test_selected_table_row_normalizes_table_values() -> None:
+    class FakeTable:
+        value = [{"segment_id": "a", "encoded_line": 0}]
+
+    assert selected_table_row(FakeTable()) == {"segment_id": "a", "encoded_line": 0}
+    assert selected_table_row(object()) is None
 
 
 def _write_csv(path: Path, field_type, rows: list[dict[object, object]]) -> None:

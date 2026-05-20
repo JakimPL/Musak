@@ -1,0 +1,120 @@
+from fractions import Fraction
+from pathlib import Path
+
+import pytest
+import torch
+from torch import Tensor
+
+from musak_model.conditioning.config import ConditioningConfig, DifficultyConfig
+from musak_model.conditioning.time_signature import TimeSignatureVocabularyConfig
+from musak_model.evaluation.generation import GenerationSuiteEvaluator
+from musak_model.model.config import CNNConfig, GRUConfig, ModelConfig, TransformerConfig
+from musak_model.tokens.config import TokenizationConfig
+from musak_model.tokens.duration import DurationVocabulary
+from musak_model.tokens.schema import BarToken, EndToken, Hand, HandToken, RestToken, ScaleType
+from musak_model.tokens.vocabulary import TokenVocabulary
+from musak_model.training.config import GenerationEvaluationConfig, TrainingConditioningConfig
+
+
+class ScriptedModel:
+    def __init__(self, token_ids: list[int], *, vocabulary_size: int) -> None:
+        self._token_ids = token_ids
+        self._vocabulary_size = vocabulary_size
+        self._step = 0
+        self.training = True
+
+    def eval(self) -> "ScriptedModel":
+        self.training = False
+        return self
+
+    def train(self, mode: bool = True) -> "ScriptedModel":
+        self.training = mode
+        return self
+
+    def __call__(
+        self,
+        token_ids: Tensor,
+        *,
+        bar_positions: Tensor,
+        difficulty_ids: Tensor | None = None,
+        scale_type_ids: Tensor | None = None,
+        time_signature_ids: Tensor | None = None,
+        structural_control_ids: Tensor | None = None,
+        token_padding_mask: Tensor | None = None,
+    ) -> Tensor:
+        logits = torch.full((1, token_ids.size(1), self._vocabulary_size), -1000.0)
+        scripted_id = self._token_ids[min(self._step, len(self._token_ids) - 1)]
+        logits[0, -1, scripted_id] = 1000.0
+        self._step += 1
+        return logits
+
+
+def test_generation_suite_logs_soft_and_hard_constraint_metrics() -> None:
+    duration_vocabulary = DurationVocabulary(TokenizationConfig(shortest_duration=16, allowed_tuplets=(3,), max_dots=1))
+    token_vocabulary = TokenVocabulary(duration_vocabulary)
+    whole_id = duration_vocabulary.fraction_to_id(Fraction(1, 1))
+    scripted_ids = token_vocabulary.encode(
+        [
+            HandToken(hand=Hand.RIGHT),
+            RestToken(duration_id=whole_id),
+            HandToken(hand=Hand.LEFT),
+            RestToken(duration_id=whole_id),
+            BarToken(),
+            EndToken(),
+        ]
+    )
+    evaluator = GenerationSuiteEvaluator(
+        config=GenerationEvaluationConfig(
+            enabled=True,
+            soft_sample_count=1,
+            hard_sample_count=1,
+            max_new_tokens=16,
+            top_k=1,
+            bar_count=1,
+        ),
+        conditioning=TrainingConditioningConfig(),
+        model_config=_model_config(token_vocabulary.vocabulary_size),
+        token_vocabulary=token_vocabulary,
+        duration_vocabulary=duration_vocabulary,
+        include_bar_count_control=False,
+    )
+
+    metrics = evaluator.evaluate(
+        ScriptedModel(scripted_ids, vocabulary_size=token_vocabulary.vocabulary_size),
+        device=torch.device("cpu"),
+    )
+
+    assert metrics["generation/soft/count/samples"] == 1.0
+    assert metrics["generation/hard/count/samples"] == 1.0
+    assert metrics["generation/soft/rate/end"] == 1.0
+    assert metrics["generation/soft/rate/target_bar_completion"] == 1.0
+    assert metrics["generation/soft/mean/bar_count_error"] == 0.0
+    assert metrics["generation/soft/rate/constraint_failure"] == 0.0
+    assert metrics["generation/soft/rate/empty_score"] == 1.0
+    assert metrics["generation/hard/mean/constraint_valid_token_fraction"] == 1.0
+
+
+def test_generation_config_validates_minimum_duration_denominator() -> None:
+    with pytest.raises(ValueError, match="power of two"):
+        GenerationEvaluationConfig(minimum_duration_denominator=12)
+
+
+def _model_config(vocabulary_size: int) -> ModelConfig:
+    return ModelConfig(
+        vocabulary_size=vocabulary_size,
+        cnn=CNNConfig(out_channels=16, kernel_sizes=(3,), num_layers=1, dropout=0.0),
+        gru=GRUConfig(hidden_size=16, num_layers=1, dropout=0.0, bidirectional=False),
+        transformer=TransformerConfig(
+            hidden_size=16,
+            num_heads=2,
+            num_layers=1,
+            feedforward_size=32,
+            dropout=0.0,
+            max_sequence_length=64,
+        ),
+        conditioning=ConditioningConfig(
+            difficulty=DifficultyConfig(max_level=5),
+            time_signature=TimeSignatureVocabularyConfig(max_denominator=4, relative_numerator_range=2),
+            cfg_dropout_probability=0.0,
+        ),
+    )

@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from fractions import Fraction
 
 from musak_model.data.schema import ParsedBar, ParsedChord, ParsedEvent, ParsedNote, ParsedRest, ParsedScore
@@ -7,7 +5,18 @@ from musak_model.data.schema import ParsedBar, ParsedChord, ParsedEvent, ParsedN
 
 def clean_parsed_score(score: ParsedScore) -> ParsedScore:
     return trim_silent_edge_bars(
-        deduplicate_simultaneous_pitches(truncate_overlapping_events(normalize_simultaneous_event_durations(score)))
+        deduplicate_simultaneous_pitches(
+            truncate_overlapping_events(normalize_simultaneous_event_durations(remove_rests_overlapping_pitches(score)))
+        )
+    )
+
+
+def remove_rests_overlapping_pitches(score: ParsedScore) -> ParsedScore:
+    return score.model_copy(
+        update={
+            "right_hand_bars": [_remove_bar_rests_overlapping_pitches(bar) for bar in score.right_hand_bars],
+            "left_hand_bars": [_remove_bar_rests_overlapping_pitches(bar) for bar in score.left_hand_bars],
+        }
     )
 
 
@@ -41,11 +50,11 @@ def deduplicate_simultaneous_pitches(score: ParsedScore) -> ParsedScore:
 def trim_silent_edge_bars(score: ParsedScore) -> ParsedScore:
     bar_count = min(len(score.right_hand_bars), len(score.left_hand_bars))
     start = 0
-    while start < bar_count and _is_silent_bar_pair(score.right_hand_bars[start], score.left_hand_bars[start]):
+    while start < bar_count and is_silent_bar_pair(score.right_hand_bars[start], score.left_hand_bars[start]):
         start += 1
 
     end = bar_count
-    while end > start and _is_silent_bar_pair(score.right_hand_bars[end - 1], score.left_hand_bars[end - 1]):
+    while end > start and is_silent_bar_pair(score.right_hand_bars[end - 1], score.left_hand_bars[end - 1]):
         end -= 1
 
     if start == 0 and end == bar_count:
@@ -59,12 +68,38 @@ def trim_silent_edge_bars(score: ParsedScore) -> ParsedScore:
     )
 
 
-def _is_silent_bar_pair(right_bar: ParsedBar, left_bar: ParsedBar) -> bool:
+def is_silent_bar_pair(right_bar: ParsedBar, left_bar: ParsedBar) -> bool:
     return not _has_pitched_event(right_bar) and not _has_pitched_event(left_bar)
 
 
 def _has_pitched_event(bar: ParsedBar) -> bool:
     return any(isinstance(event, ParsedNote | ParsedChord) for event in bar.events)
+
+
+def _remove_bar_rests_overlapping_pitches(bar: ParsedBar) -> ParsedBar:
+    pitched_intervals = [
+        (event.beat_offset, event.beat_offset + event.duration)
+        for event in bar.events
+        if isinstance(event, ParsedNote | ParsedChord)
+    ]
+    if not pitched_intervals:
+        return bar
+
+    events = [
+        event
+        for event in bar.events
+        if not isinstance(event, ParsedRest) or not _overlaps_any_interval(event, pitched_intervals)
+    ]
+    if events == bar.events:
+        return bar
+
+    return bar.model_copy(update={"events": events})
+
+
+def _overlaps_any_interval(event: ParsedRest, intervals: list[tuple[Fraction, Fraction]]) -> bool:
+    event_start = event.beat_offset
+    event_end = event.beat_offset + event.duration
+    return any(event_start < interval_end and event_end > interval_start for interval_start, interval_end in intervals)
 
 
 def _deduplicate_bar(bar: ParsedBar) -> ParsedBar:
@@ -149,15 +184,18 @@ def _shared_simultaneous_duration(
 def _truncate_bar_overlaps(bar: ParsedBar) -> ParsedBar:
     events = sorted(bar.events, key=_event_sort_key)
     next_offsets = _next_offsets(events)
+    measure_duration = Fraction(bar.time_numerator, bar.time_denominator)
     truncated_events: list[ParsedEvent] = []
 
     for event in events:
         next_offset = next_offsets.get(event.beat_offset)
-        if next_offset is None or event.beat_offset + event.duration <= next_offset:
+        event_end = event.beat_offset + event.duration
+        maximum_end = min(value for value in (next_offset, measure_duration) if value is not None)
+        if event_end <= maximum_end:
             truncated_events.append(event)
             continue
 
-        duration = next_offset - event.beat_offset
+        duration = maximum_end - event.beat_offset
         if duration > 0:
             truncated_events.append(_with_duration(event, duration))
 

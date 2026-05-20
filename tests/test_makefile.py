@@ -39,15 +39,52 @@ def test_make_help_documents_examples_and_variables() -> None:
     assert "FINETUNE_PROCESSED_DIR" in output
     assert "MLFLOW_PORT" in output
     assert "OVERWRITE=1" in output
+    assert "PROCESS_OVERWRITE=1" in output
+    assert "PROCESS_DISABLE_MLFLOW" in output
+    assert "PROCESS_MLFLOW_EXPERIMENT" in output
 
 
 def test_make_process_uses_data_dir_and_processed_root() -> None:
-    output = _make_dry_run("process", "DATA_DIR=data/PDMX", "PROCESSED_ROOT=processed", "NUM_WORKERS=4")
+    output = _make_dry_run(
+        "process",
+        "DATA_DIR=data/PDMX",
+        "PROCESSED_ROOT=processed",
+        "NUM_WORKERS=4",
+        "PROCESS_MLFLOW_RUN_NAME=process-test",
+        "PROCESS_MLFLOW_TRACKING_URI=file:///tmp/mlruns",
+    )
 
     assert "scripts/process_dataset.py" in output
     assert '--data-dir "data/PDMX"' in output
     assert '--processed-dir "processed"' in output
     assert '--workers "4"' in output
+    assert '--mlflow-experiment-name "musak-process"' in output
+    assert '--mlflow-run-name "process-test"' in output
+    assert '--mlflow-tracking-uri "file:///tmp/mlruns"' in output
+
+
+def test_make_process_forwards_overwrite_flag() -> None:
+    output = _make_dry_run("process", "DATA_DIR=data/PDMX", "OVERWRITE=1")
+
+    assert "--overwrite" in output
+
+
+def test_make_process_supports_process_specific_overwrite_flag() -> None:
+    output = _make_dry_run("process", "DATA_DIR=data/PDMX", "PROCESS_OVERWRITE=1")
+
+    assert "--overwrite" in output
+
+
+def test_make_process_supports_overwite_typo_alias() -> None:
+    output = _make_dry_run("process", "DATA_DIR=data/PDMX", "OVERWITE=1")
+
+    assert "--overwrite" in output
+
+
+def test_make_process_can_disable_mlflow() -> None:
+    output = _make_dry_run("process", "DATA_DIR=data/PDMX", "PROCESS_DISABLE_MLFLOW=1")
+
+    assert "--disable-mlflow" in output
 
 
 def test_make_train_pretrain_uses_descriptive_variables() -> None:

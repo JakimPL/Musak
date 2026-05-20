@@ -1,7 +1,9 @@
 from notebooks.utils.encoded import (
+    EncodedManifestSelection,
     EncodedShard,
     default_encoded_browser_root,
     encoded_sample_to_segment,
+    load_encoded_manifest_selection,
     load_encoded_shard,
 )
 from notebooks.utils.file_browser import FileSelection, selected_file, selected_musicxml_file
@@ -58,6 +60,7 @@ from notebooks.utils.statistics import (
     parsed_table_frame,
     processed_dataset_dirs,
     reason_by_column,
+    selected_table_row,
     table_records,
     token_histogram_distribution,
     token_summary_rows,
@@ -78,6 +81,7 @@ __all__ = [
     "GeneratedOutput",
     "GenerationRequest",
     "LoadedModel",
+    "EncodedManifestSelection",
     "EncodedShard",
     "categorical_distribution",
     "default_duration_vocabulary",
@@ -93,6 +97,7 @@ __all__ = [
     "ineligibility_reason_distribution",
     "key_root_distribution",
     "load_encoded_shard",
+    "load_encoded_manifest_selection",
     "load_dataset_statistics",
     "overview_rows",
     "hand_controls",
@@ -116,6 +121,7 @@ __all__ = [
     "selected_file",
     "selected_musicxml_file",
     "sample_autoregressive",
+    "selected_table_row",
     "segment_parsed_score_safely",
     "segment_decode_error",
     "segment_diagnostic_rows",

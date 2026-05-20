@@ -12,23 +12,32 @@ def _():
     import marimo as mo
     import pandas as pd
 
+    from musak_model.decoder.notation import segment_to_score_data
     from musak_model.paths import DEFAULT_PROCESSED_ROOT
     from musak_model.processing.manifest import EncodedManifestField, ParsedManifestField
+    from musak_shared.notation.html import score_data_html
     from notebooks.utils import (
+        PitchSpelling,
         categorical_distribution,
         diagnostic_bucket_distribution,
         diagnostic_summary_rows,
         eligibility_distribution,
         encoded_run_dirs,
         encoded_table_frame,
+        hand_controls,
         ineligibility_reason_distribution,
         key_root_distribution,
         load_dataset_statistics,
+        load_encoded_manifest_selection,
         overview_rows,
         parse_error_table_frame,
         parsed_table_frame,
+        piano_roll_player_panel,
         processed_dataset_dirs,
         reason_by_column,
+        segment_diagnostic_rows,
+        segment_piano_roll_view_data,
+        selected_table_row,
         table_records,
         token_histogram_distribution,
         token_summary_rows,
@@ -42,6 +51,7 @@ def _():
         PERCENT_COLUMN,
         ParsedManifestField,
         Path,
+        PitchSpelling,
         VALUE_COLUMN,
         alt,
         categorical_distribution,
@@ -50,16 +60,24 @@ def _():
         eligibility_distribution,
         encoded_run_dirs,
         encoded_table_frame,
+        hand_controls,
         ineligibility_reason_distribution,
         key_root_distribution,
+        load_encoded_manifest_selection,
         load_dataset_statistics,
         mo,
         overview_rows,
         parse_error_table_frame,
         parsed_table_frame,
+        piano_roll_player_panel,
         pd,
         processed_dataset_dirs,
         reason_by_column,
+        score_data_html,
+        segment_diagnostic_rows,
+        segment_piano_roll_view_data,
+        segment_to_score_data,
+        selected_table_row,
         table_records,
         token_histogram_distribution,
         token_summary_rows,
@@ -132,9 +150,11 @@ def _(Path, encoded_selector):
 @app.cell
 def _(mo):
     top_n_slider = mo.ui.slider(start=5, stop=50, step=1, value=20, label="Top categories")
-    controls_output = top_n_slider
+    bpm_slider = mo.ui.slider(start=30, stop=240, step=1, value=60, label="BPM")
+    prefer_flats_checkbox = mo.ui.checkbox(value=False, label="Prefer flats")
+    controls_output = mo.hstack([top_n_slider, bpm_slider, prefer_flats_checkbox], justify="start", gap=2)
     controls_output
-    return (top_n_slider,)
+    return bpm_slider, prefer_flats_checkbox, top_n_slider
 
 
 @app.cell
@@ -536,6 +556,7 @@ def _(EncodedManifestField, categorical_distribution, chart_output, horizontal_b
 def _(encoded_table_frame, mo, parsed_table_frame, stats):
     if stats is None:
         table_output = mo.md("")
+        encoded_manifest_table = None
     else:
         tables = [
             mo.ui.table(
@@ -544,16 +565,122 @@ def _(encoded_table_frame, mo, parsed_table_frame, stats):
                 label="Parsed manifest rows",
             )
         ]
+        encoded_manifest_table = None
         if stats.encoded is not None:
-            tables.append(
-                mo.ui.table(
-                    encoded_table_frame(stats.encoded),
-                    selection=None,
-                    label="Encoded manifest rows",
-                )
+            encoded_manifest_table = mo.ui.table(
+                encoded_table_frame(stats.encoded),
+                selection="single",
+                label="Encoded manifest rows",
             )
+            tables.append(encoded_manifest_table)
         table_output = mo.vstack([mo.md("## Manifest Rows"), *tables], gap=2)
     table_output
+    return (encoded_manifest_table,)
+
+
+@app.cell
+def _(encoded_manifest_table, selected_table_row):
+    selected_encoded_row = selected_table_row(encoded_manifest_table)
+    return (selected_encoded_row,)
+
+
+@app.cell
+def _(dataset_dir, encoded_dir, load_encoded_manifest_selection, selected_encoded_row):
+    selected_encoded_segment = None
+    selected_encoded_error = ""
+    selected_encoded_error_kind = "danger"
+    if dataset_dir is not None and selected_encoded_row is not None:
+        try:
+            selected_encoded_segment = load_encoded_manifest_selection(
+                selected_encoded_row,
+                dataset_dir=dataset_dir,
+                encoded_dir=encoded_dir,
+            )
+        except ValueError as exception:
+            selected_encoded_error = f"{type(exception).__name__}: {exception}"
+            selected_encoded_error_kind = "warn"
+        except (FileNotFoundError, IndexError, TypeError) as exception:
+            selected_encoded_error = f"{type(exception).__name__}: {exception}"
+            selected_encoded_error_kind = "danger"
+
+    return selected_encoded_error, selected_encoded_error_kind, selected_encoded_segment
+
+
+@app.cell
+def _(hand_controls, mo):
+    selected_example_hand_controls = hand_controls(mo)
+    return (selected_example_hand_controls,)
+
+
+@app.cell
+def _(
+    PitchSpelling,
+    alt,
+    bpm_slider,
+    mo,
+    piano_roll_player_panel,
+    prefer_flats_checkbox,
+    score_data_html,
+    segment_diagnostic_rows,
+    segment_piano_roll_view_data,
+    segment_to_score_data,
+    selected_encoded_error,
+    selected_encoded_error_kind,
+    selected_encoded_row,
+    selected_encoded_segment,
+    selected_example_hand_controls,
+):
+    if selected_encoded_row is None:
+        selected_example_output = mo.callout("Select an encoded manifest row to preview it.", kind="warn")
+    elif selected_encoded_error:
+        selected_example_output = mo.callout(selected_encoded_error, kind=selected_encoded_error_kind)
+    elif selected_encoded_segment is None:
+        selected_example_output = mo.md("")
+    else:
+        pitch_spelling = PitchSpelling.FLATS if prefer_flats_checkbox.value else PitchSpelling.SHARPS
+        view_data = segment_piano_roll_view_data(
+            selected_encoded_segment.segment,
+            duration_vocabulary=selected_encoded_segment.duration_vocabulary,
+            pitch_spelling=pitch_spelling,
+            bpm=bpm_slider.value,
+        )
+        try:
+            score_data = segment_to_score_data(
+                selected_encoded_segment.segment,
+                duration_vocabulary=selected_encoded_segment.duration_vocabulary,
+                tempo=bpm_slider.value,
+                measures_per_row=4,
+            )
+            iframe_height = f"{max(220, len(score_data.rows) * 140 + 24)}px"
+            notation_output = mo.iframe(score_data_html(score_data), height=iframe_height)
+        except ValueError as exception:
+            notation_output = mo.callout(f"Notation rendering unavailable: {exception}", kind="warn")
+
+        selected_example_output = mo.vstack(
+            [
+                mo.md("## Selected Encoded Example"),
+                mo.ui.table([selected_encoded_row], selection=None, label="Selected manifest row"),
+                notation_output,
+                piano_roll_player_panel(
+                    view_data,
+                    mo=mo,
+                    alt=alt,
+                    bpm=bpm_slider.value,
+                    controls=selected_example_hand_controls,
+                ),
+                mo.ui.table(
+                    segment_diagnostic_rows(
+                        selected_encoded_segment.segment,
+                        duration_vocabulary=selected_encoded_segment.duration_vocabulary,
+                    ),
+                    selection=None,
+                    label="Musical diagnostics",
+                ),
+            ],
+            gap=2,
+        )
+
+    selected_example_output
     return
 
 

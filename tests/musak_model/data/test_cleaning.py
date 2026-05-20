@@ -1,28 +1,34 @@
 from dataclasses import dataclass
 from fractions import Fraction
+from typing import TYPE_CHECKING
 
 import pytest
 
 from musak_model.data.cleaning import (
     clean_parsed_score,
     deduplicate_simultaneous_pitches,
+    is_silent_bar_pair,
     normalize_simultaneous_event_durations,
+    remove_rests_overlapping_pitches,
     trim_silent_edge_bars,
     truncate_overlapping_events,
 )
 from musak_model.data.schema import ParsedChord, ParsedEvent, ParsedNote, ParsedRest
 from tests.musak_model.data.fixtures import bar, chord_event, note_event, parsed_score, rest_event
 
+if TYPE_CHECKING:
+    from musak_model.data.schema import ParsedBar, ParsedScore
 
-def _note_bar():
+
+def _note_bar() -> "ParsedBar":
     return bar([note_event(midi_pitch=60, duration=Fraction(1, 4), beat_offset=Fraction(0))])
 
 
-def _chord_bar():
+def _chord_bar() -> "ParsedBar":
     return bar([chord_event(midi_pitches=[60, 64], duration=Fraction(1, 4), beat_offset=Fraction(0))])
 
 
-def _rest_bar():
+def _rest_bar() -> "ParsedBar":
     return bar([rest_event(duration=Fraction(1, 1), beat_offset=Fraction(0))])
 
 
@@ -32,21 +38,21 @@ def test_trim_silent_edge_bars_removes_only_leading_and_trailing_silence() -> No
     right_note = _note_bar()
     left_note = _chord_bar()
     score = parsed_score(
-        right_hand_bars=[silent, right_note, middle_silent, bar([])],
-        left_hand_bars=[bar([]), bar([]), left_note, silent],
+        right_hand_bars=[silent, right_note, middle_silent, silent],
+        left_hand_bars=[silent, silent, left_note, silent],
     )
 
     cleaned = trim_silent_edge_bars(score)
 
     assert cleaned.right_hand_bars == [right_note, middle_silent]
-    assert cleaned.left_hand_bars == [bar([]), left_note]
+    assert cleaned.left_hand_bars == [silent, left_note]
 
 
 def test_trim_silent_edge_bars_keeps_interior_silent_bars() -> None:
     interior_silent = _rest_bar()
     score = parsed_score(
         right_hand_bars=[_note_bar(), interior_silent, _note_bar()],
-        left_hand_bars=[bar([]), bar([]), bar([])],
+        left_hand_bars=[_rest_bar(), _rest_bar(), _rest_bar()],
     )
 
     cleaned = trim_silent_edge_bars(score)
@@ -57,14 +63,66 @@ def test_trim_silent_edge_bars_keeps_interior_silent_bars() -> None:
 
 def test_trim_silent_edge_bars_returns_empty_score_when_all_bars_are_silent() -> None:
     score = parsed_score(
-        right_hand_bars=[_rest_bar(), bar([])],
-        left_hand_bars=[bar([]), _rest_bar()],
+        right_hand_bars=[_rest_bar(), _rest_bar()],
+        left_hand_bars=[_rest_bar(), _rest_bar()],
     )
 
     cleaned = trim_silent_edge_bars(score)
 
     assert cleaned.right_hand_bars == []
     assert cleaned.left_hand_bars == []
+
+
+def test_is_silent_bar_pair_requires_no_pitched_events_in_either_hand() -> None:
+    rest_only = _rest_bar()
+    note_and_rest = bar(
+        [
+            rest_event(duration=Fraction(1, 4), beat_offset=Fraction(0)),
+            note_event(midi_pitch=60, duration=Fraction(1, 4), beat_offset=Fraction(1, 4)),
+        ]
+    )
+
+    assert is_silent_bar_pair(rest_only, rest_only) is True
+    assert is_silent_bar_pair(note_and_rest, rest_only) is False
+
+
+def test_remove_rests_overlapping_pitches_drops_voice_rests_inside_active_hand() -> None:
+    score = parsed_score(
+        right_hand_bars=[
+            bar(
+                [
+                    note_event(midi_pitch=65, duration=Fraction(1, 4), beat_offset=Fraction(0)),
+                    rest_event(duration=Fraction(1, 4), beat_offset=Fraction(0)),
+                    note_event(midi_pitch=69, duration=Fraction(1, 4), beat_offset=Fraction(1, 4)),
+                ]
+            )
+        ],
+        left_hand_bars=[_rest_bar()],
+    )
+
+    cleaned = remove_rests_overlapping_pitches(score)
+
+    assert [type(event) for event in cleaned.right_hand_bars[0].events] == [ParsedNote, ParsedNote]
+
+
+def test_remove_rests_overlapping_pitches_preserves_true_gaps_and_rest_only_bars() -> None:
+    score = parsed_score(
+        right_hand_bars=[
+            bar(
+                [
+                    rest_event(duration=Fraction(1, 4), beat_offset=Fraction(0)),
+                    note_event(midi_pitch=65, duration=Fraction(1, 4), beat_offset=Fraction(1, 4)),
+                    rest_event(duration=Fraction(1, 4), beat_offset=Fraction(1, 2)),
+                ]
+            )
+        ],
+        left_hand_bars=[_rest_bar()],
+    )
+
+    cleaned = remove_rests_overlapping_pitches(score)
+
+    assert cleaned.right_hand_bars == score.right_hand_bars
+    assert cleaned.left_hand_bars == score.left_hand_bars
 
 
 def test_deduplicate_simultaneous_pitches_removes_repeated_chord_pitches() -> None:
@@ -82,7 +140,17 @@ def test_deduplicate_simultaneous_pitches_removes_repeated_chord_pitches() -> No
 
 def test_deduplicate_simultaneous_pitches_converts_single_pitch_chord_to_note() -> None:
     score = parsed_score(
-        right_hand_bars=[bar([chord_event(midi_pitches=[60, 60], duration=Fraction(1, 4), beat_offset=0)])],
+        right_hand_bars=[
+            bar(
+                [
+                    chord_event(
+                        midi_pitches=[60, 60],
+                        duration=Fraction(1, 4),
+                        beat_offset=Fraction(0, 1),
+                    )
+                ]
+            )
+        ],
         left_hand_bars=[bar([])],
     )
 
@@ -98,9 +166,9 @@ def test_deduplicate_simultaneous_pitches_collapses_exact_simultaneous_note_dupl
         right_hand_bars=[
             bar(
                 [
-                    note_event(midi_pitch=60, duration=Fraction(1, 4), beat_offset=0),
-                    note_event(midi_pitch=60, duration=Fraction(1, 4), beat_offset=0),
-                    note_event(midi_pitch=64, duration=Fraction(1, 4), beat_offset=0),
+                    note_event(midi_pitch=60, duration=Fraction(1, 4), beat_offset=Fraction(0, 1)),
+                    note_event(midi_pitch=60, duration=Fraction(1, 4), beat_offset=Fraction(0, 1)),
+                    note_event(midi_pitch=64, duration=Fraction(1, 4), beat_offset=Fraction(0, 1)),
                 ]
             )
         ],
@@ -119,8 +187,8 @@ def test_deduplicate_simultaneous_pitches_preserves_same_pitch_with_different_du
         right_hand_bars=[
             bar(
                 [
-                    note_event(midi_pitch=60, duration=Fraction(1, 4), beat_offset=0),
-                    note_event(midi_pitch=60, duration=Fraction(1, 8), beat_offset=0),
+                    note_event(midi_pitch=60, duration=Fraction(1, 4), beat_offset=Fraction(0, 1)),
+                    note_event(midi_pitch=60, duration=Fraction(1, 8), beat_offset=Fraction(0, 1)),
                 ]
             )
         ],
@@ -319,6 +387,28 @@ def test_truncate_overlapping_events_preserves_later_onsets() -> None:
     assert isinstance(events[0], ParsedChord)
     assert isinstance(events[1], ParsedNote)
     assert isinstance(events[2], ParsedNote)
+
+
+def test_truncate_overlapping_events_caps_late_events_at_bar_end() -> None:
+    score = parsed_score(
+        right_hand_bars=[bar([])],
+        left_hand_bars=[
+            bar(
+                [
+                    note_event(midi_pitch=48, duration=Fraction(1, 1), beat_offset=Fraction(0)),
+                    note_event(midi_pitch=55, duration=Fraction(1, 1), beat_offset=Fraction(1, 2)),
+                ]
+            )
+        ],
+    )
+
+    cleaned = truncate_overlapping_events(score)
+
+    events = cleaned.left_hand_bars[0].events
+    assert [(event.beat_offset, event.duration) for event in events] == [
+        (Fraction(0), Fraction(1, 2)),
+        (Fraction(1, 2), Fraction(1, 2)),
+    ]
 
 
 def test_clean_parsed_score_truncates_overlaps_before_deduplicating() -> None:

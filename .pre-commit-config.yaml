@@ -33,7 +33,7 @@ repos:
         types: [python]
         verbose: True
         require_serial: true
-        exclude: ^tests/|^notebooks/
+        exclude: ^tests/|^notebooks/[^/]+\.py$
 
   - repo: local
     hooks:

@@ -6,8 +6,17 @@ import pytest
 
 from musak_model.data.cleaning import clean_parsed_score
 from musak_model.data.config import SegmentationConfig
-from musak_model.data.schema import ParsedBar, ParsedChord, ParsedNote, ParsedScore, SegmentIneligibilityReason, TieType
+from musak_model.data.schema import (
+    ParsedBar,
+    ParsedChord,
+    ParsedNote,
+    ParsedRest,
+    ParsedScore,
+    SegmentIneligibilityReason,
+    TieType,
+)
 from musak_model.data.segmenter import segment_score
+from musak_model.decoder.piano_roll import segment_to_piano_roll_events
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import HandToken, HoldToken, NoteToken, ScaleType
 
@@ -18,6 +27,24 @@ def _bar(*, time_numerator: int = 4, time_denominator: int = 4, key_fifths: int 
         time_denominator=time_denominator,
         key_fifths=key_fifths,
         events=[],
+    )
+
+
+def _rest_bar() -> ParsedBar:
+    return ParsedBar(
+        time_numerator=4,
+        time_denominator=4,
+        key_fifths=0,
+        events=[ParsedRest(duration=Fraction(1, 1), beat_offset=Fraction(0))],
+    )
+
+
+def _note_bar() -> ParsedBar:
+    return ParsedBar(
+        time_numerator=4,
+        time_denominator=4,
+        key_fifths=0,
+        events=[ParsedNote(midi_pitch=60, duration=Fraction(1, 4), beat_offset=Fraction(0))],
     )
 
 
@@ -35,7 +62,12 @@ def _score(*, bars: list[ParsedBar]) -> ParsedScore:
 
 def test_segment_metadata_uses_first_bar_time_signature(duration_vocabulary: DurationVocabulary) -> None:
     segments = segment_score(
-        _score(bars=[_bar(time_numerator=4, time_denominator=4), _bar(time_numerator=3, time_denominator=4)]),
+        _score(
+            bars=[
+                _note_bar(),
+                _note_bar().model_copy(update={"time_numerator": 3, "time_denominator": 4}),
+            ]
+        ),
         Path("piece.mxl"),
         scale_type=ScaleType.MAJOR,
         duration_vocabulary=duration_vocabulary,
@@ -50,7 +82,12 @@ def test_segment_crossing_time_signature_change_is_not_training_eligible(
     duration_vocabulary: DurationVocabulary,
 ) -> None:
     segments = segment_score(
-        _score(bars=[_bar(time_numerator=4, time_denominator=4), _bar(time_numerator=3, time_denominator=4)]),
+        _score(
+            bars=[
+                _note_bar(),
+                _note_bar().model_copy(update={"time_numerator": 3, "time_denominator": 4}),
+            ]
+        ),
         Path("piece.mxl"),
         scale_type=ScaleType.MAJOR,
         duration_vocabulary=duration_vocabulary,
@@ -66,7 +103,7 @@ def test_segment_crossing_key_signature_change_is_not_training_eligible(
     duration_vocabulary: DurationVocabulary,
 ) -> None:
     segments = segment_score(
-        _score(bars=[_bar(key_fifths=0), _bar(key_fifths=1)]),
+        _score(bars=[_note_bar(), _note_bar().model_copy(update={"key_fifths": 1})]),
         Path("piece.mxl"),
         scale_type=ScaleType.MAJOR,
         duration_vocabulary=duration_vocabulary,
@@ -76,6 +113,57 @@ def test_segment_crossing_key_signature_change_is_not_training_eligible(
     assert len(segments) == 1
     assert segments[0].metadata.eligible_for_training is False
     assert segments[0].metadata.ineligibility_reasons == {SegmentIneligibilityReason.KEY_SIGNATURE_CHANGE}
+
+
+def test_segment_starting_with_silent_bar_is_not_training_eligible(
+    duration_vocabulary: DurationVocabulary,
+) -> None:
+    score = _score(bars=[_rest_bar(), _note_bar()])
+
+    segments = segment_score(
+        score,
+        Path("piece.mxl"),
+        scale_type=ScaleType.MAJOR,
+        duration_vocabulary=duration_vocabulary,
+        segmentation=SegmentationConfig(window_bars=2, stride_bars=1),
+    )
+
+    assert segments[0].metadata.eligible_for_training is False
+    assert segments[0].metadata.ineligibility_reasons == {SegmentIneligibilityReason.SILENT_EDGE_BAR}
+
+
+def test_segment_ending_with_silent_bar_is_not_training_eligible(
+    duration_vocabulary: DurationVocabulary,
+) -> None:
+    score = _score(bars=[_note_bar(), _rest_bar()])
+
+    segments = segment_score(
+        score,
+        Path("piece.mxl"),
+        scale_type=ScaleType.MAJOR,
+        duration_vocabulary=duration_vocabulary,
+        segmentation=SegmentationConfig(window_bars=2, stride_bars=1),
+    )
+
+    assert segments[0].metadata.eligible_for_training is False
+    assert segments[0].metadata.ineligibility_reasons == {SegmentIneligibilityReason.SILENT_EDGE_BAR}
+
+
+def test_segment_with_interior_silent_bar_remains_training_eligible(
+    duration_vocabulary: DurationVocabulary,
+) -> None:
+    score = _score(bars=[_note_bar(), _rest_bar(), _note_bar()])
+
+    segments = segment_score(
+        score,
+        Path("piece.mxl"),
+        scale_type=ScaleType.MAJOR,
+        duration_vocabulary=duration_vocabulary,
+        segmentation=SegmentationConfig(window_bars=3, stride_bars=1),
+    )
+
+    assert segments[0].metadata.eligible_for_training is True
+    assert segments[0].metadata.ineligibility_reasons == frozenset()
 
 
 def test_register_error_marks_only_affected_segments_ineligible(duration_vocabulary: DurationVocabulary) -> None:
@@ -91,8 +179,8 @@ def test_register_error_marks_only_affected_segments_ineligible(duration_vocabul
         scale_type=ScaleType.MAJOR,
         time_numerator=4,
         time_denominator=4,
-        right_hand_bars=[_bar(), bad_register_bar, _bar()],
-        left_hand_bars=[_bar(), _bar(), _bar()],
+        right_hand_bars=[_note_bar(), bad_register_bar, _note_bar()],
+        left_hand_bars=[_note_bar(), _note_bar(), _note_bar()],
     )
 
     segments = segment_score(
@@ -137,6 +225,60 @@ def test_overlapping_events_mark_segment_ineligible(duration_vocabulary: Duratio
 
     assert segments[0].metadata.eligible_for_training is False
     assert segments[0].metadata.ineligibility_reasons == {SegmentIneligibilityReason.OVERLAPPING_EVENTS}
+
+
+def test_cleaned_overlapping_sequences_tokenize_after_truncating_to_next_onset_and_bar_end(
+    duration_vocabulary: DurationVocabulary,
+) -> None:
+    score = ParsedScore(
+        key_root=0,
+        key_fifths=0,
+        scale_type=ScaleType.MAJOR,
+        time_numerator=4,
+        time_denominator=4,
+        right_hand_bars=[
+            ParsedBar(
+                time_numerator=4,
+                time_denominator=4,
+                key_fifths=0,
+                events=[
+                    ParsedChord(midi_pitches=[72, 76], duration=Fraction(1, 2), beat_offset=Fraction(0)),
+                    ParsedNote(midi_pitch=79, duration=Fraction(1, 2), beat_offset=Fraction(1, 4)),
+                    ParsedNote(midi_pitch=83, duration=Fraction(1, 2), beat_offset=Fraction(1, 2)),
+                ],
+            )
+        ],
+        left_hand_bars=[
+            ParsedBar(
+                time_numerator=4,
+                time_denominator=4,
+                key_fifths=0,
+                events=[
+                    ParsedNote(midi_pitch=48, duration=Fraction(1, 1), beat_offset=Fraction(0)),
+                    ParsedNote(midi_pitch=55, duration=Fraction(1, 1), beat_offset=Fraction(1, 2)),
+                ],
+            )
+        ],
+    )
+
+    segments = segment_score(
+        clean_parsed_score(score),
+        Path("piece.mxl"),
+        scale_type=ScaleType.MAJOR,
+        duration_vocabulary=duration_vocabulary,
+        segmentation=SegmentationConfig(window_bars=1, stride_bars=1),
+    )
+
+    assert segments[0].metadata.eligible_for_training is True
+    events = segment_to_piano_roll_events(segments[0], duration_vocabulary=duration_vocabulary)
+    assert [(event.midi_pitch, event.start, event.duration) for event in events] == [
+        (72, Fraction(0), Fraction(1, 4)),
+        (76, Fraction(0), Fraction(1, 4)),
+        (48, Fraction(0), Fraction(1, 2)),
+        (79, Fraction(1, 4), Fraction(1, 4)),
+        (83, Fraction(1, 2), Fraction(1, 2)),
+        (55, Fraction(1, 2), Fraction(1, 2)),
+    ]
 
 
 def test_bar_duration_overflow_marks_segment_ineligible(duration_vocabulary: DurationVocabulary) -> None:

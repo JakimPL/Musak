@@ -72,6 +72,88 @@ reject from that state. It does not replace the next-token objective. If the gro
 invalid for its prefix, that position is excluded from the auxiliary penalty and counted as an invalid-target
 metric instead of pushing the model away from the observed token.
 
+## MLflow Metric Naming Protocol
+
+MLflow metric names use slash-separated hierarchy. The aggregation/statistic level must be explicit and must appear
+before the measured quantity:
+
+```text
+<domain>/<scope>/<statistic>/<metric>
+```
+
+Rules:
+
+- `domain` names the subsystem: `dataset`, `model`, or `generation`.
+- `scope` names the slice inside that subsystem: examples include `overall`, `diagnostics`, `tokens`,
+  `ineligibility`, `train`, `validation`, `soft`, and `hard`.
+- `statistic` names how the value should be read in dashboards: `count`, `rate`, or `mean`.
+- `metric` is the concrete measured quantity and should not repeat the statistic suffix. Use
+  `dataset/diagnostics/mean/right_silence_fraction`, not `dataset/right_silence_fraction_mean`.
+- Counts are absolute values, rates and fractions are normalized to `[0, 1]`, and means are arithmetic means over the
+  run's relevant samples.
+- New MLflow metrics must follow this convention unless they are external tool metrics with fixed names.
+
+Current metric families:
+
+- Dataset processing metrics:
+  - `dataset/overall/count/parsed_files`
+  - `dataset/overall/count/parsed_successes`
+  - `dataset/overall/count/parse_errors`
+  - `dataset/overall/rate/parse_success`
+  - `dataset/overall/count/segments`
+  - `dataset/overall/count/encoded_samples`
+  - `dataset/overall/rate/eligible`
+  - `dataset/diagnostics/rate/empty_score`
+  - `dataset/diagnostics/rate/one_hand_only`
+  - `dataset/diagnostics/mean/right_silence_fraction`
+  - `dataset/diagnostics/mean/left_silence_fraction`
+  - `dataset/diagnostics/mean/both_hands_silence_fraction`
+  - `dataset/diagnostics/mean/both_hands_active_fraction`
+  - `dataset/diagnostics/mean/hand_activity_balance`
+  - `dataset/diagnostics/mean/silent_bar_count`
+  - `dataset/diagnostics/mean/silent_bar_fraction`
+  - `dataset/diagnostics/mean/silent_edge_bar_count`
+  - `dataset/tokens/mean/note_fraction`
+  - `dataset/tokens/mean/rest_fraction`
+  - `dataset/tokens/mean/hold_fraction`
+  - `dataset/ineligibility/count/<reason>`
+  - `dataset/ineligibility/rate/<reason>`
+- Model training metrics:
+  - `model/train/mean/loss`
+  - `model/train/mean/perplexity`
+  - `model/train/rate/token_accuracy`
+  - `model/train/rate/token_kind_accuracy`
+  - `model/train/mean/validity_penalty_loss`
+  - `model/train/mean/invalid_probability_mass`
+  - `model/train/rate/invalid_target`
+  - `model/train/mean/<module>_gradient_norm`
+  - corresponding `model/validation/...` metrics where validation is available.
+- Generation evaluation metrics:
+  - `generation/<soft|hard>/count/samples`
+  - `generation/<soft|hard>/rate/end`
+  - `generation/<soft|hard>/rate/decode_error`
+  - `generation/<soft|hard>/rate/constraint_error`
+  - `generation/<soft|hard>/rate/constraint_failure`
+  - `generation/<soft|hard>/rate/target_bar_completion`
+  - `generation/<soft|hard>/mean/constraint_valid_token_fraction`
+  - `generation/<soft|hard>/mean/constraint_first_failure_step`
+  - `generation/<soft|hard>/mean/bar_count_error`
+  - `generation/<soft|hard>/mean/generated_tokens`
+  - `generation/<soft|hard>/mean/completed_bars`
+  - `generation/<soft|hard>/rate/empty_score`
+  - `generation/<soft|hard>/rate/one_hand_only`
+  - `generation/<soft|hard>/mean/right_silence_fraction`
+  - `generation/<soft|hard>/mean/left_silence_fraction`
+  - `generation/<soft|hard>/mean/both_hands_silence_fraction`
+  - `generation/<soft|hard>/mean/both_hands_active_fraction`
+  - `generation/<soft|hard>/mean/hand_activity_balance`
+  - `generation/<soft|hard>/mean/silent_bar_count`
+  - `generation/<soft|hard>/mean/silent_bar_fraction`
+  - `generation/<soft|hard>/mean/silent_edge_bar_count`
+  - `generation/<soft|hard>/mean/note_token_fraction`
+  - `generation/<soft|hard>/mean/rest_token_fraction`
+  - `generation/<soft|hard>/mean/hold_token_fraction`
+
 ## Stage Two Constrained Fine-Tuning
 
 Stage one remains the grammar/vocabulary pretraining phase. It uses the same autoregressive next-token

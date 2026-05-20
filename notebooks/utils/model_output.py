@@ -196,7 +196,7 @@ def prompt_from_text(
     token_vocabulary: TokenVocabulary,
     duration_vocabulary: DurationVocabulary,
 ) -> PromptData:
-    tokens = [
+    tokens: list[Token] = [
         token
         for token in tokens_from_text(text, duration_vocabulary=duration_vocabulary)
         if not isinstance(token, StartToken)
@@ -351,6 +351,7 @@ def sampling_result_to_segment(
             bar_count=_display_bar_count(result.tokens),
             window_start_bar=0,
             source_file=source_file,
+            difficulty_level=None,
         ),
     )
 
@@ -402,6 +403,9 @@ def segment_diagnostic_rows(segment: Segment, *, duration_vocabulary: DurationVo
         },
         {"metric": "right note onsets/bar", "value": f"{diagnostics.right_note_onsets_per_bar:.2f}"},
         {"metric": "left note onsets/bar", "value": f"{diagnostics.left_note_onsets_per_bar:.2f}"},
+        {"metric": "silent bars", "value": diagnostics.silent_bar_count},
+        {"metric": "silent bar share", "value": _format_percent(diagnostics.silent_bar_fraction)},
+        {"metric": "silent edge bars", "value": diagnostics.silent_edge_bar_count},
         {"metric": "hand activity balance", "value": f"{diagnostics.hand_activity_balance:.3f}"},
         {"metric": "empty score", "value": diagnostics.empty_score},
         {"metric": "one hand only", "value": diagnostics.one_hand_only},

@@ -16,6 +16,15 @@ def _empty_bar() -> ParsedBar:
     return ParsedBar(time_numerator=4, time_denominator=4, key_fifths=0, events=[])
 
 
+def _note_bar() -> ParsedBar:
+    return ParsedBar(
+        time_numerator=4,
+        time_denominator=4,
+        key_fifths=0,
+        events=[ParsedNote(midi_pitch=60, duration=Fraction(1, 4), beat_offset=Fraction(0))],
+    )
+
+
 def test_segment_parsed_score_keeps_recoverable_segments_when_feature_extraction_fails(
     duration_vocabulary: DurationVocabulary,
 ) -> None:
@@ -31,8 +40,8 @@ def test_segment_parsed_score_keeps_recoverable_segments_when_feature_extraction
         scale_type=ScaleType.MAJOR,
         time_numerator=4,
         time_denominator=4,
-        right_hand_bars=[_empty_bar(), bad_register_bar, _empty_bar()],
-        left_hand_bars=[_empty_bar(), _empty_bar(), _empty_bar()],
+        right_hand_bars=[_note_bar(), bad_register_bar, _note_bar()],
+        left_hand_bars=[_note_bar(), _note_bar(), _note_bar()],
     )
 
     segments = segment_parsed_score(
@@ -58,8 +67,8 @@ def test_segment_parsed_score_marks_feature_register_errors_ineligible(
         scale_type=ScaleType.MAJOR,
         time_numerator=4,
         time_denominator=4,
-        right_hand_bars=[_empty_bar()],
-        left_hand_bars=[_empty_bar()],
+        right_hand_bars=[_note_bar()],
+        left_hand_bars=[_note_bar()],
     )
 
     def fail_feature_extraction(*args, **kwargs):
@@ -89,8 +98,8 @@ def test_segment_parsed_score_does_not_hide_unexpected_feature_extraction_errors
         scale_type=ScaleType.MAJOR,
         time_numerator=4,
         time_denominator=4,
-        right_hand_bars=[_empty_bar()],
-        left_hand_bars=[_empty_bar()],
+        right_hand_bars=[_note_bar()],
+        left_hand_bars=[_note_bar()],
     )
 
     def fail_feature_extraction(*args, **kwargs):

@@ -21,3 +21,23 @@ mlflow:
   mlflow_experiment_name: musak-pretrain
   mlflow_run_name: null
   mlflow_tracking_uri: null
+generation_evaluation:
+  enabled: true
+  every_epochs: 5
+  soft_sample_count: 4
+  hard_sample_count: 4
+  max_new_tokens: 256
+  seed: 1729
+  temperature: 1.0
+  top_k: 32
+  key_root: 0
+  scale_type: major
+  time_numerator: 4
+  time_denominator: 4
+  bar_count: 2
+  minimum_duration_denominator: 16
+  allow_dotted_durations: true
+  max_notes_per_hand: 5
+  maximum_onset_span_semitones: 12
+  maximum_pitch_gap_semitones: 12
+  maximum_static_hand_span_degrees: 5

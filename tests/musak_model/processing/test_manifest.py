@@ -50,4 +50,7 @@ def test_encoded_row_includes_segment_diagnostics(duration_vocabulary: DurationV
     assert row[EncodedManifestField.RIGHT_SILENCE_FRACTION] == 0.5
     assert row[EncodedManifestField.LEFT_SILENCE_FRACTION] == 1.0
     assert row[EncodedManifestField.ONE_HAND_ONLY] is True
+    assert row[EncodedManifestField.SILENT_BAR_COUNT] == 0
+    assert row[EncodedManifestField.SILENT_BAR_FRACTION] == 0.0
+    assert row[EncodedManifestField.SILENT_EDGE_BAR_COUNT] == 0
     assert row[EncodedManifestField.NOTE_TOKEN_FRACTION] == 0.5

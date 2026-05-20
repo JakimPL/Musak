@@ -8,6 +8,7 @@ import torch
 from musak_model.conditioning.structural import StructuralControlVocabulary
 from musak_model.conditioning.time_signature import TimeSignatureVocabulary
 from musak_model.data.config import SegmentationConfig
+from musak_model.evaluation import GenerationSuiteEvaluator
 from musak_model.model import HierarchicalAutoregressiveModel
 from musak_model.model.config import ModelConfig
 from musak_model.paths import CONDITIONING_CONFIG_PATH
@@ -96,6 +97,14 @@ def finetune(
             show_progress=show_progress,
             token_kind_ids=build_token_kind_ids(token_vocabulary),
             validity_mask_builder=TrainingValidityMaskBuilder(token_vocabulary),
+            generation_evaluator=GenerationSuiteEvaluator(
+                config=training_config.generation_evaluation,
+                conditioning=training_config.conditioning,
+                model_config=resolved_model_config,
+                token_vocabulary=token_vocabulary,
+                duration_vocabulary=duration_vocabulary,
+                include_bar_count_control=True,
+            ),
         )
 
         return trainer.train(invalid_files=split.invalid_files)

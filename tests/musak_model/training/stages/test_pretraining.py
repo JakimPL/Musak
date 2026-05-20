@@ -16,6 +16,7 @@ from musak_model.tokens.schema import ScaleType
 from musak_model.tokens.vocabulary import TokenVocabulary
 from musak_model.training.config import (
     CheckpointConfig,
+    GenerationEvaluationConfig,
     OptimizationConfig,
     RuntimeConfig,
     TrainingConditioningConfig,
@@ -33,6 +34,7 @@ HIDDEN_SIZE: Final[int] = 16
 class FakeTracker:
     def __init__(self) -> None:
         self.epochs: list[int] = []
+        self.generation_evaluations: list[tuple[int, dict[str, float]]] = []
         self.checkpoint_logged = False
         self.invalid_files_logged = False
 
@@ -52,6 +54,9 @@ class FakeTracker:
 
     def log_epoch(self, *, metrics: EpochMetrics) -> None:
         self.epochs.append(metrics.epoch)
+
+    def log_generation_evaluation(self, *, metrics: dict[str, float], epoch: int) -> None:
+        self.generation_evaluations.append((epoch, metrics))
 
     def log_checkpoints(self, *, latest_checkpoint_path: Path | None, best_checkpoint_path: Path | None) -> None:
         self.checkpoint_logged = True
@@ -94,6 +99,15 @@ def _training_config(
         conditioning=conditioning,
         checkpoints=CheckpointConfig(checkpoint_dir=checkpoint_dir, resume_checkpoint=resume_checkpoint),
     )
+
+
+class FakeGenerationEvaluator:
+    def __init__(self) -> None:
+        self.epochs_seen = 0
+
+    def evaluate(self, model: HierarchicalAutoregressiveModel, *, device: torch.device) -> dict[str, float]:
+        self.epochs_seen += 1
+        return {"generation/soft/count/samples": 1.0}
 
 
 def _sample(token_ids: list[int], bar_positions: list[int]) -> EncodedExercise:
@@ -172,6 +186,35 @@ def test_trainer_logs_to_tracker(tmp_path: Path) -> None:
     assert tracker.epochs == [0]
     assert tracker.checkpoint_logged is True
     assert tracker.invalid_files_logged is True
+
+
+def test_trainer_logs_generation_evaluation_on_configured_cadence(tmp_path: Path) -> None:
+    tracker = FakeTracker()
+    evaluator = FakeGenerationEvaluator()
+    model = HierarchicalAutoregressiveModel(_small_model_config())
+    config = _training_config(tmp_path, epochs=5).model_copy(
+        update={
+            "generation_evaluation": GenerationEvaluationConfig(
+                enabled=True,
+                every_epochs=5,
+                soft_sample_count=1,
+                hard_sample_count=0,
+            )
+        }
+    )
+    trainer = PretrainingTrainer(
+        model=model,
+        config=config,
+        train_loader=_loader(),
+        validation_loader=_loader(),
+        tracker=tracker,
+        generation_evaluator=evaluator,
+    )
+
+    trainer.train()
+
+    assert evaluator.epochs_seen == 1
+    assert tracker.generation_evaluations == [(4, {"generation/soft/count/samples": 1.0})]
 
 
 def test_trainer_resumes_from_checkpoint(tmp_path: Path) -> None:

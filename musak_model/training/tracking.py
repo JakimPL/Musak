@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib
+import math
 import os
 from pathlib import Path
 from types import TracebackType
@@ -10,6 +11,7 @@ from pydantic import BaseModel
 
 from musak_model.model.config import ModelConfig
 from musak_model.paths import DEFAULT_MLFLOW_DIR
+from musak_model.processing.fingerprint import encoded_samples_fingerprint
 from musak_model.training.config import TrainingConfig
 from musak_model.training.ingestion.schema import IngestionErrorRecord, IngestionSplit
 from musak_model.training.metrics import EpochMetrics
@@ -36,6 +38,8 @@ class TrainingTracker(Protocol):
     ) -> None: ...
 
     def log_epoch(self, *, metrics: EpochMetrics) -> None: ...
+
+    def log_generation_evaluation(self, *, metrics: dict[str, float], epoch: int) -> None: ...
 
     def log_checkpoints(self, *, latest_checkpoint_path: Path | None, best_checkpoint_path: Path | None) -> None: ...
 
@@ -68,6 +72,9 @@ class NoOpTrainingTracker:
         *,
         metrics: EpochMetrics,
     ) -> None:
+        return None
+
+    def log_generation_evaluation(self, *, metrics: dict[str, float], epoch: int) -> None:
         return None
 
     def log_checkpoints(
@@ -131,6 +138,7 @@ class MlflowTrainingTracker:
                     "train_samples": len(split.train),
                     "validation_samples": len(split.validation),
                     "invalid_files": len(split.invalid_files),
+                    "encoded_samples_fingerprint": encoded_samples_fingerprint([*split.train, *split.validation]),
                 },
             }
         )
@@ -143,6 +151,11 @@ class MlflowTrainingTracker:
     ) -> None:
         for name, value in _epoch_metric_values(metrics).items():
             self._mlflow.log_metric(name, value, step=metrics.epoch)
+
+    def log_generation_evaluation(self, *, metrics: dict[str, float], epoch: int) -> None:
+        for name, value in metrics.items():
+            if math.isfinite(value):
+                self._mlflow.log_metric(name, value, step=epoch)
 
     def log_checkpoints(
         self,
@@ -195,7 +208,32 @@ def _serializable_dump(model: BaseModel) -> dict[str, object]:
 
 
 def _epoch_metric_values(metrics: EpochMetrics) -> dict[str, float]:
-    return {key: value for key, value in metrics.model_dump().items() if key != "epoch" and isinstance(value, float)}
+    return {
+        metric_name: value
+        for field_name, metric_name in _EPOCH_METRIC_NAME_MAP.items()
+        if isinstance((value := getattr(metrics, field_name)), float)
+    }
+
+
+_EPOCH_METRIC_NAME_MAP: Final[dict[str, str]] = {
+    "train_loss": "model/train/mean/loss",
+    "train_perplexity": "model/train/mean/perplexity",
+    "train_token_accuracy": "model/train/rate/token_accuracy",
+    "train_token_kind_accuracy": "model/train/rate/token_kind_accuracy",
+    "train_validity_penalty_loss": "model/train/mean/validity_penalty_loss",
+    "train_invalid_probability_mass": "model/train/mean/invalid_probability_mass",
+    "train_invalid_target_rate": "model/train/rate/invalid_target",
+    "train_cnn_gradient_norm": "model/train/mean/cnn_gradient_norm",
+    "train_gru_gradient_norm": "model/train/mean/gru_gradient_norm",
+    "train_transformer_gradient_norm": "model/train/mean/transformer_gradient_norm",
+    "validation_loss": "model/validation/mean/loss",
+    "validation_perplexity": "model/validation/mean/perplexity",
+    "validation_token_accuracy": "model/validation/rate/token_accuracy",
+    "validation_token_kind_accuracy": "model/validation/rate/token_kind_accuracy",
+    "validation_validity_penalty_loss": "model/validation/mean/validity_penalty_loss",
+    "validation_invalid_probability_mass": "model/validation/mean/invalid_probability_mass",
+    "validation_invalid_target_rate": "model/validation/rate/invalid_target",
+}
 
 
 def _flatten_params(values: dict[str, object]) -> dict[str, str | int | float | bool]:

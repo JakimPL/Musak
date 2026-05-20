@@ -15,6 +15,7 @@ from musak_model.data.pipeline import segment_parsed_score
 from musak_model.data.schema import ParsedScore, Segment
 from musak_model.processing.diagnostics import ParseDiagnosticsCapture
 from musak_model.processing.manifest import ParsedManifestField, read_parsed_manifest
+from musak_model.processing.paths import PARSED_MANIFEST_NAME
 
 _PROCESSING_ERRORS: tuple[type[Exception], ...] = (
     Music21Exception,
@@ -145,7 +146,7 @@ def parsed_score_manifest_diagnostics(path: Path) -> str:
 
 def _nearest_parsed_manifest(path: Path) -> Path | None:
     for parent in path.resolve().parents:
-        manifest_path = parent / "parsed.csv"
+        manifest_path = parent / PARSED_MANIFEST_NAME
         if manifest_path.exists():
             return manifest_path
 

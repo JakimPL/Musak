@@ -11,6 +11,7 @@ from musak_model.paths import (
     TOKENIZATION_CONFIG_PATH,
 )
 from musak_model.processing.dataset import process_dataset
+from musak_model.processing.tracking import ProcessingMlflowConfig, build_processing_tracker
 from musak_model.tokens.config import TokenizationConfig
 from musak_shared.files import collect_musicxml_files
 
@@ -53,17 +54,33 @@ def main() -> None:
         return
 
     _LOGGER.info("MusicXML files found: %s", len(source_files))
-    result = process_dataset(
-        args.data_dir,
-        processed_root=args.processed_dir,
-        segmentation=segmentation,
-        tokenization_config=tokenization_config,
-        stage=args.stage,
-        difficulty_labels=difficulty_labels,
-        overwrite=args.overwrite,
-        workers=args.workers,
-        show_progress=not args.no_progress,
+    tracker = build_processing_tracker(
+        config=ProcessingMlflowConfig(
+            enabled=not args.disable_mlflow,
+            experiment_name=args.mlflow_experiment_name,
+            run_name=args.mlflow_run_name,
+            tracking_uri=args.mlflow_tracking_uri,
+        )
     )
+    with tracker:
+        result = process_dataset(
+            args.data_dir,
+            processed_root=args.processed_dir,
+            segmentation=segmentation,
+            tokenization_config=tokenization_config,
+            stage=args.stage,
+            difficulty_labels=difficulty_labels,
+            overwrite=args.overwrite,
+            workers=args.workers,
+            show_progress=not args.no_progress,
+        )
+        tracker.log_processing_result(
+            result=result,
+            data_dir=args.data_dir,
+            processed_root=args.processed_dir,
+            stage=args.stage,
+            overwrite=args.overwrite,
+        )
     _LOGGER.info("Finished dataset processing")
     _LOGGER.info("Parsed manifest: %s", result.parsed_manifest_path)
     if result.encoded_manifest_path is not None:
@@ -145,6 +162,14 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--no-progress", action="store_true", help="Disable tqdm progress bars.")
     parser.add_argument("--overwrite", action="store_true", help="Overwrite existing parsed/encoded artifacts.")
+    parser.add_argument("--disable-mlflow", action="store_true", help="Disable MLflow dataset metric logging.")
+    parser.add_argument(
+        "--mlflow-experiment-name",
+        default="musak-process",
+        help="MLflow experiment name for processing metrics.",
+    )
+    parser.add_argument("--mlflow-run-name", default=None, help="Optional MLflow run name for processing metrics.")
+    parser.add_argument("--mlflow-tracking-uri", default=None, help="Optional MLflow tracking URI.")
     return parser.parse_args(argv)
 
 

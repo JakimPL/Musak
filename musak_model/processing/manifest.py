@@ -58,6 +58,9 @@ class EncodedManifestField(StrEnum):
     LONGEST_BOTH_HANDS_SILENCE_BEATS = "longest_both_hands_silence_beats"
     RIGHT_NOTE_ONSETS_PER_BAR = "right_note_onsets_per_bar"
     LEFT_NOTE_ONSETS_PER_BAR = "left_note_onsets_per_bar"
+    SILENT_BAR_COUNT = "silent_bar_count"
+    SILENT_BAR_FRACTION = "silent_bar_fraction"
+    SILENT_EDGE_BAR_COUNT = "silent_edge_bar_count"
     HAND_ACTIVITY_BALANCE = "hand_activity_balance"
     EMPTY_SCORE = "empty_score"
     ONE_HAND_ONLY = "one_hand_only"
@@ -116,6 +119,9 @@ ENCODED_MANIFEST_FIELDS: Final[tuple[EncodedManifestField, ...]] = (
     EncodedManifestField.LONGEST_BOTH_HANDS_SILENCE_BEATS,
     EncodedManifestField.RIGHT_NOTE_ONSETS_PER_BAR,
     EncodedManifestField.LEFT_NOTE_ONSETS_PER_BAR,
+    EncodedManifestField.SILENT_BAR_COUNT,
+    EncodedManifestField.SILENT_BAR_FRACTION,
+    EncodedManifestField.SILENT_EDGE_BAR_COUNT,
     EncodedManifestField.HAND_ACTIVITY_BALANCE,
     EncodedManifestField.EMPTY_SCORE,
     EncodedManifestField.ONE_HAND_ONLY,
@@ -252,6 +258,9 @@ def encoded_row(
         EncodedManifestField.LONGEST_BOTH_HANDS_SILENCE_BEATS: diagnostics.longest_both_hands_silence_beats,
         EncodedManifestField.RIGHT_NOTE_ONSETS_PER_BAR: diagnostics.right_note_onsets_per_bar,
         EncodedManifestField.LEFT_NOTE_ONSETS_PER_BAR: diagnostics.left_note_onsets_per_bar,
+        EncodedManifestField.SILENT_BAR_COUNT: diagnostics.silent_bar_count,
+        EncodedManifestField.SILENT_BAR_FRACTION: diagnostics.silent_bar_fraction,
+        EncodedManifestField.SILENT_EDGE_BAR_COUNT: diagnostics.silent_edge_bar_count,
         EncodedManifestField.HAND_ACTIVITY_BALANCE: diagnostics.hand_activity_balance,
         EncodedManifestField.EMPTY_SCORE: diagnostics.empty_score,
         EncodedManifestField.ONE_HAND_ONLY: diagnostics.one_hand_only,

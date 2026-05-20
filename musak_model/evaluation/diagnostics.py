@@ -38,6 +38,9 @@ class SegmentDiagnostics(BaseModel):
     longest_both_hands_silence_beats: float = Field(ge=0)
     right_note_onsets_per_bar: float = Field(ge=0)
     left_note_onsets_per_bar: float = Field(ge=0)
+    silent_bar_count: int = Field(ge=0)
+    silent_bar_fraction: float = Field(ge=0, le=1)
+    silent_edge_bar_count: int = Field(ge=0)
     hand_activity_balance: float = Field(ge=0, le=1)
     empty_score: bool
     one_hand_only: bool
@@ -59,6 +62,7 @@ def diagnose_segment(
     active_intervals = {
         hand: _merged_intervals((event.start, event.end) for event in events if event.hand == hand) for hand in _HANDS
     }
+    silent_bar_indices = _silent_bar_indices(segment, events)
     state_durations = _hand_state_durations(active_intervals, total_duration=total_duration)
     right_active_duration = state_durations.right_only_active_duration + state_durations.both_hands_active_duration
     left_active_duration = state_durations.left_only_active_duration + state_durations.both_hands_active_duration
@@ -85,6 +89,9 @@ def diagnose_segment(
         ),
         right_note_onsets_per_bar=_onsets_per_bar(events, hand=Hand.RIGHT, bar_count=bar_count),
         left_note_onsets_per_bar=_onsets_per_bar(events, hand=Hand.LEFT, bar_count=bar_count),
+        silent_bar_count=len(silent_bar_indices),
+        silent_bar_fraction=len(silent_bar_indices) / bar_count,
+        silent_edge_bar_count=_silent_edge_bar_count(silent_bar_indices, bar_count=bar_count),
         hand_activity_balance=_activity_balance(right_active_duration, left_active_duration),
         empty_score=right_active_duration == 0 and left_active_duration == 0,
         one_hand_only=(right_active_duration == 0) != (left_active_duration == 0),
@@ -308,6 +315,35 @@ def _beats(duration: Fraction, *, denominator: int) -> float:
 def _onsets_per_bar(events: list[_ActivityEvent], *, hand: Hand, bar_count: int) -> float:
     onsets = {event.start for event in events if event.hand == hand}
     return len(onsets) / bar_count
+
+
+def _silent_bar_indices(segment: Segment, events: list[_ActivityEvent]) -> set[int]:
+    measure_duration = Fraction(segment.time_numerator, segment.time_denominator)
+    if segment.bar_count <= 0 or measure_duration <= 0:
+        return set()
+
+    active_bar_indices = {
+        bar_index
+        for event in events
+        for bar_index in _event_bar_indices(event, measure_duration=measure_duration, bar_count=segment.bar_count)
+    }
+    return set(range(segment.bar_count)) - active_bar_indices
+
+
+def _event_bar_indices(event: _ActivityEvent, *, measure_duration: Fraction, bar_count: int) -> range:
+    first_bar = max(0, int(event.start // measure_duration))
+    end_position = event.end / measure_duration
+    last_bar = int(end_position) - 1 if end_position.denominator == 1 else int(end_position)
+    last_bar = min(bar_count - 1, last_bar)
+    return range(first_bar, last_bar + 1)
+
+
+def _silent_edge_bar_count(silent_bar_indices: set[int], *, bar_count: int) -> int:
+    if bar_count <= 0:
+        return 0
+
+    edge_indices = {0, bar_count - 1}
+    return len(silent_bar_indices & edge_indices)
 
 
 def _activity_balance(right_active_duration: Fraction, left_active_duration: Fraction) -> float:

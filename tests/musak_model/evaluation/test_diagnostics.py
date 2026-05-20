@@ -4,7 +4,17 @@ from pathlib import Path
 from musak_model.data.schema import Segment, SegmentMetadata
 from musak_model.evaluation import diagnose_segment
 from musak_model.tokens.duration import DurationVocabulary
-from musak_model.tokens.schema import Hand, HandToken, JoinWithPreviousToken, NoteToken, RestToken, ScaleType, Token
+from musak_model.tokens.schema import (
+    BarToken,
+    Hand,
+    HandToken,
+    HoldToken,
+    JoinWithPreviousToken,
+    NoteToken,
+    RestToken,
+    ScaleType,
+    Token,
+)
 
 
 def test_rest_only_segment_is_empty_and_silent(duration_vocabulary: DurationVocabulary) -> None:
@@ -100,6 +110,53 @@ def test_chord_notes_count_as_one_onset(duration_vocabulary: DurationVocabulary)
 
     assert diagnostics.right_note_onsets_per_bar == 1.0
     assert diagnostics.note_token_fraction == 0.5
+
+
+def test_silent_bar_diagnostics_count_edge_and_interior_silent_bars(
+    duration_vocabulary: DurationVocabulary,
+) -> None:
+    whole_id = duration_vocabulary.fraction_to_id(Fraction(1, 1))
+    segment = _segment(
+        [
+            HandToken(hand=Hand.RIGHT),
+            RestToken(duration_id=whole_id),
+            HandToken(hand=Hand.LEFT),
+            RestToken(duration_id=whole_id),
+            BarToken(),
+            HandToken(hand=Hand.RIGHT),
+            NoteToken(degree=1, accidental=0, octave_offset=0, duration_id=whole_id),
+            BarToken(),
+            HandToken(hand=Hand.RIGHT),
+            RestToken(duration_id=whole_id),
+            HandToken(hand=Hand.LEFT),
+            RestToken(duration_id=whole_id),
+        ],
+        bar_count=3,
+    )
+
+    diagnostics = diagnose_segment(segment, duration_vocabulary=duration_vocabulary)
+
+    assert diagnostics.silent_bar_count == 2
+    assert diagnostics.silent_bar_fraction == 2 / 3
+    assert diagnostics.silent_edge_bar_count == 2
+
+
+def test_hold_token_counts_as_bar_activity(duration_vocabulary: DurationVocabulary) -> None:
+    whole_id = duration_vocabulary.fraction_to_id(Fraction(1, 1))
+    segment = _segment(
+        [
+            HandToken(hand=Hand.RIGHT),
+            NoteToken(degree=1, accidental=0, octave_offset=0, duration_id=whole_id),
+            BarToken(),
+            HoldToken(duration_id=whole_id),
+        ],
+        bar_count=2,
+    )
+
+    diagnostics = diagnose_segment(segment, duration_vocabulary=duration_vocabulary)
+
+    assert diagnostics.silent_bar_count == 0
+    assert diagnostics.silent_edge_bar_count == 0
 
 
 def _segment(tokens: list[Token], *, bar_count: int = 1) -> Segment:

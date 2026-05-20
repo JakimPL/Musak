@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
@@ -12,6 +13,7 @@ from musak_model.processing.manifest import (
     ParsedManifestField,
     ParsedManifestStatus,
 )
+from musak_model.processing.paths import ENCODED_MANIFEST_NAME, PARSED_MANIFEST_NAME
 from musak_shared.elements import KEYS
 
 COUNT_COLUMN: Final[str] = "count"
@@ -40,6 +42,9 @@ _DIAGNOSTIC_NUMERIC_FIELDS: Final[tuple[EncodedManifestField, ...]] = (
     EncodedManifestField.LONGEST_BOTH_HANDS_SILENCE_BEATS,
     EncodedManifestField.RIGHT_NOTE_ONSETS_PER_BAR,
     EncodedManifestField.LEFT_NOTE_ONSETS_PER_BAR,
+    EncodedManifestField.SILENT_BAR_COUNT,
+    EncodedManifestField.SILENT_BAR_FRACTION,
+    EncodedManifestField.SILENT_EDGE_BAR_COUNT,
     EncodedManifestField.HAND_ACTIVITY_BALANCE,
     EncodedManifestField.NOTE_TOKEN_FRACTION,
     EncodedManifestField.REST_TOKEN_FRACTION,
@@ -73,12 +78,12 @@ def encoded_run_dirs(dataset_dir: Path) -> list[Path]:
     if not encoded_root.exists():
         return []
 
-    return sorted(path for path in encoded_root.iterdir() if (path / "encoded.csv").is_file())
+    return sorted(path for path in encoded_root.iterdir() if (path / ENCODED_MANIFEST_NAME).is_file())
 
 
 def load_dataset_statistics(dataset_dir: Path, encoded_dir: Path | None) -> DatasetStatistics:
-    parsed = read_parsed_manifest_frame(dataset_dir / "parsed.csv")
-    encoded = read_encoded_manifest_frame(encoded_dir / "encoded.csv") if encoded_dir is not None else None
+    parsed = read_parsed_manifest_frame(dataset_dir / PARSED_MANIFEST_NAME)
+    encoded = read_encoded_manifest_frame(encoded_dir / ENCODED_MANIFEST_NAME) if encoded_dir is not None else None
     return DatasetStatistics(parsed=parsed, encoded=encoded)
 
 
@@ -189,6 +194,32 @@ def table_records(frame: pd.DataFrame) -> list[dict[str, object]]:
     return [{str(key): value for key, value in row.items()} for row in records]
 
 
+def selected_table_row(table: object) -> dict[str, object] | None:
+    value = getattr(table, "value", None)
+    if value is None:
+        return None
+
+    if isinstance(value, pd.DataFrame):
+        records = table_records(value)
+        return records[0] if records else None
+
+    if isinstance(value, list):
+        if not value:
+            return None
+
+        first = value[0]
+        return {str(key): item for key, item in first.items()} if isinstance(first, dict) else None
+
+    if isinstance(value, dict):
+        rows = value.get("rows")
+        if isinstance(rows, list) and rows and isinstance(rows[0], dict):
+            return {str(key): item for key, item in rows[0].items()}
+
+        return {str(key): item for key, item in value.items()}
+
+    return None
+
+
 def token_summary_rows(encoded: pd.DataFrame) -> list[dict[str, str]]:
     tokens = encoded[EncodedManifestField.TOKEN_COUNT].dropna()
     if tokens.empty:
@@ -231,6 +262,9 @@ def diagnostic_summary_rows(encoded: pd.DataFrame) -> list[dict[str, str]]:
                 percent=True,
             ),
             _mean_metric_row("hand activity balance", encoded[EncodedManifestField.HAND_ACTIVITY_BALANCE]),
+            _mean_metric_row("silent bars", encoded[EncodedManifestField.SILENT_BAR_COUNT]),
+            _mean_metric_row("silent bar share", encoded[EncodedManifestField.SILENT_BAR_FRACTION], percent=True),
+            _mean_metric_row("silent edge bars", encoded[EncodedManifestField.SILENT_EDGE_BAR_COUNT]),
             _mean_metric_row("note token share", encoded[EncodedManifestField.NOTE_TOKEN_FRACTION], percent=True),
             _mean_metric_row("rest token share", encoded[EncodedManifestField.REST_TOKEN_FRACTION], percent=True),
         ]
@@ -334,7 +368,11 @@ def parsed_table_frame(parsed: pd.DataFrame) -> pd.DataFrame:
 def encoded_table_frame(encoded: pd.DataFrame) -> pd.DataFrame:
     columns = [
         EncodedManifestField.SEGMENT_ID,
+        EncodedManifestField.SOURCE_ID,
         EncodedManifestField.SOURCE_PATH,
+        EncodedManifestField.PARSED_PATH,
+        EncodedManifestField.ENCODED_SHARD,
+        EncodedManifestField.ENCODED_LINE,
         EncodedManifestField.WINDOW_START_BAR,
         EncodedManifestField.BAR_COUNT,
         EncodedManifestField.TOKEN_COUNT,
@@ -415,7 +453,7 @@ def _percent(numerator: int, denominator: int) -> str:
     return f"{100 * numerator / denominator:.1f}%"
 
 
-def _table_frame(frame: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
+def _table_frame(frame: pd.DataFrame, columns: Sequence[object]) -> pd.DataFrame:
     table = frame.loc[:, [str(column) for column in columns]].copy()
     table.columns = [str(column) for column in table.columns]
     return table
@@ -423,6 +461,9 @@ def _table_frame(frame: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
 
 def _key_root_label(value: object) -> str:
     try:
+        if not isinstance(value, (int, float, str)):
+            return str(value)
+
         return KEYS[int(value)]
     except (TypeError, ValueError, KeyError):
         return str(value)
