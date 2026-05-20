@@ -4,7 +4,7 @@ import os
 from collections.abc import Sequence
 from pathlib import Path
 
-from musak_model.data.config import load_difficulty_labels, load_segmentation_config
+from musak_model.data.config import DataProcessingConfig, load_difficulty_labels, load_segmentation_config
 from musak_model.paths import (
     DEFAULT_PROCESSED_ROOT,
     SEGMENTATION_CONFIG_PATH,
@@ -28,7 +28,7 @@ class _ProcessDatasetHelpFormatter(
 def main() -> None:
     args = _parse_args()
     _configure_logging(args.log_level)
-    segmentation = load_segmentation_config(
+    segmentation_config = load_segmentation_config(
         args.segmentation_config,
         window_bars=args.window_bars,
         stride_bars=args.stride_bars,
@@ -45,6 +45,7 @@ def main() -> None:
     _LOGGER.info("Progress bars: %s", not args.no_progress)
     _LOGGER.info("Segmentation config: %s", args.segmentation_config)
     _LOGGER.info("Tokenization config: %s", args.tokenization_config)
+    _LOGGER.info("Remove segments with silent bars: %s", args.remove_segments_with_silent_bars)
     source_files = collect_musicxml_files(args.data_dir)
     if not source_files:
         _LOGGER.warning(
@@ -66,8 +67,11 @@ def main() -> None:
         result = process_dataset(
             args.data_dir,
             processed_root=args.processed_dir,
-            segmentation=segmentation,
+            segmentation_config=segmentation_config,
             tokenization_config=tokenization_config,
+            data_processing_config=DataProcessingConfig(
+                remove_segments_with_silent_bars=args.remove_segments_with_silent_bars
+            ),
             stage=args.stage,
             difficulty_labels=difficulty_labels,
             overwrite=args.overwrite,
@@ -142,6 +146,12 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--window-bars", type=int, default=None, help="Override segmentation window size in bars.")
     parser.add_argument("--stride-bars", type=int, default=None, help="Override segmentation stride in bars.")
+    parser.add_argument(
+        "--remove-segments-with-silent-bars",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Mark any segment containing a fully silent bar as ineligible for training.",
+    )
     parser.add_argument(
         "--difficulty-labels",
         type=Path,

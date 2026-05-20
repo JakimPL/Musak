@@ -39,6 +39,12 @@ def load_segmentation_config(
     )
 
 
+class DataProcessingConfig(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    remove_segments_with_silent_bars: bool
+
+
 def load_difficulty_labels(path: Path | None) -> dict[str, int] | None:
     if path is None:
         return None

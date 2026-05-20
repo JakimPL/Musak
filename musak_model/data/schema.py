@@ -128,6 +128,7 @@ class SegmentIneligibilityReason(StrEnum):
     PARTIAL_CHORD_TIE = "partial_chord_tie"
     TIE_MISMATCH = "tie_mismatch"
     TIE_CONTINUATION_AT_WINDOW_START = "tie_continuation_at_window_start"
+    SILENT_BAR = "silent_bar"
     SILENT_EDGE_BAR = "silent_edge_bar"
 
 

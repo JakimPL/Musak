@@ -11,6 +11,9 @@
 7. Separate function options with `*`. Positional arguments should be intentionally chosen.
 8. Prefer `match` statements over long `isinstance` chains, and for enumeration handling.
 9. Do not preserve backward compatibility for internal APIs, configs, or data shapes unless the user explicitly asks for it.
+10. Avoid _tramp data_ antipattern.
+11. Be cautious about optional parameters. All variables upon the logic relies on cannot be optional, including configuration instances.
+12. Restrict yourself from using default values for non-optional, excluding these that are not meant to be frequently changed (e.g. seed). If you do use defaults, declare a Final top-level constant for that.
 
 ## Shared Ownership
 
@@ -27,7 +30,7 @@
 2. Fill generic types. Use `dict[str, int]`, not `dict`.
 3. Do not cast/silence type errors unless the boundary is an untyped or mistyped third-party API.
 4. Avoid `Any` and `object` unless the boundary genuinely accepts arbitrary data.
-5. Do not quote type names. Use `from __future__ import annotations`, `Self`, or `TYPE_CHECKING`.
+5. Do not quote type names. Use `from __future__ import annotations` (only if needed), `Self`, or `TYPE_CHECKING`.
 6. Validate with `mypy`.
 
 ## Error Handling

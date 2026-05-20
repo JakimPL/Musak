@@ -24,6 +24,10 @@ Each encoded JSONL row is an `EncodedExercise`:
 
 The current encoded PDMX artifact is a unified two-hand stream. It is not split into separate right-hand and left-hand samples.
 
+Data processing uses `DataProcessingConfig.remove_segments_with_silent_bars=True` by default. Segmentation still
+records silent-bar diagnostics, but processing marks any segment with a fully silent bar as ineligible with
+`silent_bar` before writing encoded samples. Edge-silent windows keep the more specific `silent_edge_bar` reason too.
+
 ## Current Token Semantics
 
 Tokens represent music relative to segment metadata:

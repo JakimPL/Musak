@@ -7,7 +7,8 @@ from zipfile import ZipFile
 
 import pytest
 
-from musak_model.data.config import SegmentationConfig
+from musak_model.data.config import DataProcessingConfig, SegmentationConfig
+from musak_model.data.schema import SegmentIneligibilityReason
 from musak_model.processing import dataset as dataset_module
 from musak_model.processing.dataset import process_dataset
 from musak_model.processing.ids import source_id
@@ -24,13 +25,23 @@ from musak_model.processing.snapshot import build_tokenizer_snapshot
 from musak_model.tokens.config import TokenizationConfig
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.vocabulary import TokenVocabulary
-from tests.musak_model.data.fixtures import bar, note_event, parsed_score
+from tests.musak_model.data.fixtures import bar, note_event, parsed_score, rest_event
 
 
 def _score():
     return parsed_score(
         right_hand_bars=[bar([note_event(midi_pitch=72, duration=Fraction(1, 4), beat_offset=Fraction(0))])],
         left_hand_bars=[bar([note_event(midi_pitch=48, duration=Fraction(1, 4), beat_offset=Fraction(0))])],
+    )
+
+
+def _score_with_interior_silent_bar():
+    right_note_bar = bar([note_event(midi_pitch=72, duration=Fraction(1, 4), beat_offset=Fraction(0))])
+    left_note_bar = bar([note_event(midi_pitch=48, duration=Fraction(1, 4), beat_offset=Fraction(0))])
+    silent_bar = bar([rest_event(duration=Fraction(1, 1), beat_offset=Fraction(0))])
+    return parsed_score(
+        right_hand_bars=[right_note_bar, silent_bar, right_note_bar],
+        left_hand_bars=[left_note_bar, silent_bar, left_note_bar],
     )
 
 
@@ -55,8 +66,9 @@ def test_process_dataset_writes_parsed_and_encoded_artifacts(
     result = process_dataset(
         dataset_root,
         processed_root=processed_root,
-        segmentation=_segmentation_config(),
+        segmentation_config=_segmentation_config(),
         tokenization_config=tokenization_config,
+        data_processing_config=DataProcessingConfig(remove_segments_with_silent_bars=True),
         stage="all",
         overwrite=True,
     )
@@ -83,6 +95,69 @@ def test_process_dataset_writes_parsed_and_encoded_artifacts(
     assert load_encoded_jsonl(result.encoded_manifest_path.parent / "data-00000.jsonl")[0].source_file == Path(
         "mxl/piece.mxl"
     )
+
+
+def test_process_dataset_marks_segments_with_any_silent_bar_ineligible_by_default(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    tokenization_config: TokenizationConfig,
+) -> None:
+    dataset_root = tmp_path / "PDMX"
+    source_path = dataset_root / "piece.mxl"
+    source_path.parent.mkdir(parents=True)
+    source_path.write_text("score")
+
+    monkeypatch.setattr("musak_model.processing.dataset.parse_score", lambda path: _score_with_interior_silent_bar())
+    monkeypatch.setattr("musak_model.processing.dataset._score_title", lambda path: "Piece")
+
+    result = process_dataset(
+        dataset_root,
+        processed_root=tmp_path / "processed",
+        segmentation_config=SegmentationConfig(window_bars=3, stride_bars=1),
+        tokenization_config=tokenization_config,
+        data_processing_config=DataProcessingConfig(remove_segments_with_silent_bars=True),
+        stage="all",
+        overwrite=True,
+    )
+
+    encoded_rows = read_encoded_manifest(result.encoded_manifest_path or Path())
+
+    assert result.encoded_count == 0
+    assert encoded_rows[0][EncodedManifestField.ELIGIBLE_FOR_TRAINING] == "False"
+    assert encoded_rows[0][EncodedManifestField.ENCODED_LINE] == ""
+    assert encoded_rows[0][EncodedManifestField.INELIGIBILITY_REASONS] == SegmentIneligibilityReason.SILENT_BAR.value
+    assert encoded_rows[0][EncodedManifestField.SILENT_BAR_COUNT] == "1"
+
+
+def test_process_dataset_can_keep_segments_with_silent_bars(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    tokenization_config: TokenizationConfig,
+) -> None:
+    dataset_root = tmp_path / "PDMX"
+    source_path = dataset_root / "piece.mxl"
+    source_path.parent.mkdir(parents=True)
+    source_path.write_text("score")
+
+    monkeypatch.setattr("musak_model.processing.dataset.parse_score", lambda path: _score_with_interior_silent_bar())
+    monkeypatch.setattr("musak_model.processing.dataset._score_title", lambda path: "Piece")
+
+    result = process_dataset(
+        dataset_root,
+        processed_root=tmp_path / "processed",
+        segmentation_config=SegmentationConfig(window_bars=3, stride_bars=1),
+        tokenization_config=tokenization_config,
+        data_processing_config=DataProcessingConfig(remove_segments_with_silent_bars=False),
+        stage="all",
+        overwrite=True,
+    )
+
+    encoded_rows = read_encoded_manifest(result.encoded_manifest_path or Path())
+
+    assert result.encoded_count == 1
+    assert encoded_rows[0][EncodedManifestField.ELIGIBLE_FOR_TRAINING] == "True"
+    assert encoded_rows[0][EncodedManifestField.INELIGIBILITY_REASONS] == ""
+    assert encoded_rows[0][EncodedManifestField.SILENT_BAR_COUNT] == "1"
 
 
 @pytest.mark.parametrize(
@@ -113,8 +188,9 @@ def test_process_dataset_records_parse_errors(
     result = process_dataset(
         dataset_root,
         processed_root=tmp_path / "processed",
-        segmentation=_segmentation_config(),
+        segmentation_config=_segmentation_config(),
         tokenization_config=tokenization_config,
+        data_processing_config=DataProcessingConfig(remove_segments_with_silent_bars=True),
         stage="parsed",
         overwrite=True,
     )
@@ -149,8 +225,9 @@ def test_process_dataset_records_parse_diagnostics_without_console_noise(
     result = process_dataset(
         dataset_root,
         processed_root=tmp_path / "processed",
-        segmentation=_segmentation_config(),
+        segmentation_config=_segmentation_config(),
         tokenization_config=tokenization_config,
+        data_processing_config=DataProcessingConfig(remove_segments_with_silent_bars=True),
         stage="parsed",
         overwrite=True,
     )
@@ -185,8 +262,9 @@ def test_process_dataset_records_parse_diagnostics_on_errors(
     result = process_dataset(
         dataset_root,
         processed_root=tmp_path / "processed",
-        segmentation=_segmentation_config(),
+        segmentation_config=_segmentation_config(),
         tokenization_config=tokenization_config,
+        data_processing_config=DataProcessingConfig(remove_segments_with_silent_bars=True),
         stage="parsed",
         overwrite=True,
     )
@@ -203,8 +281,9 @@ def test_process_dataset_rejects_invalid_worker_count(tmp_path: Path, tokenizati
         process_dataset(
             tmp_path,
             processed_root=tmp_path / "processed",
-            segmentation=_segmentation_config(),
+            segmentation_config=_segmentation_config(),
             tokenization_config=tokenization_config,
+            data_processing_config=DataProcessingConfig(remove_segments_with_silent_bars=True),
             stage="parsed",
             workers=0,
         )
@@ -222,8 +301,9 @@ def test_process_dataset_parallel_parse_keeps_manifest_order(
     result = process_dataset(
         dataset_root,
         processed_root=tmp_path / "processed",
-        segmentation=_segmentation_config(),
+        segmentation_config=_segmentation_config(),
         tokenization_config=tokenization_config,
+        data_processing_config=DataProcessingConfig(remove_segments_with_silent_bars=True),
         stage="parsed",
         workers=2,
         overwrite=True,
@@ -260,8 +340,9 @@ def test_process_dataset_reuses_error_rows_from_parsed_manifest(
     process_dataset(
         dataset_root,
         processed_root=processed_root,
-        segmentation=_segmentation_config(),
+        segmentation_config=_segmentation_config(),
         tokenization_config=tokenization_config,
+        data_processing_config=DataProcessingConfig(remove_segments_with_silent_bars=True),
         stage="parsed",
         overwrite=True,
     )
@@ -275,8 +356,9 @@ def test_process_dataset_reuses_error_rows_from_parsed_manifest(
         result = process_dataset(
             dataset_root,
             processed_root=processed_root,
-            segmentation=_segmentation_config(),
+            segmentation_config=_segmentation_config(),
             tokenization_config=tokenization_config,
+            data_processing_config=DataProcessingConfig(remove_segments_with_silent_bars=True),
             stage="parsed",
             overwrite=False,
         )
@@ -303,8 +385,9 @@ def test_process_dataset_reuses_success_rows_from_parsed_manifest(
     process_dataset(
         dataset_root,
         processed_root=processed_root,
-        segmentation=_segmentation_config(),
+        segmentation_config=_segmentation_config(),
         tokenization_config=tokenization_config,
+        data_processing_config=DataProcessingConfig(remove_segments_with_silent_bars=True),
         stage="parsed",
         overwrite=True,
     )
@@ -317,8 +400,9 @@ def test_process_dataset_reuses_success_rows_from_parsed_manifest(
     result = process_dataset(
         dataset_root,
         processed_root=processed_root,
-        segmentation=_segmentation_config(),
+        segmentation_config=_segmentation_config(),
         tokenization_config=tokenization_config,
+        data_processing_config=DataProcessingConfig(remove_segments_with_silent_bars=True),
         stage="parsed",
         overwrite=False,
     )
@@ -355,8 +439,9 @@ def test_process_dataset_writes_partial_parsed_manifest_on_interrupt(
         process_dataset(
             dataset_root,
             processed_root=processed_root,
-            segmentation=_segmentation_config(),
+            segmentation_config=_segmentation_config(),
             tokenization_config=tokenization_config,
+            data_processing_config=DataProcessingConfig(remove_segments_with_silent_bars=True),
             stage="parsed",
             overwrite=True,
             workers=1,
@@ -397,8 +482,9 @@ def test_process_dataset_rebuilds_incomplete_encoded_outputs(
     result = process_dataset(
         dataset_root,
         processed_root=processed_root,
-        segmentation=_segmentation_config(),
+        segmentation_config=_segmentation_config(),
         tokenization_config=tokenization_config,
+        data_processing_config=DataProcessingConfig(remove_segments_with_silent_bars=True),
         stage="all",
         overwrite=False,
         workers=1,

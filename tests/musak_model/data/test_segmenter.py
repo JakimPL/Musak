@@ -166,6 +166,44 @@ def test_segment_with_interior_silent_bar_remains_training_eligible(
     assert segments[0].metadata.ineligibility_reasons == frozenset()
 
 
+def test_cleaned_duplicate_note_events_do_not_make_segment_ineligible(
+    duration_vocabulary: DurationVocabulary,
+) -> None:
+    duplicate_note_bar = ParsedBar(
+        time_numerator=4,
+        time_denominator=4,
+        key_fifths=0,
+        events=[
+            ParsedNote(midi_pitch=60, duration=Fraction(1, 4), beat_offset=Fraction(0)),
+            ParsedNote(midi_pitch=60, duration=Fraction(1, 4), beat_offset=Fraction(0)),
+        ],
+    )
+    score = ParsedScore(
+        key_root=0,
+        key_fifths=0,
+        scale_type=ScaleType.MAJOR,
+        time_numerator=4,
+        time_denominator=4,
+        right_hand_bars=[duplicate_note_bar],
+        left_hand_bars=[_note_bar()],
+    )
+
+    cleaned = clean_parsed_score(score)
+    segments = segment_score(
+        cleaned,
+        Path("piece.mxl"),
+        scale_type=ScaleType.MAJOR,
+        duration_vocabulary=duration_vocabulary,
+        segmentation=SegmentationConfig(window_bars=1, stride_bars=1),
+    )
+
+    assert cleaned.right_hand_bars[0].events == [
+        ParsedNote(midi_pitch=60, duration=Fraction(1, 4), beat_offset=Fraction(0))
+    ]
+    assert segments[0].metadata.eligible_for_training is True
+    assert segments[0].metadata.ineligibility_reasons == frozenset()
+
+
 def test_register_error_marks_only_affected_segments_ineligible(duration_vocabulary: DurationVocabulary) -> None:
     bad_register_bar = ParsedBar(
         time_numerator=4,

@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from musak_model.data.config import SegmentationConfig
+from musak_model.data.config import DataProcessingConfig, SegmentationConfig
 from musak_model.data.schema import Segment, SegmentIneligibilityReason, SegmentMetadata
 from musak_model.processing.dataset import process_dataset
 from musak_model.tokens.config import TokenizationConfig
@@ -232,8 +232,9 @@ def test_build_ingestion_split_prefers_encoded_artifacts(
     process_dataset(
         dataset_root,
         processed_root=processed_root,
-        segmentation=SegmentationConfig(window_bars=1, stride_bars=1),
+        segmentation_config=SegmentationConfig(window_bars=1, stride_bars=1),
         tokenization_config=tokenization_config,
+        data_processing_config=DataProcessingConfig(remove_segments_with_silent_bars=True),
         stage="all",
         overwrite=True,
     )
@@ -276,8 +277,9 @@ def test_build_ingestion_split_ignores_encoded_artifacts_without_matching_snapsh
     result = process_dataset(
         dataset_root,
         processed_root=processed_root,
-        segmentation=SegmentationConfig(window_bars=1, stride_bars=1),
+        segmentation_config=SegmentationConfig(window_bars=1, stride_bars=1),
         tokenization_config=tokenization_config,
+        data_processing_config=DataProcessingConfig(remove_segments_with_silent_bars=True),
         stage="all",
         overwrite=True,
     )
@@ -322,8 +324,9 @@ def test_build_ingestion_split_falls_back_to_parsed_artifacts(
     process_dataset(
         dataset_root,
         processed_root=processed_root,
-        segmentation=SegmentationConfig(window_bars=1, stride_bars=1),
+        segmentation_config=SegmentationConfig(window_bars=1, stride_bars=1),
         tokenization_config=tokenization_config,
+        data_processing_config=DataProcessingConfig(remove_segments_with_silent_bars=True),
         stage="parsed",
         overwrite=True,
     )

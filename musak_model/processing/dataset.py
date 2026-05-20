@@ -17,10 +17,11 @@ from music21.exceptions21 import Music21Exception
 from tqdm.auto import tqdm
 
 from musak_model.data.cleaning import clean_parsed_score
-from musak_model.data.config import SegmentationConfig
+from musak_model.data.config import DataProcessingConfig, SegmentationConfig
 from musak_model.data.parser import parse_score
 from musak_model.data.pipeline import segment_parsed_score
-from musak_model.data.schema import ParsedScore
+from musak_model.data.schema import ParsedScore, Segment, SegmentIneligibilityReason
+from musak_model.evaluation.diagnostics import diagnose_segment
 from musak_model.processing.diagnostics import ParseDiagnosticsCapture
 from musak_model.processing.ids import source_id
 from musak_model.processing.io import append_jsonl, load_parsed_score_json, write_json_model
@@ -92,8 +93,9 @@ def process_dataset(
     dataset_root: Path,
     *,
     processed_root: Path,
-    segmentation: SegmentationConfig,
+    segmentation_config: SegmentationConfig,
     tokenization_config: TokenizationConfig,
+    data_processing_config: DataProcessingConfig,
     stage: ProcessingStage = "all",
     difficulty_labels: dict[str, int] | None = None,
     overwrite: bool = False,
@@ -133,10 +135,11 @@ def process_dataset(
             dataset_root=dataset_root,
             paths=paths,
             snapshot=snapshot,
-            segmentation=segmentation,
+            segmentation_config=segmentation_config,
             duration_vocabulary=duration_vocabulary,
             token_vocabulary=token_vocabulary,
             difficulty_labels=difficulty_labels,
+            data_processing_config=data_processing_config,
             overwrite=overwrite,
             show_progress=show_progress,
         )
@@ -417,10 +420,11 @@ def _process_encoded_segments(
     dataset_root: Path,
     paths: ProcessedDatasetPaths,
     snapshot: TokenizerSnapshot,
-    segmentation: SegmentationConfig,
+    segmentation_config: SegmentationConfig,
     duration_vocabulary: DurationVocabulary,
     token_vocabulary: TokenVocabulary,
     difficulty_labels: dict[str, int] | None,
+    data_processing_config: DataProcessingConfig,
     overwrite: bool,
     show_progress: bool,
 ) -> tuple[int, Path, Path]:
@@ -459,11 +463,16 @@ def _process_encoded_segments(
         segments = segment_parsed_score(
             score,
             source_metadata_path,
-            segmentation=segmentation,
+            segmentation=segmentation_config,
             difficulty_labels=difficulty_labels,
             duration_vocabulary=duration_vocabulary,
         )
         for segment in segments:
+            segment = _apply_processing_filters(
+                segment,
+                duration_vocabulary=duration_vocabulary,
+                data_processing_config=data_processing_config,
+            )
             encoded_sample = (
                 _encode_segment(segment, token_vocabulary=token_vocabulary)
                 if segment.metadata.eligible_for_training
@@ -490,6 +499,29 @@ def _process_encoded_segments(
     write_encoded_manifest(rows, encoded_manifest_path)
     _LOGGER.info("Wrote encoded manifest: %s", encoded_manifest_path)
     return encoded_count, encoded_manifest_path, tokenizer_snapshot_path
+
+
+def _apply_processing_filters(
+    segment: Segment,
+    *,
+    duration_vocabulary: DurationVocabulary,
+    data_processing_config: DataProcessingConfig,
+) -> Segment:
+    if not data_processing_config.remove_segments_with_silent_bars:
+        return segment
+
+    diagnostics = diagnose_segment(segment, duration_vocabulary=duration_vocabulary)
+    if diagnostics.silent_bar_count == 0:
+        return segment
+
+    metadata = segment.metadata.model_copy(
+        update={
+            "eligible_for_training": False,
+            "ineligibility_reasons": segment.metadata.ineligibility_reasons
+            | frozenset({SegmentIneligibilityReason.SILENT_BAR}),
+        }
+    )
+    return segment.model_copy(update={"metadata": metadata})
 
 
 def _prepare_encoded_outputs(
