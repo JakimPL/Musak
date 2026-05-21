@@ -163,6 +163,28 @@ def test_dataset_omits_difficulty_when_disabled(token_vocabulary: TokenVocabular
     assert batch.difficulty_ids is None
 
 
+def test_dataset_skips_unlabeled_samples_when_difficulty_conditioning_is_enabled(
+    token_vocabulary: TokenVocabulary,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    dataset = EncodedExerciseDataset(
+        [
+            _sample([1], [0], difficulty_level=2),
+            _sample([2], [0], difficulty_level=None),
+        ],
+        time_signature_vocabulary=_time_signature_vocabulary(),
+        token_vocabulary=token_vocabulary,
+        conditioning=TrainingConditioningConfig(use_difficulty=True),
+    )
+
+    batch = collate_training_examples([dataset[0]])
+
+    assert len(dataset) == 1
+    assert batch.difficulty_ids is not None
+    assert batch.difficulty_ids.tolist() == [2]
+    assert "without difficulty labels" in caplog.text
+
+
 def test_dataset_rejects_mismatched_token_and_bar_position_lengths(token_vocabulary: TokenVocabulary) -> None:
     with pytest.raises(ValueError, match="bar_positions"):
         EncodedExerciseDataset(

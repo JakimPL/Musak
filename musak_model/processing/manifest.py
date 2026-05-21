@@ -3,6 +3,7 @@ from enum import StrEnum
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Final
 
+from musak_model.data.config import SegmentationMode
 from musak_model.data.schema import ParsedScore, Segment
 from musak_model.evaluation import diagnose_segment
 from musak_model.processing.ids import segment_id
@@ -36,6 +37,7 @@ class EncodedManifestField(StrEnum):
     PARSED_PATH = "parsed_path"
     ENCODED_SHARD = "encoded_shard"
     ENCODED_LINE = "encoded_line"
+    SEGMENTATION_MODE = "segmentation_mode"
     WINDOW_START_BAR = "window_start_bar"
     BAR_COUNT = "bar_count"
     TOKEN_COUNT = "token_count"
@@ -109,6 +111,7 @@ ENCODED_MANIFEST_FIELDS: Final[tuple[EncodedManifestField, ...]] = (
     EncodedManifestField.PARSED_PATH,
     EncodedManifestField.ENCODED_SHARD,
     EncodedManifestField.ENCODED_LINE,
+    EncodedManifestField.SEGMENTATION_MODE,
     EncodedManifestField.WINDOW_START_BAR,
     EncodedManifestField.BAR_COUNT,
     EncodedManifestField.TOKEN_COUNT,
@@ -239,6 +242,7 @@ def encoded_row(
     encoded_sample: "EncodedExercise | None",
     encoded_shard: Path,
     encoded_line: int | None,
+    segmentation_mode: SegmentationMode,
 ) -> dict[str, Any]:
     diagnostics = diagnose_segment(segment, duration_vocabulary=duration_vocabulary)
     scale_match = segment.metadata.scale_match
@@ -255,6 +259,7 @@ def encoded_row(
             _relative_text(encoded_shard, processed_root) if encoded_sample is not None else ""
         ),
         EncodedManifestField.ENCODED_LINE: encoded_line if encoded_line is not None else "",
+        EncodedManifestField.SEGMENTATION_MODE: segmentation_mode.value,
         EncodedManifestField.WINDOW_START_BAR: segment.metadata.window_start_bar,
         EncodedManifestField.BAR_COUNT: segment.metadata.bar_count,
         EncodedManifestField.TOKEN_COUNT: len(segment.tokens),

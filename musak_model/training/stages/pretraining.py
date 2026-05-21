@@ -425,6 +425,7 @@ def _move_batch_to_device(batch: TrainingBatch, *, device: torch.device) -> Trai
         time_numerators=batch.time_numerators.to(device),
         time_denominators=batch.time_denominators.to(device),
         bar_counts=batch.bar_counts.to(device),
+        bar_durations=batch.bar_durations,
         token_padding_mask=batch.token_padding_mask.to(device),
         difficulty_ids=difficulty_ids,
         conditioning_scale_type_ids=batch.conditioning_scale_type_ids.to(device),

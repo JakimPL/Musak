@@ -21,7 +21,22 @@ from musak_model.tokens.schema import Hand, HoldToken, NoteToken, RestToken, Tok
 
 
 def bar_measure_duration(bar: ParsedBar) -> Fraction:
+    if bar.measure_duration is not None and bar.measure_duration > 0:
+        return bar.measure_duration
+
     return Fraction(bar.time_numerator, bar.time_denominator)
+
+
+def paired_bar_measure_duration(right_bar: ParsedBar, left_bar: ParsedBar) -> Fraction:
+    parsed_durations = tuple(
+        duration
+        for duration in (right_bar.measure_duration, left_bar.measure_duration)
+        if duration is not None and duration > 0
+    )
+    if parsed_durations:
+        return max(parsed_durations)
+
+    return max(bar_measure_duration(right_bar), bar_measure_duration(left_bar))
 
 
 def normalize_bar_events(

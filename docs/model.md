@@ -20,7 +20,8 @@ Each encoded JSONL row is an `EncodedExercise`:
 
 - `token_ids`: unified two-hand token sequence.
 - `bar_positions`: one bar index per token for hierarchical model context.
-- `metadata`: scale root, scale type, time signature, source file, segment window, optional difficulty label, and extracted difficulty features.
+- `metadata`: scale root, scale type, time signature, source file, segment window, per-bar durations, optional
+  difficulty label, and extracted difficulty features.
 
 The current encoded PDMX artifact is a unified two-hand stream. It is not split into separate right-hand and left-hand samples.
 
@@ -35,6 +36,11 @@ that mode, `metadata.bar_count` is the full parsed file length and can be used b
 Difficulty labels are supplied as a mapping keyed by source paths relative to the dataset root, for example
 `{"1/0001.mxl": 1}`. `null` values are explicit unlabeled entries, and missing entries are treated as unlabeled while
 processing logs the unspecified count.
+
+Parsed bars keep declared time signatures for conditioning and a separate actual bar duration for timing. Pickup bars
+and short final bars are valid bars: tokenization fills only the actual duration and still emits normal `BarToken`
+boundaries. Training validity masks use these per-bar durations when they are present, so short bars do not create
+artificial padding rests and do not invalidate otherwise correct teacher-forced targets.
 
 ## Current Token Semantics
 

@@ -46,10 +46,29 @@ class GenerationConstraints:
     maximum_static_hand_span_degrees: int | None = None
     scale_root: int | None = None
     scale_type: ScaleType | None = None
+    bar_durations: tuple[Fraction, ...] | None = None
 
     @property
     def measure_duration(self) -> Fraction:
         return Fraction(self.time_numerator, self.time_denominator)
+
+    def bar_duration(self, bar_index: int) -> Fraction:
+        if self.bar_durations is None:
+            return self.measure_duration
+
+        if bar_index >= len(self.bar_durations):
+            return self.measure_duration
+
+        return self.bar_durations[bar_index]
+
+    def bar_start(self, bar_index: int) -> Fraction:
+        if self.bar_durations is None:
+            return bar_index * self.measure_duration
+
+        return sum((self.bar_duration(index) for index in range(bar_index)), Fraction(0))
+
+    def bar_end(self, bar_index: int) -> Fraction:
+        return self.bar_start(bar_index) + self.bar_duration(bar_index)
 
 
 @dataclass(frozen=True)
@@ -84,6 +103,7 @@ class GenerationConstraintState:
     right_static_positions: tuple[int, ...] = ()
     left_static_positions: tuple[int, ...] = ()
     pending_join: _PendingJoin | None = None
+    pending_cross_hand_join: bool = False
     must_join: bool = False
     ended: bool = False
 
@@ -144,7 +164,7 @@ class GenerationConstraintState:
 
     def _apply_hand(self, token: HandToken) -> GenerationConstraintState:
         self._raise_if_complete_bar_count(token_name="HandToken")
-        return replace(self, active_hand=token.hand, pending_join=None)
+        return replace(self, active_hand=token.hand, pending_join=None, pending_cross_hand_join=False)
 
     def _apply_note(
         self,
@@ -157,6 +177,7 @@ class GenerationConstraintState:
         remaining = self.remaining_duration(self.active_hand)
         join_target = self.join_target(duration)
         can_join = join_target is not None
+        can_join_cross_hand = self.can_join_cross_hand_onset(duration)
         midi_pitch = self._note_midi_pitch(token)
         exceeds_pitch_gap = self.exceeds_pitch_gap(midi_pitch)
         exceeds_onset_span = self.exceeds_onset_span(join_target, midi_pitch)
@@ -200,7 +221,12 @@ class GenerationConstraintState:
                 midi_pitches=_optional_pitch_tuple(midi_pitch),
             ),
         )
-        return replace(state, pending_join=pending_join, must_join=duration > remaining or exceeds_pitch_gap)
+        return replace(
+            state,
+            pending_join=pending_join,
+            pending_cross_hand_join=pending_join is None and can_join_cross_hand,
+            must_join=duration > remaining or exceeds_pitch_gap,
+        )
 
     def _apply_rest(
         self,
@@ -216,6 +242,7 @@ class GenerationConstraintState:
         return replace(
             self.with_cursor(self.active_hand, self.cursor(self.active_hand) + duration),
             pending_join=None,
+            pending_cross_hand_join=False,
         )
 
     def _apply_hold(
@@ -236,9 +263,12 @@ class GenerationConstraintState:
         cursor_after = cursor + duration
         state = self.with_cursor(self.active_hand, cursor_after)
         state = state.with_last_attack_end(self.active_hand, cursor_after)
-        return replace(state, pending_join=None)
+        return replace(state, pending_join=None, pending_cross_hand_join=False)
 
     def _apply_join(self) -> GenerationConstraintState:
+        if self.pending_cross_hand_join:
+            return replace(self, pending_join=None, pending_cross_hand_join=False)
+
         if self.pending_join is None or self.pending_join.hand != self.active_hand:
             raise GenerationConstraintError("join token needs a previous same-hand chord note candidate")
 
@@ -264,22 +294,23 @@ class GenerationConstraintState:
         return replace(
             state,
             pending_join=None,
+            pending_cross_hand_join=False,
             must_join=False,
         )
 
     def _apply_bar(self) -> GenerationConstraintState:
         self._raise_if_complete_bar_count(token_name="BarToken")
-        next_bar_start = (self.bar_index + 1) * self.constraints.measure_duration
+        next_bar_start = self.constraints.bar_end(self.bar_index)
         if self.right_cursor != next_bar_start or self.left_cursor != next_bar_start:
             raise GenerationConstraintError("bar token requires both hand cursors to fill the measure")
 
-        return replace(self, bar_index=self.bar_index + 1, pending_join=None)
+        return replace(self, bar_index=self.bar_index + 1, pending_join=None, pending_cross_hand_join=False)
 
     def _apply_end(self) -> GenerationConstraintState:
         if self.bar_index != self.constraints.bar_count:
             raise GenerationConstraintError("end token requires the requested number of complete bars")
 
-        return replace(self, ended=True, pending_join=None)
+        return replace(self, ended=True, pending_join=None, pending_cross_hand_join=False)
 
     def _checked_duration(self, duration_id: int, *, duration_vocabulary: DurationVocabulary) -> Fraction:
         duration = duration_vocabulary.id_to_fraction(duration_id)
@@ -332,7 +363,7 @@ class GenerationConstraintState:
         return _static_span(positions) > maximum
 
     def remaining_duration(self, hand: Hand) -> Fraction:
-        return (self.bar_index + 1) * self.constraints.measure_duration - self.cursor(hand)
+        return self.constraints.bar_end(self.bar_index) - self.cursor(hand)
 
     def join_target(self, duration: Fraction) -> OnsetState | None:
         target = self.last_onset(self.active_hand)
@@ -350,6 +381,14 @@ class GenerationConstraintState:
             return None
 
         return target
+
+    def can_join_cross_hand_onset(self, duration: Fraction) -> bool:
+        target = self.last_onset(_other_hand(self.active_hand))
+        cursor = self.cursor(self.active_hand)
+        if target is None:
+            return False
+
+        return target.start == cursor and target.duration == duration
 
     def can_add_note_to_onset(self, onset: OnsetState) -> bool:
         requested_maximums = (
@@ -483,6 +522,14 @@ def _append_optional_pitch(midi_pitches: tuple[int, ...], midi_pitch: int | None
         return midi_pitches
 
     return (*midi_pitches, midi_pitch)
+
+
+def _other_hand(hand: Hand) -> Hand:
+    match hand:
+        case Hand.RIGHT:
+            return Hand.LEFT
+        case Hand.LEFT:
+            return Hand.RIGHT
 
 
 def _pitch_span(midi_pitches: tuple[int, ...]) -> int:

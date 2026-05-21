@@ -148,6 +148,7 @@ def _parse_measure(
         default_time_signature=default_time_signature,
     )
     declared_key_fifths = _measure_key_fifths(measure, default_key_fifths=default_key_fifths)
+    measure_duration = _measure_content_duration(measure)
     events: list[ParsedEvent] = []
     for element in measure.flatten().notesAndRests:
         beat_offset = _to_fraction(element.offset) * _QUARTER_NOTE_FRACTION
@@ -182,9 +183,23 @@ def _parse_measure(
     return ParsedBar(
         time_numerator=time_numerator,
         time_denominator=time_denominator,
+        measure_duration=measure_duration,
         declared_key_fifths=declared_key_fifths,
         events=events,
     )
+
+
+def _measure_content_duration(measure: Measure) -> Fraction:
+    duration = Fraction(0)
+    for element in measure.flatten().notesAndRests:
+        element_duration = _to_fraction(element.duration.quarterLength) * _QUARTER_NOTE_FRACTION
+        if element_duration <= 0:
+            continue
+
+        element_end = _to_fraction(element.offset) * _QUARTER_NOTE_FRACTION + element_duration
+        duration = max(duration, element_end)
+
+    return duration
 
 
 def _measure_time_signature(measure: Measure, *, default_time_signature: tuple[int, int]) -> tuple[int, int]:

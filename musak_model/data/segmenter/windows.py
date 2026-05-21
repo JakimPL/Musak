@@ -1,9 +1,11 @@
+from fractions import Fraction
 from pathlib import Path
 
 from musak_model.data.cleaning import is_silent_bar_pair
 from musak_model.data.config import SegmentationConfig
 from musak_model.data.scale_match import ScaleMatch
 from musak_model.data.schema import ParsedScore, Segment, SegmentIneligibilityReason, SegmentMetadata
+from musak_model.data.segmenter.bar import paired_bar_measure_duration
 from musak_model.data.segmenter.types import BarTokenization
 from musak_model.tokens.schema import BarToken, EndToken, Hand, HandToken, HoldToken, NoteToken, Token
 
@@ -75,6 +77,7 @@ def create_window(
             time_numerator=first_bar.time_numerator,
             time_denominator=first_bar.time_denominator,
             bar_count=end - start,
+            bar_durations=_bar_durations(score=score, start=start, end=end),
             window_start_bar=start,
             source_file=source_file,
             difficulty_level=difficulty_level,
@@ -83,6 +86,13 @@ def create_window(
             eligible_for_training=not ineligibility_reasons,
             ineligibility_reasons=ineligibility_reasons,
         ),
+    )
+
+
+def _bar_durations(*, score: ParsedScore, start: int, end: int) -> tuple[Fraction, ...]:
+    return tuple(
+        paired_bar_measure_duration(score.right_hand_bars[index], score.left_hand_bars[index])
+        for index in range(start, end)
     )
 
 

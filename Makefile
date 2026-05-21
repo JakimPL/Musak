@@ -9,6 +9,8 @@ PROCESS_DISABLE_MLFLOW ?=
 PROCESS_MLFLOW_EXPERIMENT ?= musak-process
 PROCESS_MLFLOW_RUN_NAME ?=
 PROCESS_MLFLOW_TRACKING_URI ?= $(MLFLOW_TRACKING_URI)
+PROCESS_DIFFICULTY_LABELS ?=
+PROCESS_WHOLE_FILE_SEGMENTS ?=
 APP_HOST ?= 127.0.0.1
 APP_PORT ?= 8000
 MLFLOW_DIR ?= mlruns
@@ -23,6 +25,8 @@ PRETRAIN_NUM_WORKERS ?= $(NUM_WORKERS)
 PRETRAIN_OVERWRITE ?= $(OVERWRITE)
 PRETRAIN_CHECKPOINT_DIR ?=
 PRETRAIN_RESUME_CHECKPOINT ?= $(if $(PRETRAIN_CHECKPOINT_DIR),$(PRETRAIN_CHECKPOINT_DIR)/latest.pt,checkpoints/pretraining/latest.pt)
+PRETRAIN_DIFFICULTY_LABELS ?=
+PRETRAIN_WHOLE_FILE_SEGMENTS ?=
 
 FINETUNE_DATA_DIR ?= $(PRETRAIN_DATA_DIR)
 FINETUNE_PROCESSED_DIR ?= $(PRETRAIN_PROCESSED_DIR)
@@ -31,6 +35,8 @@ FINETUNE_DEVICE ?= $(DEVICE)
 FINETUNE_NUM_WORKERS ?= $(NUM_WORKERS)
 FINETUNE_CHECKPOINT_DIR ?=
 FINETUNE_RESUME_CHECKPOINT ?= $(if $(FINETUNE_CHECKPOINT_DIR),$(FINETUNE_CHECKPOINT_DIR)/latest.pt,checkpoints/finetuning/latest.pt)
+FINETUNE_DIFFICULTY_LABELS ?=
+FINETUNE_WHOLE_FILE_SEGMENTS ?= 1
 PRETRAIN_CHECKPOINT ?= checkpoints/pretraining/best.pt
 
 help:
@@ -51,8 +57,9 @@ help:
 	@printf '%s\n' '  make test'
 	@printf '%s\n' '  APP_PORT=8080 make app'
 	@printf '%s\n' '  DATA_DIR=data/PDMX PROCESSED_ROOT=processed NUM_WORKERS=8 make process'
+	@printf '%s\n' '  DATA_DIR=data/Exercises PROCESS_WHOLE_FILE_SEGMENTS=1 PROCESS_DIFFICULTY_LABELS=data/Exercises/difficulty_labels.json PROCESS_OVERWRITE=1 make process'
 	@printf '%s\n' '  PRETRAIN_DATA_DIR=data/PDMX PRETRAIN_PROCESSED_DIR=processed/PDMX PRETRAIN_EPOCHS=25 PRETRAIN_DEVICE=cuda make pretrain'
-	@printf '%s\n' '  FINETUNE_DATA_DIR=data/Exercises FINETUNE_PROCESSED_DIR=processed/Exercises PRETRAIN_CHECKPOINT=checkpoints/pretraining/best.pt FINETUNE_EPOCHS=8 make finetune'
+	@printf '%s\n' '  FINETUNE_DATA_DIR=data/Exercises FINETUNE_PROCESSED_DIR=processed/Exercises FINETUNE_DIFFICULTY_LABELS=data/Exercises/difficulty_labels.json PRETRAIN_CHECKPOINT=checkpoints/pretraining/best.pt FINETUNE_EPOCHS=8 make finetune'
 	@printf '%s\n' '  PRETRAIN_DATA_DIR=data/PDMX PRETRAIN_PROCESSED_DIR=processed/PDMX FINETUNE_DATA_DIR=data/Exercises FINETUNE_PROCESSED_DIR=processed/Exercises EPOCHS=25 DEVICE=cuda NUM_WORKERS=4 make train'
 	@printf '%s\n' '  MLFLOW_DIR=mlruns MLFLOW_PORT=5000 make mlflow'
 	@printf '%s\n' ''
@@ -65,15 +72,21 @@ help:
 	@printf '%s\n' '  PROCESS_OVERWRITE=1   Pass --overwrite to process. Defaults to OVERWRITE when set.'
 	@printf '%s\n' '  PROCESS_DISABLE_MLFLOW=1 disables process MLflow dataset metrics.'
 	@printf '%s\n' '  PROCESS_MLFLOW_EXPERIMENT, PROCESS_MLFLOW_RUN_NAME, PROCESS_MLFLOW_TRACKING_URI configure process MLflow logging.'
+	@printf '%s\n' '  PROCESS_DIFFICULTY_LABELS Optional difficulty-label JSON/YAML path for process.'
+	@printf '%s\n' '  PROCESS_WHOLE_FILE_SEGMENTS=1 passes --whole-file-segments to process.'
 	@printf '%s\n' '  MLFLOW_DIR            MLflow tracking directory. Default: mlruns'
 	@printf '%s\n' '  MLFLOW_HOST           MLflow dashboard host. Default: 127.0.0.1'
 	@printf '%s\n' '  MLFLOW_PORT           MLflow dashboard port. Default: 5000'
 	@printf '%s\n' '  PRETRAIN_DATA_DIR     Raw pretrain dataset root.'
 	@printf '%s\n' '  PRETRAIN_PROCESSED_DIR Dataset-specific pretrain artifacts, e.g. processed/PDMX.'
 	@printf '%s\n' '  PRETRAIN_CHECKPOINT_DIR Optional checkpoint output directory override for pretrain.'
+	@printf '%s\n' '  PRETRAIN_DIFFICULTY_LABELS Optional difficulty-label JSON/YAML path for pretrain fallback.'
+	@printf '%s\n' '  PRETRAIN_WHOLE_FILE_SEGMENTS=1 trains pretrain from whole-file segments.'
 	@printf '%s\n' '  FINETUNE_DATA_DIR     Raw finetune dataset root. Defaults to PRETRAIN_DATA_DIR.'
 	@printf '%s\n' '  FINETUNE_PROCESSED_DIR Dataset-specific finetune artifacts. Defaults to PRETRAIN_PROCESSED_DIR.'
 	@printf '%s\n' '  FINETUNE_CHECKPOINT_DIR Optional checkpoint output directory override for finetune.'
+	@printf '%s\n' '  FINETUNE_DIFFICULTY_LABELS Required difficulty-label JSON/YAML path for exercise finetuning.'
+	@printf '%s\n' '  FINETUNE_WHOLE_FILE_SEGMENTS=1 passes --whole-file-segments to finetune. Default: 1'
 	@printf '%s\n' '  PRETRAIN_CHECKPOINT   Checkpoint used by finetune. Default: checkpoints/pretraining/best.pt'
 	@printf '%s\n' '  EPOCHS, DEVICE, NUM_WORKERS provide shared defaults.'
 	@printf '%s\n' '  OVERWRITE=1 passes --overwrite to process and pretrain checkpoint safety checks.'
@@ -102,6 +115,8 @@ process:
 		--processed-dir "$(PROCESSED_ROOT)" \
 		--stage "$(PROCESS_STAGE)" \
 		$(call optional_arg,NUM_WORKERS,--workers) \
+		$(call optional_arg,PROCESS_DIFFICULTY_LABELS,--difficulty-labels) \
+		$(call optional_flag,PROCESS_WHOLE_FILE_SEGMENTS,--whole-file-segments) \
 		$(call optional_flag,PROCESS_OVERWRITE,--overwrite) \
 		$(call optional_flag,PROCESS_DISABLE_MLFLOW,--disable-mlflow) \
 		--mlflow-experiment-name "$(PROCESS_MLFLOW_EXPERIMENT)" \
@@ -120,12 +135,15 @@ pretrain:
 		$(call optional_arg,PRETRAIN_EPOCHS,--epochs) \
 		$(call optional_arg,PRETRAIN_DEVICE,--device) \
 		$(call optional_arg,PRETRAIN_NUM_WORKERS,--num-workers) \
+		$(call optional_arg,PRETRAIN_DIFFICULTY_LABELS,--difficulty-labels) \
+		$(call optional_flag,PRETRAIN_WHOLE_FILE_SEGMENTS,--whole-file-segments) \
 		$(call optional_resume_checkpoint,PRETRAIN_RESUME_CHECKPOINT) \
 		$(call optional_non_resume_flag,PRETRAIN_OVERWRITE,--overwrite)
 
 finetune:
 	$(call require_var,FINETUNE_DATA_DIR)
 	$(call require_var,FINETUNE_PROCESSED_DIR)
+	$(call require_var,FINETUNE_DIFFICULTY_LABELS)
 	uv run python scripts/finetune.py \
 		--data-dir "$(FINETUNE_DATA_DIR)" \
 		--processed-dir "$(FINETUNE_PROCESSED_DIR)" \
@@ -134,6 +152,8 @@ finetune:
 		$(call optional_arg,FINETUNE_EPOCHS,--epochs) \
 		$(call optional_arg,FINETUNE_DEVICE,--device) \
 		$(call optional_arg,FINETUNE_NUM_WORKERS,--num-workers) \
+		--difficulty-labels "$(FINETUNE_DIFFICULTY_LABELS)" \
+		$(call optional_flag,FINETUNE_WHOLE_FILE_SEGMENTS,--whole-file-segments) \
 		$(call optional_resume_checkpoint,FINETUNE_RESUME_CHECKPOINT)
 
 mlflow:

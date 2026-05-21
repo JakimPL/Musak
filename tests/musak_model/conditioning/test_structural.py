@@ -89,6 +89,31 @@ def test_structural_control_vocabulary_maps_features_to_bucket_ids() -> None:
     assert vocabulary.vocabulary_sizes == (4, 3, 4, 5, 4, 4, 4, 5)
 
 
+def test_extract_structural_control_features_separates_total_onset_and_per_hand_counts(
+    duration_vocabulary: DurationVocabulary,
+) -> None:
+    quarter_id = duration_vocabulary.fraction_to_id(Fraction(1, 4))
+    segment = Segment(
+        tokens=[
+            HandToken(hand=Hand.RIGHT),
+            NoteToken(degree=1, accidental=0, octave_offset=0, duration_id=quarter_id),
+            NoteToken(degree=3, accidental=0, octave_offset=0, duration_id=quarter_id),
+            JoinWithPreviousToken(),
+            HandToken(hand=Hand.LEFT),
+            NoteToken(degree=1, accidental=0, octave_offset=0, duration_id=quarter_id),
+            JoinWithPreviousToken(),
+            NoteToken(degree=3, accidental=0, octave_offset=0, duration_id=quarter_id),
+            JoinWithPreviousToken(),
+        ],
+        metadata=_metadata(),
+    )
+
+    features = extract_structural_control_features(segment, duration_vocabulary=duration_vocabulary)
+
+    assert features.max_notes_per_onset == 4
+    assert features.max_notes_per_hand == 2
+
+
 def test_structural_control_vocabulary_maps_missing_features_to_unknown() -> None:
     vocabulary = StructuralControlVocabulary(StructuralConditioningConfig())
 

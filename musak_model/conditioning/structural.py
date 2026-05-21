@@ -189,8 +189,11 @@ class _FeatureState(BaseModel):
     shortest_note_duration: Fraction | None = None
     has_dotted_notes: bool = False
     max_notes_per_onset: int = 0
+    right_max_notes_per_hand: int = 0
+    left_max_notes_per_hand: int = 0
     max_onset_span_semitones: int = 0
     max_melodic_gap_semitones: int = 0
+    current_onset_count: int = 0
     right_static_positions: tuple[int, ...] = ()
     left_static_positions: tuple[int, ...] = ()
     right_last_onset_pitches: tuple[int, ...] = ()
@@ -231,7 +234,7 @@ class _FeatureState(BaseModel):
             shortest_note_duration=self.shortest_note_duration,
             has_dotted_notes=self.has_dotted_notes,
             max_notes_per_onset=self.max_notes_per_onset,
-            max_notes_per_hand=self.max_notes_per_onset,
+            max_notes_per_hand=max(self.right_max_notes_per_hand, self.left_max_notes_per_hand),
             max_onset_span_semitones=self.max_onset_span_semitones,
             max_melodic_gap_semitones=self.max_melodic_gap_semitones,
             static_hand_span_degrees=max(
@@ -252,12 +255,15 @@ class _FeatureState(BaseModel):
         match hand:
             case Hand.RIGHT:
                 count = self.right_current_onset_count + 1
+                onset_count = self.current_onset_count + 1
                 current_pitches = (*self.right_last_onset_pitches, midi_pitch)
                 return self.model_copy(
                     update={
                         "right_current_onset_count": count,
+                        "right_max_notes_per_hand": max(self.right_max_notes_per_hand, count),
+                        "current_onset_count": onset_count,
                         "right_last_onset_pitches": current_pitches,
-                        "max_notes_per_onset": max(self.max_notes_per_onset, count),
+                        "max_notes_per_onset": max(self.max_notes_per_onset, onset_count),
                         "max_onset_span_semitones": max(
                             self.max_onset_span_semitones,
                             _distance_span(current_pitches),
@@ -266,12 +272,15 @@ class _FeatureState(BaseModel):
                 )
             case Hand.LEFT:
                 count = self.left_current_onset_count + 1
+                onset_count = self.current_onset_count + 1
                 current_pitches = (*self.left_last_onset_pitches, midi_pitch)
                 return self.model_copy(
                     update={
                         "left_current_onset_count": count,
+                        "left_max_notes_per_hand": max(self.left_max_notes_per_hand, count),
+                        "current_onset_count": onset_count,
                         "left_last_onset_pitches": current_pitches,
-                        "max_notes_per_onset": max(self.max_notes_per_onset, count),
+                        "max_notes_per_onset": max(self.max_notes_per_onset, onset_count),
                         "max_onset_span_semitones": max(
                             self.max_onset_span_semitones,
                             _distance_span(current_pitches),
@@ -285,6 +294,8 @@ class _FeatureState(BaseModel):
                 return self.model_copy(
                     update={
                         "right_current_onset_count": 1,
+                        "right_max_notes_per_hand": max(self.right_max_notes_per_hand, 1),
+                        "current_onset_count": 1,
                         "right_last_onset_pitches": (midi_pitch,),
                         "max_notes_per_onset": max(self.max_notes_per_onset, 1),
                         "max_melodic_gap_semitones": max(
@@ -297,6 +308,8 @@ class _FeatureState(BaseModel):
                 return self.model_copy(
                     update={
                         "left_current_onset_count": 1,
+                        "left_max_notes_per_hand": max(self.left_max_notes_per_hand, 1),
+                        "current_onset_count": 1,
                         "left_last_onset_pitches": (midi_pitch,),
                         "max_notes_per_onset": max(self.max_notes_per_onset, 1),
                         "max_melodic_gap_semitones": max(

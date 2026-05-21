@@ -1,7 +1,7 @@
 from fractions import Fraction
 
 from musak_model.data.schema import ParsedScore
-from musak_model.data.segmenter.bar import bar_measure_duration, normalize_bar_events
+from musak_model.data.segmenter.bar import normalize_bar_events, paired_bar_measure_duration
 from musak_model.data.segmenter.errors import TokenizationIneligibilityError
 from musak_model.data.segmenter.types import BarTokenization, TieState, TimedTokenGroup
 from musak_model.tokens.duration import DurationVocabulary
@@ -84,13 +84,14 @@ def _tokenize_unified_bar(
     right_tie_state: TieState | None,
     left_tie_state: TieState | None,
 ) -> tuple[list[Token], TieState | None, TieState | None]:
+    measure_duration = paired_bar_measure_duration(score.right_hand_bars[bar_index], score.left_hand_bars[bar_index])
     right_normalized = normalize_bar_events(
         bar=score.right_hand_bars[bar_index],
         bar_index=bar_index,
         hand=Hand.RIGHT,
         score=score,
         duration_vocabulary=duration_vocabulary,
-        measure_duration=bar_measure_duration(score.right_hand_bars[bar_index]),
+        measure_duration=measure_duration,
         tie_state=right_tie_state,
     )
     left_normalized = normalize_bar_events(
@@ -99,7 +100,7 @@ def _tokenize_unified_bar(
         hand=Hand.LEFT,
         score=score,
         duration_vocabulary=duration_vocabulary,
-        measure_duration=bar_measure_duration(score.left_hand_bars[bar_index]),
+        measure_duration=measure_duration,
         tie_state=left_tie_state,
     )
 

@@ -9,7 +9,7 @@ from pathlib import Path
 
 import torch
 
-from musak_model.data.config import load_difficulty_labels, load_segmentation_config
+from musak_model.data.config import SegmentationMode, load_difficulty_labels, load_segmentation_config
 from musak_model.paths import (
     CONDITIONING_CONFIG_PATH,
     DEFAULT_FINETUNING_CHECKPOINT_DIR,
@@ -61,6 +61,7 @@ def run_training(stage: TrainingStage) -> None:
         args.segmentation_config,
         window_bars=args.window_bars,
         stride_bars=args.stride_bars,
+        mode=SegmentationMode.WHOLE_FILE if args.whole_file_segments else None,
     )
     tokenization_config = TokenizationConfig.load(args.tokenization_config)
     match stage:
@@ -230,6 +231,8 @@ def resume_command(
     command.extend(_optional_value_argument("--split-seed", args.split_seed))
     command.extend(_optional_value_argument("--window-bars", args.window_bars))
     command.extend(_optional_value_argument("--stride-bars", args.stride_bars))
+    if args.whole_file_segments:
+        command.append("--whole-file-segments")
     command.extend(_optional_path_argument("--difficulty-labels", args.difficulty_labels))
     command.extend(_optional_value_argument("--mlflow-experiment-name", args.mlflow_experiment_name))
     command.extend(_optional_value_argument("--mlflow-run-name", args.mlflow_run_name))
@@ -334,6 +337,11 @@ def add_common_training_arguments(
     parser.add_argument("--split-seed", type=int, default=None, help="Override deterministic split seed.")
     parser.add_argument("--window-bars", type=int, default=None, help="Override segment window size in bars.")
     parser.add_argument("--stride-bars", type=int, default=None, help="Override segment stride in bars.")
+    parser.add_argument(
+        "--whole-file-segments",
+        action="store_true",
+        help="Train from whole-file exercise segments instead of windowed segments.",
+    )
     parser.add_argument("--difficulty-labels", type=Path, default=None, help="Optional YAML difficulty-label mapping.")
     parser.add_argument(
         "--processed-dir",
@@ -422,8 +430,8 @@ def build_finetuning_training_config(args: argparse.Namespace) -> FinetuningTrai
         checkpoint_dir=checkpoint_config.checkpoint_dir,
         resume_checkpoint=checkpoint_config.resume_checkpoint,
         pretraining_checkpoint=(
-            args.pretraining_checkpoint
-            if args.pretraining_checkpoint is not None
+            args.pretrain_checkpoint
+            if args.pretrain_checkpoint is not None
             else config.checkpoints.pretraining_checkpoint
         ),
     )
@@ -498,6 +506,7 @@ def log_training_start(
     _LOGGER.info("Internal processed root: %s", ingestion_config.processed_root)
     _LOGGER.info("Training config: %s", args.training_config)
     _LOGGER.info("Segmentation config: %s", args.segmentation_config)
+    _LOGGER.info("Whole-file segments: %s", args.whole_file_segments)
     _LOGGER.info("Tokenization config: %s", args.tokenization_config)
     _LOGGER.info("Conditioning config: %s", args.conditioning_config)
     _LOGGER.info("Device: %s", training_config.runtime.device)

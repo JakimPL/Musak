@@ -528,6 +528,7 @@ def _process_encoded_segments(
                     encoded_sample=encoded_sample,
                     encoded_shard=encoded_jsonl_path,
                     encoded_line=encoded_line,
+                    segmentation_mode=segmentation_config.mode,
                 )
             )
 
@@ -568,11 +569,15 @@ def _log_difficulty_label_stats(
     if difficulty_labels is None:
         return
 
-    stats = _difficulty_label_stats(parsed_scores, dataset_root=dataset_root, difficulty_labels=difficulty_labels)
-    message = "Difficulty labels: labeled=%s explicit_unlabeled=%s unspecified=%s" % (
-        stats.labeled,
-        stats.explicit_unlabeled,
-        stats.unspecified,
+    stats = _difficulty_label_stats(
+        parsed_scores,
+        dataset_root=dataset_root,
+        difficulty_labels=difficulty_labels,
+    )
+    message = (
+        f"Difficulty labels: labeled={stats.labeled} "
+        f"explicit_unlabeled={stats.explicit_unlabeled} "
+        f"unspecified={stats.unspecified}"
     )
     if stats.unspecified > 0:
         _LOGGER.warning(message)

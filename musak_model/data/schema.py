@@ -67,6 +67,7 @@ class ParsedBar(BaseModel):
 
     time_numerator: int = Field(gt=0)
     time_denominator: int
+    measure_duration: Fraction | None = Field(default=None, ge=0)
     declared_key_fifths: int | None = Field(
         default=None,
         ge=-7,
@@ -167,6 +168,7 @@ class SegmentMetadata(BaseModel):
     time_numerator: int = Field(gt=0)
     time_denominator: int
     bar_count: int = Field(ge=0)
+    bar_durations: tuple[Fraction, ...] | None = None
     window_start_bar: int = Field(ge=0)
     source_file: Path
     difficulty_level: int | None = Field(None, ge=MIN_DIFFICULTY_LEVEL)

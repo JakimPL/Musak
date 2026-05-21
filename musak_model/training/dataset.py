@@ -1,5 +1,6 @@
 import logging
 from dataclasses import dataclass
+from fractions import Fraction
 from typing import Final, cast
 
 import torch
@@ -35,6 +36,7 @@ class TrainingExample:
     time_numerator: int
     time_denominator: int
     bar_count: int
+    bar_durations: tuple[Fraction, ...] | None
     difficulty_id: int | None
     conditioning_scale_type_id: int
     conditioning_time_signature_id: int
@@ -51,6 +53,7 @@ class TrainingBatch:
     time_numerators: Tensor
     time_denominators: Tensor
     bar_counts: Tensor
+    bar_durations: tuple[tuple[Fraction, ...] | None, ...]
     token_padding_mask: Tensor
     difficulty_ids: Tensor | None
     conditioning_scale_type_ids: Tensor
@@ -72,6 +75,20 @@ class EncodedExerciseDataset(Dataset[TrainingExample]):
     ) -> None:
         if include_structural_controls and structural_control_vocabulary is None:
             raise ValueError("structural_control_vocabulary is required when include_structural_controls is true")
+
+        unlabeled_difficulty_count = sum(
+            1
+            for sample in samples
+            if conditioning.use_difficulty
+            and sample.difficulty_level is None
+            and len(sample.token_ids) >= 1
+            and (max_sequence_length is None or len(sample.token_ids) <= max_sequence_length)
+        )
+        if unlabeled_difficulty_count > 0:
+            _LOGGER.warning(
+                "Skipping %s training samples without difficulty labels because difficulty conditioning is enabled",
+                unlabeled_difficulty_count,
+            )
 
         overlength_count = sum(
             1 for sample in samples if max_sequence_length is not None and len(sample.token_ids) > max_sequence_length
@@ -110,6 +127,7 @@ class EncodedExerciseDataset(Dataset[TrainingExample]):
             for sample in samples
             if len(sample.token_ids) >= 1
             and (max_sequence_length is None or len(sample.token_ids) <= max_sequence_length)
+            and (not conditioning.use_difficulty or sample.difficulty_level is not None)
             and (
                 not conditioning.use_time_signature
                 or time_signature_vocabulary.contains((sample.time_numerator, sample.time_denominator))
@@ -196,6 +214,7 @@ def collate_training_examples(examples: list[TrainingExample]) -> TrainingBatch:
     time_numerators = torch.tensor([example.time_numerator for example in examples], dtype=torch.long)
     time_denominators = torch.tensor([example.time_denominator for example in examples], dtype=torch.long)
     bar_counts = torch.tensor([example.bar_count for example in examples], dtype=torch.long)
+    bar_durations = tuple(example.bar_durations for example in examples)
 
     for row_index, example in enumerate(examples):
         length = example.input_token_ids.size(0)
@@ -228,6 +247,7 @@ def collate_training_examples(examples: list[TrainingExample]) -> TrainingBatch:
         time_numerators=time_numerators,
         time_denominators=time_denominators,
         bar_counts=bar_counts,
+        bar_durations=bar_durations,
         token_padding_mask=token_padding_mask,
         difficulty_ids=difficulty_ids,
         conditioning_scale_type_ids=conditioning_scale_type_ids,
@@ -281,6 +301,7 @@ def _to_training_example(
         time_numerator=sample.time_numerator,
         time_denominator=sample.time_denominator,
         bar_count=sample.metadata.bar_count,
+        bar_durations=sample.metadata.bar_durations,
         difficulty_id=difficulty_id,
         conditioning_scale_type_id=scale_type_id,
         conditioning_time_signature_id=time_signature_id,

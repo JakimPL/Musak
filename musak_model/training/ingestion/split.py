@@ -5,11 +5,17 @@ from typing import Final
 
 from music21.exceptions21 import Music21Exception
 
-from musak_model.data.config import SegmentationConfig
+from musak_model.data.config import SegmentationConfig, SegmentationMode
 from musak_model.data.pipeline import process_file, segment_parsed_score
 from musak_model.data.schema import Segment
 from musak_model.processing.io import load_encoded_jsonl, load_parsed_score_json, load_tokenizer_snapshot_json
-from musak_model.processing.manifest import ParsedManifestField, ParsedManifestStatus, read_parsed_manifest
+from musak_model.processing.manifest import (
+    EncodedManifestField,
+    ParsedManifestField,
+    ParsedManifestStatus,
+    read_encoded_manifest,
+    read_parsed_manifest,
+)
 from musak_model.processing.paths import ProcessedDatasetPaths
 from musak_model.processing.snapshot import TokenizerSnapshot, build_tokenizer_snapshot
 from musak_model.tokens.config import TokenizationConfig
@@ -153,6 +159,9 @@ def _build_split_from_processed_artifacts(
     )
     encoded_path = paths.encoded_jsonl_path(snapshot.tokenizer_hash)
     if encoded_path.exists() and _encoded_artifacts_match(paths=paths, expected_snapshot=snapshot):
+        _validate_encoded_segmentation_mode(
+            paths=paths, tokenizer_hash_value=snapshot.tokenizer_hash, segmentation=segmentation
+        )
         _LOGGER.info("Using encoded processed artifacts: %s", encoded_path)
         return _split_encoded_samples(
             load_encoded_jsonl(encoded_path),
@@ -203,6 +212,30 @@ def _encoded_artifacts_match(*, paths: ProcessedDatasetPaths, expected_snapshot:
         return False
 
     return True
+
+
+def _validate_encoded_segmentation_mode(
+    *,
+    paths: ProcessedDatasetPaths,
+    tokenizer_hash_value: str,
+    segmentation: SegmentationConfig,
+) -> None:
+    if segmentation.mode != SegmentationMode.WHOLE_FILE:
+        return
+
+    encoded_manifest_path = paths.encoded_manifest_path(tokenizer_hash_value)
+    rows = read_encoded_manifest(encoded_manifest_path)
+    invalid_modes = {
+        row.get(EncodedManifestField.SEGMENTATION_MODE, "")
+        for row in rows
+        if row.get(EncodedManifestField.ENCODED_LINE, "") != ""
+        and row.get(EncodedManifestField.SEGMENTATION_MODE, "") != SegmentationMode.WHOLE_FILE.value
+    }
+    if invalid_modes:
+        raise ValueError(
+            "finetuning with whole-file segmentation requires encoded artifacts built with "
+            f"segmentation_mode={SegmentationMode.WHOLE_FILE.value}; found {sorted(invalid_modes)}"
+        )
 
 
 def _split_encoded_samples(

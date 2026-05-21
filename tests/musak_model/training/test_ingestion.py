@@ -2,16 +2,23 @@ from fractions import Fraction
 from pathlib import Path
 
 import pytest
+from music21 import instrument
+from music21.meter.base import TimeSignature
+from music21.note import Note
+from music21.stream.base import Measure, Part, Score
 
-from musak_model.data.config import DataProcessingConfig, SegmentationConfig
+from musak_model.conditioning.time_signature import TimeSignatureVocabulary, TimeSignatureVocabularyConfig
+from musak_model.data.config import DataProcessingConfig, SegmentationConfig, SegmentationMode
 from musak_model.data.schema import Segment, SegmentIneligibilityReason, SegmentMetadata
 from musak_model.processing.dataset import process_dataset
 from musak_model.tokens.config import TokenizationConfig
 from musak_model.tokens.duration import DurationVocabulary
-from musak_model.tokens.schema import BarToken, EndToken, NoteToken, ScaleType, Token
+from musak_model.tokens.schema import BarToken, EndToken, NoteToken, RestToken, ScaleType, Token
 from musak_model.tokens.vocabulary import TokenVocabulary
+from musak_model.training.dataset import EncodedExerciseDataset, collate_training_examples
 from musak_model.training.ingestion.config import IngestionConfig
 from musak_model.training.ingestion.split import _build_bar_positions_from_tokens, _encode_segment, build_split
+from musak_model.training.validity import TrainingValidityMaskBuilder
 from tests.musak_model.data.fixtures import bar, note_event, parsed_score
 
 
@@ -256,6 +263,89 @@ def test_build_ingestion_split_prefers_encoded_artifacts(
     assert split.invalid_files == []
 
 
+def test_build_ingestion_split_rejects_windowed_encoded_artifacts_for_whole_file_training(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    tokenization_config: TokenizationConfig,
+) -> None:
+    dataset_root = tmp_path / "PDMX"
+    source_path = dataset_root / "piece.mxl"
+    source_path.parent.mkdir(parents=True)
+    source_path.write_text("score")
+    processed_root = tmp_path / "processed"
+    score = parsed_score(
+        right_hand_bars=[bar([note_event(midi_pitch=72, duration=Fraction(1, 4), beat_offset=Fraction(0))])],
+        left_hand_bars=[bar([note_event(midi_pitch=48, duration=Fraction(1, 4), beat_offset=Fraction(0))])],
+    )
+    monkeypatch.setattr("musak_model.processing.dataset.parse_score", lambda path: score)
+    process_dataset(
+        dataset_root,
+        processed_root=processed_root,
+        segmentation_config=SegmentationConfig(window_bars=1, stride_bars=1, mode=SegmentationMode.WINDOWED),
+        tokenization_config=tokenization_config,
+        data_processing_config=DataProcessingConfig(remove_segments_with_silent_bars=True),
+        stage="all",
+        overwrite=True,
+    )
+
+    with pytest.raises(ValueError, match="whole-file segmentation requires encoded artifacts"):
+        build_split(
+            dataset_root,
+            config=IngestionConfig(
+                validation_fraction=0.0,
+                split_seed=17,
+                difficulty_labels=None,
+                processed_root=processed_root,
+            ),
+            segmentation=SegmentationConfig(window_bars=1, stride_bars=1, mode=SegmentationMode.WHOLE_FILE),
+            tokenization_config=tokenization_config,
+        )
+
+
+@pytest.mark.parametrize(
+    ("short_bar_position", "expected_bar_durations"),
+    [
+        ("pickup", (Fraction(1, 4), Fraction(1, 1))),
+        ("final", (Fraction(1, 1), Fraction(1, 4))),
+    ],
+)
+def test_raw_ingestion_pipeline_preserves_short_measure_bar_tokens(
+    tmp_path: Path,
+    tokenization_config: TokenizationConfig,
+    token_vocabulary: TokenVocabulary,
+    short_bar_position: str,
+    expected_bar_durations: tuple[Fraction, Fraction],
+) -> None:
+    score_path = tmp_path / f"{short_bar_position}.musicxml"
+    _write_short_measure_score(score_path, short_bar_position=short_bar_position)
+
+    split = build_split(
+        tmp_path,
+        config=IngestionConfig(validation_fraction=0.0, split_seed=17),
+        segmentation=SegmentationConfig(window_bars=1, stride_bars=1, mode=SegmentationMode.WHOLE_FILE),
+        tokenization_config=tokenization_config,
+    )
+
+    assert len(split.train) == 1
+    sample = split.train[0]
+    tokens = token_vocabulary.decode(sample.token_ids)
+    assert sample.metadata.bar_durations == expected_bar_durations
+    assert sum(isinstance(token, BarToken) for token in tokens) == 2
+    assert not _has_rest_duration(tokens, Fraction(3, 4), token_vocabulary=token_vocabulary)
+
+    dataset = EncodedExerciseDataset(
+        [sample],
+        time_signature_vocabulary=TimeSignatureVocabulary(
+            TimeSignatureVocabularyConfig(max_denominator=4, relative_numerator_range=2)
+        ),
+        token_vocabulary=token_vocabulary,
+    )
+    batch = collate_training_examples([dataset[0]])
+    masks = TrainingValidityMaskBuilder(token_vocabulary).masks_for_batch(batch, device=batch.input_token_ids.device)
+
+    assert not masks.invalid_target_mask.any().item()
+
+
 def test_build_ingestion_split_ignores_encoded_artifacts_without_matching_snapshot(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -402,3 +492,56 @@ def test_ingestion_config_rejects_invalid_validation_fraction() -> None:
             split_seed=17,
             difficulty_labels=None,
         )
+
+
+def _write_short_measure_score(path: Path, *, short_bar_position: str) -> None:
+    score = Score()
+    right = Part()
+    right.insert(0, instrument.Piano())
+    left = Part()
+    left.insert(0, instrument.Piano())
+
+    for part, short_pitch, full_pitch in ((right, "C5", "D5"), (left, "C3", "D3")):
+        match short_bar_position:
+            case "pickup":
+                part.append(_measure(0, short_pitch, quarter_length=1, include_time_signature=True))
+                part.append(_measure(1, full_pitch, quarter_length=4))
+            case "final":
+                part.append(_measure(1, full_pitch, quarter_length=4, include_time_signature=True))
+                part.append(_measure(2, short_pitch, quarter_length=1))
+            case _:
+                raise ValueError(f"unsupported short_bar_position: {short_bar_position}")
+
+    score.insert(0, right)
+    score.insert(0, left)
+    score.write("musicxml", fp=path)
+
+
+def _measure(
+    number: int,
+    pitch_name: str,
+    *,
+    quarter_length: int,
+    include_time_signature: bool = False,
+) -> Measure:
+    measure = Measure(number=number)
+    if include_time_signature:
+        measure.insert(0, TimeSignature("4/4"))
+
+    measure.insert(0, Note(pitch_name, quarterLength=quarter_length))
+    if quarter_length < 4:
+        measure.paddingRight = 4 - quarter_length
+    return measure
+
+
+def _has_rest_duration(
+    tokens: list[Token],
+    duration: Fraction,
+    *,
+    token_vocabulary: TokenVocabulary,
+) -> bool:
+    return any(
+        isinstance(token, RestToken)
+        and token_vocabulary.duration_vocabulary.id_to_fraction(token.duration_id) == duration
+        for token in tokens
+    )

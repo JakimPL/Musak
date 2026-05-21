@@ -1,6 +1,7 @@
 from fractions import Fraction
 from pathlib import Path
 
+from musak_model.data.config import SegmentationMode
 from musak_model.data.schema import Segment, SegmentMetadata
 from musak_model.processing.manifest import EncodedManifestField, encoded_row
 from musak_model.tokens.duration import DurationVocabulary
@@ -45,6 +46,7 @@ def test_encoded_row_includes_segment_diagnostics(duration_vocabulary: DurationV
         encoded_sample=None,
         encoded_shard=encoded_shard,
         encoded_line=None,
+        segmentation_mode=SegmentationMode.WINDOWED,
     )
 
     assert row[EncodedManifestField.RIGHT_SILENCE_FRACTION] == 0.5

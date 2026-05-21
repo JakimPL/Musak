@@ -42,6 +42,10 @@ def test_make_help_documents_examples_and_variables() -> None:
     assert "PROCESS_OVERWRITE=1" in output
     assert "PROCESS_DISABLE_MLFLOW" in output
     assert "PROCESS_MLFLOW_EXPERIMENT" in output
+    assert "PROCESS_DIFFICULTY_LABELS" in output
+    assert "PROCESS_WHOLE_FILE_SEGMENTS" in output
+    assert "FINETUNE_DIFFICULTY_LABELS" in output
+    assert "FINETUNE_WHOLE_FILE_SEGMENTS" in output
 
 
 def test_make_process_uses_data_dir_and_processed_root() -> None:
@@ -52,12 +56,16 @@ def test_make_process_uses_data_dir_and_processed_root() -> None:
         "NUM_WORKERS=4",
         "PROCESS_MLFLOW_RUN_NAME=process-test",
         "PROCESS_MLFLOW_TRACKING_URI=file:///tmp/mlruns",
+        "PROCESS_DIFFICULTY_LABELS=data/PDMX/difficulty_labels.json",
+        "PROCESS_WHOLE_FILE_SEGMENTS=1",
     )
 
     assert "scripts/process_dataset.py" in output
     assert '--data-dir "data/PDMX"' in output
     assert '--processed-dir "processed"' in output
     assert '--workers "4"' in output
+    assert '--difficulty-labels "data/PDMX/difficulty_labels.json"' in output
+    assert "--whole-file-segments" in output
     assert '--mlflow-experiment-name "musak-process"' in output
     assert '--mlflow-run-name "process-test"' in output
     assert '--mlflow-tracking-uri "file:///tmp/mlruns"' in output
@@ -114,6 +122,7 @@ def test_make_train_runs_pretrain_then_finetune_with_distinct_datasets() -> None
         "PRETRAIN_PROCESSED_DIR=processed/PDMX",
         "FINETUNE_DATA_DIR=data/Exercises",
         "FINETUNE_PROCESSED_DIR=processed/Exercises",
+        "FINETUNE_DIFFICULTY_LABELS=data/Exercises/difficulty_labels.json",
         "PRETRAIN_CHECKPOINT=checkpoints/pretraining/best.pt",
     )
 
@@ -122,7 +131,18 @@ def test_make_train_runs_pretrain_then_finetune_with_distinct_datasets() -> None
     assert '--processed-dir "processed/PDMX"' in output
     assert '--data-dir "data/Exercises"' in output
     assert '--processed-dir "processed/Exercises"' in output
+    assert '--difficulty-labels "data/Exercises/difficulty_labels.json"' in output
+    assert "--whole-file-segments" in output
     assert '--pretrain-checkpoint "checkpoints/pretraining/best.pt"' in output
+
+
+def test_make_finetune_requires_difficulty_labels() -> None:
+    with pytest.raises(subprocess.CalledProcessError):
+        _make_dry_run(
+            "finetune",
+            "FINETUNE_DATA_DIR=data/Exercises",
+            "FINETUNE_PROCESSED_DIR=processed/Exercises",
+        )
 
 
 def test_make_mlflow_starts_dashboard_with_configurable_address() -> None:

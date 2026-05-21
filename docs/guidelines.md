@@ -14,6 +14,7 @@
 10. Avoid _tramp data_ antipattern.
 11. Be cautious about optional parameters. All variables upon the logic relies on cannot be optional, including configuration instances.
 12. Restrict yourself from using default values for non-optional, excluding these that are not meant to be frequently changed (e.g. seed). If you do use defaults, declare a Final top-level constant for that.
+13. Be explicit about type expectations. Avoid dynamic `getattr` or `hasattr`.
 
 ## Shared Ownership
 

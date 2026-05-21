@@ -1,3 +1,4 @@
+from fractions import Fraction
 from pathlib import Path
 
 import pytest
@@ -44,6 +45,20 @@ class TestMeasureParsing:
         parsed = _parse_measure(measure, default_time_signature=(4, 4), default_key_fifths=0)
 
         assert len(parsed.events) == 1
+
+    def test_captures_actual_short_measure_duration_without_shifting_notes(self) -> None:
+        measure = Measure(number=0)
+        measure.insert(0, TimeSignature("4/4"))
+        measure.insert(0, Note("C4", quarterLength=1))
+
+        parsed = _parse_measure(measure, default_time_signature=(4, 4), default_key_fifths=0)
+
+        assert parsed.time_numerator == 4
+        assert parsed.time_denominator == 4
+        assert parsed.measure_duration == Fraction(1, 4)
+        parsed_note = parsed.events[0]
+        assert isinstance(parsed_note, ParsedNote)
+        assert parsed_note.beat_offset == 0
 
 
 class TestTieParsing:

@@ -54,6 +54,7 @@ class TrainingValidityMaskBuilder:
                 time_numerator=int(batch.time_numerators[row_index].item()),
                 time_denominator=int(batch.time_denominators[row_index].item()),
                 bar_count=int(batch.bar_counts[row_index].item()),
+                bar_durations=batch.bar_durations[row_index],
                 max_notes_per_hand=MAX_NOTES_PER_HAND,
                 maximum_onset_span_semitones=MAX_ONSET_SPAN_SEMITONES,
                 scale_root=int(batch.scale_roots[row_index].item()),
@@ -159,6 +160,9 @@ class TrainingValidityMaskBuilder:
         return self._metadata.is_note & (self._metadata.duration_ticks == self._fraction_to_ticks(target.duration))
 
     def _can_join_pending(self, state: GenerationConstraintState) -> bool:
+        if state.pending_cross_hand_join:
+            return True
+
         pending = state.pending_join
         if pending is None or pending.hand != state.active_hand:
             return False
@@ -176,7 +180,7 @@ class TrainingValidityMaskBuilder:
         return max(pitches) - min(pitches) <= MAX_ONSET_SPAN_SEMITONES
 
     def _can_emit_bar(self, state: GenerationConstraintState) -> bool:
-        next_bar_start = (state.bar_index + 1) * state.constraints.measure_duration
+        next_bar_start = state.constraints.bar_end(state.bar_index)
         return state.right_cursor == next_bar_start and state.left_cursor == next_bar_start
 
     def _fraction_to_ticks(self, value: Fraction) -> int:
