@@ -87,122 +87,188 @@ class PretrainingTrainer:
         if len(self._train_loader) == 0:
             raise ValueError("training loader is empty")
 
-        _LOGGER.info("Training batches per epoch: %s", len(self._train_loader))
-        _LOGGER.info("Validation batches per epoch: %s", len(self._validation_loader))
-
-        start_epoch = 0
-        best_validation_loss: float | None = None
-        if self._config.checkpoints.resume_checkpoint is not None:
-            _LOGGER.info("Resuming from checkpoint: %s", self._config.checkpoints.resume_checkpoint)
-            start_epoch, best_validation_loss = load_checkpoint(
-                self._config.checkpoints.resume_checkpoint,
-                model=self._model,
-                optimizer=self._optimizer,
-                device=self._device,
-            )
-
+        self._log_training_shape()
+        start_epoch, best_validation_loss = self._resume_training_state()
         metrics: list[EpochMetrics] = []
         best_checkpoint_path: Path | None = None
         latest_checkpoint_path = self._config.checkpoints.checkpoint_dir / "latest.pt"
 
         for epoch in range(start_epoch, self._config.optimization.epochs):
-            _LOGGER.info("Epoch %s/%s started", epoch + 1, self._config.optimization.epochs)
-            train_metrics = self._train_epoch(epoch=epoch)
-            validation_metrics = self._validate_epoch(epoch=epoch)
-            metric = EpochMetrics(
-                epoch=epoch,
-                train_loss=train_metrics.loss,
-                train_perplexity=train_metrics.perplexity,
-                train_token_accuracy=train_metrics.token_accuracy,
-                train_token_kind_accuracy=train_metrics.token_kind_accuracy,
-                train_validity_penalty_loss=train_metrics.validity_penalty_loss,
-                train_invalid_probability_mass=train_metrics.invalid_probability_mass,
-                train_invalid_target_rate=train_metrics.invalid_target_rate,
-                train_cnn_gradient_norm=train_metrics.cnn_gradient_norm,
-                train_gru_gradient_norm=train_metrics.gru_gradient_norm,
-                train_transformer_gradient_norm=train_metrics.transformer_gradient_norm,
-                validation_loss=validation_metrics.loss if validation_metrics is not None else None,
-                validation_perplexity=validation_metrics.perplexity if validation_metrics is not None else None,
-                validation_token_accuracy=validation_metrics.token_accuracy if validation_metrics is not None else None,
-                validation_token_kind_accuracy=(
-                    validation_metrics.token_kind_accuracy if validation_metrics is not None else None
-                ),
-                validation_validity_penalty_loss=(
-                    validation_metrics.validity_penalty_loss if validation_metrics is not None else None
-                ),
-                validation_invalid_probability_mass=(
-                    validation_metrics.invalid_probability_mass if validation_metrics is not None else None
-                ),
-                validation_invalid_target_rate=(
-                    validation_metrics.invalid_target_rate if validation_metrics is not None else None
-                ),
-            )
+            metric = self._run_epoch(epoch=epoch)
             metrics.append(metric)
-            self._tracker.log_epoch(metrics=metric)
-            self._log_generation_evaluation(epoch=epoch)
-            _LOGGER.info(
-                (
-                    "Epoch %s/%s finished: train_loss=%.6f train_perplexity=%.6f "
-                    "train_token_accuracy=%.6f train_token_kind_accuracy=%s train_validity_penalty_loss=%s "
-                    "train_invalid_probability_mass=%s train_invalid_target_rate=%s train_cnn_gradient_norm=%s "
-                    "train_gru_gradient_norm=%s train_transformer_gradient_norm=%s validation_loss=%s "
-                    "validation_perplexity=%s validation_token_accuracy=%s validation_token_kind_accuracy=%s "
-                    "validation_validity_penalty_loss=%s validation_invalid_probability_mass=%s "
-                    "validation_invalid_target_rate=%s"
-                ),
-                epoch + 1,
-                self._config.optimization.epochs,
-                metric.train_loss,
-                metric.train_perplexity,
-                metric.train_token_accuracy,
-                metric.train_token_kind_accuracy,
-                metric.train_validity_penalty_loss,
-                metric.train_invalid_probability_mass,
-                metric.train_invalid_target_rate,
-                metric.train_cnn_gradient_norm,
-                metric.train_gru_gradient_norm,
-                metric.train_transformer_gradient_norm,
-                metric.validation_loss,
-                metric.validation_perplexity,
-                metric.validation_token_accuracy,
-                metric.validation_token_kind_accuracy,
-                metric.validation_validity_penalty_loss,
-                metric.validation_invalid_probability_mass,
-                metric.validation_invalid_target_rate,
-            )
-
-            save_checkpoint(
-                latest_checkpoint_path,
-                model=self._model,
-                optimizer=self._optimizer,
+            best_validation_loss, best_checkpoint_path = self._save_checkpoints(
                 epoch=epoch,
+                metric=metric,
                 best_validation_loss=best_validation_loss,
+                best_checkpoint_path=best_checkpoint_path,
+                latest_checkpoint_path=latest_checkpoint_path,
             )
-            _LOGGER.info("Saved latest checkpoint: %s", latest_checkpoint_path)
-            if self._config.checkpoints.save_all_epochs:
-                epoch_checkpoint_path = self._config.checkpoints.checkpoint_dir / f"epoch_{epoch:04d}.pt"
-                save_checkpoint(
-                    epoch_checkpoint_path,
-                    model=self._model,
-                    optimizer=self._optimizer,
-                    epoch=epoch,
-                    best_validation_loss=best_validation_loss,
-                )
-                _LOGGER.info("Saved epoch checkpoint: %s", epoch_checkpoint_path)
 
-            score = metric.validation_loss if metric.validation_loss is not None else metric.train_loss
-            if best_validation_loss is None or score < best_validation_loss:
-                best_validation_loss = score
-                best_checkpoint_path = self._config.checkpoints.checkpoint_dir / "best.pt"
-                save_checkpoint(
-                    best_checkpoint_path,
-                    model=self._model,
-                    optimizer=self._optimizer,
-                    epoch=epoch,
-                    best_validation_loss=best_validation_loss,
-                )
-                _LOGGER.info("Saved best checkpoint: %s", best_checkpoint_path)
+        return self._finish_training(
+            metrics=metrics,
+            best_checkpoint_path=best_checkpoint_path,
+            latest_checkpoint_path=latest_checkpoint_path,
+            invalid_files=invalid_files,
+        )
 
+    def _log_training_shape(self) -> None:
+        _LOGGER.info("Training batches per epoch: %s", len(self._train_loader))
+        _LOGGER.info("Validation batches per epoch: %s", len(self._validation_loader))
+
+    def _resume_training_state(self) -> tuple[int, float | None]:
+        if self._config.checkpoints.resume_checkpoint is None:
+            return 0, None
+
+        _LOGGER.info("Resuming from checkpoint: %s", self._config.checkpoints.resume_checkpoint)
+        return load_checkpoint(
+            self._config.checkpoints.resume_checkpoint,
+            model=self._model,
+            optimizer=self._optimizer,
+            device=self._device,
+        )
+
+    def _run_epoch(self, *, epoch: int) -> EpochMetrics:
+        _LOGGER.info("Epoch %s/%s started", epoch + 1, self._config.optimization.epochs)
+        metric = self._epoch_metrics(
+            epoch=epoch,
+            train_metrics=self._train_epoch(epoch=epoch),
+            validation_metrics=self._validate_epoch(epoch=epoch),
+        )
+        self._tracker.log_epoch(metrics=metric)
+        self._log_generation_evaluation(epoch=epoch)
+        self._log_epoch_result(metric)
+        return metric
+
+    def _epoch_metrics(
+        self,
+        *,
+        epoch: int,
+        train_metrics: EpochSplitMetrics,
+        validation_metrics: EpochSplitMetrics | None,
+    ) -> EpochMetrics:
+        return EpochMetrics(
+            epoch=epoch,
+            train_loss=train_metrics.loss,
+            train_perplexity=train_metrics.perplexity,
+            train_token_accuracy=train_metrics.token_accuracy,
+            train_token_kind_accuracy=train_metrics.token_kind_accuracy,
+            train_validity_penalty_loss=train_metrics.validity_penalty_loss,
+            train_invalid_probability_mass=train_metrics.invalid_probability_mass,
+            train_invalid_target_rate=train_metrics.invalid_target_rate,
+            train_cnn_gradient_norm=train_metrics.cnn_gradient_norm,
+            train_gru_gradient_norm=train_metrics.gru_gradient_norm,
+            train_transformer_gradient_norm=train_metrics.transformer_gradient_norm,
+            validation_loss=validation_metrics.loss if validation_metrics is not None else None,
+            validation_perplexity=validation_metrics.perplexity if validation_metrics is not None else None,
+            validation_token_accuracy=validation_metrics.token_accuracy if validation_metrics is not None else None,
+            validation_token_kind_accuracy=(
+                validation_metrics.token_kind_accuracy if validation_metrics is not None else None
+            ),
+            validation_validity_penalty_loss=(
+                validation_metrics.validity_penalty_loss if validation_metrics is not None else None
+            ),
+            validation_invalid_probability_mass=(
+                validation_metrics.invalid_probability_mass if validation_metrics is not None else None
+            ),
+            validation_invalid_target_rate=(
+                validation_metrics.invalid_target_rate if validation_metrics is not None else None
+            ),
+        )
+
+    def _log_epoch_result(self, metric: EpochMetrics) -> None:
+        _LOGGER.info(
+            (
+                "Epoch %s/%s finished: train_loss=%.6f train_perplexity=%.6f "
+                "train_token_accuracy=%.6f train_token_kind_accuracy=%s train_validity_penalty_loss=%s "
+                "train_invalid_probability_mass=%s train_invalid_target_rate=%s train_cnn_gradient_norm=%s "
+                "train_gru_gradient_norm=%s train_transformer_gradient_norm=%s validation_loss=%s "
+                "validation_perplexity=%s validation_token_accuracy=%s validation_token_kind_accuracy=%s "
+                "validation_validity_penalty_loss=%s validation_invalid_probability_mass=%s "
+                "validation_invalid_target_rate=%s"
+            ),
+            metric.epoch + 1,
+            self._config.optimization.epochs,
+            metric.train_loss,
+            metric.train_perplexity,
+            metric.train_token_accuracy,
+            metric.train_token_kind_accuracy,
+            metric.train_validity_penalty_loss,
+            metric.train_invalid_probability_mass,
+            metric.train_invalid_target_rate,
+            metric.train_cnn_gradient_norm,
+            metric.train_gru_gradient_norm,
+            metric.train_transformer_gradient_norm,
+            metric.validation_loss,
+            metric.validation_perplexity,
+            metric.validation_token_accuracy,
+            metric.validation_token_kind_accuracy,
+            metric.validation_validity_penalty_loss,
+            metric.validation_invalid_probability_mass,
+            metric.validation_invalid_target_rate,
+        )
+
+    def _save_checkpoints(
+        self,
+        *,
+        epoch: int,
+        metric: EpochMetrics,
+        best_validation_loss: float | None,
+        best_checkpoint_path: Path | None,
+        latest_checkpoint_path: Path,
+    ) -> tuple[float | None, Path | None]:
+        self._save_checkpoint(latest_checkpoint_path, epoch=epoch, best_validation_loss=best_validation_loss)
+        _LOGGER.info("Saved latest checkpoint: %s", latest_checkpoint_path)
+        self._save_epoch_checkpoint(epoch=epoch, best_validation_loss=best_validation_loss)
+        return self._save_best_checkpoint(
+            epoch=epoch,
+            metric=metric,
+            best_validation_loss=best_validation_loss,
+            best_checkpoint_path=best_checkpoint_path,
+        )
+
+    def _save_checkpoint(self, path: Path, *, epoch: int, best_validation_loss: float | None) -> None:
+        save_checkpoint(
+            path,
+            model=self._model,
+            optimizer=self._optimizer,
+            epoch=epoch,
+            best_validation_loss=best_validation_loss,
+        )
+
+    def _save_epoch_checkpoint(self, *, epoch: int, best_validation_loss: float | None) -> None:
+        if not self._config.checkpoints.save_all_epochs:
+            return
+
+        epoch_checkpoint_path = self._config.checkpoints.checkpoint_dir / f"epoch_{epoch:04d}.pt"
+        self._save_checkpoint(epoch_checkpoint_path, epoch=epoch, best_validation_loss=best_validation_loss)
+        _LOGGER.info("Saved epoch checkpoint: %s", epoch_checkpoint_path)
+
+    def _save_best_checkpoint(
+        self,
+        *,
+        epoch: int,
+        metric: EpochMetrics,
+        best_validation_loss: float | None,
+        best_checkpoint_path: Path | None,
+    ) -> tuple[float | None, Path | None]:
+        score = metric.validation_loss if metric.validation_loss is not None else metric.train_loss
+        if best_validation_loss is not None and score >= best_validation_loss:
+            return best_validation_loss, best_checkpoint_path
+
+        best_validation_loss = score
+        best_checkpoint_path = self._config.checkpoints.checkpoint_dir / "best.pt"
+        self._save_checkpoint(best_checkpoint_path, epoch=epoch, best_validation_loss=best_validation_loss)
+        _LOGGER.info("Saved best checkpoint: %s", best_checkpoint_path)
+        return best_validation_loss, best_checkpoint_path
+
+    def _finish_training(
+        self,
+        *,
+        metrics: list[EpochMetrics],
+        best_checkpoint_path: Path | None,
+        latest_checkpoint_path: Path,
+        invalid_files: list[IngestionErrorRecord] | None,
+    ) -> TrainingResult:
         result = TrainingResult(
             metrics=metrics,
             best_checkpoint_path=best_checkpoint_path,

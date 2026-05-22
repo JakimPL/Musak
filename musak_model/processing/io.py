@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Final
 
 from pydantic import BaseModel
 
@@ -8,6 +8,8 @@ from musak_model.processing.snapshot import TokenizerSnapshot
 
 if TYPE_CHECKING:
     from musak_model.training.ingestion.schema import EncodedExercise
+
+JSON_INDENT: Final[int] = 4
 
 
 def write_json_model(
@@ -20,7 +22,7 @@ def write_json_model(
         return
 
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(model.model_dump_json(indent=2), encoding="utf-8")
+    path.write_text(model.model_dump_json(indent=JSON_INDENT), encoding="utf-8")
 
 
 def load_parsed_score_json(path: Path) -> ParsedScore:

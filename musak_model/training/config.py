@@ -9,6 +9,8 @@ from musak_model.tokens.schema import ScaleType
 from musak_shared.files import load_yaml_config
 from musak_shared.time_signature import validate_time_denominator
 
+DEFAULT_GENERATION_EVALUATION_SEED = 1729
+
 
 class OptimizationConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -29,12 +31,12 @@ class RuntimeConfig(BaseModel):
 class TrainingConditioningConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    use_time_signature: bool = False
-    use_scale_type: bool = False
-    use_difficulty: bool = False
-    use_structural_conditioning: bool = False
-    use_validity_penalty: bool = False
-    validity_penalty_weight: float = Field(ge=0.0, default=0.05)
+    use_time_signature: bool
+    use_scale_type: bool
+    use_difficulty: bool
+    use_structural_conditioning: bool
+    use_validity_penalty: bool
+    validity_penalty_weight: float = Field(ge=0.0)
 
 
 class CheckpointConfig(BaseModel):
@@ -64,25 +66,25 @@ class MlflowConfig(BaseModel):
 class GenerationEvaluationConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    enabled: bool = False
-    every_epochs: int = Field(default=5, ge=1)
-    soft_sample_count: int = Field(default=4, ge=0)
-    hard_sample_count: int = Field(default=4, ge=0)
-    max_new_tokens: int = Field(default=256, ge=1)
-    seed: int = 1729
-    temperature: float = Field(default=1.0, gt=0)
-    top_k: int | None = Field(default=32, ge=1)
-    scale_root: int = Field(default=0, ge=0, lt=12)
-    scale_type: ScaleType = ScaleType.MAJOR
-    time_numerator: int = Field(default=4, ge=1)
-    time_denominator: int = Field(default=4, ge=1)
-    bar_count: int = Field(default=2, ge=1)
-    minimum_duration_denominator: int | None = Field(default=16, ge=1)
-    allow_dotted_durations: bool = True
-    max_notes_per_hand: int | None = Field(default=5, ge=1)
-    maximum_onset_span_semitones: int | None = Field(default=12, ge=0)
-    maximum_pitch_gap_semitones: int | None = Field(default=12, ge=0)
-    maximum_static_hand_span_degrees: int | None = Field(default=5, ge=1)
+    enabled: bool
+    every_epochs: int = Field(ge=1)
+    soft_sample_count: int = Field(ge=0)
+    hard_sample_count: int = Field(ge=0)
+    max_new_tokens: int = Field(ge=1)
+    seed: int = DEFAULT_GENERATION_EVALUATION_SEED
+    temperature: float = Field(gt=0)
+    top_k: int | None = Field(ge=1)
+    scale_root: int = Field(ge=0, lt=12)
+    scale_type: ScaleType
+    time_numerator: int = Field(ge=1)
+    time_denominator: int = Field(ge=1)
+    bar_count: int = Field(ge=1)
+    minimum_duration_denominator: int | None = Field(ge=1)
+    allow_dotted_durations: bool
+    max_notes_per_hand: int | None = Field(ge=1)
+    maximum_onset_span_semitones: int | None = Field(ge=0)
+    maximum_pitch_gap_semitones: int | None = Field(ge=0)
+    maximum_static_hand_span_degrees: int | None = Field(ge=1)
 
     @field_validator("minimum_duration_denominator")
     @classmethod
@@ -104,10 +106,10 @@ class TrainingConfig(BaseModel):
 
     optimization: OptimizationConfig
     runtime: RuntimeConfig
-    conditioning: TrainingConditioningConfig = TrainingConditioningConfig()
+    conditioning: TrainingConditioningConfig
     checkpoints: CheckpointConfig
     mlflow: MlflowConfig = MlflowConfig()
-    generation_evaluation: GenerationEvaluationConfig = GenerationEvaluationConfig()
+    generation_evaluation: GenerationEvaluationConfig
 
     @classmethod
     def load(cls, path: Path = PRETRAINING_CONFIG_PATH) -> TrainingConfig:

@@ -15,11 +15,23 @@ from musak_model.tokens.config import TokenizationConfig
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import BarToken, EndToken, NoteToken, RestToken, ScaleType, Token
 from musak_model.tokens.vocabulary import TokenVocabulary
+from musak_model.training.config import TrainingConditioningConfig
 from musak_model.training.dataset import EncodedExerciseDataset, collate_training_examples
 from musak_model.training.ingestion.config import IngestionConfig
 from musak_model.training.ingestion.split import _build_bar_positions_from_tokens, _encode_segment, build_split
 from musak_model.training.validity import TrainingValidityMaskBuilder
 from tests.musak_model.data.fixtures import bar, note_event, parsed_score
+
+
+def _conditioning_config() -> TrainingConditioningConfig:
+    return TrainingConditioningConfig(
+        use_time_signature=False,
+        use_scale_type=False,
+        use_difficulty=False,
+        use_structural_conditioning=False,
+        use_validity_penalty=False,
+        validity_penalty_weight=0.05,
+    )
 
 
 def _note(duration_vocabulary: DurationVocabulary) -> NoteToken:
@@ -232,7 +244,7 @@ def test_build_ingestion_split_prefers_encoded_artifacts(
         right_hand_bars=[bar([note_event(midi_pitch=72, duration=Fraction(1, 4), beat_offset=Fraction(0))])],
         left_hand_bars=[bar([note_event(midi_pitch=48, duration=Fraction(1, 4), beat_offset=Fraction(0))])],
     )
-    monkeypatch.setattr("musak_model.processing.parse.parse_score", lambda path: score)
+    monkeypatch.setattr("musak_model.processing.parser.worker.parse_score", lambda path: score)
     process_dataset(
         dataset_root,
         processed_root=processed_root,
@@ -277,7 +289,7 @@ def test_build_ingestion_split_rejects_windowed_encoded_artifacts_for_whole_file
         right_hand_bars=[bar([note_event(midi_pitch=72, duration=Fraction(1, 4), beat_offset=Fraction(0))])],
         left_hand_bars=[bar([note_event(midi_pitch=48, duration=Fraction(1, 4), beat_offset=Fraction(0))])],
     )
-    monkeypatch.setattr("musak_model.processing.parse.parse_score", lambda path: score)
+    monkeypatch.setattr("musak_model.processing.parser.worker.parse_score", lambda path: score)
     process_dataset(
         dataset_root,
         processed_root=processed_root,
@@ -339,6 +351,7 @@ def test_raw_ingestion_pipeline_preserves_short_measure_bar_tokens(
             TimeSignatureVocabularyConfig(max_denominator=4, relative_numerator_range=2)
         ),
         token_vocabulary=token_vocabulary,
+        conditioning=_conditioning_config(),
     )
     batch = collate_training_examples([dataset[0]])
     masks = TrainingValidityMaskBuilder(token_vocabulary).masks_for_batch(batch, device=batch.input_token_ids.device)
@@ -360,7 +373,7 @@ def test_build_ingestion_split_ignores_encoded_artifacts_without_matching_snapsh
         right_hand_bars=[bar([note_event(midi_pitch=72, duration=Fraction(1, 4), beat_offset=Fraction(0))])],
         left_hand_bars=[bar([note_event(midi_pitch=48, duration=Fraction(1, 4), beat_offset=Fraction(0))])],
     )
-    monkeypatch.setattr("musak_model.processing.parse.parse_score", lambda path: score)
+    monkeypatch.setattr("musak_model.processing.parser.worker.parse_score", lambda path: score)
     result = process_dataset(
         dataset_root,
         processed_root=processed_root,
@@ -407,7 +420,7 @@ def test_build_ingestion_split_falls_back_to_parsed_artifacts(
         right_hand_bars=[bar([note_event(midi_pitch=72, duration=Fraction(1, 4), beat_offset=Fraction(0))])],
         left_hand_bars=[bar([note_event(midi_pitch=48, duration=Fraction(1, 4), beat_offset=Fraction(0))])],
     )
-    monkeypatch.setattr("musak_model.processing.parse.parse_score", lambda path: score)
+    monkeypatch.setattr("musak_model.processing.parser.worker.parse_score", lambda path: score)
     process_dataset(
         dataset_root,
         processed_root=processed_root,

@@ -1,0 +1,252 @@
+import logging
+from collections.abc import Iterable
+from pathlib import Path
+
+from musak_model.data.config import DataProcessingConfig, SegmentationConfig
+from musak_model.processing.io import write_json_model
+from musak_model.processing.manifest import EncodedManifestField, read_encoded_manifest
+from musak_model.processing.parser import ParsedScoreArtifact, load_parsed_score_artifacts
+from musak_model.processing.paths import ProcessedDatasetPaths
+from musak_model.processing.profiler import NULL_PROCESSING_PROFILER, ProcessingProfilerProtocol
+from musak_model.processing.progress import progress
+from musak_model.processing.snapshot import TokenizerSnapshot, build_tokenizer_snapshot
+from musak_model.processing.tokenizer.difficulty import log_difficulty_label_stats
+from musak_model.processing.tokenizer.resume import (
+    TokenizationOutputPaths,
+    complete_outputs_exist,
+    prepare_resume_state,
+)
+from musak_model.processing.tokenizer.schema import TokenizeDatasetResult
+from musak_model.processing.tokenizer.source import tokenize_source
+from musak_model.processing.tokenizer.state import (
+    TokenizationResumeState,
+    append_source_completed_event,
+    tokenization_state_key,
+)
+from musak_model.tokens.config import TokenizationConfig
+from musak_model.tokens.duration import DurationVocabulary
+from musak_model.tokens.vocabulary import TokenVocabulary
+
+_LOGGER = logging.getLogger(__name__)
+
+
+def tokenize_dataset(
+    dataset_root: Path,
+    *,
+    processed_root: Path,
+    segmentation_config: SegmentationConfig,
+    tokenization_config: TokenizationConfig,
+    data_processing_config: DataProcessingConfig,
+    difficulty_labels: dict[str, int | None] | None,
+    overwrite: bool,
+    show_progress: bool,
+    profiler: ProcessingProfilerProtocol = NULL_PROCESSING_PROFILER,
+) -> TokenizeDatasetResult:
+    paths = ProcessedDatasetPaths.from_dataset_root(processed_root=processed_root, dataset_root=dataset_root)
+    parsed_scores = load_parsed_score_artifacts(dataset_root, processed_root=processed_root)
+    duration_vocabulary, token_vocabulary, snapshot = _tokenizer_components(tokenization_config)
+    return tokenize_parsed_scores(
+        parsed_scores,
+        dataset_root=dataset_root,
+        paths=paths,
+        snapshot=snapshot,
+        segmentation_config=segmentation_config,
+        duration_vocabulary=duration_vocabulary,
+        token_vocabulary=token_vocabulary,
+        difficulty_labels=difficulty_labels,
+        data_processing_config=data_processing_config,
+        overwrite=overwrite,
+        show_progress=show_progress,
+        profiler=profiler,
+    )
+
+
+def tokenize_parsed_scores(
+    parsed_scores: Iterable[ParsedScoreArtifact],
+    *,
+    dataset_root: Path,
+    paths: ProcessedDatasetPaths,
+    snapshot: TokenizerSnapshot,
+    segmentation_config: SegmentationConfig,
+    duration_vocabulary: DurationVocabulary,
+    token_vocabulary: TokenVocabulary,
+    difficulty_labels: dict[str, int | None] | None,
+    data_processing_config: DataProcessingConfig,
+    overwrite: bool,
+    show_progress: bool,
+    profiler: ProcessingProfilerProtocol = NULL_PROCESSING_PROFILER,
+) -> TokenizeDatasetResult:
+    parsed_scores = tuple(parsed_scores)
+    output_paths = TokenizationOutputPaths.from_paths(paths, snapshot=snapshot)
+    state_key = tokenization_state_key(
+        snapshot=snapshot,
+        segmentation_config=segmentation_config,
+        data_processing_config=data_processing_config,
+        difficulty_labels=difficulty_labels,
+    )
+    resume_state = prepare_resume_state(
+        output_paths,
+        state_key=state_key,
+        overwrite=overwrite,
+        parsed_scores=parsed_scores,
+        profiler=profiler,
+    )
+    reusable_result = _reusable_result(
+        parsed_scores=parsed_scores,
+        paths=paths,
+        output_paths=output_paths,
+        resume_state=resume_state,
+        data_processing_config=data_processing_config,
+    )
+    if reusable_result is not None:
+        return reusable_result
+
+    _write_tokenizer_snapshot(output_paths.tokenizer_snapshot_path, snapshot=snapshot, profiler=profiler)
+    return _tokenize_missing_sources(
+        parsed_scores,
+        dataset_root=dataset_root,
+        paths=paths,
+        output_paths=output_paths,
+        state_key=state_key,
+        resume_state=resume_state,
+        segmentation_config=segmentation_config,
+        duration_vocabulary=duration_vocabulary,
+        token_vocabulary=token_vocabulary,
+        difficulty_labels=difficulty_labels,
+        data_processing_config=data_processing_config,
+        show_progress=show_progress,
+        profiler=profiler,
+    )
+
+
+def _tokenizer_components(
+    tokenization_config: TokenizationConfig,
+) -> tuple[DurationVocabulary, TokenVocabulary, TokenizerSnapshot]:
+    duration_vocabulary = DurationVocabulary(tokenization_config)
+    token_vocabulary = TokenVocabulary(duration_vocabulary)
+    snapshot = build_tokenizer_snapshot(
+        tokenization_config,
+        duration_vocabulary=duration_vocabulary,
+        token_vocabulary=token_vocabulary,
+    )
+    return duration_vocabulary, token_vocabulary, snapshot
+
+
+def _reusable_result(
+    *,
+    parsed_scores: tuple[ParsedScoreArtifact, ...],
+    paths: ProcessedDatasetPaths,
+    output_paths: TokenizationOutputPaths,
+    resume_state: TokenizationResumeState,
+    data_processing_config: DataProcessingConfig,
+) -> TokenizeDatasetResult | None:
+    if not complete_outputs_exist(parsed_scores=parsed_scores, output_paths=output_paths, resume_state=resume_state):
+        return None
+
+    encoded_rows = read_encoded_manifest(output_paths.encoded_manifest_path)
+    encoded_count = sum(1 for row in encoded_rows if row[EncodedManifestField.ENCODED_LINE] != "")
+    _LOGGER.info("Reusing complete encoded artifacts: %s", output_paths.encoded_manifest_path)
+    return _result(
+        paths=paths,
+        output_paths=output_paths,
+        encoded_count=encoded_count,
+        segment_count=len(encoded_rows),
+        data_processing_config=data_processing_config,
+    )
+
+
+def _write_tokenizer_snapshot(
+    tokenizer_snapshot_path: Path,
+    *,
+    snapshot: TokenizerSnapshot,
+    profiler: ProcessingProfilerProtocol,
+) -> None:
+    with profiler.measure("write_tokenizer_snapshot"):
+        write_json_model(snapshot, tokenizer_snapshot_path, overwrite=True)
+
+
+def _tokenize_missing_sources(
+    parsed_scores: tuple[ParsedScoreArtifact, ...],
+    *,
+    dataset_root: Path,
+    paths: ProcessedDatasetPaths,
+    output_paths: TokenizationOutputPaths,
+    state_key: str,
+    resume_state: TokenizationResumeState,
+    segmentation_config: SegmentationConfig,
+    duration_vocabulary: DurationVocabulary,
+    token_vocabulary: TokenVocabulary,
+    difficulty_labels: dict[str, int | None] | None,
+    data_processing_config: DataProcessingConfig,
+    show_progress: bool,
+    profiler: ProcessingProfilerProtocol,
+) -> TokenizeDatasetResult:
+    _LOGGER.info("Encoding %s parsed score(s)", len(parsed_scores))
+    log_difficulty_label_stats(parsed_scores, dataset_root=dataset_root, difficulty_labels=difficulty_labels)
+    completed_source_ids = set(resume_state.completed_source_ids)
+    encoded_line_count = resume_state.encoded_line_count
+    manifest_row_count = resume_state.manifest_row_count
+    encoded_count = resume_state.encoded_count
+    for artifact in progress(parsed_scores, description="Encoding scores", unit="score", enabled=show_progress):
+        if artifact.source_id_value in completed_source_ids:
+            continue
+
+        source_encoded_count, source_manifest_count, encoded_line_count = tokenize_source(
+            artifact,
+            dataset_root=dataset_root,
+            paths=paths,
+            encoded_jsonl_path=output_paths.encoded_jsonl_path,
+            encoded_manifest_path=output_paths.encoded_manifest_path,
+            segmentation_config=segmentation_config,
+            duration_vocabulary=duration_vocabulary,
+            token_vocabulary=token_vocabulary,
+            difficulty_labels=difficulty_labels,
+            data_processing_config=data_processing_config,
+            encoded_line_count=encoded_line_count,
+            profiler=profiler,
+        )
+        encoded_count += source_encoded_count
+        manifest_row_count += source_manifest_count
+        append_source_completed_event(
+            output_paths.state_path,
+            state_key=state_key,
+            source_id=artifact.source_id_value,
+            encoded_line_count=encoded_line_count,
+            manifest_row_count=manifest_row_count,
+            encoded_count=encoded_count,
+        )
+        completed_source_ids.add(artifact.source_id_value)
+
+    _LOGGER.info("Wrote encoded manifest: %s", output_paths.encoded_manifest_path)
+    return _result(
+        paths=paths,
+        output_paths=output_paths,
+        encoded_count=encoded_count,
+        segment_count=manifest_row_count,
+        data_processing_config=data_processing_config,
+    )
+
+
+def _result(
+    *,
+    paths: ProcessedDatasetPaths,
+    output_paths: TokenizationOutputPaths,
+    encoded_count: int,
+    segment_count: int,
+    data_processing_config: DataProcessingConfig,
+) -> TokenizeDatasetResult:
+    return TokenizeDatasetResult(
+        parsed_manifest_path=paths.parsed_manifest_path,
+        encoded_manifest_path=output_paths.encoded_manifest_path,
+        tokenizer_snapshot_path=output_paths.tokenizer_snapshot_path,
+        encoded_count=encoded_count,
+        segment_count=segment_count,
+        scale_match_support_score_margin=data_processing_config.scale_match_support_score_margin,
+        scale_match_selection_score_margin=data_processing_config.scale_match_selection_score_margin,
+        scale_match_maximum_unexplained_weight_fraction=(
+            data_processing_config.scale_match_maximum_unexplained_weight_fraction
+        ),
+        scale_match_maximum_explanation_pitch_class_count=(
+            data_processing_config.scale_match_maximum_explanation_pitch_class_count
+        ),
+    )

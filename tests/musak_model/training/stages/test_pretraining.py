@@ -91,18 +91,57 @@ def _training_config(
     *,
     resume_checkpoint: Path | None = None,
     epochs: int = 1,
-    conditioning: TrainingConditioningConfig = TrainingConditioningConfig(),
+    conditioning: TrainingConditioningConfig | None = None,
     save_all_epochs: bool = False,
 ) -> TrainingConfig:
     return TrainingConfig(
         optimization=OptimizationConfig(epochs=epochs, batch_size=2, learning_rate=0.001, weight_decay=0.0),
         runtime=RuntimeConfig(num_workers=0, device="cpu"),
-        conditioning=conditioning,
+        conditioning=conditioning if conditioning is not None else _conditioning_config(),
         checkpoints=CheckpointConfig(
             checkpoint_dir=checkpoint_dir,
             resume_checkpoint=resume_checkpoint,
             save_all_epochs=save_all_epochs,
         ),
+        generation_evaluation=_generation_evaluation_config(enabled=False),
+    )
+
+
+def _conditioning_config(
+    *,
+    use_validity_penalty: bool = False,
+    validity_penalty_weight: float = 0.05,
+) -> TrainingConditioningConfig:
+    return TrainingConditioningConfig(
+        use_time_signature=False,
+        use_scale_type=False,
+        use_difficulty=False,
+        use_structural_conditioning=False,
+        use_validity_penalty=use_validity_penalty,
+        validity_penalty_weight=validity_penalty_weight,
+    )
+
+
+def _generation_evaluation_config(*, enabled: bool) -> GenerationEvaluationConfig:
+    return GenerationEvaluationConfig(
+        enabled=enabled,
+        every_epochs=5,
+        soft_sample_count=1,
+        hard_sample_count=0,
+        max_new_tokens=256,
+        temperature=1.0,
+        top_k=32,
+        scale_root=0,
+        scale_type=ScaleType.MAJOR,
+        time_numerator=4,
+        time_denominator=4,
+        bar_count=2,
+        minimum_duration_denominator=16,
+        allow_dotted_durations=True,
+        max_notes_per_hand=5,
+        maximum_onset_span_semitones=12,
+        maximum_pitch_gap_semitones=12,
+        maximum_static_hand_span_degrees=5,
     )
 
 
@@ -143,6 +182,7 @@ def _loader() -> DataLoader[TrainingBatch]:
             TimeSignatureVocabularyConfig(max_denominator=4, relative_numerator_range=2)
         ),
         token_vocabulary=token_vocabulary,
+        conditioning=_conditioning_config(),
     )
     return DataLoader(dataset, batch_size=2, collate_fn=collate_training_examples)
 
@@ -215,14 +255,7 @@ def test_trainer_logs_generation_evaluation_on_configured_cadence(tmp_path: Path
     evaluator = FakeGenerationEvaluator()
     model = HierarchicalAutoregressiveModel(_small_model_config())
     config = _training_config(tmp_path, epochs=5).model_copy(
-        update={
-            "generation_evaluation": GenerationEvaluationConfig(
-                enabled=True,
-                every_epochs=5,
-                soft_sample_count=1,
-                hard_sample_count=0,
-            )
-        }
+        update={"generation_evaluation": _generation_evaluation_config(enabled=True)}
     )
     trainer = PretrainingTrainer(
         model=model,
@@ -326,7 +359,7 @@ def test_trainer_reports_validity_penalty_metrics(tmp_path: Path) -> None:
         model=model,
         config=_training_config(
             tmp_path,
-            conditioning=TrainingConditioningConfig(use_validity_penalty=True, validity_penalty_weight=0.05),
+            conditioning=_conditioning_config(use_validity_penalty=True, validity_penalty_weight=0.05),
         ),
         train_loader=_loader(),
         validation_loader=_loader(),

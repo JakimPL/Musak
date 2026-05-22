@@ -3,10 +3,12 @@ from pathlib import Path
 
 import pytest
 
+from musak_model.tokens.schema import ScaleType
 from musak_model.training.config import (
     CheckpointConfig,
     FinetuningCheckpointConfig,
     FinetuningTrainingConfig,
+    GenerationEvaluationConfig,
     MlflowConfig,
     OptimizationConfig,
     RuntimeConfig,
@@ -57,8 +59,66 @@ def _training_config(checkpoint_dir: Path, *, epochs: int = 25) -> TrainingConfi
         optimization=OptimizationConfig(epochs=epochs, batch_size=8, learning_rate=0.001, weight_decay=0.0),
         runtime=RuntimeConfig(num_workers=2, device="cuda"),
         checkpoints=CheckpointConfig(checkpoint_dir=checkpoint_dir),
-        conditioning=TrainingConditioningConfig(use_time_signature=True, use_scale_type=True),
+        conditioning=_conditioning_config(use_time_signature=True, use_scale_type=True),
         mlflow=MlflowConfig(enable_mlflow=True),
+        generation_evaluation=_generation_evaluation_config(),
+    )
+
+
+def _finetuning_config(
+    checkpoint_dir: Path,
+    *,
+    pretraining_checkpoint: Path,
+    save_all_epochs: bool = True,
+) -> FinetuningTrainingConfig:
+    return FinetuningTrainingConfig(
+        optimization=OptimizationConfig(epochs=8, batch_size=8, learning_rate=0.001, weight_decay=0.0),
+        runtime=RuntimeConfig(num_workers=4, device="cuda"),
+        checkpoints=FinetuningCheckpointConfig(
+            checkpoint_dir=checkpoint_dir,
+            pretraining_checkpoint=pretraining_checkpoint,
+            save_all_epochs=save_all_epochs,
+        ),
+        conditioning=_conditioning_config(),
+        generation_evaluation=_generation_evaluation_config(),
+    )
+
+
+def _conditioning_config(
+    *,
+    use_time_signature: bool = False,
+    use_scale_type: bool = False,
+) -> TrainingConditioningConfig:
+    return TrainingConditioningConfig(
+        use_time_signature=use_time_signature,
+        use_scale_type=use_scale_type,
+        use_difficulty=False,
+        use_structural_conditioning=False,
+        use_validity_penalty=False,
+        validity_penalty_weight=0.05,
+    )
+
+
+def _generation_evaluation_config() -> GenerationEvaluationConfig:
+    return GenerationEvaluationConfig(
+        enabled=False,
+        every_epochs=5,
+        soft_sample_count=4,
+        hard_sample_count=4,
+        max_new_tokens=256,
+        temperature=1.0,
+        top_k=32,
+        scale_root=0,
+        scale_type=ScaleType.MAJOR,
+        time_numerator=4,
+        time_denominator=4,
+        bar_count=2,
+        minimum_duration_denominator=16,
+        allow_dotted_durations=True,
+        max_notes_per_hand=5,
+        maximum_onset_span_semitones=12,
+        maximum_pitch_gap_semitones=12,
+        maximum_static_hand_span_degrees=5,
     )
 
 
@@ -88,14 +148,7 @@ def test_resume_command_for_pretraining_copies_resolved_arguments(tmp_path: Path
 def test_resume_command_for_finetuning_includes_pretrain_checkpoint(tmp_path: Path) -> None:
     latest_checkpoint = tmp_path / "finetuning" / "latest.pt"
     pretrain_checkpoint = tmp_path / "pretraining" / "best.pt"
-    config = FinetuningTrainingConfig(
-        optimization=OptimizationConfig(epochs=8, batch_size=8, learning_rate=0.001, weight_decay=0.0),
-        runtime=RuntimeConfig(num_workers=4, device="cuda"),
-        checkpoints=FinetuningCheckpointConfig(
-            checkpoint_dir=latest_checkpoint.parent,
-            pretraining_checkpoint=pretrain_checkpoint,
-        ),
-    )
+    config = _finetuning_config(latest_checkpoint.parent, pretraining_checkpoint=pretrain_checkpoint)
 
     command = resume_command(
         stage=TrainingStage.FINETUNING,
@@ -113,15 +166,7 @@ def test_resume_command_for_finetuning_includes_pretrain_checkpoint(tmp_path: Pa
 def test_resume_command_preserves_save_all_epochs(tmp_path: Path) -> None:
     latest_checkpoint = tmp_path / "finetuning" / "latest.pt"
     pretrain_checkpoint = tmp_path / "pretraining" / "best.pt"
-    config = FinetuningTrainingConfig(
-        optimization=OptimizationConfig(epochs=8, batch_size=8, learning_rate=0.001, weight_decay=0.0),
-        runtime=RuntimeConfig(num_workers=4, device="cuda"),
-        checkpoints=FinetuningCheckpointConfig(
-            checkpoint_dir=latest_checkpoint.parent,
-            pretraining_checkpoint=pretrain_checkpoint,
-            save_all_epochs=True,
-        ),
-    )
+    config = _finetuning_config(latest_checkpoint.parent, pretraining_checkpoint=pretrain_checkpoint)
 
     command = resume_command(
         stage=TrainingStage.FINETUNING,
@@ -221,13 +266,9 @@ def test_pretraining_overwrite_bypasses_checkpoint_prompt(
 
 
 def test_finetune_requires_pretrain_checkpoint(tmp_path: Path) -> None:
-    config = FinetuningTrainingConfig(
-        optimization=OptimizationConfig(epochs=8, batch_size=8, learning_rate=0.001, weight_decay=0.0),
-        runtime=RuntimeConfig(num_workers=4, device="cuda"),
-        checkpoints=FinetuningCheckpointConfig(
-            checkpoint_dir=tmp_path / "finetuning",
-            pretraining_checkpoint=tmp_path / "pretraining" / "best.pt",
-        ),
+    config = _finetuning_config(
+        tmp_path / "finetuning",
+        pretraining_checkpoint=tmp_path / "pretraining" / "best.pt",
     )
 
     with pytest.raises(FileNotFoundError, match="Stage-one pretrain checkpoint"):
@@ -238,13 +279,6 @@ def test_finetune_accepts_existing_pretrain_checkpoint(tmp_path: Path) -> None:
     checkpoint = tmp_path / "pretraining" / "best.pt"
     checkpoint.parent.mkdir(parents=True)
     checkpoint.write_text("checkpoint", encoding="utf-8")
-    config = FinetuningTrainingConfig(
-        optimization=OptimizationConfig(epochs=8, batch_size=8, learning_rate=0.001, weight_decay=0.0),
-        runtime=RuntimeConfig(num_workers=4, device="cuda"),
-        checkpoints=FinetuningCheckpointConfig(
-            checkpoint_dir=tmp_path / "finetuning",
-            pretraining_checkpoint=checkpoint,
-        ),
-    )
+    config = _finetuning_config(tmp_path / "finetuning", pretraining_checkpoint=checkpoint)
 
     validate_finetune_checkpoint(config)

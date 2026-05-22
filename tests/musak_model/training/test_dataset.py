@@ -16,6 +16,24 @@ from musak_model.training.dataset import EncodedExerciseDataset, collate_trainin
 from musak_model.training.ingestion.schema import EncodedExercise
 
 
+def _conditioning_config(
+    *,
+    use_time_signature: bool = False,
+    use_scale_type: bool = False,
+    use_difficulty: bool = False,
+    use_structural_conditioning: bool = False,
+    use_validity_penalty: bool = False,
+) -> TrainingConditioningConfig:
+    return TrainingConditioningConfig(
+        use_time_signature=use_time_signature,
+        use_scale_type=use_scale_type,
+        use_difficulty=use_difficulty,
+        use_structural_conditioning=use_structural_conditioning,
+        use_validity_penalty=use_validity_penalty,
+        validity_penalty_weight=0.05,
+    )
+
+
 def _time_signature_vocabulary() -> TimeSignatureVocabulary:
     return TimeSignatureVocabulary(TimeSignatureVocabularyConfig(max_denominator=4, relative_numerator_range=2))
 
@@ -49,6 +67,7 @@ def test_dataset_builds_teacher_forcing_examples_with_start_token(token_vocabula
         [_sample([1, 2, 3], [0, 0, 0])],
         time_signature_vocabulary=_time_signature_vocabulary(),
         token_vocabulary=token_vocabulary,
+        conditioning=_conditioning_config(),
     )
 
     example = dataset[0]
@@ -63,6 +82,7 @@ def test_dataset_keeps_single_token_samples_for_start_token_training(token_vocab
         [_sample([1], [0])],
         time_signature_vocabulary=_time_signature_vocabulary(),
         token_vocabulary=token_vocabulary,
+        conditioning=_conditioning_config(),
     )
 
     assert len(dataset) == 1
@@ -75,6 +95,7 @@ def test_dataset_skips_empty_samples(token_vocabulary: TokenVocabulary) -> None:
         [_sample([], [])],
         time_signature_vocabulary=_time_signature_vocabulary(),
         token_vocabulary=token_vocabulary,
+        conditioning=_conditioning_config(),
     )
 
     assert len(dataset) == 0
@@ -88,6 +109,7 @@ def test_dataset_skips_samples_longer_than_max_sequence_length(token_vocabulary:
         ],
         time_signature_vocabulary=_time_signature_vocabulary(),
         token_vocabulary=token_vocabulary,
+        conditioning=_conditioning_config(),
         max_sequence_length=3,
     )
 
@@ -105,7 +127,7 @@ def test_dataset_skips_samples_with_unsupported_time_signature_when_conditioned(
         ],
         time_signature_vocabulary=_time_signature_vocabulary(),
         token_vocabulary=token_vocabulary,
-        conditioning=TrainingConditioningConfig(use_time_signature=True),
+        conditioning=_conditioning_config(use_time_signature=True),
     )
 
     assert len(dataset) == 1
@@ -119,7 +141,7 @@ def test_dataset_keeps_unsupported_time_signature_when_time_signature_conditioni
         [_sample([1, 2, 3], [0, 0, 0], time_signature=(2, 1))],
         time_signature_vocabulary=_time_signature_vocabulary(),
         token_vocabulary=token_vocabulary,
-        conditioning=TrainingConditioningConfig(use_time_signature=False, use_scale_type=True),
+        conditioning=_conditioning_config(use_time_signature=False, use_scale_type=True),
     )
 
     assert len(dataset) == 1
@@ -132,7 +154,7 @@ def test_dataset_builds_independent_metadata_conditioning_ids(token_vocabulary: 
         [_sample([1, 2, 3], [0, 0, 0], difficulty_level=3)],
         time_signature_vocabulary=_time_signature_vocabulary(),
         token_vocabulary=token_vocabulary,
-        conditioning=TrainingConditioningConfig(
+        conditioning=_conditioning_config(
             use_time_signature=True,
             use_scale_type=True,
             use_difficulty=True,
@@ -154,7 +176,7 @@ def test_dataset_omits_difficulty_when_disabled(token_vocabulary: TokenVocabular
         [_sample([1, 2, 3], [0, 0, 0], difficulty_level=3)],
         time_signature_vocabulary=_time_signature_vocabulary(),
         token_vocabulary=token_vocabulary,
-        conditioning=TrainingConditioningConfig(use_time_signature=True, use_scale_type=True),
+        conditioning=_conditioning_config(use_time_signature=True, use_scale_type=True),
     )
 
     batch = collate_training_examples([dataset[0]])
@@ -174,7 +196,7 @@ def test_dataset_skips_unlabeled_samples_when_difficulty_conditioning_is_enabled
         ],
         time_signature_vocabulary=_time_signature_vocabulary(),
         token_vocabulary=token_vocabulary,
-        conditioning=TrainingConditioningConfig(use_difficulty=True),
+        conditioning=_conditioning_config(use_difficulty=True),
     )
 
     batch = collate_training_examples([dataset[0]])
@@ -191,6 +213,7 @@ def test_dataset_rejects_mismatched_token_and_bar_position_lengths(token_vocabul
             [_sample([1, 2], [0])],
             time_signature_vocabulary=_time_signature_vocabulary(),
             token_vocabulary=token_vocabulary,
+            conditioning=_conditioning_config(),
         )
 
 
@@ -202,6 +225,7 @@ def test_collate_pads_tokens_and_bar_positions(token_vocabulary: TokenVocabulary
         ],
         time_signature_vocabulary=_time_signature_vocabulary(),
         token_vocabulary=token_vocabulary,
+        conditioning=_conditioning_config(),
     )
 
     batch = collate_training_examples([dataset[0], dataset[1]])
@@ -232,6 +256,7 @@ def test_dataset_builds_structural_control_ids_when_enabled(
         include_structural_controls=True,
         time_signature_vocabulary=_time_signature_vocabulary(),
         token_vocabulary=token_vocabulary,
+        conditioning=_conditioning_config(),
         structural_control_vocabulary=StructuralControlVocabulary(ConditioningConfig.load().structural),
     )
 
@@ -258,6 +283,7 @@ def test_dataset_uses_bar_count_control_only_when_enabled(
         include_bar_count_control=True,
         time_signature_vocabulary=_time_signature_vocabulary(),
         token_vocabulary=token_vocabulary,
+        conditioning=_conditioning_config(),
         structural_control_vocabulary=structural_control_vocabulary,
     )
     bar_count_index = structural_control_vocabulary.control_index(StructuralControlName.BAR_COUNT)
@@ -274,6 +300,7 @@ def test_dataset_requires_structural_vocabulary_when_structural_controls_are_ena
             include_structural_controls=True,
             time_signature_vocabulary=_time_signature_vocabulary(),
             token_vocabulary=token_vocabulary,
+            conditioning=_conditioning_config(),
         )
 
 

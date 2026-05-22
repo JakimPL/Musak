@@ -91,18 +91,49 @@ def segment_parsed_score(
         profiler=profiler,
     )
 
-    processed_segments: list[Segment] = []
-    for segment in segments:
-        with profiler.measure("difficulty_features", source_file=source_file):
-            processed_segments.append(
-                _attach_difficulty_features(
-                    segment,
-                    score=score,
-                    duration_vocabulary=duration_vocabulary,
-                )
-            )
+    return _attach_difficulty_features_to_segments(
+        segments,
+        score=score,
+        source_file=source_file,
+        duration_vocabulary=duration_vocabulary,
+        profiler=profiler,
+    )
 
-    return processed_segments
+
+def _attach_difficulty_features_to_segments(
+    segments: list[Segment],
+    *,
+    score: ParsedScore,
+    source_file: Path,
+    duration_vocabulary: DurationVocabulary,
+    profiler: ProcessingProfilerProtocol,
+) -> list[Segment]:
+    return [
+        _attach_difficulty_features_with_profile(
+            segment,
+            score=score,
+            source_file=source_file,
+            duration_vocabulary=duration_vocabulary,
+            profiler=profiler,
+        )
+        for segment in segments
+    ]
+
+
+def _attach_difficulty_features_with_profile(
+    segment: Segment,
+    *,
+    score: ParsedScore,
+    source_file: Path,
+    duration_vocabulary: DurationVocabulary,
+    profiler: ProcessingProfilerProtocol,
+) -> Segment:
+    with profiler.measure("difficulty_features", source_file=source_file):
+        return _attach_difficulty_features(
+            segment,
+            score=score,
+            duration_vocabulary=duration_vocabulary,
+        )
 
 
 def _attach_difficulty_features(

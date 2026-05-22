@@ -8,6 +8,7 @@ from musak_model.data.schema import SegmentMetadata
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import BarToken, JoinWithPreviousToken, NoteToken, ScaleType
 from musak_model.tokens.vocabulary import TokenVocabulary
+from musak_model.training.config import TrainingConditioningConfig
 from musak_model.training.dataset import EncodedExerciseDataset, collate_training_examples
 from musak_model.training.ingestion.schema import EncodedExercise
 from musak_model.training.validity import TrainingValidityMaskBuilder
@@ -15,6 +16,17 @@ from musak_model.training.validity import TrainingValidityMaskBuilder
 
 def _time_signature_vocabulary() -> TimeSignatureVocabulary:
     return TimeSignatureVocabulary(TimeSignatureVocabularyConfig(max_denominator=4, relative_numerator_range=2))
+
+
+def _conditioning_config() -> TrainingConditioningConfig:
+    return TrainingConditioningConfig(
+        use_time_signature=False,
+        use_scale_type=False,
+        use_difficulty=False,
+        use_structural_conditioning=False,
+        use_validity_penalty=False,
+        validity_penalty_weight=0.05,
+    )
 
 
 def _sample(token_ids: list[int], bar_positions: list[int]) -> EncodedExercise:
@@ -39,6 +51,7 @@ def _batch(token_ids: list[int], *, token_vocabulary: TokenVocabulary):
         [_sample(token_ids, [0] * len(token_ids))],
         time_signature_vocabulary=_time_signature_vocabulary(),
         token_vocabulary=token_vocabulary,
+        conditioning=_conditioning_config(),
     )
     return collate_training_examples([dataset[0]])
 

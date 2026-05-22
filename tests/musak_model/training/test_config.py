@@ -3,14 +3,58 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from musak_model.training.config import CheckpointConfig, OptimizationConfig, RuntimeConfig, TrainingConfig
+from musak_model.tokens.schema import ScaleType
+from musak_model.training.config import (
+    CheckpointConfig,
+    GenerationEvaluationConfig,
+    OptimizationConfig,
+    RuntimeConfig,
+    TrainingConditioningConfig,
+    TrainingConfig,
+)
+
+
+def _conditioning_config() -> TrainingConditioningConfig:
+    return TrainingConditioningConfig(
+        use_time_signature=False,
+        use_scale_type=False,
+        use_difficulty=False,
+        use_structural_conditioning=False,
+        use_validity_penalty=False,
+        validity_penalty_weight=0.05,
+    )
+
+
+def _generation_evaluation_config() -> GenerationEvaluationConfig:
+    return GenerationEvaluationConfig(
+        enabled=False,
+        every_epochs=5,
+        soft_sample_count=4,
+        hard_sample_count=4,
+        max_new_tokens=256,
+        temperature=1.0,
+        top_k=32,
+        scale_root=0,
+        scale_type=ScaleType.MAJOR,
+        time_numerator=4,
+        time_denominator=4,
+        bar_count=2,
+        minimum_duration_denominator=16,
+        allow_dotted_durations=True,
+        max_notes_per_hand=5,
+        maximum_onset_span_semitones=12,
+        maximum_pitch_gap_semitones=12,
+        maximum_static_hand_span_degrees=5,
+    )
 
 
 def test_training_config_accepts_nested_constructor() -> None:
     config = TrainingConfig(
         optimization=OptimizationConfig(epochs=1, batch_size=2, learning_rate=0.001, weight_decay=0.0),
         runtime=RuntimeConfig(num_workers=0, device="cpu"),
+        conditioning=_conditioning_config(),
         checkpoints=CheckpointConfig(checkpoint_dir=Path("checkpoints")),
+        generation_evaluation=_generation_evaluation_config(),
     )
 
     assert config.optimization.batch_size == 2
@@ -38,4 +82,5 @@ def test_training_config_rejects_old_conditioning_field() -> None:
             runtime=RuntimeConfig(num_workers=0, device="cpu"),
             checkpoints=CheckpointConfig(checkpoint_dir=Path("checkpoints")),
             conditioning={"use_conditioning": True},
+            generation_evaluation=_generation_evaluation_config(),
         )

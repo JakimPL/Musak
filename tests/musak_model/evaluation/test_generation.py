@@ -16,6 +16,42 @@ from musak_model.tokens.vocabulary import TokenVocabulary
 from musak_model.training.config import GenerationEvaluationConfig, TrainingConditioningConfig
 
 
+def _generation_config(**overrides: object) -> GenerationEvaluationConfig:
+    values = {
+        "enabled": True,
+        "every_epochs": 5,
+        "soft_sample_count": 1,
+        "hard_sample_count": 1,
+        "max_new_tokens": 16,
+        "temperature": 1.0,
+        "top_k": 1,
+        "scale_root": 0,
+        "scale_type": ScaleType.MAJOR,
+        "time_numerator": 4,
+        "time_denominator": 4,
+        "bar_count": 1,
+        "minimum_duration_denominator": 16,
+        "allow_dotted_durations": True,
+        "max_notes_per_hand": 5,
+        "maximum_onset_span_semitones": 12,
+        "maximum_pitch_gap_semitones": 12,
+        "maximum_static_hand_span_degrees": 5,
+    }
+    values.update(overrides)
+    return GenerationEvaluationConfig.model_validate(values)
+
+
+def _conditioning_config() -> TrainingConditioningConfig:
+    return TrainingConditioningConfig(
+        use_time_signature=False,
+        use_scale_type=False,
+        use_difficulty=False,
+        use_structural_conditioning=False,
+        use_validity_penalty=False,
+        validity_penalty_weight=0.05,
+    )
+
+
 class ScriptedModel:
     def __init__(self, token_ids: list[int], *, vocabulary_size: int) -> None:
         self._token_ids = token_ids
@@ -64,15 +100,8 @@ def test_generation_suite_logs_soft_and_hard_constraint_metrics() -> None:
         ]
     )
     evaluator = GenerationSuiteEvaluator(
-        config=GenerationEvaluationConfig(
-            enabled=True,
-            soft_sample_count=1,
-            hard_sample_count=1,
-            max_new_tokens=16,
-            top_k=1,
-            bar_count=1,
-        ),
-        conditioning=TrainingConditioningConfig(),
+        config=_generation_config(),
+        conditioning=_conditioning_config(),
         model_config=_model_config(token_vocabulary.vocabulary_size),
         token_vocabulary=token_vocabulary,
         duration_vocabulary=duration_vocabulary,
@@ -96,7 +125,7 @@ def test_generation_suite_logs_soft_and_hard_constraint_metrics() -> None:
 
 def test_generation_config_validates_minimum_duration_denominator() -> None:
     with pytest.raises(ValueError, match="power of two"):
-        GenerationEvaluationConfig(minimum_duration_denominator=12)
+        _generation_config(minimum_duration_denominator=12)
 
 
 def _model_config(vocabulary_size: int) -> ModelConfig:

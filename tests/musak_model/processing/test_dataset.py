@@ -9,8 +9,6 @@ import pytest
 
 from musak_model.data.config import DataProcessingConfig, SegmentationConfig, SegmentationMode
 from musak_model.data.schema import SegmentIneligibilityReason
-from musak_model.processing import parse as parse_module
-from musak_model.processing import tokenize as tokenize_module
 from musak_model.processing.dataset import process_dataset
 from musak_model.processing.ids import source_id
 from musak_model.processing.io import load_encoded_jsonl
@@ -21,9 +19,11 @@ from musak_model.processing.manifest import (
     read_encoded_manifest,
     read_parsed_manifest,
 )
+from musak_model.processing.parser import title as title_module
 from musak_model.processing.paths import ProcessedDatasetPaths
 from musak_model.processing.profiler import ProcessingProfiler
 from musak_model.processing.snapshot import build_tokenizer_snapshot
+from musak_model.processing.tokenizer import dataset as tokenizer_dataset_module
 from musak_model.tokens.config import TokenizationConfig
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.vocabulary import TokenVocabulary
@@ -71,8 +71,8 @@ def test_process_dataset_writes_parsed_and_encoded_artifacts(
     source_path.write_text("score")
     processed_root = tmp_path / "processed"
 
-    monkeypatch.setattr("musak_model.processing.parse.parse_score", lambda path: _score())
-    monkeypatch.setattr("musak_model.processing.parse._score_title", lambda path: "Piece")
+    monkeypatch.setattr("musak_model.processing.parser.worker.parse_score", lambda path: _score())
+    monkeypatch.setattr("musak_model.processing.parser.worker.score_title", lambda path: "Piece")
 
     result = process_dataset(
         dataset_root,
@@ -118,8 +118,10 @@ def test_process_dataset_marks_segments_with_any_silent_bar_ineligible_by_defaul
     source_path.parent.mkdir(parents=True)
     source_path.write_text("score")
 
-    monkeypatch.setattr("musak_model.processing.parse.parse_score", lambda path: _score_with_interior_silent_bar())
-    monkeypatch.setattr("musak_model.processing.parse._score_title", lambda path: "Piece")
+    monkeypatch.setattr(
+        "musak_model.processing.parser.worker.parse_score", lambda path: _score_with_interior_silent_bar()
+    )
+    monkeypatch.setattr("musak_model.processing.parser.worker.score_title", lambda path: "Piece")
 
     result = process_dataset(
         dataset_root,
@@ -150,8 +152,10 @@ def test_process_dataset_can_keep_segments_with_silent_bars(
     source_path.parent.mkdir(parents=True)
     source_path.write_text("score")
 
-    monkeypatch.setattr("musak_model.processing.parse.parse_score", lambda path: _score_with_interior_silent_bar())
-    monkeypatch.setattr("musak_model.processing.parse._score_title", lambda path: "Piece")
+    monkeypatch.setattr(
+        "musak_model.processing.parser.worker.parse_score", lambda path: _score_with_interior_silent_bar()
+    )
+    monkeypatch.setattr("musak_model.processing.parser.worker.score_title", lambda path: "Piece")
 
     result = process_dataset(
         dataset_root,
@@ -181,8 +185,10 @@ def test_process_dataset_whole_file_segmentation_records_full_bar_count(
     source_path.parent.mkdir(parents=True)
     source_path.write_text("score")
 
-    monkeypatch.setattr("musak_model.processing.parse.parse_score", lambda path: _score_with_three_active_bars())
-    monkeypatch.setattr("musak_model.processing.parse._score_title", lambda path: "Piece")
+    monkeypatch.setattr(
+        "musak_model.processing.parser.worker.parse_score", lambda path: _score_with_three_active_bars()
+    )
+    monkeypatch.setattr("musak_model.processing.parser.worker.score_title", lambda path: "Piece")
 
     result = process_dataset(
         dataset_root,
@@ -214,8 +220,8 @@ def test_process_dataset_records_processing_timings(
     source_path.write_text("score")
     profiler = ProcessingProfiler(output_dir=tmp_path / "profile", use_torch_profiler_labels=False)
 
-    monkeypatch.setattr("musak_model.processing.parse.parse_score", lambda path: _score())
-    monkeypatch.setattr("musak_model.processing.parse._score_title", lambda path: "Piece")
+    monkeypatch.setattr("musak_model.processing.parser.worker.parse_score", lambda path: _score())
+    monkeypatch.setattr("musak_model.processing.parser.worker.score_title", lambda path: "Piece")
 
     process_dataset(
         dataset_root,
@@ -247,10 +253,10 @@ def test_process_dataset_warns_about_unspecified_difficulty_labels(
     source_path.parent.mkdir(parents=True)
     source_path.write_text("score")
 
-    monkeypatch.setattr("musak_model.processing.parse.parse_score", lambda path: _score())
-    monkeypatch.setattr("musak_model.processing.parse._score_title", lambda path: "Piece")
+    monkeypatch.setattr("musak_model.processing.parser.worker.parse_score", lambda path: _score())
+    monkeypatch.setattr("musak_model.processing.parser.worker.score_title", lambda path: "Piece")
 
-    with caplog.at_level("WARNING", logger="musak_model.processing.tokenize"):
+    with caplog.at_level("WARNING", logger="musak_model.processing.tokenizer.difficulty"):
         process_dataset(
             dataset_root,
             processed_root=tmp_path / "processed",
@@ -287,8 +293,8 @@ def test_process_dataset_records_parse_errors(
     def fail_parse(path: Path):
         raise exception
 
-    monkeypatch.setattr("musak_model.processing.parse.parse_score", fail_parse)
-    monkeypatch.setattr("musak_model.processing.parse._score_title", lambda path: "")
+    monkeypatch.setattr("musak_model.processing.parser.worker.parse_score", fail_parse)
+    monkeypatch.setattr("musak_model.processing.parser.worker.score_title", lambda path: "")
 
     result = process_dataset(
         dataset_root,
@@ -324,8 +330,8 @@ def test_process_dataset_records_parse_diagnostics_without_console_noise(
         print("stderr diagnostic", file=sys.stderr)
         return _score()
 
-    monkeypatch.setattr("musak_model.processing.parse.parse_score", noisy_parse)
-    monkeypatch.setattr("musak_model.processing.parse._score_title", lambda path: "")
+    monkeypatch.setattr("musak_model.processing.parser.worker.parse_score", noisy_parse)
+    monkeypatch.setattr("musak_model.processing.parser.worker.score_title", lambda path: "")
 
     result = process_dataset(
         dataset_root,
@@ -361,8 +367,8 @@ def test_process_dataset_records_parse_diagnostics_on_errors(
         warnings.warn("before failure", UserWarning, stacklevel=1)
         raise ValueError("bad score")
 
-    monkeypatch.setattr("musak_model.processing.parse.parse_score", noisy_parse_error)
-    monkeypatch.setattr("musak_model.processing.parse._score_title", lambda path: "")
+    monkeypatch.setattr("musak_model.processing.parser.worker.parse_score", noisy_parse_error)
+    monkeypatch.setattr("musak_model.processing.parser.worker.score_title", lambda path: "")
 
     result = process_dataset(
         dataset_root,
@@ -439,9 +445,9 @@ def test_process_dataset_reuses_error_rows_from_parsed_manifest(
     processed_root = tmp_path / "processed"
 
     monkeypatch.setattr(
-        "musak_model.processing.parse.parse_score", lambda path: (_ for _ in ()).throw(ValueError("bad score"))
+        "musak_model.processing.parser.worker.parse_score", lambda path: (_ for _ in ()).throw(ValueError("bad score"))
     )
-    monkeypatch.setattr("musak_model.processing.parse._score_title", lambda path: "")
+    monkeypatch.setattr("musak_model.processing.parser.worker.score_title", lambda path: "")
     process_dataset(
         dataset_root,
         processed_root=processed_root,
@@ -455,9 +461,9 @@ def test_process_dataset_reuses_error_rows_from_parsed_manifest(
     def fail_if_reparsed(path: Path):
         raise AssertionError("rejected source should be skipped")
 
-    monkeypatch.setattr("musak_model.processing.parse.parse_score", fail_if_reparsed)
+    monkeypatch.setattr("musak_model.processing.parser.worker.parse_score", fail_if_reparsed)
 
-    with caplog.at_level("INFO", logger="musak_model.processing.parse"):
+    with caplog.at_level("INFO", logger="musak_model.processing.parser.dataset"):
         result = process_dataset(
             dataset_root,
             processed_root=processed_root,
@@ -485,8 +491,8 @@ def test_process_dataset_reuses_success_rows_from_parsed_manifest(
     source_path.write_text("score")
     processed_root = tmp_path / "processed"
 
-    monkeypatch.setattr("musak_model.processing.parse.parse_score", lambda path: _score())
-    monkeypatch.setattr("musak_model.processing.parse._score_title", lambda path: "Piece")
+    monkeypatch.setattr("musak_model.processing.parser.worker.parse_score", lambda path: _score())
+    monkeypatch.setattr("musak_model.processing.parser.worker.score_title", lambda path: "Piece")
     process_dataset(
         dataset_root,
         processed_root=processed_root,
@@ -500,7 +506,7 @@ def test_process_dataset_reuses_success_rows_from_parsed_manifest(
     def fail_if_reparsed(path: Path):
         raise AssertionError("parsed source should be loaded from parsed JSON")
 
-    monkeypatch.setattr("musak_model.processing.parse.parse_score", fail_if_reparsed)
+    monkeypatch.setattr("musak_model.processing.parser.worker.parse_score", fail_if_reparsed)
 
     result = process_dataset(
         dataset_root,
@@ -537,8 +543,8 @@ def test_process_dataset_writes_partial_parsed_manifest_on_interrupt(
             return _score()
         raise KeyboardInterrupt
 
-    monkeypatch.setattr("musak_model.processing.parse.parse_score", interrupt_after_first)
-    monkeypatch.setattr("musak_model.processing.parse._score_title", lambda path: "")
+    monkeypatch.setattr("musak_model.processing.parser.worker.parse_score", interrupt_after_first)
+    monkeypatch.setattr("musak_model.processing.parser.worker.score_title", lambda path: "")
 
     with pytest.raises(KeyboardInterrupt):
         process_dataset(
@@ -581,8 +587,8 @@ def test_process_dataset_rebuilds_incomplete_encoded_outputs(
     encoded_jsonl_path.parent.mkdir(parents=True)
     encoded_jsonl_path.write_text("stale\n", encoding="utf-8")
 
-    monkeypatch.setattr("musak_model.processing.parse.parse_score", lambda path: _score())
-    monkeypatch.setattr("musak_model.processing.parse._score_title", lambda path: "Piece")
+    monkeypatch.setattr("musak_model.processing.parser.worker.parse_score", lambda path: _score())
+    monkeypatch.setattr("musak_model.processing.parser.worker.score_title", lambda path: "Piece")
 
     result = process_dataset(
         dataset_root,
@@ -611,8 +617,8 @@ def test_process_dataset_resumes_interrupted_tokenization_from_completed_source(
     (dataset_root / "b.mxl").write_text("score")
     processed_root = tmp_path / "processed"
 
-    monkeypatch.setattr("musak_model.processing.parse.parse_score", lambda path: _score())
-    monkeypatch.setattr("musak_model.processing.parse._score_title", lambda path: "Piece")
+    monkeypatch.setattr("musak_model.processing.parser.worker.parse_score", lambda path: _score())
+    monkeypatch.setattr("musak_model.processing.parser.worker.score_title", lambda path: "Piece")
     process_dataset(
         dataset_root,
         processed_root=processed_root,
@@ -623,7 +629,7 @@ def test_process_dataset_resumes_interrupted_tokenization_from_completed_source(
         overwrite=True,
     )
 
-    original_tokenize_source = tokenize_module._tokenize_source
+    original_tokenize_source = tokenizer_dataset_module.tokenize_source
     call_count = 0
 
     def interrupt_after_second_source(*args: Any, **kwargs: Any):
@@ -634,7 +640,7 @@ def test_process_dataset_resumes_interrupted_tokenization_from_completed_source(
             raise KeyboardInterrupt
         return result
 
-    monkeypatch.setattr(tokenize_module, "_tokenize_source", interrupt_after_second_source)
+    monkeypatch.setattr(tokenizer_dataset_module, "tokenize_source", interrupt_after_second_source)
     with pytest.raises(KeyboardInterrupt):
         process_dataset(
             dataset_root,
@@ -646,7 +652,7 @@ def test_process_dataset_resumes_interrupted_tokenization_from_completed_source(
             overwrite=False,
         )
 
-    monkeypatch.setattr(tokenize_module, "_tokenize_source", original_tokenize_source)
+    monkeypatch.setattr(tokenizer_dataset_module, "tokenize_source", original_tokenize_source)
     result = process_dataset(
         dataset_root,
         processed_root=processed_root,
@@ -673,7 +679,7 @@ def test_score_title_returns_musicxml_movement_title(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
-    assert parse_module._score_title(source_path) == "Prelude"
+    assert title_module.score_title(source_path) == "Prelude"
 
 
 def test_score_title_returns_musicxml_work_title(tmp_path: Path) -> None:
@@ -689,7 +695,7 @@ def test_score_title_returns_musicxml_work_title(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
-    assert parse_module._score_title(source_path) == "Notebook Sketch"
+    assert title_module.score_title(source_path) == "Notebook Sketch"
 
 
 def test_score_title_returns_compressed_musicxml_title(tmp_path: Path) -> None:
@@ -714,11 +720,11 @@ def test_score_title_returns_compressed_musicxml_title(tmp_path: Path) -> None:
             """,
         )
 
-    assert parse_module._score_title(source_path) == "Compressed Piece"
+    assert title_module.score_title(source_path) == "Compressed Piece"
 
 
 def test_score_title_returns_empty_for_malformed_musicxml(tmp_path: Path) -> None:
     source_path = tmp_path / "piece.musicxml"
     source_path.write_text("<score-partwise>")
 
-    assert parse_module._score_title(source_path) == ""
+    assert title_module.score_title(source_path) == ""

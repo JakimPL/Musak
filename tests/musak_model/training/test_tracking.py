@@ -12,9 +12,11 @@ from musak_model.model.config import CNNConfig, GRUConfig, ModelConfig, Transfor
 from musak_model.tokens.schema import ScaleType
 from musak_model.training.config import (
     CheckpointConfig,
+    GenerationEvaluationConfig,
     MlflowConfig,
     OptimizationConfig,
     RuntimeConfig,
+    TrainingConditioningConfig,
     TrainingConfig,
 )
 from musak_model.training.ingestion.schema import EncodedExercise, IngestionErrorRecord, IngestionSplit
@@ -63,11 +65,39 @@ def _training_config(tmp_path: Path, *, enable_mlflow: bool = True, tracking_uri
     return TrainingConfig(
         optimization=OptimizationConfig(epochs=1, batch_size=2, learning_rate=0.001, weight_decay=0.0),
         runtime=RuntimeConfig(num_workers=0, device="cpu"),
+        conditioning=TrainingConditioningConfig(
+            use_time_signature=False,
+            use_scale_type=False,
+            use_difficulty=False,
+            use_structural_conditioning=False,
+            use_validity_penalty=False,
+            validity_penalty_weight=0.05,
+        ),
         checkpoints=CheckpointConfig(checkpoint_dir=tmp_path / "checkpoints"),
         mlflow=MlflowConfig(
             enable_mlflow=enable_mlflow,
             mlflow_tracking_uri=tracking_uri,
             mlflow_run_name="test-run",
+        ),
+        generation_evaluation=GenerationEvaluationConfig(
+            enabled=False,
+            every_epochs=5,
+            soft_sample_count=4,
+            hard_sample_count=4,
+            max_new_tokens=256,
+            temperature=1.0,
+            top_k=32,
+            scale_root=0,
+            scale_type=ScaleType.MAJOR,
+            time_numerator=4,
+            time_denominator=4,
+            bar_count=2,
+            minimum_duration_denominator=16,
+            allow_dotted_durations=True,
+            max_notes_per_hand=5,
+            maximum_onset_span_semitones=12,
+            maximum_pitch_gap_semitones=12,
+            maximum_static_hand_span_degrees=5,
         ),
     )
 

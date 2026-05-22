@@ -104,17 +104,16 @@ def _(
         label="Tokenization config",
     )
     device = mo.ui.dropdown(options=["cpu", "cuda"], value="cpu", label="Device")
-    seed = mo.ui.number(start=0, stop=2**31 - 1, step=1, value=1234, label="Seed")
     setup_output = mo.vstack(
         [
             mo.md("## Setup"),
             mo.hstack([checkpoint_browser, tokenization_browser], gap=2, align="end", widths="equal"),
-            mo.hstack([device, seed], gap=2, align="end"),
+            device,
         ],
         gap=2,
     )
     setup_output
-    return checkpoint_browser, device, seed, tokenization_browser
+    return checkpoint_browser, device, tokenization_browser
 
 
 @app.cell
@@ -201,7 +200,7 @@ def _(mo):
 
 
 @app.cell
-def _(GenerationRequest, ScaleType, loaded_model, mo, seed, set_generation_request):
+def _(GenerationRequest, ScaleType, loaded_model, mo, set_generation_request):
     mo.stop(loaded_model is None, mo.md(""))
 
     prompt_example = "R 1(1:4) 3(1:4) L r(1:2) |"
@@ -225,6 +224,7 @@ def _(GenerationRequest, ScaleType, loaded_model, mo, seed, set_generation_reque
     top_k = mo.ui.number(start=0, stop=512, step=1, value=0, label="Top-k (0 disables)")
     top_p = mo.ui.slider(start=0.05, stop=1.0, step=0.05, value=1.0, label="Top-p")
     greedy = mo.ui.checkbox(value=False, label="Greedy")
+    seed = mo.ui.number(start=0, stop=2**31 - 1, step=1, value=1234, label="Seed")
     scale_root = mo.ui.slider(start=0, stop=11, step=1, value=0, label="Scale root")
     scale_type = mo.ui.dropdown(
         options=[scale.value for scale in ScaleType], value=ScaleType.MAJOR.value, label="Scale"
@@ -277,7 +277,7 @@ def _(GenerationRequest, ScaleType, loaded_model, mo, seed, set_generation_reque
     sampling_controls = mo.vstack(
         [
             mo.md("### Sampling"),
-            mo.hstack([max_new_tokens, temperature, top_k, top_p, greedy], gap=2, align="end", wrap=True),
+            mo.hstack([max_new_tokens, temperature, top_k, top_p, greedy, seed], gap=2, align="end", wrap=True),
         ],
         gap=1,
     )

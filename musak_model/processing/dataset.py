@@ -13,7 +13,7 @@ from musak_model.data.config import (
     SegmentationConfig,
 )
 from musak_model.processing.manifest import ParsedManifestField, ParsedManifestStatus, read_parsed_manifest
-from musak_model.processing.parse import (
+from musak_model.processing.parser import (
     ParseDatasetResult,
     ParsedScoreArtifact,
     load_parsed_score_artifacts,
@@ -22,7 +22,7 @@ from musak_model.processing.parse import (
 from musak_model.processing.paths import ProcessedDatasetPaths
 from musak_model.processing.profiler import NULL_PROCESSING_PROFILER, ProcessingProfilerProtocol
 from musak_model.processing.snapshot import build_tokenizer_snapshot
-from musak_model.processing.tokenize import TokenizeDatasetResult, tokenize_parsed_scores
+from musak_model.processing.tokenizer import TokenizeDatasetResult, tokenize_parsed_scores
 from musak_model.tokens.config import TokenizationConfig
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.vocabulary import TokenVocabulary
