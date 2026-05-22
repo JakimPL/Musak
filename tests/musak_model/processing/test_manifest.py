@@ -3,6 +3,7 @@ from pathlib import Path
 
 from musak_model.data.config import SegmentationMode
 from musak_model.data.schema import Segment, SegmentMetadata
+from musak_model.evaluation.diagnostics import diagnose_segment
 from musak_model.processing.manifest import EncodedManifestField, encoded_row
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import Hand, HandToken, NoteToken, ScaleType
@@ -42,7 +43,7 @@ def test_encoded_row_includes_segment_diagnostics(duration_vocabulary: DurationV
         parsed_path=parsed_path,
         processed_root=tmp_path / "processed",
         segment=segment,
-        duration_vocabulary=duration_vocabulary,
+        diagnostics=diagnose_segment(segment, duration_vocabulary=duration_vocabulary),
         encoded_sample=None,
         encoded_shard=encoded_shard,
         encoded_line=None,

@@ -1,11 +1,12 @@
 from collections.abc import Iterator
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from musak_model.data.config import SegmentationConfig
 from musak_model.data.pipeline import iter_segment_parsed_score
 from musak_model.data.schema import Segment, SegmentIneligibilityReason
-from musak_model.evaluation.diagnostics import diagnose_segment
+from musak_model.evaluation.diagnostics import SegmentDiagnostics, diagnose_segment
 from musak_model.processing.config import TokenizationProcessingConfig
 from musak_model.processing.io import load_parsed_score_json
 from musak_model.processing.manifest import encoded_row
@@ -19,6 +20,15 @@ from musak_model.training.ingestion.split import _encode_segment
 
 if TYPE_CHECKING:
     from musak_model.training.ingestion.schema import EncodedExercise
+
+
+@dataclass(frozen=True)
+class ProcessedSegment:
+    segment: Segment
+    diagnostics: SegmentDiagnostics
+    encoded_sample: "EncodedExercise | None"
+    encoded_line: int | None
+    next_encoded_line_count: int
 
 
 def tokenize_source(
@@ -108,7 +118,7 @@ def _write_source_outputs(
     source_manifest_count = 0
     with EncodedManifestAppender(encoded_manifest_path) as manifest_appender:
         for segment in segments:
-            segment, encoded_sample, encoded_line, encoded_line_count = _encode_segment_if_eligible(
+            processed_segment = _process_segment(
                 segment,
                 source_metadata_path=source_metadata_path,
                 encoded_jsonl_path=encoded_jsonl_path,
@@ -118,19 +128,20 @@ def _write_source_outputs(
                 encoded_line_count=encoded_line_count,
                 profiler=profiler,
             )
-            if encoded_line is not None:
+            encoded_line_count = processed_segment.next_encoded_line_count
+            if processed_segment.encoded_line is not None:
                 source_encoded_count += 1
 
             row = _manifest_row(
                 artifact=artifact,
-                segment=segment,
+                segment=processed_segment.segment,
+                diagnostics=processed_segment.diagnostics,
                 dataset_root=dataset_root,
                 paths=paths,
                 encoded_jsonl_path=manifest_encoded_jsonl_path,
-                encoded_sample=encoded_sample,
-                encoded_line=encoded_line,
+                encoded_sample=processed_segment.encoded_sample,
+                encoded_line=processed_segment.encoded_line,
                 segmentation_config=segmentation_config,
-                duration_vocabulary=duration_vocabulary,
                 profiler=profiler,
                 source_metadata_path=source_metadata_path,
             )
@@ -141,7 +152,7 @@ def _write_source_outputs(
     return source_encoded_count, source_manifest_count, encoded_line_count
 
 
-def _encode_segment_if_eligible(
+def _process_segment(
     segment: Segment,
     *,
     source_metadata_path: Path,
@@ -151,15 +162,24 @@ def _encode_segment_if_eligible(
     tokenization_processing_config: TokenizationProcessingConfig,
     encoded_line_count: int,
     profiler: ProcessingProfilerProtocol,
-) -> tuple[Segment, "EncodedExercise | None", int | None, int]:
+) -> ProcessedSegment:
+    with profiler.measure("diagnose_segment", source_file=source_metadata_path):
+        diagnostics = diagnose_segment(segment, duration_vocabulary=duration_vocabulary)
+
     with profiler.measure("apply_processing_filters", source_file=source_metadata_path):
         segment = _apply_processing_filters(
             segment,
-            duration_vocabulary=duration_vocabulary,
+            diagnostics=diagnostics,
             tokenization_processing_config=tokenization_processing_config,
         )
     if not segment.metadata.eligible_for_training:
-        return segment, None, None, encoded_line_count
+        return ProcessedSegment(
+            segment=segment,
+            diagnostics=diagnostics,
+            encoded_sample=None,
+            encoded_line=None,
+            next_encoded_line_count=encoded_line_count,
+        )
 
     with profiler.measure("encode_segment", source_file=source_metadata_path):
         encoded_sample = _encode_segment(segment, token_vocabulary=token_vocabulary)
@@ -167,20 +187,26 @@ def _encode_segment_if_eligible(
     with profiler.measure("append_encoded_jsonl", source_file=source_metadata_path):
         encoded_line = append_jsonl_model(encoded_sample, encoded_jsonl_path, line_index=encoded_line_count)
 
-    return segment, encoded_sample, encoded_line, encoded_line_count + 1
+    return ProcessedSegment(
+        segment=segment,
+        diagnostics=diagnostics,
+        encoded_sample=encoded_sample,
+        encoded_line=encoded_line,
+        next_encoded_line_count=encoded_line_count + 1,
+    )
 
 
 def _manifest_row(
     *,
     artifact: ParsedScoreArtifact,
     segment: Segment,
+    diagnostics: SegmentDiagnostics,
     dataset_root: Path,
     paths: ProcessedDatasetPaths,
     encoded_jsonl_path: Path,
     encoded_sample: "EncodedExercise | None",
     encoded_line: int | None,
     segmentation_config: SegmentationConfig,
-    duration_vocabulary: DurationVocabulary,
     profiler: ProcessingProfilerProtocol,
     source_metadata_path: Path,
 ) -> dict[str, object]:
@@ -192,7 +218,7 @@ def _manifest_row(
             parsed_path=artifact.parsed_path,
             processed_root=paths.root,
             segment=segment,
-            duration_vocabulary=duration_vocabulary,
+            diagnostics=diagnostics,
             encoded_sample=encoded_sample,
             encoded_shard=encoded_jsonl_path,
             encoded_line=encoded_line,
@@ -203,13 +229,12 @@ def _manifest_row(
 def _apply_processing_filters(
     segment: Segment,
     *,
-    duration_vocabulary: DurationVocabulary,
+    diagnostics: SegmentDiagnostics,
     tokenization_processing_config: TokenizationProcessingConfig,
 ) -> Segment:
     if not tokenization_processing_config.remove_segments_with_silent_bars:
         return segment
 
-    diagnostics = diagnose_segment(segment, duration_vocabulary=duration_vocabulary)
     if diagnostics.silent_bar_count == 0:
         return segment
 

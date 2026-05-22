@@ -52,6 +52,12 @@ class DurationVocabulary:
     def fraction_to_id(self, duration: Fraction) -> int:
         return self._fraction_to_id[duration]
 
+    def duration_id_or_none(self, duration: Fraction) -> int | None:
+        return self._fraction_to_id.get(duration)
+
+    def require_duration_id(self, duration: Fraction) -> int:
+        return self._fraction_to_id[duration]
+
     def id_to_fraction(self, duration_id: int) -> Fraction:
         return self._fractions[duration_id]
 

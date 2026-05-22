@@ -136,6 +136,19 @@ class TestDurationVocabularyLookup:
         with pytest.raises(KeyError):
             vocabulary.fraction_to_id(Fraction(1, 5))
 
+    def test_duration_id_or_none_returns_none_for_unsupported_fraction(self, vocabulary: DurationVocabulary) -> None:
+        assert vocabulary.duration_id_or_none(Fraction(1, 5)) is None
+
+    def test_duration_id_or_none_returns_id_for_supported_fraction(self, vocabulary: DurationVocabulary) -> None:
+        assert vocabulary.duration_id_or_none(Fraction(1, 4)) == vocabulary.fraction_to_id(Fraction(1, 4))
+
+    def test_require_duration_id_rejects_unsupported_fraction(self, vocabulary: DurationVocabulary) -> None:
+        with pytest.raises(KeyError):
+            vocabulary.require_duration_id(Fraction(1, 5))
+
+    def test_require_duration_id_returns_id_for_supported_fraction(self, vocabulary: DurationVocabulary) -> None:
+        assert vocabulary.require_duration_id(Fraction(1, 4)) == vocabulary.fraction_to_id(Fraction(1, 4))
+
 
 class TestDurationVocabularyClosestMatch:
     CASES = [

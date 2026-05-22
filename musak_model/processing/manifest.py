@@ -6,9 +6,8 @@ from typing import TYPE_CHECKING, Any, Final
 
 from musak_model.data.config import SegmentationMode
 from musak_model.data.schema import ParsedScore, Segment
-from musak_model.evaluation import diagnose_segment
+from musak_model.evaluation.diagnostics import SegmentDiagnostics
 from musak_model.processing.ids import segment_id
-from musak_model.tokens.duration import DurationVocabulary
 from musak_shared.ratios import format_ratio
 
 if TYPE_CHECKING:
@@ -247,13 +246,12 @@ def encoded_row(
     parsed_path: Path,
     processed_root: Path,
     segment: Segment,
-    duration_vocabulary: DurationVocabulary,
+    diagnostics: SegmentDiagnostics,
     encoded_sample: "EncodedExercise | None",
     encoded_shard: Path,
     encoded_line: int | None,
     segmentation_mode: SegmentationMode,
 ) -> dict[str, Any]:
-    diagnostics = diagnose_segment(segment, duration_vocabulary=duration_vocabulary)
     scale_match = segment.metadata.scale_match
     return {
         EncodedManifestField.SEGMENT_ID: segment_id(

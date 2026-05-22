@@ -5,6 +5,7 @@ from musak_model.data.segmenter.bar import normalize_bar_events, paired_bar_meas
 from musak_model.data.segmenter.errors import TokenizationIneligibilityError
 from musak_model.data.segmenter.types import BarTokenization, TieState, TimedTokenGroup
 from musak_model.tokens.duration import DurationVocabulary
+from musak_model.tokens.factory import construct_hand_token
 from musak_model.tokens.schema import (
     BarToken,
     EndToken,
@@ -118,7 +119,7 @@ def merge_hand_groups(groups: list[TimedTokenGroup]) -> list[Token]:
 
     for group in sorted(groups, key=_group_sort_key):
         if active_hand != group.hand:
-            tokens.append(HandToken(hand=group.hand))
+            tokens.append(construct_hand_token(hand=group.hand))
             active_hand = group.hand
 
         for token in group.tokens:
