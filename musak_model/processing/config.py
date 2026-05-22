@@ -18,6 +18,8 @@ class ParsingProcessingConfig(BaseModel):
 class TokenizationProcessingConfig(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
+    workers: int = Field(gt=0)
+    batch_size: int = Field(gt=0)
     remove_segments_with_silent_bars: bool
     scale_matcher: ScaleMatcherConfig
 
@@ -38,6 +40,8 @@ def processing_config_with_overrides(
     config: ProcessingConfig,
     *,
     workers: int | None,
+    tokenization_workers: int | None,
+    tokenization_batch_size: int | None,
     remove_segments_with_silent_bars: bool | None,
     scale_match_support_score_margin: float | None,
     scale_match_selection_score_margin: float | None,
@@ -49,6 +53,10 @@ def processing_config_with_overrides(
         parsing_values["workers"] = workers
 
     tokenization_values = config.tokenization.model_dump()
+    if tokenization_workers is not None:
+        tokenization_values["workers"] = tokenization_workers
+    if tokenization_batch_size is not None:
+        tokenization_values["batch_size"] = tokenization_batch_size
     if remove_segments_with_silent_bars is not None:
         tokenization_values["remove_segments_with_silent_bars"] = remove_segments_with_silent_bars
 

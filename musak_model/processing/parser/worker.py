@@ -1,6 +1,4 @@
-import multiprocessing
 from concurrent.futures import Future, ProcessPoolExecutor, as_completed
-from multiprocessing.context import BaseContext
 from xml.etree.ElementTree import ParseError
 from zipfile import BadZipFile
 
@@ -16,6 +14,7 @@ from musak_model.processing.parser.schema import ParsedScoreResult, ParsedScoreT
 from musak_model.processing.parser.title import score_title
 from musak_model.processing.profiler import NULL_PROCESSING_PROFILER, ProcessingProfilerProtocol
 from musak_model.processing.progress import progress
+from musak_model.processing.workers import process_pool_context
 
 
 def run_parsed_score_tasks(
@@ -113,7 +112,7 @@ def _run_parsed_score_tasks_in_parallel(
     show_progress: bool,
     ordered_results: list[ParsedScoreResult | None],
 ) -> None:
-    with ProcessPoolExecutor(max_workers=workers, mp_context=_process_pool_context()) as executor:
+    with ProcessPoolExecutor(max_workers=workers, mp_context=process_pool_context()) as executor:
         futures: dict[Future[ParsedScoreResult], int] = {
             executor.submit(process_parsed_score_task, task): task.index for task in tasks
         }
@@ -128,14 +127,3 @@ def _run_parsed_score_tasks_in_parallel(
             result = future.result()
             ordered_results[result.index] = result
             del futures[future]
-
-
-def _process_pool_context() -> BaseContext:
-    available_methods = multiprocessing.get_all_start_methods()
-    if "forkserver" in available_methods:
-        return multiprocessing.get_context("forkserver")
-
-    if "spawn" in available_methods:
-        return multiprocessing.get_context("spawn")
-
-    return multiprocessing.get_context()

@@ -12,6 +12,8 @@ PROCESSING_CONFIG ?=
 PROCESS_DIFFICULTY_LABELS ?=
 PROCESS_WHOLE_FILE_SEGMENTS ?=
 PROCESS_PROFILE ?= $(PROFILE)
+PROCESS_TOKENIZATION_WORKERS ?=
+PROCESS_TOKENIZATION_BATCH_SIZE ?=
 APP_HOST ?= 127.0.0.1
 APP_PORT ?= 8000
 MLFLOW_DIR ?= mlruns
@@ -77,6 +79,8 @@ help:
 	@printf '%s\n' '  PROCESSING_CONFIG    Optional parsing/tokenization processing YAML override.'
 	@printf '%s\n' '  PROCESS_DIFFICULTY_LABELS Optional difficulty-label JSON/YAML path for process.'
 	@printf '%s\n' '  PROCESS_WHOLE_FILE_SEGMENTS=1 passes --whole-file-segments to process.'
+	@printf '%s\n' '  PROCESS_TOKENIZATION_WORKERS overrides tokenization worker processes.'
+	@printf '%s\n' '  PROCESS_TOKENIZATION_BATCH_SIZE overrides tokenization source files per worker task.'
 	@printf '%s\n' '  PROFILE=1 or PROCESS_PROFILE=1 passes --profile to process.'
 	@printf '%s\n' '  MLFLOW_DIR            MLflow tracking directory. Default: mlruns'
 	@printf '%s\n' '  MLFLOW_HOST           MLflow dashboard host. Default: 127.0.0.1'
@@ -193,6 +197,8 @@ define process_dataset_command
 		--stage "$(1)" \
 		$(call optional_arg,PROCESSING_CONFIG,--processing-config) \
 		$(call optional_arg,NUM_WORKERS,--workers) \
+		$(call optional_arg,PROCESS_TOKENIZATION_WORKERS,--tokenization-workers) \
+		$(call optional_arg,PROCESS_TOKENIZATION_BATCH_SIZE,--tokenization-batch-size) \
 		$(call optional_arg,PROCESS_DIFFICULTY_LABELS,--difficulty-labels) \
 		$(call optional_flag,PROCESS_WHOLE_FILE_SEGMENTS,--whole-file-segments) \
 		$(call optional_flag,PROCESS_PROFILE,--profile) \

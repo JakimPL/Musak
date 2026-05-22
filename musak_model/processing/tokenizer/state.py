@@ -42,11 +42,20 @@ def tokenization_state_key(
     payload = {
         "tokenizer_hash": snapshot.tokenizer_hash,
         "segmentation": segmentation_config.model_dump(mode="json"),
-        "tokenization_processing": tokenization_processing_config.model_dump(mode="json"),
+        "tokenization_processing": _tokenization_processing_state_payload(tokenization_processing_config),
         "difficulty_labels": difficulty_labels or {},
     }
     encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
+
+
+def _tokenization_processing_state_payload(
+    tokenization_processing_config: TokenizationProcessingConfig,
+) -> dict[str, object]:
+    return {
+        "remove_segments_with_silent_bars": tokenization_processing_config.remove_segments_with_silent_bars,
+        "scale_matcher": tokenization_processing_config.scale_matcher.model_dump(mode="json"),
+    }
 
 
 def load_tokenization_resume_state(path: Path, *, state_key: str) -> TokenizationResumeState:

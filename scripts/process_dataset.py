@@ -61,6 +61,8 @@ def main() -> None:
     processing_config = processing_config_with_overrides(
         ProcessingConfig.load(args.processing_config),
         workers=args.workers,
+        tokenization_workers=args.tokenization_workers,
+        tokenization_batch_size=args.tokenization_batch_size,
         remove_segments_with_silent_bars=args.remove_segments_with_silent_bars,
         scale_match_support_score_margin=args.scale_match_support_score_margin,
         scale_match_selection_score_margin=args.scale_match_selection_score_margin,
@@ -76,7 +78,9 @@ def main() -> None:
     _LOGGER.info("Resolved artifact directory: %s", args.processed_dir / args.data_dir.name)
     _LOGGER.info("Stage: %s", args.stage)
     _LOGGER.info("Processing config: %s", args.processing_config)
-    _LOGGER.info("Workers: %s", processing_config.parsing.workers)
+    _LOGGER.info("Parsing workers: %s", processing_config.parsing.workers)
+    _LOGGER.info("Tokenization workers: %s", processing_config.tokenization.workers)
+    _LOGGER.info("Tokenization batch size: %s", processing_config.tokenization.batch_size)
     _LOGGER.info("Overwrite: %s", args.overwrite)
     _LOGGER.info("Progress bars: %s", not args.no_progress)
     _LOGGER.info("Segmentation config: %s", args.segmentation_config)
@@ -278,7 +282,19 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "--workers",
         type=int,
         default=None,
-        help="Override processing config: worker processes for MusicXML parsing. Use 1 to disable multiprocessing.",
+        help="Override processing config: worker processes for MusicXML parsing. Use 1 to disable parse multiprocessing.",
+    )
+    parser.add_argument(
+        "--tokenization-workers",
+        type=int,
+        default=None,
+        help="Override processing config: worker processes for tokenization. Use 1 for serial tokenization.",
+    )
+    parser.add_argument(
+        "--tokenization-batch-size",
+        type=int,
+        default=None,
+        help="Override processing config: parsed source files per tokenization worker task.",
     )
     parser.add_argument(
         "--log-level",

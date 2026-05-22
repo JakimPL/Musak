@@ -40,6 +40,8 @@ def _processing_config() -> ProcessingConfig:
     return ProcessingConfig(
         parsing=ParsingProcessingConfig(workers=1),
         tokenization=TokenizationProcessingConfig(
+            workers=1,
+            batch_size=2,
             remove_segments_with_silent_bars=True,
             scale_matcher=_scale_matcher_config(),
         ),

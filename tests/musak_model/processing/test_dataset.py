@@ -62,10 +62,18 @@ def _segmentation_config() -> SegmentationConfig:
     return SegmentationConfig(window_bars=1, stride_bars=1)
 
 
-def _processing_config(*, remove_segments_with_silent_bars: bool, workers: int = 1) -> ProcessingConfig:
+def _processing_config(
+    *,
+    remove_segments_with_silent_bars: bool,
+    workers: int = 1,
+    tokenization_workers: int = 1,
+    tokenization_batch_size: int = 2,
+) -> ProcessingConfig:
     return ProcessingConfig(
         parsing=ParsingProcessingConfig(workers=workers),
         tokenization=TokenizationProcessingConfig(
+            workers=tokenization_workers,
+            batch_size=tokenization_batch_size,
             remove_segments_with_silent_bars=remove_segments_with_silent_bars,
             scale_matcher=ScaleMatcherConfig(
                 support_score_margin=0.08,
@@ -703,6 +711,60 @@ def test_process_dataset_resumes_interrupted_tokenization_from_completed_source(
     assert result.encoded_count == 2
     assert len(read_encoded_manifest(result.encoded_manifest_path or Path())) == 2
     assert len(load_encoded_jsonl(result.encoded_manifest_path.parent / "data-00000.jsonl")) == 2
+
+
+def test_process_dataset_parallel_tokenization_matches_serial_output(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    tokenization_config: TokenizationConfig,
+) -> None:
+    dataset_root = tmp_path / "PDMX"
+    dataset_root.mkdir()
+    for filename in ("b.mxl", "a.mxl", "c.mxl"):
+        (dataset_root / filename).write_text("score")
+
+    monkeypatch.setattr("musak_model.processing.parser.worker.parse_score", lambda path: _score())
+    monkeypatch.setattr("musak_model.processing.parser.worker.score_title", lambda path: "Piece")
+
+    serial_result = process_dataset(
+        dataset_root,
+        processed_root=tmp_path / "serial",
+        segmentation_config=_segmentation_config(),
+        tokenization_config=tokenization_config,
+        processing_config=_processing_config(
+            remove_segments_with_silent_bars=True,
+            workers=1,
+            tokenization_workers=1,
+        ),
+        stage="process",
+        overwrite=True,
+        show_progress=False,
+    )
+    parallel_result = process_dataset(
+        dataset_root,
+        processed_root=tmp_path / "parallel",
+        segmentation_config=_segmentation_config(),
+        tokenization_config=tokenization_config,
+        processing_config=_processing_config(
+            remove_segments_with_silent_bars=True,
+            workers=1,
+            tokenization_workers=2,
+            tokenization_batch_size=2,
+        ),
+        stage="process",
+        overwrite=True,
+        show_progress=False,
+    )
+
+    serial_rows = read_encoded_manifest(serial_result.encoded_manifest_path or Path())
+    parallel_rows = read_encoded_manifest(parallel_result.encoded_manifest_path or Path())
+    serial_samples = load_encoded_jsonl(serial_result.encoded_manifest_path.parent / "data-00000.jsonl")
+    parallel_samples = load_encoded_jsonl(parallel_result.encoded_manifest_path.parent / "data-00000.jsonl")
+
+    assert parallel_result.encoded_count == serial_result.encoded_count == 3
+    assert parallel_rows == serial_rows
+    assert [sample.model_dump() for sample in parallel_samples] == [sample.model_dump() for sample in serial_samples]
+    assert not (parallel_result.encoded_manifest_path.parent / "tmp").exists()
 
 
 def test_score_title_returns_musicxml_movement_title(tmp_path: Path) -> None:

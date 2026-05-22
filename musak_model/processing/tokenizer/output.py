@@ -1,4 +1,5 @@
 import csv
+from collections.abc import Iterator
 from pathlib import Path
 from types import TracebackType
 from typing import Self, TextIO
@@ -6,6 +7,7 @@ from typing import Self, TextIO
 from pydantic import BaseModel
 
 from musak_model.processing.manifest import ENCODED_MANIFEST_FIELDS, read_encoded_manifest
+from musak_shared.files import remove_directory_tree, remove_empty_parents
 
 
 def append_jsonl_model(
@@ -20,6 +22,13 @@ def append_jsonl_model(
         file.write("\n")
 
     return line_index
+
+
+def iter_encoded_manifest_rows(path: Path) -> Iterator[dict[str, str]]:
+    if not path.exists():
+        return
+
+    yield from read_encoded_manifest(path)
 
 
 def append_encoded_manifest_rows(rows: list[dict[str, object]], path: Path) -> None:
@@ -59,14 +68,6 @@ class EncodedManifestAppender:
         self._writer.writerow(row)
 
 
-def truncate_text_lines(path: Path, line_count: int) -> None:
-    if not path.exists():
-        return
-
-    lines = path.read_text(encoding="utf-8").splitlines()
-    path.write_text("".join(f"{line}\n" for line in lines[:line_count]), encoding="utf-8")
-
-
 def truncate_manifest_rows(path: Path, row_count: int) -> None:
     if not path.exists():
         return
@@ -88,3 +89,13 @@ def clear_tokenization_outputs(
     for path in (encoded_jsonl_path, encoded_manifest_path, tokenizer_snapshot_path, state_path):
         if path is not None:
             path.unlink(missing_ok=True)
+
+
+def clear_tokenization_temp_root(path: Path) -> None:
+    remove_directory_tree(path)
+
+
+def clear_tokenized_source_temp_files(*, encoded_jsonl_path: Path, encoded_manifest_path: Path) -> None:
+    encoded_jsonl_path.unlink(missing_ok=True)
+    encoded_manifest_path.unlink(missing_ok=True)
+    remove_empty_parents(encoded_jsonl_path.parent, stop_at=encoded_jsonl_path.parent.parent)

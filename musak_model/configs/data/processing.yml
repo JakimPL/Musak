@@ -1,6 +1,8 @@
 parsing:
   workers: 16
 tokenization:
+  workers: 16
+  batch_size: 16
   remove_segments_with_silent_bars: true
   scale_matcher:
     support_score_margin: 0.08

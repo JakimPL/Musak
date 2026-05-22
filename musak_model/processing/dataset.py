@@ -144,6 +144,7 @@ def _tokenize_existing_parsed_scores(
         dataset_root=dataset_root,
         paths=paths,
         snapshot=snapshot,
+        tokenization_config=tokenization_config,
         segmentation_config=segmentation_config,
         duration_vocabulary=duration_vocabulary,
         token_vocabulary=token_vocabulary,

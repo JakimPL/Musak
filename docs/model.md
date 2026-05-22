@@ -25,9 +25,11 @@ Each encoded JSONL row is an `EncodedExercise`:
 
 The current encoded PDMX artifact is a unified two-hand stream. It is not split into separate right-hand and left-hand samples.
 
-Data processing uses `musak_model/configs/data/processing.yml` for parsing and tokenization settings. Its
-`tokenization.remove_segments_with_silent_bars` field controls whether processing marks any segment with a fully
-silent bar as ineligible with `silent_bar` before writing encoded samples. Edge-silent windows keep the more specific
+Data processing uses `musak_model/configs/data/processing.yml` for parsing and tokenization settings. Parsing and
+tokenization have separate worker counts. Tokenization workers process batches of parsed source files into temporary
+shards; the parent process merges those shards into deterministic encoded artifacts and resume state. The
+`tokenization.remove_segments_with_silent_bars` field controls whether processing marks any segment with a fully silent
+bar as ineligible with `silent_bar` before writing encoded samples. Edge-silent windows keep the more specific
 `silent_edge_bar` reason too.
 
 Segmentation defaults to fixed-size sliding windows from `musak_model/configs/data/segmentation.yml`. For curated

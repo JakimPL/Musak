@@ -10,7 +10,6 @@ from musak_model.processing.snapshot import TokenizerSnapshot
 from musak_model.processing.tokenizer.output import (
     clear_tokenization_outputs,
     truncate_manifest_rows,
-    truncate_text_lines,
 )
 from musak_model.processing.tokenizer.state import (
     TokenizationResumeState,
@@ -18,6 +17,7 @@ from musak_model.processing.tokenizer.state import (
     load_tokenization_resume_state,
     resume_state_outputs_missing,
 )
+from musak_shared.files import truncate_text_lines
 
 _LOGGER = logging.getLogger(__name__)
 

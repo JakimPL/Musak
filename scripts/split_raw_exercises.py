@@ -4,13 +4,14 @@ import argparse
 import copy
 import json
 import re
-import shutil
 import tempfile
 import xml.etree.ElementTree as ET
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
+
+from musak_shared.files import move_path, remove_directory_tree
 
 RAW_LEVEL_PATTERN: Final[re.Pattern[str]] = re.compile(r"^Level (?P<level>\d+)\.mxl$")
 MXL_CONTAINER_PATH: Final[str] = "META-INF/container.xml"
@@ -65,7 +66,7 @@ def split_raw_level(raw_level: RawLevel, *, output_dir: Path, force: bool) -> li
     if level_output_dir.exists():
         if not force:
             raise FileExistsError(f"{level_output_dir} already exists; pass --force to replace it")
-        shutil.rmtree(level_output_dir)
+        remove_directory_tree(level_output_dir)
 
     with tempfile.TemporaryDirectory(prefix=f"musak-level-{raw_level.level}-") as temporary_directory:
         temporary_output_dir = Path(temporary_directory) / str(raw_level.level)
@@ -88,7 +89,7 @@ def split_raw_level(raw_level: RawLevel, *, output_dir: Path, force: bool) -> li
             output_paths.append(level_output_dir / output_path.name)
 
         level_output_dir.parent.mkdir(parents=True, exist_ok=True)
-        shutil.move(str(temporary_output_dir), str(level_output_dir))
+        move_path(temporary_output_dir, level_output_dir)
 
     return output_paths
 
