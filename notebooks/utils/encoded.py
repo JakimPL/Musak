@@ -8,6 +8,7 @@ from musak_model.data.config import SegmentationConfig
 from musak_model.data.pipeline import segment_parsed_score
 from musak_model.data.schema import Segment
 from musak_model.decoder import encoded_exercise_to_segment
+from musak_model.processing.config import ProcessingConfig
 from musak_model.processing.io import load_encoded_jsonl, load_parsed_score_json, load_tokenizer_snapshot_json
 from musak_model.processing.manifest import EncodedManifestField
 from musak_model.processing.paths import ENCODED_JSONL_NAME, TOKENIZER_SNAPSHOT_NAME, ProcessedDatasetPaths
@@ -117,6 +118,7 @@ def _segment_from_manifest_row(
         Path(_string_field(row, EncodedManifestField.SOURCE_PATH, default=parsed_path.name)),
         duration_vocabulary,
         segmentation_config=SegmentationConfig(window_bars=bar_count, stride_bars=1),
+        scale_matcher_config=ProcessingConfig.load().tokenization.scale_matcher,
     )
     for segment in segments:
         if segment.metadata.window_start_bar == window_start_bar:

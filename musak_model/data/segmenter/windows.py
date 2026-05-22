@@ -3,7 +3,7 @@ from pathlib import Path
 
 from musak_model.data.cleaning import is_silent_bar_pair
 from musak_model.data.config import SegmentationConfig
-from musak_model.data.scale_match import ScaleMatch
+from musak_model.data.scale_matcher.schema import ScaleMatch
 from musak_model.data.schema import ParsedScore, Segment, SegmentIneligibilityReason, SegmentMetadata
 from musak_model.data.segmenter.bar import paired_bar_measure_duration
 from musak_model.data.segmenter.types import BarTokenization

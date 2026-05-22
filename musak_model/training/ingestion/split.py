@@ -7,6 +7,7 @@ from music21.exceptions21 import Music21Exception
 
 from musak_model.data.config import SegmentationConfig, SegmentationMode
 from musak_model.data.pipeline import process_file, segment_parsed_score
+from musak_model.data.scale_matcher.config import ScaleMatcherConfig
 from musak_model.data.schema import Segment
 from musak_model.processing.io import load_encoded_jsonl, load_parsed_score_json, load_tokenizer_snapshot_json
 from musak_model.processing.manifest import (
@@ -86,6 +87,7 @@ def build_split(
                 file_path,
                 duration_vocabulary,
                 segmentation_config=segmentation,
+                scale_matcher_config=config.scale_matcher,
                 difficulty_labels=config.difficulty_labels,
             )
         except _FILE_PROCESSING_ERRORS as exception:
@@ -181,6 +183,7 @@ def _build_split_from_processed_artifacts(
             source_directory=source_directory,
             validation_keys=validation_keys,
             segmentation=segmentation,
+            scale_matcher_config=config.scale_matcher,
             difficulty_labels=config.difficulty_labels,
             duration_vocabulary=duration_vocabulary,
             token_vocabulary=token_vocabulary,
@@ -267,6 +270,7 @@ def _split_from_parsed_scores(
     source_directory: Path,
     validation_keys: set[str],
     segmentation: SegmentationConfig,
+    scale_matcher_config: ScaleMatcherConfig,
     difficulty_labels: dict[str, int | None] | None,
     duration_vocabulary: DurationVocabulary,
     token_vocabulary: TokenVocabulary,
@@ -285,6 +289,7 @@ def _split_from_parsed_scores(
                 relative_source_path,
                 duration_vocabulary,
                 segmentation_config=segmentation,
+                scale_matcher_config=scale_matcher_config,
                 difficulty_labels=difficulty_labels,
             )
         except _FILE_PROCESSING_ERRORS as exception:

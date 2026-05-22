@@ -4,7 +4,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
 
-from musak_model.data.config import DataProcessingConfig, SegmentationConfig
+from musak_model.data.config import SegmentationConfig
+from musak_model.processing.config import TokenizationProcessingConfig
 from musak_model.processing.snapshot import TokenizerSnapshot
 
 TOKENIZATION_STATE_VERSION: Final[int] = 1
@@ -35,13 +36,13 @@ def tokenization_state_key(
     *,
     snapshot: TokenizerSnapshot,
     segmentation_config: SegmentationConfig,
-    data_processing_config: DataProcessingConfig,
+    tokenization_processing_config: TokenizationProcessingConfig,
     difficulty_labels: dict[str, int | None] | None,
 ) -> str:
     payload = {
         "tokenizer_hash": snapshot.tokenizer_hash,
         "segmentation": segmentation_config.model_dump(mode="json"),
-        "data_processing": data_processing_config.model_dump(mode="json"),
+        "tokenization_processing": tokenization_processing_config.model_dump(mode="json"),
         "difficulty_labels": difficulty_labels or {},
     }
     encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")

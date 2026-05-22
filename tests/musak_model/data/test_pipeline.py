@@ -11,10 +11,24 @@ from musak_model.data.config import (
     load_segmentation_config,
 )
 from musak_model.data.converter import PitchDegreeRegisterError
-from musak_model.data.pipeline import segment_parsed_score
+from musak_model.data.pipeline import segment_parsed_score as _segment_parsed_score
+from musak_model.data.scale_matcher.config import ScaleMatcherConfig
 from musak_model.data.schema import ParsedBar, ParsedNote, ParsedScore, SegmentIneligibilityReason
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import Hand, ScaleType
+
+
+def _scale_matcher_config() -> ScaleMatcherConfig:
+    return ScaleMatcherConfig(
+        support_score_margin=0.08,
+        selection_score_margin=0.03,
+        maximum_unexplained_weight_fraction=0.10,
+        maximum_explanation_pitch_class_count=9,
+    )
+
+
+def segment_parsed_score(*args: Any, **kwargs: Any):
+    return _segment_parsed_score(*args, scale_matcher_config=_scale_matcher_config(), **kwargs)
 
 
 def _empty_bar() -> ParsedBar:

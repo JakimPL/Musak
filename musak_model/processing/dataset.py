@@ -4,14 +4,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
-from musak_model.data.config import (
-    DEFAULT_SCALE_MATCH_MAXIMUM_EXPLANATION_PITCH_CLASS_COUNT,
-    DEFAULT_SCALE_MATCH_MAXIMUM_UNEXPLAINED_WEIGHT_FRACTION,
-    DEFAULT_SCALE_MATCH_SELECTION_SCORE_MARGIN,
-    DEFAULT_SCALE_MATCH_SUPPORT_SCORE_MARGIN,
-    DataProcessingConfig,
-    SegmentationConfig,
-)
+from musak_model.data.config import SegmentationConfig
+from musak_model.data.scale_matcher.config import ScaleMatcherConfig
+from musak_model.processing.config import ProcessingConfig, TokenizationProcessingConfig
 from musak_model.processing.manifest import ParsedManifestField, ParsedManifestStatus, read_parsed_manifest
 from musak_model.processing.parser import (
     ParseDatasetResult,
@@ -38,10 +33,7 @@ class ProcessDatasetResult:
     parsed_count: int
     encoded_count: int
     error_count: int
-    scale_match_support_score_margin: float = DEFAULT_SCALE_MATCH_SUPPORT_SCORE_MARGIN
-    scale_match_selection_score_margin: float = DEFAULT_SCALE_MATCH_SELECTION_SCORE_MARGIN
-    scale_match_maximum_unexplained_weight_fraction: float = DEFAULT_SCALE_MATCH_MAXIMUM_UNEXPLAINED_WEIGHT_FRACTION
-    scale_match_maximum_explanation_pitch_class_count: int = DEFAULT_SCALE_MATCH_MAXIMUM_EXPLANATION_PITCH_CLASS_COUNT
+    scale_matcher_config: ScaleMatcherConfig
 
 
 def process_dataset(
@@ -50,11 +42,10 @@ def process_dataset(
     processed_root: Path,
     segmentation_config: SegmentationConfig,
     tokenization_config: TokenizationConfig,
-    data_processing_config: DataProcessingConfig,
+    processing_config: ProcessingConfig,
     stage: ProcessingStage,
     difficulty_labels: dict[str, int | None] | None = None,
     overwrite: bool = False,
-    workers: int = 1,
     show_progress: bool = False,
     profiler: ProcessingProfilerProtocol = NULL_PROCESSING_PROFILER,
 ) -> ProcessDatasetResult:
@@ -64,13 +55,13 @@ def process_dataset(
                 dataset_root,
                 processed_root=processed_root,
                 overwrite=overwrite,
-                workers=workers,
+                workers=processing_config.parsing.workers,
                 show_progress=show_progress,
                 profiler=profiler,
             )
             return _parse_result_to_process_result(
                 parse_result,
-                data_processing_config=data_processing_config,
+                tokenization_processing_config=processing_config.tokenization,
             )
         case "tokenize":
             parsed_scores = load_parsed_score_artifacts(dataset_root, processed_root=processed_root)
@@ -81,7 +72,7 @@ def process_dataset(
                 processed_root=processed_root,
                 segmentation_config=segmentation_config,
                 tokenization_config=tokenization_config,
-                data_processing_config=data_processing_config,
+                tokenization_processing_config=processing_config.tokenization,
                 difficulty_labels=difficulty_labels,
                 overwrite=overwrite,
                 show_progress=show_progress,
@@ -97,17 +88,18 @@ def process_dataset(
                 dataset_root,
                 processed_root=processed_root,
                 overwrite=overwrite,
-                workers=workers,
+                workers=processing_config.parsing.workers,
                 show_progress=show_progress,
                 profiler=profiler,
             )
+            parsed_scores = load_parsed_score_artifacts(dataset_root, processed_root=processed_root)
             tokenize_result = _tokenize_existing_parsed_scores(
-                parse_result.parsed_scores,
+                parsed_scores,
                 dataset_root=dataset_root,
                 processed_root=processed_root,
                 segmentation_config=segmentation_config,
                 tokenization_config=tokenization_config,
-                data_processing_config=data_processing_config,
+                tokenization_processing_config=processing_config.tokenization,
                 difficulty_labels=difficulty_labels,
                 overwrite=overwrite,
                 show_progress=show_progress,
@@ -133,7 +125,7 @@ def _tokenize_existing_parsed_scores(
     processed_root: Path,
     segmentation_config: SegmentationConfig,
     tokenization_config: TokenizationConfig,
-    data_processing_config: DataProcessingConfig,
+    tokenization_processing_config: TokenizationProcessingConfig,
     difficulty_labels: dict[str, int | None] | None,
     overwrite: bool,
     show_progress: bool,
@@ -156,7 +148,7 @@ def _tokenize_existing_parsed_scores(
         duration_vocabulary=duration_vocabulary,
         token_vocabulary=token_vocabulary,
         difficulty_labels=difficulty_labels,
-        data_processing_config=data_processing_config,
+        tokenization_processing_config=tokenization_processing_config,
         overwrite=overwrite,
         show_progress=show_progress,
         profiler=profiler,
@@ -174,7 +166,7 @@ def _parse_counts(dataset_root: Path, *, processed_root: Path) -> _ParseCounts:
 def _parse_result_to_process_result(
     parse_result: ParseDatasetResult,
     *,
-    data_processing_config: DataProcessingConfig,
+    tokenization_processing_config: TokenizationProcessingConfig,
 ) -> ProcessDatasetResult:
     return ProcessDatasetResult(
         parsed_manifest_path=parse_result.parsed_manifest_path,
@@ -183,14 +175,7 @@ def _parse_result_to_process_result(
         parsed_count=parse_result.parsed_count,
         encoded_count=0,
         error_count=parse_result.error_count,
-        scale_match_support_score_margin=data_processing_config.scale_match_support_score_margin,
-        scale_match_selection_score_margin=data_processing_config.scale_match_selection_score_margin,
-        scale_match_maximum_unexplained_weight_fraction=(
-            data_processing_config.scale_match_maximum_unexplained_weight_fraction
-        ),
-        scale_match_maximum_explanation_pitch_class_count=(
-            data_processing_config.scale_match_maximum_explanation_pitch_class_count
-        ),
+        scale_matcher_config=tokenization_processing_config.scale_matcher,
     )
 
 
@@ -207,12 +192,5 @@ def _tokenize_result_to_process_result(
         parsed_count=parsed_count,
         encoded_count=tokenize_result.encoded_count,
         error_count=error_count,
-        scale_match_support_score_margin=tokenize_result.scale_match_support_score_margin,
-        scale_match_selection_score_margin=tokenize_result.scale_match_selection_score_margin,
-        scale_match_maximum_unexplained_weight_fraction=(
-            tokenize_result.scale_match_maximum_unexplained_weight_fraction
-        ),
-        scale_match_maximum_explanation_pitch_class_count=(
-            tokenize_result.scale_match_maximum_explanation_pitch_class_count
-        ),
+        scale_matcher_config=tokenize_result.scale_matcher_config,
     )

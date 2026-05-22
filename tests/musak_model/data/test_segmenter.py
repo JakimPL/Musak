@@ -6,6 +6,7 @@ import pytest
 
 from musak_model.data.cleaning import clean_parsed_score
 from musak_model.data.config import SegmentationConfig, SegmentationMode
+from musak_model.data.scale_matcher.config import ScaleMatcherConfig
 from musak_model.data.schema import (
     ParsedBar,
     ParsedChord,
@@ -15,10 +16,23 @@ from musak_model.data.schema import (
     SegmentIneligibilityReason,
     TieType,
 )
-from musak_model.data.segmenter.segmenter import segment_score
+from musak_model.data.segmenter.segmenter import segment_score as _segment_score
 from musak_model.decoder.piano_roll import segment_to_piano_roll_events
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import HandToken, HoldToken, NoteToken, ScaleType
+
+
+def _scale_matcher_config() -> ScaleMatcherConfig:
+    return ScaleMatcherConfig(
+        support_score_margin=0.08,
+        selection_score_margin=0.03,
+        maximum_unexplained_weight_fraction=0.10,
+        maximum_explanation_pitch_class_count=9,
+    )
+
+
+def segment_score(*args: Any, **kwargs: Any):
+    return _segment_score(*args, scale_matcher_config=_scale_matcher_config(), **kwargs)
 
 
 def _bar(*, time_numerator: int = 4, time_denominator: int = 4, key_fifths: int = 0) -> ParsedBar:

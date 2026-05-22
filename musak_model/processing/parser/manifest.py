@@ -50,7 +50,6 @@ def reused_parsed_result(
                 source_path=source_path,
                 parsed_path=parsed_path,
                 row=dict(row),
-                score=None,
             ),
             None,
         )
@@ -64,7 +63,7 @@ def reused_parsed_result(
 
     parsed_path = paths.root / parsed_path_text
     try:
-        score = load_parsed_score_json(parsed_path)
+        load_parsed_score_json(parsed_path)
     except (OSError, ValueError):
         return None, ParsedManifestReuseIssue.UNREADABLE_PARSED_SCORE
 
@@ -75,7 +74,6 @@ def reused_parsed_result(
             source_path=source_path,
             parsed_path=parsed_path,
             row=dict(row),
-            score=score,
         ),
         None,
     )
@@ -118,5 +116,4 @@ def _artifact_from_success_row(
         source_id_value=row[ParsedManifestField.SOURCE_ID],
         source_path=dataset_root / row[ParsedManifestField.SOURCE_PATH],
         parsed_path=parsed_path,
-        score=load_parsed_score_json(parsed_path),
     )

@@ -17,3 +17,13 @@ class ProcessingProfileSummary:
     stage_counts: dict[str, int]
     stage_means: dict[str, float]
     per_file_totals: dict[str, float]
+
+
+@dataclass(frozen=True)
+class ProcessingProfileStageStats:
+    stage: str
+    count: int
+    total_seconds: float
+    mean_seconds: float
+    min_seconds: float
+    max_seconds: float

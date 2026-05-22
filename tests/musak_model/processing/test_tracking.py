@@ -4,6 +4,7 @@ from types import ModuleType
 
 import pytest
 
+from musak_model.data.scale_matcher.config import ScaleMatcherConfig
 from musak_model.data.schema import SegmentMetadata
 from musak_model.processing.dataset import ProcessDatasetResult
 from musak_model.processing.io import append_jsonl
@@ -93,6 +94,12 @@ def test_processing_tracker_logs_complete_manifest_metrics(
         parsed_count=1,
         encoded_count=1,
         error_count=1,
+        scale_matcher_config=ScaleMatcherConfig(
+            support_score_margin=0.08,
+            selection_score_margin=0.03,
+            maximum_unexplained_weight_fraction=0.10,
+            maximum_explanation_pitch_class_count=9,
+        ),
     )
 
     with ProcessingTracker(

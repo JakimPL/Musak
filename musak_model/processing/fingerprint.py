@@ -25,6 +25,24 @@ def encoded_samples_fingerprint(samples: Sequence[BaseModel]) -> str:
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
+def encoded_samples_jsonl_fingerprint(path: Path) -> str:
+    digest = hashlib.sha256()
+    if not path.exists():
+        return digest.hexdigest()
+
+    with path.open("r", encoding="utf-8") as file:
+        for line in file:
+            if line.strip() == "":
+                continue
+
+            record = json.loads(line)
+            canonical = json.dumps(record, sort_keys=True, separators=(",", ":"))
+            digest.update(canonical.encode("utf-8"))
+            digest.update(b"\n")
+
+    return digest.hexdigest()
+
+
 def _encoded_sample_sort_key(record: dict[str, object]) -> tuple[str, int, int, str]:
     metadata = record.get("metadata")
     if not isinstance(metadata, dict):

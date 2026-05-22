@@ -2,7 +2,8 @@ import logging
 from collections.abc import Iterable
 from pathlib import Path
 
-from musak_model.data.config import DataProcessingConfig, SegmentationConfig
+from musak_model.data.config import SegmentationConfig
+from musak_model.processing.config import TokenizationProcessingConfig
 from musak_model.processing.io import write_json_model
 from musak_model.processing.manifest import EncodedManifestField, read_encoded_manifest
 from musak_model.processing.parser import ParsedScoreArtifact, load_parsed_score_artifacts
@@ -36,7 +37,7 @@ def tokenize_dataset(
     processed_root: Path,
     segmentation_config: SegmentationConfig,
     tokenization_config: TokenizationConfig,
-    data_processing_config: DataProcessingConfig,
+    tokenization_processing_config: TokenizationProcessingConfig,
     difficulty_labels: dict[str, int | None] | None,
     overwrite: bool,
     show_progress: bool,
@@ -54,7 +55,7 @@ def tokenize_dataset(
         duration_vocabulary=duration_vocabulary,
         token_vocabulary=token_vocabulary,
         difficulty_labels=difficulty_labels,
-        data_processing_config=data_processing_config,
+        tokenization_processing_config=tokenization_processing_config,
         overwrite=overwrite,
         show_progress=show_progress,
         profiler=profiler,
@@ -71,7 +72,7 @@ def tokenize_parsed_scores(
     duration_vocabulary: DurationVocabulary,
     token_vocabulary: TokenVocabulary,
     difficulty_labels: dict[str, int | None] | None,
-    data_processing_config: DataProcessingConfig,
+    tokenization_processing_config: TokenizationProcessingConfig,
     overwrite: bool,
     show_progress: bool,
     profiler: ProcessingProfilerProtocol = NULL_PROCESSING_PROFILER,
@@ -81,7 +82,7 @@ def tokenize_parsed_scores(
     state_key = tokenization_state_key(
         snapshot=snapshot,
         segmentation_config=segmentation_config,
-        data_processing_config=data_processing_config,
+        tokenization_processing_config=tokenization_processing_config,
         difficulty_labels=difficulty_labels,
     )
     resume_state = prepare_resume_state(
@@ -96,7 +97,7 @@ def tokenize_parsed_scores(
         paths=paths,
         output_paths=output_paths,
         resume_state=resume_state,
-        data_processing_config=data_processing_config,
+        tokenization_processing_config=tokenization_processing_config,
     )
     if reusable_result is not None:
         return reusable_result
@@ -113,7 +114,7 @@ def tokenize_parsed_scores(
         duration_vocabulary=duration_vocabulary,
         token_vocabulary=token_vocabulary,
         difficulty_labels=difficulty_labels,
-        data_processing_config=data_processing_config,
+        tokenization_processing_config=tokenization_processing_config,
         show_progress=show_progress,
         profiler=profiler,
     )
@@ -138,7 +139,7 @@ def _reusable_result(
     paths: ProcessedDatasetPaths,
     output_paths: TokenizationOutputPaths,
     resume_state: TokenizationResumeState,
-    data_processing_config: DataProcessingConfig,
+    tokenization_processing_config: TokenizationProcessingConfig,
 ) -> TokenizeDatasetResult | None:
     if not complete_outputs_exist(parsed_scores=parsed_scores, output_paths=output_paths, resume_state=resume_state):
         return None
@@ -151,7 +152,7 @@ def _reusable_result(
         output_paths=output_paths,
         encoded_count=encoded_count,
         segment_count=len(encoded_rows),
-        data_processing_config=data_processing_config,
+        tokenization_processing_config=tokenization_processing_config,
     )
 
 
@@ -174,10 +175,10 @@ def _tokenize_missing_sources(
     state_key: str,
     resume_state: TokenizationResumeState,
     segmentation_config: SegmentationConfig,
+    tokenization_processing_config: TokenizationProcessingConfig,
     duration_vocabulary: DurationVocabulary,
     token_vocabulary: TokenVocabulary,
     difficulty_labels: dict[str, int | None] | None,
-    data_processing_config: DataProcessingConfig,
     show_progress: bool,
     profiler: ProcessingProfilerProtocol,
 ) -> TokenizeDatasetResult:
@@ -201,7 +202,7 @@ def _tokenize_missing_sources(
             duration_vocabulary=duration_vocabulary,
             token_vocabulary=token_vocabulary,
             difficulty_labels=difficulty_labels,
-            data_processing_config=data_processing_config,
+            tokenization_processing_config=tokenization_processing_config,
             encoded_line_count=encoded_line_count,
             profiler=profiler,
         )
@@ -216,6 +217,7 @@ def _tokenize_missing_sources(
             encoded_count=encoded_count,
         )
         completed_source_ids.add(artifact.source_id_value)
+        profiler.step()
 
     _LOGGER.info("Wrote encoded manifest: %s", output_paths.encoded_manifest_path)
     return _result(
@@ -223,7 +225,7 @@ def _tokenize_missing_sources(
         output_paths=output_paths,
         encoded_count=encoded_count,
         segment_count=manifest_row_count,
-        data_processing_config=data_processing_config,
+        tokenization_processing_config=tokenization_processing_config,
     )
 
 
@@ -233,7 +235,7 @@ def _result(
     output_paths: TokenizationOutputPaths,
     encoded_count: int,
     segment_count: int,
-    data_processing_config: DataProcessingConfig,
+    tokenization_processing_config: TokenizationProcessingConfig,
 ) -> TokenizeDatasetResult:
     return TokenizeDatasetResult(
         parsed_manifest_path=paths.parsed_manifest_path,
@@ -241,12 +243,5 @@ def _result(
         tokenizer_snapshot_path=output_paths.tokenizer_snapshot_path,
         encoded_count=encoded_count,
         segment_count=segment_count,
-        scale_match_support_score_margin=data_processing_config.scale_match_support_score_margin,
-        scale_match_selection_score_margin=data_processing_config.scale_match_selection_score_margin,
-        scale_match_maximum_unexplained_weight_fraction=(
-            data_processing_config.scale_match_maximum_unexplained_weight_fraction
-        ),
-        scale_match_maximum_explanation_pitch_class_count=(
-            data_processing_config.scale_match_maximum_explanation_pitch_class_count
-        ),
+        scale_matcher_config=tokenization_processing_config.scale_matcher,
     )

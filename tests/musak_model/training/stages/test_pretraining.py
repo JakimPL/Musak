@@ -96,7 +96,7 @@ def _training_config(
 ) -> TrainingConfig:
     return TrainingConfig(
         optimization=OptimizationConfig(epochs=epochs, batch_size=2, learning_rate=0.001, weight_decay=0.0),
-        runtime=RuntimeConfig(num_workers=0, device="cpu"),
+        runtime=RuntimeConfig(num_workers=1, device="cpu"),
         conditioning=conditioning if conditioning is not None else _conditioning_config(),
         checkpoints=CheckpointConfig(
             checkpoint_dir=checkpoint_dir,

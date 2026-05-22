@@ -8,6 +8,7 @@ from torch.optim import AdamW
 from musak_model.conditioning.config import ConditioningConfig, DifficultyConfig
 from musak_model.conditioning.time_signature import TimeSignatureVocabularyConfig
 from musak_model.data.config import SegmentationConfig
+from musak_model.data.scale_matcher.config import ScaleMatcherConfig
 from musak_model.data.schema import SegmentMetadata
 from musak_model.model import HierarchicalAutoregressiveModel
 from musak_model.model.config import CNNConfig, GRUConfig, ModelConfig, TransformerConfig
@@ -30,6 +31,15 @@ from musak_model.training.ingestion.schema import EncodedExercise, IngestionSpli
 from musak_model.training.stages.finetuning import finetune
 
 HIDDEN_SIZE: Final[int] = 16
+
+
+def _scale_matcher_config() -> ScaleMatcherConfig:
+    return ScaleMatcherConfig(
+        support_score_margin=0.08,
+        selection_score_margin=0.03,
+        maximum_unexplained_weight_fraction=0.10,
+        maximum_explanation_pitch_class_count=9,
+    )
 
 
 def _tokenization_config() -> TokenizationConfig:
@@ -106,11 +116,16 @@ def test_train_finetuning_loads_pretraining_checkpoint_and_runs_epoch(
 
     result = finetune(
         tmp_path,
-        ingestion_config=IngestionConfig(validation_fraction=0.0, split_seed=1, processed_root=None),
+        ingestion_config=IngestionConfig(
+            validation_fraction=0.0,
+            split_seed=1,
+            scale_matcher=_scale_matcher_config(),
+            processed_root=None,
+        ),
         segmentation_config=SegmentationConfig(window_bars=1, stride_bars=1),
         training_config=FinetuningTrainingConfig(
             optimization=OptimizationConfig(epochs=1, batch_size=2, learning_rate=0.001, weight_decay=0.0),
-            runtime=RuntimeConfig(num_workers=0, device="cpu"),
+            runtime=RuntimeConfig(num_workers=1, device="cpu"),
             checkpoints=FinetuningCheckpointConfig(
                 checkpoint_dir=tmp_path / "finetuning",
                 pretraining_checkpoint=pretraining_checkpoint,

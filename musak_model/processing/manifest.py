@@ -1,4 +1,5 @@
 import csv
+from collections.abc import Iterator
 from enum import StrEnum
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Final
@@ -167,11 +168,19 @@ def write_encoded_manifest(rows: list[dict[str, Any]], path: Path) -> None:
 
 
 def read_parsed_manifest(path: Path) -> list[dict[str, str]]:
-    return _read_manifest_csv(path)
+    return list(_iter_manifest_csv(path))
 
 
 def read_encoded_manifest(path: Path) -> list[dict[str, str]]:
-    return _read_manifest_csv(path)
+    return list(iter_encoded_manifest(path))
+
+
+def iter_parsed_manifest(path: Path) -> Iterator[dict[str, str]]:
+    yield from _iter_manifest_csv(path)
+
+
+def iter_encoded_manifest(path: Path) -> Iterator[dict[str, str]]:
+    yield from _iter_manifest_csv(path)
 
 
 def parsed_success_row(
@@ -351,12 +360,12 @@ def _write_manifest_csv(
         writer.writerows(rows)
 
 
-def _read_manifest_csv(path: Path) -> list[dict[str, str]]:
+def _iter_manifest_csv(path: Path) -> Iterator[dict[str, str]]:
     if not path.exists():
-        return []
+        return
 
     with path.open("r", newline="", encoding="utf-8") as file:
-        return list(csv.DictReader(file))
+        yield from csv.DictReader(file)
 
 
 def _relative_text(path: Path, root: Path) -> str:

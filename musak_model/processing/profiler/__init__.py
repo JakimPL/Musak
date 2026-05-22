@@ -2,12 +2,17 @@ from musak_model.processing.profiler.collector import ProcessingProfiler
 from musak_model.processing.profiler.factory import build_processing_profiler
 from musak_model.processing.profiler.null import NULL_PROCESSING_PROFILER, NullProcessingProfiler
 from musak_model.processing.profiler.protocol import ProcessingProfilerProtocol
-from musak_model.processing.profiler.schema import ProcessingProfileRecord, ProcessingProfileSummary
+from musak_model.processing.profiler.schema import (
+    ProcessingProfileRecord,
+    ProcessingProfileStageStats,
+    ProcessingProfileSummary,
+)
 
 __all__ = [
     "NULL_PROCESSING_PROFILER",
     "NullProcessingProfiler",
     "ProcessingProfileRecord",
+    "ProcessingProfileStageStats",
     "ProcessingProfileSummary",
     "ProcessingProfiler",
     "ProcessingProfilerProtocol",

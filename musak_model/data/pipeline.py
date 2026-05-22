@@ -1,18 +1,14 @@
+from collections.abc import Iterator
 from pathlib import Path
 
 from musak_model.data.cleaning import clean_parsed_score
-from musak_model.data.config import (
-    DEFAULT_SCALE_MATCH_MAXIMUM_EXPLANATION_PITCH_CLASS_COUNT,
-    DEFAULT_SCALE_MATCH_MAXIMUM_UNEXPLAINED_WEIGHT_FRACTION,
-    DEFAULT_SCALE_MATCH_SELECTION_SCORE_MARGIN,
-    DEFAULT_SCALE_MATCH_SUPPORT_SCORE_MARGIN,
-    SegmentationConfig,
-)
+from musak_model.data.config import SegmentationConfig
 from musak_model.data.converter import PitchDegreeRegisterError
 from musak_model.data.labeler import extract_difficulty_features
 from musak_model.data.parser import parse_score
+from musak_model.data.scale_matcher.config import ScaleMatcherConfig
 from musak_model.data.schema import ParsedScore, Segment, SegmentIneligibilityReason
-from musak_model.data.segmenter.segmenter import segment_score
+from musak_model.data.segmenter.segmenter import iter_score_segments
 from musak_model.processing.profiler import NULL_PROCESSING_PROFILER, ProcessingProfilerProtocol
 from musak_model.tokens.duration import DurationVocabulary
 from musak_shared.files import collect_musicxml_files
@@ -23,6 +19,7 @@ def process_directory(
     duration_vocabulary: DurationVocabulary,
     *,
     segmentation_config: SegmentationConfig,
+    scale_matcher_config: ScaleMatcherConfig,
     difficulty_labels: dict[str, int | None] | None = None,
     profiler: ProcessingProfilerProtocol = NULL_PROCESSING_PROFILER,
 ) -> list[Segment]:
@@ -33,6 +30,7 @@ def process_directory(
             path,
             duration_vocabulary,
             segmentation_config=segmentation_config,
+            scale_matcher_config=scale_matcher_config,
             difficulty_labels=difficulty_labels,
             profiler=profiler,
         )
@@ -46,6 +44,7 @@ def process_file(
     duration_vocabulary: DurationVocabulary,
     *,
     segmentation_config: SegmentationConfig,
+    scale_matcher_config: ScaleMatcherConfig,
     difficulty_labels: dict[str, int | None] | None = None,
     profiler: ProcessingProfilerProtocol = NULL_PROCESSING_PROFILER,
 ) -> list[Segment]:
@@ -55,6 +54,7 @@ def process_file(
         path,
         duration_vocabulary,
         segmentation_config=segmentation_config,
+        scale_matcher_config=scale_matcher_config,
         difficulty_labels=difficulty_labels,
         profiler=profiler,
     )
@@ -66,32 +66,49 @@ def segment_parsed_score(
     duration_vocabulary: DurationVocabulary,
     *,
     segmentation_config: SegmentationConfig,
+    scale_matcher_config: ScaleMatcherConfig,
     difficulty_labels: dict[str, int | None] | None = None,
     profiler: ProcessingProfilerProtocol = NULL_PROCESSING_PROFILER,
-    scale_match_support_score_margin: float = DEFAULT_SCALE_MATCH_SUPPORT_SCORE_MARGIN,
-    scale_match_selection_score_margin: float = DEFAULT_SCALE_MATCH_SELECTION_SCORE_MARGIN,
-    scale_match_maximum_unexplained_weight_fraction: float = DEFAULT_SCALE_MATCH_MAXIMUM_UNEXPLAINED_WEIGHT_FRACTION,
-    scale_match_maximum_explanation_pitch_class_count: int = DEFAULT_SCALE_MATCH_MAXIMUM_EXPLANATION_PITCH_CLASS_COUNT,
 ) -> list[Segment]:
+    return list(
+        iter_segment_parsed_score(
+            score,
+            source_file,
+            duration_vocabulary,
+            segmentation_config=segmentation_config,
+            scale_matcher_config=scale_matcher_config,
+            difficulty_labels=difficulty_labels,
+            profiler=profiler,
+        )
+    )
+
+
+def iter_segment_parsed_score(
+    score: ParsedScore,
+    source_file: Path,
+    duration_vocabulary: DurationVocabulary,
+    *,
+    segmentation_config: SegmentationConfig,
+    scale_matcher_config: ScaleMatcherConfig,
+    difficulty_labels: dict[str, int | None] | None = None,
+    profiler: ProcessingProfilerProtocol = NULL_PROCESSING_PROFILER,
+) -> Iterator[Segment]:
     difficulty_level = _resolve_difficulty_level(
         source_file,
         difficulty_labels=difficulty_labels,
     )
 
-    segments = segment_score(
+    segments = iter_score_segments(
         score,
         source_file,
         duration_vocabulary=duration_vocabulary,
         segmentation=segmentation_config,
         difficulty_level=difficulty_level,
-        scale_match_support_score_margin=scale_match_support_score_margin,
-        scale_match_selection_score_margin=scale_match_selection_score_margin,
-        scale_match_maximum_unexplained_weight_fraction=scale_match_maximum_unexplained_weight_fraction,
-        scale_match_maximum_explanation_pitch_class_count=scale_match_maximum_explanation_pitch_class_count,
+        scale_matcher_config=scale_matcher_config,
         profiler=profiler,
     )
 
-    return _attach_difficulty_features_to_segments(
+    yield from _attach_difficulty_features_to_segments(
         segments,
         score=score,
         source_file=source_file,
@@ -101,23 +118,21 @@ def segment_parsed_score(
 
 
 def _attach_difficulty_features_to_segments(
-    segments: list[Segment],
+    segments: Iterator[Segment],
     *,
     score: ParsedScore,
     source_file: Path,
     duration_vocabulary: DurationVocabulary,
     profiler: ProcessingProfilerProtocol,
-) -> list[Segment]:
-    return [
-        _attach_difficulty_features_with_profile(
+) -> Iterator[Segment]:
+    for segment in segments:
+        yield _attach_difficulty_features_with_profile(
             segment,
             score=score,
             source_file=source_file,
             duration_vocabulary=duration_vocabulary,
             profiler=profiler,
         )
-        for segment in segments
-    ]
 
 
 def _attach_difficulty_features_with_profile(

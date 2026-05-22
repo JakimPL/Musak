@@ -2,7 +2,8 @@ from fractions import Fraction
 
 import pytest
 
-from musak_model.data.scale_match import match_scale, match_scale_histogram
+from musak_model.data.scale_matcher.config import ScaleMatcherConfig
+from musak_model.data.scale_matcher.matcher import match_scale, match_scale_histogram
 from musak_model.data.schema import ParsedBar, ParsedNote
 from musak_model.tokens.schema import ScaleType
 
@@ -113,10 +114,7 @@ def _match_bars(midi_pitches: list[int], *, declared_key_fifths: int | None = No
     return match_scale(
         [_bar(midi_pitches, declared_key_fifths=declared_key_fifths)],
         [_bar([])],
-        support_score_margin=0.08,
-        selection_score_margin=0.03,
-        maximum_unexplained_weight_fraction=0.1,
-        maximum_explanation_pitch_class_count=9,
+        config=_scale_matcher_config(),
     )
 
 
@@ -132,6 +130,23 @@ def _match_histogram(
     return match_scale_histogram(
         {pitch_class: Fraction(weight) for pitch_class, weight in weights.items()},
         declared_key_fifths=declared_key_fifths,
+        config=_scale_matcher_config(
+            support_score_margin=support_score_margin,
+            selection_score_margin=selection_score_margin,
+            maximum_unexplained_weight_fraction=maximum_unexplained_weight_fraction,
+            maximum_explanation_pitch_class_count=maximum_explanation_pitch_class_count,
+        ),
+    )
+
+
+def _scale_matcher_config(
+    *,
+    support_score_margin: float = 0.08,
+    selection_score_margin: float = 0.03,
+    maximum_unexplained_weight_fraction: float = 0.1,
+    maximum_explanation_pitch_class_count: int = 9,
+) -> ScaleMatcherConfig:
+    return ScaleMatcherConfig(
         support_score_margin=support_score_margin,
         selection_score_margin=selection_score_margin,
         maximum_unexplained_weight_fraction=maximum_unexplained_weight_fraction,

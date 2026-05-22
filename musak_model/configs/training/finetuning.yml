@@ -4,7 +4,7 @@ optimization:
   learning_rate: 1e-4
   weight_decay: 0.01
 runtime:
-  num_workers: 0
+  num_workers: 1
   device: cuda
 conditioning:
   use_time_signature: true

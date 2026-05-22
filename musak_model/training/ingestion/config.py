@@ -5,6 +5,7 @@ from typing import Final
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from musak_model.data.scale_matcher.config import ScaleMatcherConfig
 from musak_model.paths import INGESTION_CONFIG_PATH
 from musak_shared.files import load_yaml_config
 
@@ -16,6 +17,7 @@ class IngestionConfig(BaseModel):
 
     validation_fraction: float = Field(ge=0, lt=1)
     split_seed: int = _DEFAULT_SPLIT_SEED
+    scale_matcher: ScaleMatcherConfig
     difficulty_labels: dict[str, int | None] | None = None
     processed_root: Path | None = None
 

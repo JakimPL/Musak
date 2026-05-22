@@ -10,4 +10,4 @@ def build_processing_profiler(*, enabled: bool, output_dir: Path) -> ProcessingP
     if not enabled:
         return NULL_PROCESSING_PROFILER
 
-    return ProcessingProfiler(output_dir=output_dir)
+    return ProcessingProfiler(output_dir=output_dir, retain_records=False)

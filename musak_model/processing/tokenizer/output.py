@@ -1,5 +1,7 @@
 import csv
 from pathlib import Path
+from types import TracebackType
+from typing import Self, TextIO
 
 from pydantic import BaseModel
 
@@ -21,13 +23,40 @@ def append_jsonl_model(
 
 
 def append_encoded_manifest_rows(rows: list[dict[str, object]], path: Path) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    write_header = not path.exists()
-    with path.open("a", encoding="utf-8", newline="") as file:
-        writer = csv.DictWriter(file, fieldnames=[field.value for field in ENCODED_MANIFEST_FIELDS])
+    with EncodedManifestAppender(path) as appender:
+        for row in rows:
+            appender.append(row)
+
+
+class EncodedManifestAppender:
+    def __init__(self, path: Path) -> None:
+        self._path = path
+        self._file: TextIO | None = None
+        self._writer: csv.DictWriter[str] | None = None
+
+    def __enter__(self) -> Self:
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+        write_header = not self._path.exists()
+        self._file = self._path.open("a", encoding="utf-8", newline="")
+        self._writer = csv.DictWriter(self._file, fieldnames=[field.value for field in ENCODED_MANIFEST_FIELDS])
         if write_header:
-            writer.writeheader()
-        writer.writerows(rows)
+            self._writer.writeheader()
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
+        if self._file is not None:
+            self._file.close()
+
+    def append(self, row: dict[str, object]) -> None:
+        if self._writer is None:
+            raise RuntimeError("encoded manifest appender is not open")
+
+        self._writer.writerow(row)
 
 
 def truncate_text_lines(path: Path, line_count: int) -> None:

@@ -44,6 +44,7 @@ def test_make_help_documents_examples_and_variables() -> None:
     assert "PROCESS_OVERWRITE=1" in output
     assert "PROCESS_DISABLE_MLFLOW" in output
     assert "PROCESS_MLFLOW_EXPERIMENT" in output
+    assert "PROCESSING_CONFIG" in output
     assert "PROCESS_DIFFICULTY_LABELS" in output
     assert "PROCESS_WHOLE_FILE_SEGMENTS" in output
     assert "PROFILE=1" in output
@@ -60,6 +61,7 @@ def test_make_process_uses_data_dir_and_processed_root() -> None:
         "NUM_WORKERS=4",
         "PROCESS_MLFLOW_RUN_NAME=process-test",
         "PROCESS_MLFLOW_TRACKING_URI=file:///tmp/mlruns",
+        "PROCESSING_CONFIG=musak_model/configs/data/processing.yml",
         "PROCESS_DIFFICULTY_LABELS=data/PDMX/difficulty_labels.json",
         "PROCESS_WHOLE_FILE_SEGMENTS=1",
     )
@@ -69,6 +71,7 @@ def test_make_process_uses_data_dir_and_processed_root() -> None:
     assert '--stage "tokenize"' in output
     assert '--data-dir "data/PDMX"' in output
     assert '--processed-dir "processed"' in output
+    assert '--processing-config "musak_model/configs/data/processing.yml"' in output
     assert '--workers "4"' in output
     assert '--difficulty-labels "data/PDMX/difficulty_labels.json"' in output
     assert "--whole-file-segments" in output

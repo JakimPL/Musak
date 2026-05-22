@@ -1,0 +1,9 @@
+parsing:
+  workers: 16
+tokenization:
+  remove_segments_with_silent_bars: true
+  scale_matcher:
+    support_score_margin: 0.08
+    selection_score_margin: 0.03
+    maximum_unexplained_weight_fraction: 0.10
+    maximum_explanation_pitch_class_count: 9

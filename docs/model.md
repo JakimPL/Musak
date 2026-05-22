@@ -25,9 +25,10 @@ Each encoded JSONL row is an `EncodedExercise`:
 
 The current encoded PDMX artifact is a unified two-hand stream. It is not split into separate right-hand and left-hand samples.
 
-Data processing uses `DataProcessingConfig.remove_segments_with_silent_bars=True` by default. Segmentation still
-records silent-bar diagnostics, but processing marks any segment with a fully silent bar as ineligible with
-`silent_bar` before writing encoded samples. Edge-silent windows keep the more specific `silent_edge_bar` reason too.
+Data processing uses `musak_model/configs/data/processing.yml` for parsing and tokenization settings. Its
+`tokenization.remove_segments_with_silent_bars` field controls whether processing marks any segment with a fully
+silent bar as ineligible with `silent_bar` before writing encoded samples. Edge-silent windows keep the more specific
+`silent_edge_bar` reason too.
 
 Segmentation defaults to fixed-size sliding windows from `musak_model/configs/data/segmentation.yml`. For curated
 exercise datasets, processing can be run with `--whole-file-segments` to encode each source file as one segment. In
@@ -109,19 +110,21 @@ in_scale_weight_fraction = duration weight inside candidate pitch classes / tota
 ```
 
 The strict best candidate is the one with the highest `in_scale_weight_fraction`. The matcher then builds an
-explanation set from nearby candidates: candidates within `scale_match_support_score_margin` of the selected candidate
+explanation set from nearby candidates: candidates within `support_score_margin` of the selected candidate
 and with substantial pitch-class overlap are allowed to explain out-of-scale pitch classes. This makes melodic-minor and
 harmonic-minor mixtures visible as related scale variants instead of treating every natural or raised 6th and 7th as
 unexplained chromatic noise.
 
-Selection considers candidates within `scale_match_selection_score_margin` of the strict best score. Among these close
+Selection considers candidates within `selection_score_margin` of the strict best score. Among these close
 candidates, it prefers the one with the least unexplained duration weight, then the highest strict score, then the
-declared key-signature pitch set when it applies. Final deterministic ordering uses the configured scale-family order,
+declared key-signature pitch set when it applies. Final deterministic ordering uses the `ScaleType` declaration order,
 then the simpler key-signature root, then the lower numeric root. This tie policy prevents random dataset churn while
 making declared metadata useful only when the notes do not disambiguate the scale. Natural minor is represented by its
 relative major pitch set, so the major root can differ from the harmonic- or melodic-minor root by a minor third.
 
-The matcher records these diagnostics for every encoded-manifest row:
+Processing scale-match thresholds are configured under the processing YAML `tokenization.scale_matcher` section. The
+same `ScaleMatcherConfig` shape is used by training ingestion when raw/parsed fallback needs to rebuild samples. The
+matcher records these diagnostics for every encoded-manifest row:
 
 - `in_scale_weight_fraction` and `out_of_scale_weight_fraction`;
 - `explained_out_of_scale_weight_fraction` and `unexplained_out_of_scale_weight_fraction`;
@@ -133,12 +136,11 @@ The matcher records these diagnostics for every encoded-manifest row:
 - `declared_match_used`;
 - `low_confidence`, `ambiguous`, and `no_pitches`.
 
-Processing can mark segments ineligible based on configurable thresholds. The default policy excludes weak matches:
-`scale_match_maximum_unexplained_weight_fraction = 0.10` and
-`scale_match_maximum_explanation_pitch_class_count = 9`. A segment is marked `scale_match_low_confidence` when too much
-pitched duration remains unexplained by the selected scale and close variants, when the explanation set becomes too
-broad, or when there are no pitches. Ambiguity is logged as a diagnostic only, because an ambiguous but musically narrow
-pitch set is still usable for training. A segment with no pitched events is also marked `scale_match_no_pitches`.
+Processing can mark segments ineligible based on configurable thresholds. A segment is marked
+`scale_match_low_confidence` when too much pitched duration remains unexplained by the selected scale and close
+variants, when the explanation set becomes too broad, or when there are no pitches. Ambiguity is logged as a diagnostic
+only, because an ambiguous but musically narrow pitch set is still usable for training. A segment with no pitched events
+is also marked `scale_match_no_pitches`.
 
 This procedure is intentionally not a full tonal analysis. It does not infer cadences, tonic function, modulation,
 borrowed harmony, or enharmonic spelling intent. It only chooses a stable pitch-set basis for scale-relative

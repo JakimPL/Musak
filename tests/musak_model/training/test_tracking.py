@@ -64,7 +64,7 @@ class FakeMlflow(ModuleType):
 def _training_config(tmp_path: Path, *, enable_mlflow: bool = True, tracking_uri: str | None = None) -> TrainingConfig:
     return TrainingConfig(
         optimization=OptimizationConfig(epochs=1, batch_size=2, learning_rate=0.001, weight_decay=0.0),
-        runtime=RuntimeConfig(num_workers=0, device="cpu"),
+        runtime=RuntimeConfig(num_workers=1, device="cpu"),
         conditioning=TrainingConditioningConfig(
             use_time_signature=False,
             use_scale_type=False,

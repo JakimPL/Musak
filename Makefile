@@ -8,6 +8,7 @@ PROCESS_DISABLE_MLFLOW ?=
 PROCESS_MLFLOW_EXPERIMENT ?= musak-process
 PROCESS_MLFLOW_RUN_NAME ?=
 PROCESS_MLFLOW_TRACKING_URI ?= $(MLFLOW_TRACKING_URI)
+PROCESSING_CONFIG ?=
 PROCESS_DIFFICULTY_LABELS ?=
 PROCESS_WHOLE_FILE_SEGMENTS ?=
 PROCESS_PROFILE ?= $(PROFILE)
@@ -73,6 +74,7 @@ help:
 	@printf '%s\n' '  PROCESS_OVERWRITE=1   Pass --overwrite to process. Defaults to OVERWRITE when set.'
 	@printf '%s\n' '  PROCESS_DISABLE_MLFLOW=1 disables process MLflow dataset metrics.'
 	@printf '%s\n' '  PROCESS_MLFLOW_EXPERIMENT, PROCESS_MLFLOW_RUN_NAME, PROCESS_MLFLOW_TRACKING_URI configure process MLflow logging.'
+	@printf '%s\n' '  PROCESSING_CONFIG    Optional parsing/tokenization processing YAML override.'
 	@printf '%s\n' '  PROCESS_DIFFICULTY_LABELS Optional difficulty-label JSON/YAML path for process.'
 	@printf '%s\n' '  PROCESS_WHOLE_FILE_SEGMENTS=1 passes --whole-file-segments to process.'
 	@printf '%s\n' '  PROFILE=1 or PROCESS_PROFILE=1 passes --profile to process.'
@@ -118,9 +120,14 @@ tokenize:
 	$(call require_var,DATA_DIR)
 	$(call process_dataset_command,tokenize)
 
-process: parse tokenize
+process:
+	$(call require_var,DATA_DIR)
+	$(call process_dataset_command,parse)
+	$(call process_dataset_command,tokenize)
 
-train: pretrain finetune
+train:
+	$(MAKE) pretrain
+	$(MAKE) finetune
 
 pretrain:
 	$(call require_var,PRETRAIN_DATA_DIR)
@@ -184,6 +191,7 @@ define process_dataset_command
 		--data-dir "$(DATA_DIR)" \
 		--processed-dir "$(PROCESSED_ROOT)" \
 		--stage "$(1)" \
+		$(call optional_arg,PROCESSING_CONFIG,--processing-config) \
 		$(call optional_arg,NUM_WORKERS,--workers) \
 		$(call optional_arg,PROCESS_DIFFICULTY_LABELS,--difficulty-labels) \
 		$(call optional_flag,PROCESS_WHOLE_FILE_SEGMENTS,--whole-file-segments) \

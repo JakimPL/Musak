@@ -1,4 +1,9 @@
 validation_fraction: 0.2
 split_seed: 17
+scale_matcher:
+  support_score_margin: 0.08
+  selection_score_margin: 0.03
+  maximum_unexplained_weight_fraction: 0.10
+  maximum_explanation_pitch_class_count: 9
 difficulty_labels: null
 processed_root: processed

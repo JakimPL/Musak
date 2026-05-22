@@ -9,12 +9,7 @@ from musak_model.processing.parser.manifest import (
     reusable_parsed_manifest_rows,
     reused_parsed_result,
 )
-from musak_model.processing.parser.schema import (
-    ParseDatasetResult,
-    ParsedScoreArtifact,
-    ParsedScoreResult,
-    ParsedScoreTask,
-)
+from musak_model.processing.parser.schema import ParseDatasetResult, ParsedScoreResult, ParsedScoreTask
 from musak_model.processing.parser.worker import run_parsed_score_tasks
 from musak_model.processing.paths import ProcessedDatasetPaths
 from musak_model.processing.profiler import NULL_PROCESSING_PROFILER, ProcessingProfilerProtocol
@@ -50,7 +45,7 @@ def parse_dataset(
 
     paths = ProcessedDatasetPaths.from_dataset_root(processed_root=processed_root, dataset_root=dataset_root)
     _LOGGER.info("Parsing dataset from %s into %s", dataset_root, paths.root)
-    rows, parsed_scores = _parse_scores(
+    rows = _parse_scores(
         dataset_root,
         paths=paths,
         overwrite=overwrite,
@@ -59,7 +54,7 @@ def parse_dataset(
         profiler=profiler,
     )
     _write_manifest(rows, paths=paths, profiler=profiler)
-    return _parse_dataset_result(rows, parsed_scores=parsed_scores, paths=paths)
+    return _parse_dataset_result(rows, paths=paths)
 
 
 def _parse_scores(
@@ -70,15 +65,15 @@ def _parse_scores(
     workers: int,
     show_progress: bool,
     profiler: ProcessingProfilerProtocol,
-) -> tuple[list[dict[str, object]], list[ParsedScoreArtifact]]:
-    with profiler.measure("process_parsed_scores"):
-        return _process_parsed_scores(
-            dataset_root,
-            paths=paths,
-            overwrite=overwrite,
-            workers=workers,
-            show_progress=show_progress,
-        )
+) -> list[dict[str, object]]:
+    return _process_parsed_scores(
+        dataset_root,
+        paths=paths,
+        overwrite=overwrite,
+        workers=workers,
+        show_progress=show_progress,
+        profiler=profiler,
+    )
 
 
 def _process_parsed_scores(
@@ -88,20 +83,32 @@ def _process_parsed_scores(
     overwrite: bool,
     workers: int,
     show_progress: bool,
-) -> tuple[list[dict[str, object]], list[ParsedScoreArtifact]]:
-    source_paths = collect_musicxml_files(dataset_root)
-    plan, reuse_stats = _build_parse_plan(
-        source_paths,
-        dataset_root=dataset_root,
-        paths=paths,
-        overwrite=overwrite,
-    )
+    profiler: ProcessingProfilerProtocol,
+) -> list[dict[str, object]]:
+    with profiler.measure("collect_musicxml_files"):
+        source_paths = collect_musicxml_files(dataset_root)
+    with profiler.measure("build_parse_plan"):
+        plan, reuse_stats = _build_parse_plan(
+            source_paths,
+            dataset_root=dataset_root,
+            paths=paths,
+            overwrite=overwrite,
+        )
     _log_reuse_stats(source_count=len(source_paths), task_count=len(plan.tasks), stats=reuse_stats)
-    _run_tasks_with_partial_manifest(plan, paths=paths, workers=workers, show_progress=show_progress)
-    results = _filled_results(plan.ordered_results)
-    parsed_scores = _parsed_artifacts(results)
-    _LOGGER.info("Parsed %s/%s source file(s)", len(parsed_scores), len(source_paths))
-    return [result.row for result in results], parsed_scores
+    with profiler.measure("run_parse_tasks"):
+        _run_tasks_with_partial_manifest(
+            plan,
+            paths=paths,
+            workers=workers,
+            show_progress=show_progress,
+            profiler=profiler,
+        )
+    with profiler.measure("finalize_parse_results"):
+        results = _filled_results(plan.ordered_results)
+        rows = [result.row for result in results]
+        parsed_count = sum(row[ParsedManifestField.STATUS] == ParsedManifestStatus.SUCCESS.value for row in rows)
+    _LOGGER.info("Parsed %s/%s source file(s)", parsed_count, len(source_paths))
+    return rows
 
 
 def _build_parse_plan(
@@ -135,7 +142,7 @@ def _build_parse_plan(
             continue
 
         ordered_results[index] = reused_result
-        if reused_result.score is None:
+        if reused_result.row[ParsedManifestField.STATUS] == ParsedManifestStatus.ERROR.value:
             error_count += 1
         else:
             success_count += 1
@@ -206,6 +213,7 @@ def _run_tasks_with_partial_manifest(
     paths: ProcessedDatasetPaths,
     workers: int,
     show_progress: bool,
+    profiler: ProcessingProfilerProtocol,
 ) -> None:
     completed = False
     try:
@@ -214,24 +222,27 @@ def _run_tasks_with_partial_manifest(
             workers=workers,
             show_progress=show_progress,
             ordered_results=plan.ordered_results,
+            profiler=profiler,
         )
         completed = True
     finally:
         if not completed:
-            _write_partial_manifest(plan.ordered_results, paths=paths)
+            _write_partial_manifest(plan.ordered_results, paths=paths, profiler=profiler)
 
 
 def _write_partial_manifest(
     results: list[ParsedScoreResult | None],
     *,
     paths: ProcessedDatasetPaths,
+    profiler: ProcessingProfilerProtocol,
 ) -> None:
     partial_rows = [result.row for result in results if result is not None]
     if not partial_rows:
         return
 
     _LOGGER.info("Writing partial parsed manifest to %s", paths.parsed_manifest_path)
-    write_parsed_manifest(partial_rows, paths.parsed_manifest_path)
+    with profiler.measure("write_partial_parsed_manifest"):
+        write_parsed_manifest(partial_rows, paths.parsed_manifest_path)
     _LOGGER.info("Wrote partial parsed manifest with %s row(s)", len(partial_rows))
 
 
@@ -251,29 +262,14 @@ def _write_manifest(
 def _parse_dataset_result(
     rows: list[dict[str, object]],
     *,
-    parsed_scores: list[ParsedScoreArtifact],
     paths: ProcessedDatasetPaths,
 ) -> ParseDatasetResult:
     return ParseDatasetResult(
         parsed_manifest_path=paths.parsed_manifest_path,
         parsed_count=sum(1 for row in rows if row[ParsedManifestField.STATUS] == ParsedManifestStatus.SUCCESS.value),
         error_count=sum(1 for row in rows if row[ParsedManifestField.STATUS] == ParsedManifestStatus.ERROR.value),
-        parsed_scores=tuple(parsed_scores),
     )
 
 
 def _filled_results(results: list[ParsedScoreResult | None]) -> list[ParsedScoreResult]:
     return [result for result in results if result is not None]
-
-
-def _parsed_artifacts(results: list[ParsedScoreResult]) -> list[ParsedScoreArtifact]:
-    return [
-        ParsedScoreArtifact(
-            source_id_value=result.source_id_value,
-            source_path=result.source_path,
-            parsed_path=result.parsed_path,
-            score=result.score,
-        )
-        for result in results
-        if result.score is not None
-    ]

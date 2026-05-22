@@ -14,6 +14,7 @@ from musak_model.processing.io import load_parsed_score_json, write_json_model
 from musak_model.processing.manifest import parsed_error_row, parsed_success_row
 from musak_model.processing.parser.schema import ParsedScoreResult, ParsedScoreTask
 from musak_model.processing.parser.title import score_title
+from musak_model.processing.profiler import NULL_PROCESSING_PROFILER, ProcessingProfilerProtocol
 from musak_model.processing.progress import progress
 
 
@@ -23,12 +24,18 @@ def run_parsed_score_tasks(
     workers: int,
     show_progress: bool,
     ordered_results: list[ParsedScoreResult | None],
+    profiler: ProcessingProfilerProtocol = NULL_PROCESSING_PROFILER,
 ) -> None:
     if not tasks:
         return
 
     if workers == 1:
-        _run_parsed_score_tasks_serially(tasks, show_progress=show_progress, ordered_results=ordered_results)
+        _run_parsed_score_tasks_serially(
+            tasks,
+            show_progress=show_progress,
+            ordered_results=ordered_results,
+            profiler=profiler,
+        )
         return
 
     _run_parsed_score_tasks_in_parallel(
@@ -66,7 +73,6 @@ def process_parsed_score_task(task: ParsedScoreTask) -> ParsedScoreResult:
                 exception=exception,
                 parse_diagnostics=diagnostics,
             ),
-            score=None,
         )
 
     return ParsedScoreResult(
@@ -84,7 +90,6 @@ def process_parsed_score_task(task: ParsedScoreTask) -> ParsedScoreResult:
             score=score,
             parse_diagnostics=diagnostics,
         ),
-        score=score,
     )
 
 
@@ -93,9 +98,11 @@ def _run_parsed_score_tasks_serially(
     *,
     show_progress: bool,
     ordered_results: list[ParsedScoreResult | None],
+    profiler: ProcessingProfilerProtocol,
 ) -> None:
     for task in progress(tasks, description="Parsing scores", unit="score", enabled=show_progress):
-        result = process_parsed_score_task(task)
+        with profiler.measure("parse_score_task", source_file=task.source_path):
+            result = process_parsed_score_task(task)
         ordered_results[result.index] = result
 
 
@@ -120,6 +127,7 @@ def _run_parsed_score_tasks_in_parallel(
         ):
             result = future.result()
             ordered_results[result.index] = result
+            del futures[future]
 
 
 def _process_pool_context() -> BaseContext:

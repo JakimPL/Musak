@@ -8,8 +8,10 @@ from music21.note import Note
 from music21.stream.base import Measure, Part, Score
 
 from musak_model.conditioning.time_signature import TimeSignatureVocabulary, TimeSignatureVocabularyConfig
-from musak_model.data.config import DataProcessingConfig, SegmentationConfig, SegmentationMode
+from musak_model.data.config import SegmentationConfig, SegmentationMode
+from musak_model.data.scale_matcher.config import ScaleMatcherConfig
 from musak_model.data.schema import Segment, SegmentIneligibilityReason, SegmentMetadata
+from musak_model.processing.config import ParsingProcessingConfig, ProcessingConfig, TokenizationProcessingConfig
 from musak_model.processing.dataset import process_dataset
 from musak_model.tokens.config import TokenizationConfig
 from musak_model.tokens.duration import DurationVocabulary
@@ -31,6 +33,25 @@ def _conditioning_config() -> TrainingConditioningConfig:
         use_structural_conditioning=False,
         use_validity_penalty=False,
         validity_penalty_weight=0.05,
+    )
+
+
+def _processing_config() -> ProcessingConfig:
+    return ProcessingConfig(
+        parsing=ParsingProcessingConfig(workers=1),
+        tokenization=TokenizationProcessingConfig(
+            remove_segments_with_silent_bars=True,
+            scale_matcher=_scale_matcher_config(),
+        ),
+    )
+
+
+def _scale_matcher_config() -> ScaleMatcherConfig:
+    return ScaleMatcherConfig(
+        support_score_margin=0.08,
+        selection_score_margin=0.03,
+        maximum_unexplained_weight_fraction=0.10,
+        maximum_explanation_pitch_class_count=9,
     )
 
 
@@ -82,6 +103,7 @@ def _ingestion_config(*, split_seed: int, validation_fraction: float) -> Ingesti
     return IngestionConfig(
         validation_fraction=validation_fraction,
         split_seed=split_seed,
+        scale_matcher=_scale_matcher_config(),
         difficulty_labels=None,
     )
 
@@ -105,6 +127,7 @@ def test_build_ingestion_split_is_deterministic(
         duration_vocabulary: DurationVocabulary,
         *,
         segmentation_config: SegmentationConfig,
+        scale_matcher_config: ScaleMatcherConfig,
         difficulty_labels: dict[str, int] | None,
     ) -> list[Segment]:
         return [_segment(path, duration_vocabulary=duration_vocabulary)]
@@ -147,6 +170,7 @@ def test_build_ingestion_split_collects_invalid_file_errors(
         duration_vocabulary: DurationVocabulary,
         *,
         segmentation_config: SegmentationConfig,
+        scale_matcher_config: ScaleMatcherConfig,
         difficulty_labels: dict[str, int] | None,
     ) -> list[Segment]:
         if path.name == "bad.mxl":
@@ -209,6 +233,7 @@ def test_build_ingestion_split_filters_ineligible_segments(
         duration_vocabulary: DurationVocabulary,
         *,
         segmentation_config: SegmentationConfig,
+        scale_matcher_config: ScaleMatcherConfig,
         difficulty_labels: dict[str, int] | None,
     ) -> list[Segment]:
         return [
@@ -250,7 +275,7 @@ def test_build_ingestion_split_prefers_encoded_artifacts(
         processed_root=processed_root,
         segmentation_config=SegmentationConfig(window_bars=1, stride_bars=1),
         tokenization_config=tokenization_config,
-        data_processing_config=DataProcessingConfig(remove_segments_with_silent_bars=True),
+        processing_config=_processing_config(),
         stage="process",
         overwrite=True,
     )
@@ -264,6 +289,7 @@ def test_build_ingestion_split_prefers_encoded_artifacts(
         config=IngestionConfig(
             validation_fraction=0.0,
             split_seed=17,
+            scale_matcher=_scale_matcher_config(),
             difficulty_labels=None,
             processed_root=processed_root,
         ),
@@ -295,7 +321,7 @@ def test_build_ingestion_split_rejects_windowed_encoded_artifacts_for_whole_file
         processed_root=processed_root,
         segmentation_config=SegmentationConfig(window_bars=1, stride_bars=1, mode=SegmentationMode.WINDOWED),
         tokenization_config=tokenization_config,
-        data_processing_config=DataProcessingConfig(remove_segments_with_silent_bars=True),
+        processing_config=_processing_config(),
         stage="process",
         overwrite=True,
     )
@@ -306,6 +332,7 @@ def test_build_ingestion_split_rejects_windowed_encoded_artifacts_for_whole_file
             config=IngestionConfig(
                 validation_fraction=0.0,
                 split_seed=17,
+                scale_matcher=_scale_matcher_config(),
                 difficulty_labels=None,
                 processed_root=processed_root,
             ),
@@ -333,7 +360,7 @@ def test_raw_ingestion_pipeline_preserves_short_measure_bar_tokens(
 
     split = build_split(
         tmp_path,
-        config=IngestionConfig(validation_fraction=0.0, split_seed=17),
+        config=IngestionConfig(validation_fraction=0.0, split_seed=17, scale_matcher=_scale_matcher_config()),
         segmentation=SegmentationConfig(window_bars=1, stride_bars=1, mode=SegmentationMode.WHOLE_FILE),
         tokenization_config=tokenization_config,
     )
@@ -379,7 +406,7 @@ def test_build_ingestion_split_ignores_encoded_artifacts_without_matching_snapsh
         processed_root=processed_root,
         segmentation_config=SegmentationConfig(window_bars=1, stride_bars=1),
         tokenization_config=tokenization_config,
-        data_processing_config=DataProcessingConfig(remove_segments_with_silent_bars=True),
+        processing_config=_processing_config(),
         stage="process",
         overwrite=True,
     )
@@ -395,6 +422,7 @@ def test_build_ingestion_split_ignores_encoded_artifacts_without_matching_snapsh
         config=IngestionConfig(
             validation_fraction=0.0,
             split_seed=17,
+            scale_matcher=_scale_matcher_config(),
             difficulty_labels=None,
             processed_root=processed_root,
         ),
@@ -426,7 +454,7 @@ def test_build_ingestion_split_falls_back_to_parsed_artifacts(
         processed_root=processed_root,
         segmentation_config=SegmentationConfig(window_bars=1, stride_bars=1),
         tokenization_config=tokenization_config,
-        data_processing_config=DataProcessingConfig(remove_segments_with_silent_bars=True),
+        processing_config=_processing_config(),
         stage="parse",
         overwrite=True,
     )
@@ -440,6 +468,7 @@ def test_build_ingestion_split_falls_back_to_parsed_artifacts(
         config=IngestionConfig(
             validation_fraction=0.0,
             split_seed=17,
+            scale_matcher=_scale_matcher_config(),
             difficulty_labels=None,
             processed_root=processed_root,
         ),
@@ -469,6 +498,7 @@ def test_build_ingestion_split_requires_raw_fallback_when_processed_artifacts_ar
             config=IngestionConfig(
                 validation_fraction=0.0,
                 split_seed=17,
+                scale_matcher=_scale_matcher_config(),
                 difficulty_labels=None,
                 processed_root=processed_root,
             ),
@@ -485,6 +515,11 @@ def test_load_ingestion_config_reads_yaml(tmp_path: Path) -> None:
             [
                 "validation_fraction: 0.25",
                 "split_seed: 99",
+                "scale_matcher:",
+                "  support_score_margin: 0.08",
+                "  selection_score_margin: 0.03",
+                "  maximum_unexplained_weight_fraction: 0.10",
+                "  maximum_explanation_pitch_class_count: 9",
                 "difficulty_labels:",
                 "  sample: 3",
             ]
@@ -503,6 +538,7 @@ def test_ingestion_config_rejects_invalid_validation_fraction() -> None:
         IngestionConfig(
             validation_fraction=1.0,
             split_seed=17,
+            scale_matcher=_scale_matcher_config(),
             difficulty_labels=None,
         )
 
