@@ -16,15 +16,23 @@ from musak_model.data.config import (
 )
 from musak_model.paths import (
     DEFAULT_PROCESSED_ROOT,
+    DEFAULT_PROCESSING_PROFILE_OUTPUT_DIR,
     SEGMENTATION_CONFIG_PATH,
     TOKENIZATION_CONFIG_PATH,
 )
 from musak_model.processing.dataset import process_dataset
+from musak_model.processing.profiler import build_processing_profiler
 from musak_model.processing.tracking import ProcessingMlflowConfig, build_processing_tracker
 from musak_model.tokens.config import TokenizationConfig
 from musak_shared.files import collect_musicxml_files
 
 _LOGGER = logging.getLogger(__name__)
+_LOG_LEVELS = {
+    "DEBUG": logging.DEBUG,
+    "INFO": logging.INFO,
+    "WARNING": logging.WARNING,
+    "ERROR": logging.ERROR,
+}
 
 
 class _ProcessDatasetHelpFormatter(
@@ -57,24 +65,29 @@ def main() -> None:
     _LOGGER.info("Segmentation mode: %s", segmentation_config.mode.value)
     _LOGGER.info("Tokenization config: %s", args.tokenization_config)
     _LOGGER.info("Remove segments with silent bars: %s", args.remove_segments_with_silent_bars)
-    source_files = collect_musicxml_files(args.data_dir)
-    if not source_files:
+    _LOGGER.info("Profiler enabled: %s", args.profile)
+    if args.profile:
+        _LOGGER.info("Profile output directory: %s", args.profile_output_dir)
+    source_files = collect_musicxml_files(args.data_dir) if args.stage in {"parse", "process"} else []
+    if args.stage in {"parse", "process"} and not source_files:
         _LOGGER.warning(
             "No MusicXML files found in %s. Expected files with .mxl, .xml, or .musicxml suffixes.",
             args.data_dir,
         )
         return
 
-    _LOGGER.info("MusicXML files found: %s", len(source_files))
+    if source_files:
+        _LOGGER.info("MusicXML files found: %s", len(source_files))
+    profiler = build_processing_profiler(enabled=args.profile, output_dir=args.profile_output_dir)
     tracker = build_processing_tracker(
         config=ProcessingMlflowConfig(
-            enabled=not args.disable_mlflow,
+            enabled=not args.disable_mlflow and not args.profile,
             experiment_name=args.mlflow_experiment_name,
             run_name=args.mlflow_run_name,
             tracking_uri=args.mlflow_tracking_uri,
         )
     )
-    with tracker:
+    with tracker, profiler:
         result = process_dataset(
             args.data_dir,
             processed_root=args.processed_dir,
@@ -94,7 +107,9 @@ def main() -> None:
             overwrite=args.overwrite,
             workers=args.workers,
             show_progress=not args.no_progress,
+            profiler=profiler,
         )
+        profiler.step()
         tracker.log_processing_result(
             result=result,
             data_dir=args.data_dir,
@@ -102,6 +117,9 @@ def main() -> None:
             stage=args.stage,
             overwrite=args.overwrite,
         )
+    if profiler.enabled:
+        profiler.write_reports()
+        _LOGGER.info("Profile reports written to %s", args.profile_output_dir)
     _LOGGER.info("Finished dataset processing")
     _LOGGER.info("Parsed manifest: %s", result.parsed_manifest_path)
     if result.encoded_manifest_path is not None:
@@ -123,7 +141,7 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
             "Examples:\n"
             "  uv run python scripts/process_dataset.py --data-dir data/PDMX\n"
             "  uv run python scripts/process_dataset.py --data-dir data/PDMX --processed-dir processed --workers 8\n"
-            "  uv run python scripts/process_dataset.py --data-dir data/PDMX --stage parsed --no-progress\n\n"
+            "  uv run python scripts/process_dataset.py --data-dir data/PDMX --stage parse --no-progress\n\n"
             "Output layout:\n"
             "  Artifacts are written below <processed-dir>/<data-dir.name>/.\n"
             "  For example, --data-dir data/PDMX --processed-dir processed writes to processed/PDMX/.\n"
@@ -145,8 +163,8 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--stage",
-        choices=("parsed", "encoded", "all"),
-        default="all",
+        choices=("parse", "tokenize", "process"),
+        default="process",
         help="Processing stage to run: parsed JSON only, encoded JSONL from parsed scores, or both.",
     )
     parser.add_argument(
@@ -218,6 +236,17 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--no-progress", action="store_true", help="Disable tqdm progress bars.")
     parser.add_argument("--overwrite", action="store_true", help="Overwrite existing parsed/encoded artifacts.")
+    parser.add_argument(
+        "--profile",
+        action="store_true",
+        help="Write processing timing and torch profiler reports without logging the run to MLflow.",
+    )
+    parser.add_argument(
+        "--profile-output-dir",
+        type=Path,
+        default=DEFAULT_PROCESSING_PROFILE_OUTPUT_DIR,
+        help="Directory for processing timing and torch profiler reports.",
+    )
     parser.add_argument("--disable-mlflow", action="store_true", help="Disable MLflow dataset metric logging.")
     parser.add_argument(
         "--mlflow-experiment-name",
@@ -235,7 +264,7 @@ def _default_worker_count() -> int:
 
 def _configure_logging(level: str) -> None:
     logging.basicConfig(
-        level=getattr(logging, level),
+        level=_LOG_LEVELS[level],
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
 

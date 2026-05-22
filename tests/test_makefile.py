@@ -32,6 +32,8 @@ def test_make_help_documents_examples_and_variables() -> None:
     output = _make_dry_run("help")
 
     assert "Musak development commands" in output
+    assert "make parse" in output
+    assert "make tokenize" in output
     assert "make pretrain" in output
     assert "make finetune" in output
     assert "make mlflow" in output
@@ -44,6 +46,8 @@ def test_make_help_documents_examples_and_variables() -> None:
     assert "PROCESS_MLFLOW_EXPERIMENT" in output
     assert "PROCESS_DIFFICULTY_LABELS" in output
     assert "PROCESS_WHOLE_FILE_SEGMENTS" in output
+    assert "PROFILE=1" in output
+    assert "PROCESS_PROFILE=1" in output
     assert "FINETUNE_DIFFICULTY_LABELS" in output
     assert "FINETUNE_WHOLE_FILE_SEGMENTS" in output
 
@@ -61,6 +65,8 @@ def test_make_process_uses_data_dir_and_processed_root() -> None:
     )
 
     assert "scripts/process_dataset.py" in output
+    assert '--stage "parse"' in output
+    assert '--stage "tokenize"' in output
     assert '--data-dir "data/PDMX"' in output
     assert '--processed-dir "processed"' in output
     assert '--workers "4"' in output
@@ -93,6 +99,26 @@ def test_make_process_can_disable_mlflow() -> None:
     output = _make_dry_run("process", "DATA_DIR=data/PDMX", "PROCESS_DISABLE_MLFLOW=1")
 
     assert "--disable-mlflow" in output
+
+
+def test_make_process_supports_profile_flag() -> None:
+    output = _make_dry_run("process", "DATA_DIR=data/PDMX", "PROFILE=1")
+
+    assert "--profile" in output
+
+
+def test_make_process_supports_process_specific_profile_flag() -> None:
+    output = _make_dry_run("process", "DATA_DIR=data/PDMX", "PROCESS_PROFILE=1")
+
+    assert "--profile" in output
+
+
+def test_make_parse_and_tokenize_expose_separate_stages() -> None:
+    parse_output = _make_dry_run("parse", "DATA_DIR=data/PDMX")
+    tokenize_output = _make_dry_run("tokenize", "DATA_DIR=data/PDMX")
+
+    assert '--stage "parse"' in parse_output
+    assert '--stage "tokenize"' in tokenize_output
 
 
 def test_make_train_pretrain_uses_descriptive_variables() -> None:

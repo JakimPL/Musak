@@ -232,14 +232,14 @@ def test_build_ingestion_split_prefers_encoded_artifacts(
         right_hand_bars=[bar([note_event(midi_pitch=72, duration=Fraction(1, 4), beat_offset=Fraction(0))])],
         left_hand_bars=[bar([note_event(midi_pitch=48, duration=Fraction(1, 4), beat_offset=Fraction(0))])],
     )
-    monkeypatch.setattr("musak_model.processing.dataset.parse_score", lambda path: score)
+    monkeypatch.setattr("musak_model.processing.parse.parse_score", lambda path: score)
     process_dataset(
         dataset_root,
         processed_root=processed_root,
         segmentation_config=SegmentationConfig(window_bars=1, stride_bars=1),
         tokenization_config=tokenization_config,
         data_processing_config=DataProcessingConfig(remove_segments_with_silent_bars=True),
-        stage="all",
+        stage="process",
         overwrite=True,
     )
     monkeypatch.setattr(
@@ -277,14 +277,14 @@ def test_build_ingestion_split_rejects_windowed_encoded_artifacts_for_whole_file
         right_hand_bars=[bar([note_event(midi_pitch=72, duration=Fraction(1, 4), beat_offset=Fraction(0))])],
         left_hand_bars=[bar([note_event(midi_pitch=48, duration=Fraction(1, 4), beat_offset=Fraction(0))])],
     )
-    monkeypatch.setattr("musak_model.processing.dataset.parse_score", lambda path: score)
+    monkeypatch.setattr("musak_model.processing.parse.parse_score", lambda path: score)
     process_dataset(
         dataset_root,
         processed_root=processed_root,
         segmentation_config=SegmentationConfig(window_bars=1, stride_bars=1, mode=SegmentationMode.WINDOWED),
         tokenization_config=tokenization_config,
         data_processing_config=DataProcessingConfig(remove_segments_with_silent_bars=True),
-        stage="all",
+        stage="process",
         overwrite=True,
     )
 
@@ -360,14 +360,14 @@ def test_build_ingestion_split_ignores_encoded_artifacts_without_matching_snapsh
         right_hand_bars=[bar([note_event(midi_pitch=72, duration=Fraction(1, 4), beat_offset=Fraction(0))])],
         left_hand_bars=[bar([note_event(midi_pitch=48, duration=Fraction(1, 4), beat_offset=Fraction(0))])],
     )
-    monkeypatch.setattr("musak_model.processing.dataset.parse_score", lambda path: score)
+    monkeypatch.setattr("musak_model.processing.parse.parse_score", lambda path: score)
     result = process_dataset(
         dataset_root,
         processed_root=processed_root,
         segmentation_config=SegmentationConfig(window_bars=1, stride_bars=1),
         tokenization_config=tokenization_config,
         data_processing_config=DataProcessingConfig(remove_segments_with_silent_bars=True),
-        stage="all",
+        stage="process",
         overwrite=True,
     )
     assert result.tokenizer_snapshot_path is not None
@@ -407,14 +407,14 @@ def test_build_ingestion_split_falls_back_to_parsed_artifacts(
         right_hand_bars=[bar([note_event(midi_pitch=72, duration=Fraction(1, 4), beat_offset=Fraction(0))])],
         left_hand_bars=[bar([note_event(midi_pitch=48, duration=Fraction(1, 4), beat_offset=Fraction(0))])],
     )
-    monkeypatch.setattr("musak_model.processing.dataset.parse_score", lambda path: score)
+    monkeypatch.setattr("musak_model.processing.parse.parse_score", lambda path: score)
     process_dataset(
         dataset_root,
         processed_root=processed_root,
         segmentation_config=SegmentationConfig(window_bars=1, stride_bars=1),
         tokenization_config=tokenization_config,
         data_processing_config=DataProcessingConfig(remove_segments_with_silent_bars=True),
-        stage="parsed",
+        stage="parse",
         overwrite=True,
     )
     monkeypatch.setattr(

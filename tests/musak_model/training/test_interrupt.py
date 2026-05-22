@@ -40,6 +40,8 @@ def _args(**overrides: object) -> argparse.Namespace:
         "split_seed": None,
         "window_bars": None,
         "stride_bars": None,
+        "whole_file_segments": False,
+        "save_all_epochs": False,
         "difficulty_labels": None,
         "mlflow_experiment_name": None,
         "mlflow_run_name": None,
@@ -106,6 +108,29 @@ def test_resume_command_for_finetuning_includes_pretrain_checkpoint(tmp_path: Pa
     assert f"--resume-checkpoint {latest_checkpoint}" in command
     assert "--epochs 8" in command
     assert f"--pretrain-checkpoint {pretrain_checkpoint}" in command
+
+
+def test_resume_command_preserves_save_all_epochs(tmp_path: Path) -> None:
+    latest_checkpoint = tmp_path / "finetuning" / "latest.pt"
+    pretrain_checkpoint = tmp_path / "pretraining" / "best.pt"
+    config = FinetuningTrainingConfig(
+        optimization=OptimizationConfig(epochs=8, batch_size=8, learning_rate=0.001, weight_decay=0.0),
+        runtime=RuntimeConfig(num_workers=4, device="cuda"),
+        checkpoints=FinetuningCheckpointConfig(
+            checkpoint_dir=latest_checkpoint.parent,
+            pretraining_checkpoint=pretrain_checkpoint,
+            save_all_epochs=True,
+        ),
+    )
+
+    command = resume_command(
+        stage=TrainingStage.FINETUNING,
+        args=_args(training_config=Path("musak_model/configs/training/finetuning.yml")),
+        training_config=config,
+        checkpoint_path=latest_checkpoint,
+    )
+
+    assert "--save-all-epochs" in command
 
 
 def test_keyboard_interrupt_prints_resume_command_when_latest_checkpoint_exists(

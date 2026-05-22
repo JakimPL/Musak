@@ -13,6 +13,7 @@ from musak_model.data.labeler import extract_difficulty_features
 from musak_model.data.parser import parse_score
 from musak_model.data.schema import ParsedScore, Segment, SegmentIneligibilityReason
 from musak_model.data.segmenter.segmenter import segment_score
+from musak_model.processing.profiler import NULL_PROCESSING_PROFILER, ProcessingProfilerProtocol
 from musak_model.tokens.duration import DurationVocabulary
 from musak_shared.files import collect_musicxml_files
 
@@ -23,6 +24,7 @@ def process_directory(
     *,
     segmentation_config: SegmentationConfig,
     difficulty_labels: dict[str, int | None] | None = None,
+    profiler: ProcessingProfilerProtocol = NULL_PROCESSING_PROFILER,
 ) -> list[Segment]:
     musicxml_files = collect_musicxml_files(source_directory)
     segments: list[Segment] = []
@@ -32,6 +34,7 @@ def process_directory(
             duration_vocabulary,
             segmentation_config=segmentation_config,
             difficulty_labels=difficulty_labels,
+            profiler=profiler,
         )
         segments.extend(file_segments)
 
@@ -44,6 +47,7 @@ def process_file(
     *,
     segmentation_config: SegmentationConfig,
     difficulty_labels: dict[str, int | None] | None = None,
+    profiler: ProcessingProfilerProtocol = NULL_PROCESSING_PROFILER,
 ) -> list[Segment]:
     score = clean_parsed_score(parse_score(path))
     return segment_parsed_score(
@@ -52,6 +56,7 @@ def process_file(
         duration_vocabulary,
         segmentation_config=segmentation_config,
         difficulty_labels=difficulty_labels,
+        profiler=profiler,
     )
 
 
@@ -62,6 +67,7 @@ def segment_parsed_score(
     *,
     segmentation_config: SegmentationConfig,
     difficulty_labels: dict[str, int | None] | None = None,
+    profiler: ProcessingProfilerProtocol = NULL_PROCESSING_PROFILER,
     scale_match_support_score_margin: float = DEFAULT_SCALE_MATCH_SUPPORT_SCORE_MARGIN,
     scale_match_selection_score_margin: float = DEFAULT_SCALE_MATCH_SELECTION_SCORE_MARGIN,
     scale_match_maximum_unexplained_weight_fraction: float = DEFAULT_SCALE_MATCH_MAXIMUM_UNEXPLAINED_WEIGHT_FRACTION,
@@ -82,16 +88,21 @@ def segment_parsed_score(
         scale_match_selection_score_margin=scale_match_selection_score_margin,
         scale_match_maximum_unexplained_weight_fraction=scale_match_maximum_unexplained_weight_fraction,
         scale_match_maximum_explanation_pitch_class_count=scale_match_maximum_explanation_pitch_class_count,
+        profiler=profiler,
     )
 
-    return [
-        _attach_difficulty_features(
-            segment,
-            score=score,
-            duration_vocabulary=duration_vocabulary,
-        )
-        for segment in segments
-    ]
+    processed_segments: list[Segment] = []
+    for segment in segments:
+        with profiler.measure("difficulty_features", source_file=source_file):
+            processed_segments.append(
+                _attach_difficulty_features(
+                    segment,
+                    score=score,
+                    duration_vocabulary=duration_vocabulary,
+                )
+            )
+
+    return processed_segments
 
 
 def _attach_difficulty_features(

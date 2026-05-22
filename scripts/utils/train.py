@@ -233,6 +233,8 @@ def resume_command(
     command.extend(_optional_value_argument("--stride-bars", args.stride_bars))
     if args.whole_file_segments:
         command.append("--whole-file-segments")
+    if training_config.checkpoints.save_all_epochs:
+        command.append("--save-all-epochs")
     command.extend(_optional_path_argument("--difficulty-labels", args.difficulty_labels))
     command.extend(_optional_value_argument("--mlflow-experiment-name", args.mlflow_experiment_name))
     command.extend(_optional_value_argument("--mlflow-run-name", args.mlflow_run_name))
@@ -322,6 +324,12 @@ def add_common_training_arguments(
             help="Stage-one checkpoint whose model weights initialize finetune fine-tuning.",
         )
     parser.add_argument("--resume-checkpoint", type=Path, default=None, help="Checkpoint to resume from.")
+    parser.add_argument(
+        "--save-all-epochs",
+        action="store_true",
+        default=None,
+        help="Save epoch_0000.pt style checkpoints after every epoch.",
+    )
     parser.add_argument("--overwrite", action="store_true", help="Allow pretraining to overwrite existing checkpoints.")
     parser.add_argument("--mlflow-dir", type=Path, default=DEFAULT_MLFLOW_DIR, help="Local MLflow tracking directory.")
     parser.add_argument("--disable-mlflow", action="store_true", help="Disable MLflow tracking.")
@@ -429,6 +437,7 @@ def build_finetuning_training_config(args: argparse.Namespace) -> FinetuningTrai
     updates["checkpoints"] = FinetuningCheckpointConfig(
         checkpoint_dir=checkpoint_config.checkpoint_dir,
         resume_checkpoint=checkpoint_config.resume_checkpoint,
+        save_all_epochs=checkpoint_config.save_all_epochs,
         pretraining_checkpoint=(
             args.pretrain_checkpoint
             if args.pretrain_checkpoint is not None
@@ -460,6 +469,9 @@ def common_training_section_updates(
             checkpoint_dir=args.checkpoint_dir or config.checkpoints.checkpoint_dir or default_checkpoint_dir,
             resume_checkpoint=(
                 args.resume_checkpoint if args.resume_checkpoint is not None else config.checkpoints.resume_checkpoint
+            ),
+            save_all_epochs=(
+                args.save_all_epochs if args.save_all_epochs is not None else config.checkpoints.save_all_epochs
             ),
         ),
         "mlflow": MlflowConfig(

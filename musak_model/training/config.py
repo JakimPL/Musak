@@ -42,11 +42,13 @@ class CheckpointConfig(BaseModel):
 
     checkpoint_dir: Path
     resume_checkpoint: Path | None = None
+    save_all_epochs: bool = False
 
 
 class FinetuningCheckpointConfig(CheckpointConfig):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
+    save_all_epochs: bool = True
     pretraining_checkpoint: Path
 
 

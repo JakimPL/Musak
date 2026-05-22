@@ -92,12 +92,17 @@ def _training_config(
     resume_checkpoint: Path | None = None,
     epochs: int = 1,
     conditioning: TrainingConditioningConfig = TrainingConditioningConfig(),
+    save_all_epochs: bool = False,
 ) -> TrainingConfig:
     return TrainingConfig(
         optimization=OptimizationConfig(epochs=epochs, batch_size=2, learning_rate=0.001, weight_decay=0.0),
         runtime=RuntimeConfig(num_workers=0, device="cpu"),
         conditioning=conditioning,
-        checkpoints=CheckpointConfig(checkpoint_dir=checkpoint_dir, resume_checkpoint=resume_checkpoint),
+        checkpoints=CheckpointConfig(
+            checkpoint_dir=checkpoint_dir,
+            resume_checkpoint=resume_checkpoint,
+            save_all_epochs=save_all_epochs,
+        ),
     )
 
 
@@ -168,6 +173,7 @@ def test_trainer_runs_one_epoch_and_writes_checkpoints(tmp_path: Path) -> None:
     assert result.metrics[0].validation_token_accuracy is not None
     assert (tmp_path / "latest.pt").exists()
     assert (tmp_path / "best.pt").exists()
+    assert not (tmp_path / "epoch_0000.pt").exists()
 
 
 def test_trainer_logs_to_tracker(tmp_path: Path) -> None:
@@ -186,6 +192,22 @@ def test_trainer_logs_to_tracker(tmp_path: Path) -> None:
     assert tracker.epochs == [0]
     assert tracker.checkpoint_logged is True
     assert tracker.invalid_files_logged is True
+
+
+def test_trainer_saves_epoch_checkpoints_when_enabled(tmp_path: Path) -> None:
+    torch.manual_seed(0)
+    model = HierarchicalAutoregressiveModel(_small_model_config())
+    trainer = PretrainingTrainer(
+        model=model,
+        config=_training_config(tmp_path, epochs=2, save_all_epochs=True),
+        train_loader=_loader(),
+        validation_loader=_loader(),
+    )
+
+    trainer.train()
+
+    assert (tmp_path / "epoch_0000.pt").exists()
+    assert (tmp_path / "epoch_0001.pt").exists()
 
 
 def test_trainer_logs_generation_evaluation_on_configured_cadence(tmp_path: Path) -> None:

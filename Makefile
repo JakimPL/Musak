@@ -1,9 +1,8 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help install test app process train pretrain finetune mlflow
+.PHONY: help install test app parse tokenize process train pretrain finetune mlflow
 
 PROCESSED_ROOT ?= processed
-PROCESS_STAGE ?= all
 PROCESS_OVERWRITE ?= $(or $(OVERWRITE),$(OVERWITE))
 PROCESS_DISABLE_MLFLOW ?=
 PROCESS_MLFLOW_EXPERIMENT ?= musak-process
@@ -11,6 +10,7 @@ PROCESS_MLFLOW_RUN_NAME ?=
 PROCESS_MLFLOW_TRACKING_URI ?= $(MLFLOW_TRACKING_URI)
 PROCESS_DIFFICULTY_LABELS ?=
 PROCESS_WHOLE_FILE_SEGMENTS ?=
+PROCESS_PROFILE ?= $(PROFILE)
 APP_HOST ?= 127.0.0.1
 APP_PORT ?= 8000
 MLFLOW_DIR ?= mlruns
@@ -46,7 +46,9 @@ help:
 	@printf '%s\n' '  make install          Install Python dev/model dependencies and pre-commit hooks.'
 	@printf '%s\n' '  make test             Run the pytest suite used by the pre-push hook.'
 	@printf '%s\n' '  make app              Start the Musak FastAPI app with reload enabled.'
-	@printf '%s\n' '  make process          Parse and encode one MusicXML dataset.'
+	@printf '%s\n' '  make parse            Parse one MusicXML dataset into parsed artifacts.'
+	@printf '%s\n' '  make tokenize         Encode parsed artifacts into tokenized dataset artifacts.'
+	@printf '%s\n' '  make process          Run parse, then tokenize for one MusicXML dataset.'
 	@printf '%s\n' '  make pretrain         Train the broad token-distribution pretrain model.'
 	@printf '%s\n' '  make finetune         Fine-tune from a pretrain checkpoint with conditioning controls.'
 	@printf '%s\n' '  make train            Run pretrain, then finetune.'
@@ -68,12 +70,12 @@ help:
 	@printf '%s\n' '  APP_PORT              Musak app port. Default: 8000'
 	@printf '%s\n' '  DATA_DIR              Dataset root for process.'
 	@printf '%s\n' '  PROCESSED_ROOT        Processed artifact root for process. Default: processed'
-	@printf '%s\n' '  PROCESS_STAGE         parsed, encoded, or all. Default: all'
 	@printf '%s\n' '  PROCESS_OVERWRITE=1   Pass --overwrite to process. Defaults to OVERWRITE when set.'
 	@printf '%s\n' '  PROCESS_DISABLE_MLFLOW=1 disables process MLflow dataset metrics.'
 	@printf '%s\n' '  PROCESS_MLFLOW_EXPERIMENT, PROCESS_MLFLOW_RUN_NAME, PROCESS_MLFLOW_TRACKING_URI configure process MLflow logging.'
 	@printf '%s\n' '  PROCESS_DIFFICULTY_LABELS Optional difficulty-label JSON/YAML path for process.'
 	@printf '%s\n' '  PROCESS_WHOLE_FILE_SEGMENTS=1 passes --whole-file-segments to process.'
+	@printf '%s\n' '  PROFILE=1 or PROCESS_PROFILE=1 passes --profile to process.'
 	@printf '%s\n' '  MLFLOW_DIR            MLflow tracking directory. Default: mlruns'
 	@printf '%s\n' '  MLFLOW_HOST           MLflow dashboard host. Default: 127.0.0.1'
 	@printf '%s\n' '  MLFLOW_PORT           MLflow dashboard port. Default: 5000'
@@ -108,20 +110,15 @@ app:
 		--host "$(APP_HOST)" \
 		--port "$(APP_PORT)"
 
-process:
+parse:
 	$(call require_var,DATA_DIR)
-	uv run python scripts/process_dataset.py \
-		--data-dir "$(DATA_DIR)" \
-		--processed-dir "$(PROCESSED_ROOT)" \
-		--stage "$(PROCESS_STAGE)" \
-		$(call optional_arg,NUM_WORKERS,--workers) \
-		$(call optional_arg,PROCESS_DIFFICULTY_LABELS,--difficulty-labels) \
-		$(call optional_flag,PROCESS_WHOLE_FILE_SEGMENTS,--whole-file-segments) \
-		$(call optional_flag,PROCESS_OVERWRITE,--overwrite) \
-		$(call optional_flag,PROCESS_DISABLE_MLFLOW,--disable-mlflow) \
-		--mlflow-experiment-name "$(PROCESS_MLFLOW_EXPERIMENT)" \
-		$(call optional_arg,PROCESS_MLFLOW_RUN_NAME,--mlflow-run-name) \
-		$(call optional_arg,PROCESS_MLFLOW_TRACKING_URI,--mlflow-tracking-uri)
+	$(call process_dataset_command,parse)
+
+tokenize:
+	$(call require_var,DATA_DIR)
+	$(call process_dataset_command,tokenize)
+
+process: parse tokenize
 
 train: pretrain finetune
 
@@ -180,4 +177,20 @@ endef
 
 define optional_resume_checkpoint
 	$(if $(RESUME),--resume-checkpoint "$($(1))",)
+endef
+
+define process_dataset_command
+	uv run python scripts/process_dataset.py \
+		--data-dir "$(DATA_DIR)" \
+		--processed-dir "$(PROCESSED_ROOT)" \
+		--stage "$(1)" \
+		$(call optional_arg,NUM_WORKERS,--workers) \
+		$(call optional_arg,PROCESS_DIFFICULTY_LABELS,--difficulty-labels) \
+		$(call optional_flag,PROCESS_WHOLE_FILE_SEGMENTS,--whole-file-segments) \
+		$(call optional_flag,PROCESS_PROFILE,--profile) \
+		$(call optional_flag,PROCESS_OVERWRITE,--overwrite) \
+		$(call optional_flag,PROCESS_DISABLE_MLFLOW,--disable-mlflow) \
+		--mlflow-experiment-name "$(PROCESS_MLFLOW_EXPERIMENT)" \
+		$(call optional_arg,PROCESS_MLFLOW_RUN_NAME,--mlflow-run-name) \
+		$(call optional_arg,PROCESS_MLFLOW_TRACKING_URI,--mlflow-tracking-uri)
 endef

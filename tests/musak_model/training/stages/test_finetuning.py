@@ -128,3 +128,4 @@ def test_train_finetuning_loads_pretraining_checkpoint_and_runs_epoch(
     assert len(result.metrics) == 1
     assert result.latest_checkpoint_path == tmp_path / "finetuning" / "latest.pt"
     assert result.latest_checkpoint_path.exists()
+    assert (tmp_path / "finetuning" / "epoch_0000.pt").exists()

@@ -3,12 +3,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from musak_model.training.config import (
-    CheckpointConfig,
-    OptimizationConfig,
-    RuntimeConfig,
-    TrainingConfig,
-)
+from musak_model.training.config import CheckpointConfig, OptimizationConfig, RuntimeConfig, TrainingConfig
 
 
 def test_training_config_accepts_nested_constructor() -> None:
@@ -21,6 +16,7 @@ def test_training_config_accepts_nested_constructor() -> None:
     assert config.optimization.batch_size == 2
     assert config.runtime.device == "cpu"
     assert config.checkpoints.checkpoint_dir == Path("checkpoints")
+    assert config.checkpoints.save_all_epochs is False
 
 
 def test_training_config_rejects_flat_fields() -> None:

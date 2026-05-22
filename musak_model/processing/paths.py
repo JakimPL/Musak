@@ -8,6 +8,7 @@ PARSED_MANIFEST_NAME: Final[str] = "parsed.csv"
 ENCODED_MANIFEST_NAME: Final[str] = "encoded.csv"
 ENCODED_JSONL_NAME: Final[str] = "data-00000.jsonl"
 TOKENIZER_SNAPSHOT_NAME: Final[str] = "tokenizer.json"
+TOKENIZATION_STATE_NAME: Final[str] = "tokenization_state.jsonl"
 
 
 @dataclass(frozen=True)
@@ -48,3 +49,6 @@ class ProcessedDatasetPaths:
 
     def tokenizer_snapshot_path(self, tokenizer_hash_value: str) -> Path:
         return self.encoded_dir(tokenizer_hash_value) / TOKENIZER_SNAPSHOT_NAME
+
+    def tokenization_state_path(self, tokenizer_hash_value: str) -> Path:
+        return self.encoded_dir(tokenizer_hash_value) / TOKENIZATION_STATE_NAME

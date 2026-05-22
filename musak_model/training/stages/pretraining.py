@@ -179,6 +179,16 @@ class PretrainingTrainer:
                 best_validation_loss=best_validation_loss,
             )
             _LOGGER.info("Saved latest checkpoint: %s", latest_checkpoint_path)
+            if self._config.checkpoints.save_all_epochs:
+                epoch_checkpoint_path = self._config.checkpoints.checkpoint_dir / f"epoch_{epoch:04d}.pt"
+                save_checkpoint(
+                    epoch_checkpoint_path,
+                    model=self._model,
+                    optimizer=self._optimizer,
+                    epoch=epoch,
+                    best_validation_loss=best_validation_loss,
+                )
+                _LOGGER.info("Saved epoch checkpoint: %s", epoch_checkpoint_path)
 
             score = metric.validation_loss if metric.validation_loss is not None else metric.train_loss
             if best_validation_loss is None or score < best_validation_loss:

@@ -12,6 +12,7 @@ from musak_model.data.scale_match import match_scale
 from musak_model.data.schema import ParsedScore, Segment
 from musak_model.data.segmenter.streams import tokenize_unified_stream_safely
 from musak_model.data.segmenter.windows import create_window
+from musak_model.processing.profiler import NULL_PROCESSING_PROFILER, ProcessingProfilerProtocol
 from musak_model.tokens.duration import DurationVocabulary
 
 
@@ -26,6 +27,7 @@ def segment_score(
     scale_match_selection_score_margin: float = DEFAULT_SCALE_MATCH_SELECTION_SCORE_MARGIN,
     scale_match_maximum_unexplained_weight_fraction: float = DEFAULT_SCALE_MATCH_MAXIMUM_UNEXPLAINED_WEIGHT_FRACTION,
     scale_match_maximum_explanation_pitch_class_count: int = DEFAULT_SCALE_MATCH_MAXIMUM_EXPLANATION_PITCH_CLASS_COUNT,
+    profiler: ProcessingProfilerProtocol = NULL_PROCESSING_PROFILER,
 ) -> list[Segment]:
     total_bars = min(len(score.right_hand_bars), len(score.left_hand_bars))
     if segmentation.mode == SegmentationMode.WHOLE_FILE:
@@ -40,6 +42,7 @@ def segment_score(
             scale_match_selection_score_margin=scale_match_selection_score_margin,
             scale_match_maximum_unexplained_weight_fraction=scale_match_maximum_unexplained_weight_fraction,
             scale_match_maximum_explanation_pitch_class_count=scale_match_maximum_explanation_pitch_class_count,
+            profiler=profiler,
         )
 
     ranges = [
@@ -57,6 +60,7 @@ def segment_score(
         scale_match_selection_score_margin=scale_match_selection_score_margin,
         scale_match_maximum_unexplained_weight_fraction=scale_match_maximum_unexplained_weight_fraction,
         scale_match_maximum_explanation_pitch_class_count=scale_match_maximum_explanation_pitch_class_count,
+        profiler=profiler,
     )
 
 
@@ -72,45 +76,50 @@ def _segment_ranges(
     scale_match_selection_score_margin: float,
     scale_match_maximum_unexplained_weight_fraction: float,
     scale_match_maximum_explanation_pitch_class_count: int,
+    profiler: ProcessingProfilerProtocol,
 ) -> list[Segment]:
     segments: list[Segment] = []
     for start, end in ranges:
-        scale_match = match_scale(
-            score.right_hand_bars[start:end],
-            score.left_hand_bars[start:end],
-            support_score_margin=scale_match_support_score_margin,
-            selection_score_margin=scale_match_selection_score_margin,
-            maximum_unexplained_weight_fraction=scale_match_maximum_unexplained_weight_fraction,
-            maximum_explanation_pitch_class_count=scale_match_maximum_explanation_pitch_class_count,
-        )
-        tokenization_score = score.model_copy(
-            update={
-                "scale_root": scale_match.scale_root,
-                "key_fifths": (
-                    scale_match.diagnostics.declared_key_fifths
-                    if scale_match.diagnostics.declared_key_fifths is not None
-                    else 0
-                ),
-                "scale_type": scale_match.scale_type,
-                "right_hand_bars": score.right_hand_bars[:end],
-                "left_hand_bars": score.left_hand_bars[:end],
-            }
-        )
-        unified_window_bars = tokenize_unified_stream_safely(
-            score=tokenization_score,
-            duration_vocabulary=duration_vocabulary,
-        )[start:end]
-        segments.append(
-            create_window(
-                unified_window_bars=unified_window_bars,
-                score=score,
-                source_file=source_file,
-                segmentation=segmentation,
-                start=start,
-                end=end,
-                scale_match=scale_match,
-                difficulty_level=difficulty_level,
+        with profiler.measure("scale_match", source_file=source_file):
+            scale_match = match_scale(
+                score.right_hand_bars[start:end],
+                score.left_hand_bars[start:end],
+                support_score_margin=scale_match_support_score_margin,
+                selection_score_margin=scale_match_selection_score_margin,
+                maximum_unexplained_weight_fraction=scale_match_maximum_unexplained_weight_fraction,
+                maximum_explanation_pitch_class_count=scale_match_maximum_explanation_pitch_class_count,
             )
-        )
+        with profiler.measure("score_copy", source_file=source_file):
+            tokenization_score = score.model_copy(
+                update={
+                    "scale_root": scale_match.scale_root,
+                    "key_fifths": (
+                        scale_match.diagnostics.declared_key_fifths
+                        if scale_match.diagnostics.declared_key_fifths is not None
+                        else 0
+                    ),
+                    "scale_type": scale_match.scale_type,
+                    "right_hand_bars": score.right_hand_bars[:end],
+                    "left_hand_bars": score.left_hand_bars[:end],
+                }
+            )
+        with profiler.measure("tokenize_unified_stream", source_file=source_file):
+            unified_window_bars = tokenize_unified_stream_safely(
+                score=tokenization_score,
+                duration_vocabulary=duration_vocabulary,
+            )[start:end]
+        with profiler.measure("create_window", source_file=source_file):
+            segments.append(
+                create_window(
+                    unified_window_bars=unified_window_bars,
+                    score=score,
+                    source_file=source_file,
+                    segmentation=segmentation,
+                    start=start,
+                    end=end,
+                    scale_match=scale_match,
+                    difficulty_level=difficulty_level,
+                )
+            )
 
     return segments

@@ -16,6 +16,7 @@ conditioning:
 checkpoints:
   checkpoint_dir: checkpoints/finetuning
   resume_checkpoint: null
+  save_all_epochs: true
   pretraining_checkpoint: checkpoints/pretraining/best.pt
 mlflow:
   enable_mlflow: true
