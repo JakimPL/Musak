@@ -16,7 +16,7 @@ conditioning:
 checkpoints:
   checkpoint_dir: checkpoints/pretraining
   resume_checkpoint: null
-  save_all_epochs: false
+  save_all_epochs: true
 mlflow:
   enable_mlflow: true
   mlflow_experiment_name: musak-pretrain

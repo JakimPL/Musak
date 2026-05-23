@@ -51,6 +51,9 @@ def test_make_help_documents_examples_and_variables() -> None:
     assert "PROCESS_PROFILE=1" in output
     assert "FINETUNE_DIFFICULTY_LABELS" in output
     assert "FINETUNE_WHOLE_FILE_SEGMENTS" in output
+    assert "make notebook-<name>" in output
+    assert "notebook-tokenizer-explorer" in output
+    assert "NOTEBOOK_MODE" in output
 
 
 def test_make_process_uses_data_dir_and_processed_root() -> None:
@@ -181,3 +184,15 @@ def test_make_mlflow_starts_dashboard_with_configurable_address() -> None:
     assert '--backend-store-uri "file:mlruns"' in output
     assert '--host "0.0.0.0"' in output
     assert '--port "5050"' in output
+
+
+def test_make_notebook_target_runs_discovered_marimo_notebook() -> None:
+    output = _make_dry_run("notebook-tokenizer-explorer")
+
+    assert 'uv run marimo "edit" "notebooks/tokenizer_explorer.py"' in output
+
+
+def test_make_notebook_target_supports_marimo_mode_override() -> None:
+    output = _make_dry_run("notebook-tokenizer-explorer", "NOTEBOOK_MODE=run")
+
+    assert 'uv run marimo "run" "notebooks/tokenizer_explorer.py"' in output

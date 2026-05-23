@@ -1,7 +1,5 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help install test app parse tokenize process train pretrain finetune mlflow
-
 PROCESSED_ROOT ?= processed
 PROCESS_OVERWRITE ?= $(or $(OVERWRITE),$(OVERWITE))
 PROCESS_DISABLE_MLFLOW ?=
@@ -19,6 +17,12 @@ APP_PORT ?= 8000
 MLFLOW_DIR ?= mlruns
 MLFLOW_HOST ?= 127.0.0.1
 MLFLOW_PORT ?= 5000
+NOTEBOOK_FILES := $(shell grep -l '^[[:space:]]*app[[:space:]]*=[[:space:]]*marimo\.App' notebooks/*.py 2>/dev/null)
+NOTEBOOK_NAMES := $(subst _,-,$(basename $(notdir $(NOTEBOOK_FILES))))
+NOTEBOOK_TARGETS := $(addprefix notebook-,$(NOTEBOOK_NAMES))
+NOTEBOOK_MODE ?= edit
+
+.PHONY: help install test app parse tokenize process train pretrain finetune mlflow FORCE
 
 PRETRAIN_DATA_DIR ?= $(DATA_DIR)
 PRETRAIN_PROCESSED_DIR ?=
@@ -56,6 +60,8 @@ help:
 	@printf '%s\n' '  make finetune         Fine-tune from a pretrain checkpoint with conditioning controls.'
 	@printf '%s\n' '  make train            Run pretrain, then finetune.'
 	@printf '%s\n' '  make mlflow           Start the local MLflow dashboard.'
+	@$(if $(NOTEBOOK_TARGETS),printf '%s\n' '  make notebook-<name>  Start a discovered Marimo notebook.';)
+	@$(foreach target,$(NOTEBOOK_TARGETS),printf '%s\n' '    $(target)';)
 	@printf '%s\n' ''
 	@printf '%s\n' 'Examples:'
 	@printf '%s\n' '  make install'
@@ -102,6 +108,7 @@ help:
 	@printf '%s\n' '  PRETRAIN_RESUME_CHECKPOINT, FINETUNE_RESUME_CHECKPOINT override resume paths.'
 	@printf '%s\n' '  PRETRAIN_EPOCHS, PRETRAIN_DEVICE, PRETRAIN_NUM_WORKERS override pretrain only.'
 	@printf '%s\n' '  FINETUNE_EPOCHS, FINETUNE_DEVICE, FINETUNE_NUM_WORKERS override finetune only.'
+	@printf '%s\n' '  NOTEBOOK_MODE         Marimo subcommand for notebook targets. Default: edit'
 
 install:
 	uv sync --extra dev --group model
@@ -170,8 +177,22 @@ mlflow:
 		--host "$(MLFLOW_HOST)" \
 		--port "$(MLFLOW_PORT)"
 
+notebook-%: FORCE
+	$(call require_notebook,$*)
+	uv run marimo "$(NOTEBOOK_MODE)" "$(call notebook_file,$*)"
+
+FORCE:
+
 define require_var
 	$(if $($(1)),,$(error $(1) is required))
+endef
+
+define require_notebook
+	$(if $(filter $(call notebook_file,$(1)),$(NOTEBOOK_FILES)),,$(error notebook-$(1) does not match a Marimo notebook in notebooks/))
+endef
+
+define notebook_file
+notebooks/$(subst -,_,$(1)).py
 endef
 
 define optional_arg
