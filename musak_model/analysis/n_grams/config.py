@@ -14,6 +14,8 @@ class NGramAnalysisConfig(BaseModel):
     min_n: int = Field(gt=0)
     max_n: int = Field(gt=0)
     limit_per_group: int | None = Field(default=None, gt=0)
+    workers: int = Field(gt=0)
+    batch_size: int = Field(gt=0)
 
     @model_validator(mode="after")
     def _validate_n_range(self) -> NGramAnalysisConfig:

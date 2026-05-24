@@ -6,8 +6,10 @@ import pytest
 from musak_model.analysis.n_grams import FigureNGram
 from notebooks.utils.n_grams import (
     FIGURE_PERCENT_COLUMN,
+    FIGURE_TEXT_COLUMN,
     analysis_result_files,
     figure_display_unit,
+    figure_filter_frame,
     figure_group_summary,
     figure_ngram_to_score_data,
     parse_figure_ngram,
@@ -59,6 +61,16 @@ def test_top_figure_frame_filters_and_adds_percent(tmp_path: Path) -> None:
 
     assert top["count"].tolist() == [3]
     assert top[FIGURE_PERCENT_COLUMN].tolist() == [0.6]
+    assert top[FIGURE_TEXT_COLUMN].tolist() == ["0(1) +1(1)"]
+
+
+def test_figure_filter_frame_returns_all_filtered_rows(tmp_path: Path) -> None:
+    frame = read_figure_count_frame(_write_count_csv(tmp_path))
+
+    filtered = figure_filter_frame(frame, scale_type="major", hand="right", n=2)
+
+    assert filtered["count"].tolist() == [3, 2]
+    assert filtered[FIGURE_TEXT_COLUMN].tolist() == ["0(1) +1(1)", "0(1) +2(1)"]
 
 
 def test_parse_figure_ngram_reads_exported_json() -> None:

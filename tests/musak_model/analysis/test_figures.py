@@ -113,6 +113,18 @@ def test_figure_ngram_requires_at_least_one_onset() -> None:
         FigureNGram(onsets=())
 
 
+def test_figure_ngram_string_represents_relative_degrees_and_normalized_durations() -> None:
+    figure = FigureNGram(
+        onsets=(
+            (((0, 0), (2, -1), (4, 1)), Fraction(1)),
+            (((-1, 0),), Fraction(3, 2)),
+        )
+    )
+
+    assert str(figure) == "[0 +2b +4#](1) -1(3/2)"
+    assert repr(figure) == "FigureNGram('[0 +2b +4#](1) -1(3/2)')"
+
+
 def test_build_figure_ngrams_from_run_uses_inter_onset_duration_except_final_onset() -> None:
     run = HandOnsetRun(
         hand=Hand.RIGHT,

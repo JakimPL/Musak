@@ -62,6 +62,8 @@ def test_count_encoded_exercises_figure_ngrams_keeps_scale_types_separate(
         token_vocabulary=token_vocabulary,
         min_n=2,
         max_n=2,
+        workers=1,
+        batch_size=1,
     )
 
     assert set(counts) == {ScaleType.MAJOR, ScaleType.HARMONIC_MINOR}
@@ -91,9 +93,51 @@ def test_count_encoded_exercises_figure_ngrams_merges_same_scale_counts(
         token_vocabulary=token_vocabulary,
         min_n=2,
         max_n=2,
+        workers=1,
+        batch_size=1,
     )
 
     assert sum(counts[ScaleType.MAJOR][Hand.RIGHT][2].values()) == 2
+
+
+def test_count_encoded_exercises_figure_ngrams_parallel_matches_serial(
+    duration_vocabulary: DurationVocabulary,
+    token_vocabulary: TokenVocabulary,
+) -> None:
+    quarter_id = duration_vocabulary.require_duration_id(Fraction(1, 4))
+    tokens = token_vocabulary.encode(
+        [
+            HandToken(hand=Hand.RIGHT),
+            _note(1, duration_id=quarter_id),
+            _note(2, duration_id=quarter_id),
+        ]
+    )
+    samples = [
+        _sample(tokens, scale_type=ScaleType.MAJOR),
+        _sample(tokens, scale_type=ScaleType.MAJOR),
+        _sample(tokens, scale_type=ScaleType.HARMONIC_MINOR),
+    ]
+
+    serial_counts = count_encoded_exercises_figure_ngrams(
+        samples,
+        duration_vocabulary=duration_vocabulary,
+        token_vocabulary=token_vocabulary,
+        min_n=2,
+        max_n=2,
+        workers=1,
+        batch_size=1,
+    )
+    parallel_counts = count_encoded_exercises_figure_ngrams(
+        samples,
+        duration_vocabulary=duration_vocabulary,
+        token_vocabulary=token_vocabulary,
+        min_n=2,
+        max_n=2,
+        workers=2,
+        batch_size=1,
+    )
+
+    assert parallel_counts == serial_counts
 
 
 def _sample(token_ids: list[int], *, scale_type: ScaleType) -> EncodedExercise:

@@ -59,6 +59,8 @@ def main() -> None:
     _LOGGER.info("Output path: %s", output_path or "stdout")
     _LOGGER.info("n range: %s..%s", config.min_n, config.max_n)
     _LOGGER.info("Limit per group: %s", config.limit_per_group)
+    _LOGGER.info("Workers: %s", config.workers)
+    _LOGGER.info("Batch size: %s", config.batch_size)
     snapshot = load_tokenizer_snapshot_json(tokenizer_snapshot_path)
     tokenization_config = TokenizationConfig.model_validate(snapshot.tokenization_config)
     duration_vocabulary = DurationVocabulary(tokenization_config)
@@ -71,6 +73,8 @@ def main() -> None:
         token_vocabulary=token_vocabulary,
         min_n=config.min_n,
         max_n=config.max_n,
+        workers=config.workers,
+        batch_size=config.batch_size,
         show_progress=not args.no_progress,
     )
     records = figure_count_records(counts, limit_per_group=config.limit_per_group)

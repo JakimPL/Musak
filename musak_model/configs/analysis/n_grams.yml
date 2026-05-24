@@ -1,3 +1,5 @@
 min_n: 2
-max_n: 5
+max_n: 10
 limit_per_group: null
+workers: 16
+batch_size: 128

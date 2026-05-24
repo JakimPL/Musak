@@ -146,7 +146,7 @@ process:
 	$(call process_dataset_command,parse)
 	$(call process_dataset_command,tokenize)
 
-analyze-ngrams:
+analyze-n-grams:
 	$(call require_var,DATA_DIR)
 	uv run python scripts/extract_figures.py \
 		--data-dir "$(DATA_DIR)" \

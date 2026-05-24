@@ -35,6 +35,7 @@ FIGURE_TOTAL_COLUMN: Final[str] = "total_count"
 FIGURE_UNIQUE_COLUMN: Final[str] = "unique_figures"
 FIGURE_DURATION_UNIT_COLUMN: Final[str] = "duration_unit"
 FIGURE_LABEL_COLUMN: Final[str] = "label"
+FIGURE_TEXT_COLUMN: Final[str] = "figure_text"
 
 _FIGURE_COUNT_COLUMNS: Final[frozenset[str]] = frozenset(
     {SCALE_TYPE_COLUMN, HAND_COLUMN, N_COLUMN, COUNT_COLUMN, FIGURE_COLUMN}
@@ -109,6 +110,17 @@ def top_figure_frame(
     n: int | None,
     top_n: int,
 ) -> pd.DataFrame:
+    filtered = figure_filter_frame(frame, scale_type=scale_type, hand=hand, n=n)
+    return filtered.head(top_n)
+
+
+def figure_filter_frame(
+    frame: pd.DataFrame,
+    *,
+    scale_type: str | None,
+    hand: str | None,
+    n: int | None,
+) -> pd.DataFrame:
     filtered = frame
     if scale_type is not None:
         filtered = filtered[filtered[SCALE_TYPE_COLUMN] == scale_type]
@@ -121,10 +133,11 @@ def top_figure_frame(
         return filtered.copy()
 
     total = int(filtered[COUNT_COLUMN].sum())
-    top = filtered.sort_values(COUNT_COLUMN, ascending=False).head(top_n).copy()
-    top[FIGURE_PERCENT_COLUMN] = top[COUNT_COLUMN] / max(total, 1)
-    top[FIGURE_LABEL_COLUMN] = [f"#{index + 1}" for index in range(len(top))]
-    return top
+    result = filtered.sort_values(COUNT_COLUMN, ascending=False).copy()
+    result[FIGURE_PERCENT_COLUMN] = result[COUNT_COLUMN] / max(total, 1)
+    result[FIGURE_LABEL_COLUMN] = [f"#{index + 1}" for index in range(len(result))]
+    result[FIGURE_TEXT_COLUMN] = [str(parse_figure_ngram(str(value))) for value in result[FIGURE_COLUMN]]
+    return result
 
 
 def parse_figure_ngram(value: str) -> FigureNGram:

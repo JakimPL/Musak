@@ -21,8 +21,10 @@ def _():
     from notebooks.utils import (
         FIGURE_LABEL_COLUMN,
         FIGURE_PERCENT_COLUMN,
+        FIGURE_TEXT_COLUMN,
         analysis_result_files,
         figure_display_unit,
+        figure_filter_frame,
         figure_group_summary,
         figure_ngram_to_score_data,
         parse_figure_ngram,
@@ -38,6 +40,7 @@ def _():
         DEFAULT_ANALYSIS_DIR,
         FIGURE_LABEL_COLUMN,
         FIGURE_PERCENT_COLUMN,
+        FIGURE_TEXT_COLUMN,
         Fraction,
         HAND_COLUMN,
         N_COLUMN,
@@ -46,6 +49,7 @@ def _():
         alt,
         analysis_result_files,
         figure_display_unit,
+        figure_filter_frame,
         figure_group_summary,
         figure_ngram_to_score_data,
         mo,
@@ -136,9 +140,10 @@ def _(HAND_COLUMN, N_COLUMN, SCALE_TYPE_COLUMN, frame, mo):
         n_values = sorted(int(value) for value in frame[N_COLUMN].dropna().unique())
         scale_selector = mo.ui.dropdown(options=scale_values, value=scale_values[0], label="Scale")
         hand_selector = mo.ui.dropdown(options=hand_values, value=hand_values[0], label="Hand")
+        n_options = [str(value) for value in n_values]
         n_selector = mo.ui.dropdown(
-            options={str(value): value for value in n_values},
-            value=n_values[0],
+            options=n_options,
+            value=n_options[0],
             label="n",
         )
         filter_output = mo.hstack([scale_selector, hand_selector, n_selector], gap=2, justify="start")
@@ -188,7 +193,9 @@ def _(
     COUNT_COLUMN,
     FIGURE_LABEL_COLUMN,
     FIGURE_PERCENT_COLUMN,
+    FIGURE_TEXT_COLUMN,
     alt,
+    figure_filter_frame,
     frame,
     hand_selector,
     mo,
@@ -198,10 +205,17 @@ def _(
     top_n,
 ):
     if frame is None or frame.empty:
+        filtered_frame = None
         top_frame = None
         top_output = mo.md("")
         top_table = mo.ui.table([])
     else:
+        filtered_frame = figure_filter_frame(
+            frame,
+            scale_type=scale_selector.value,
+            hand=hand_selector.value,
+            n=int(n_selector.value),
+        )
         top_frame = top_figure_frame(
             frame,
             scale_type=scale_selector.value,
@@ -216,13 +230,15 @@ def _(
                 x=alt.X(f"{COUNT_COLUMN}:Q", title="Count"),
                 y=alt.Y(f"{FIGURE_LABEL_COLUMN}:N", title="Figure", sort=None),
                 tooltip=[
+                    alt.Tooltip(f"{FIGURE_TEXT_COLUMN}:N", title="Figure"),
                     alt.Tooltip(f"{COUNT_COLUMN}:Q", title="Count"),
                     alt.Tooltip(f"{FIGURE_PERCENT_COLUMN}:Q", title="Share", format=".1%"),
                 ],
             )
             .properties(width=680, height=max(180, 24 * len(top_frame)), title="Most common figures")
         )
-        top_table = mo.ui.table(top_frame, selection="single", page_size=min(max(len(top_frame), 1), 20))
+        table_frame = filtered_frame.drop(columns=["figure"])
+        top_table = mo.ui.table(table_frame, selection="single", page_size=min(max(len(table_frame), 1), 20))
         top_output = mo.vstack(
             [
                 mo.ui.altair_chart(top_chart, chart_selection=False, legend_selection=False),
@@ -232,12 +248,14 @@ def _(
         )
 
     top_output
-    return top_frame, top_table
+    return filtered_frame, top_frame, top_table
 
 
 @app.cell
 def _(
+    FIGURE_LABEL_COLUMN,
     Fraction,
+    filtered_frame,
     figure_display_unit,
     figure_ngram_to_score_data,
     mo,
@@ -248,11 +266,12 @@ def _(
     top_table,
 ):
     row = selected_table_row(top_table)
-    if row is None:
+    if row is None or filtered_frame is None:
         notation_output = mo.md("")
     else:
         try:
-            figure = parse_figure_ngram(str(row["figure"]))
+            figure_index = int(str(row[FIGURE_LABEL_COLUMN]).removeprefix("#")) - 1
+            figure = parse_figure_ngram(str(filtered_frame.iloc[figure_index]["figure"]))
             unit = Fraction(str(preferred_unit.value))
             resolved_unit = figure_display_unit(figure, preferred_unit=unit)
             score_data = figure_ngram_to_score_data(figure, preferred_unit=unit)
