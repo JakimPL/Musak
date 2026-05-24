@@ -34,6 +34,7 @@ def test_make_help_documents_examples_and_variables() -> None:
     assert "Musak development commands" in output
     assert "make parse" in output
     assert "make tokenize" in output
+    assert "make analyze-ngrams" in output
     assert "make pretrain" in output
     assert "make finetune" in output
     assert "make mlflow" in output
@@ -47,6 +48,9 @@ def test_make_help_documents_examples_and_variables() -> None:
     assert "PROCESSING_CONFIG" in output
     assert "PROCESS_DIFFICULTY_LABELS" in output
     assert "PROCESS_WHOLE_FILE_SEGMENTS" in output
+    assert "ANALYSIS_CONFIG" in output
+    assert "ANALYSIS_OUTPUT" in output
+    assert "ANALYSIS_ENCODED_DIR" in output
     assert "PROFILE=1" in output
     assert "PROCESS_PROFILE=1" in output
     assert "FINETUNE_DIFFICULTY_LABELS" in output
@@ -125,6 +129,24 @@ def test_make_parse_and_tokenize_expose_separate_stages() -> None:
 
     assert '--stage "parse"' in parse_output
     assert '--stage "tokenize"' in tokenize_output
+
+
+def test_make_analyze_ngrams_uses_dataset_and_analysis_variables() -> None:
+    output = _make_dry_run(
+        "analyze-ngrams",
+        "DATA_DIR=data/PDMX",
+        "PROCESSED_ROOT=processed",
+        "ANALYSIS_CONFIG=musak_model/configs/analysis/n_grams.yml",
+        "ANALYSIS_OUTPUT=analysis/pdmx-figures.csv",
+        "ANALYSIS_ENCODED_DIR=processed/PDMX/encoded/abc",
+    )
+
+    assert "scripts/extract_figures.py" in output
+    assert '--data-dir "data/PDMX"' in output
+    assert '--processed-root "processed"' in output
+    assert '--analysis-config "musak_model/configs/analysis/n_grams.yml"' in output
+    assert '--output "analysis/pdmx-figures.csv"' in output
+    assert '--encoded-dir "processed/PDMX/encoded/abc"' in output
 
 
 def test_make_train_pretrain_uses_descriptive_variables() -> None:

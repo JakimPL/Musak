@@ -7,6 +7,7 @@ ROOT_DIR: Final[Path] = PACKAGE_DIR.parent
 CONFIGS_DIR: Final[Path] = PACKAGE_DIR / "configs"
 MODEL_CONFIG_DIR: Final[Path] = CONFIGS_DIR / "model"
 CONDITIONING_CONFIG_PATH: Final[Path] = CONFIGS_DIR / "conditioning" / "conditioning.yml"
+N_GRAM_ANALYSIS_CONFIG_PATH: Final[Path] = CONFIGS_DIR / "analysis" / "n_grams.yml"
 INGESTION_CONFIG_PATH: Final[Path] = CONFIGS_DIR / "training" / "ingestion.yml"
 PROCESSING_CONFIG_PATH: Final[Path] = CONFIGS_DIR / "data" / "processing.yml"
 SEGMENTATION_CONFIG_PATH: Final[Path] = CONFIGS_DIR / "data" / "segmentation.yml"
@@ -15,6 +16,7 @@ PRETRAINING_CONFIG_PATH: Final[Path] = CONFIGS_DIR / "training" / "pretraining.y
 FINETUNING_CONFIG_PATH: Final[Path] = CONFIGS_DIR / "training" / "finetuning.yml"
 
 DEFAULT_DATA_DIR: Final[Path] = ROOT_DIR / "data"
+DEFAULT_ANALYSIS_DIR: Final[Path] = ROOT_DIR / "analysis"
 DEFAULT_MLFLOW_DIR: Final[Path] = ROOT_DIR / "mlruns"
 DEFAULT_PROCESSED_ROOT: Final[Path] = ROOT_DIR / "processed"
 DEFAULT_PROFILE_OUTPUT_DIR: Final[Path] = ROOT_DIR / "profiles"

@@ -5,11 +5,15 @@ from pydantic import ValidationError
 
 from musak_model.analysis.n_grams import (
     FigureNGram,
+    HandOnsetRun,
+    PitchedOnset,
     build_figure_ngram,
+    build_figure_ngrams_from_run,
+    build_figure_ngrams_from_runs,
     note_diatonic_position,
     scale_size_for_type,
 )
-from musak_model.tokens.schema import NoteToken, ScaleType
+from musak_model.tokens.schema import Hand, NoteToken, ScaleType
 
 
 def test_scale_size_comes_from_scale_type() -> None:
@@ -107,3 +111,79 @@ def test_build_figure_ngram_rejects_non_positive_duration() -> None:
 def test_figure_ngram_requires_at_least_one_onset() -> None:
     with pytest.raises(ValidationError, match="at least 1 item"):
         FigureNGram(onsets=())
+
+
+def test_build_figure_ngrams_from_run_uses_inter_onset_duration_except_final_onset() -> None:
+    run = HandOnsetRun(
+        hand=Hand.RIGHT,
+        onsets=(
+            PitchedOnset(
+                notes=(_note(1),),
+                start=Fraction(0),
+                duration=Fraction(1, 2),
+            ),
+            PitchedOnset(
+                notes=(_note(2),),
+                start=Fraction(1, 8),
+                duration=Fraction(1, 4),
+            ),
+        ),
+    )
+
+    figures = build_figure_ngrams_from_run(run, n=2, scale_size=7)
+
+    assert figures == (FigureNGram(onsets=((((0, 0),), Fraction(1, 1)), (((1, 0),), Fraction(2, 1)))),)
+
+
+def test_build_figure_ngrams_from_run_slides_over_onset_run() -> None:
+    run = HandOnsetRun(
+        hand=Hand.RIGHT,
+        onsets=(
+            PitchedOnset(notes=(_note(1),), start=Fraction(0), duration=Fraction(1, 8)),
+            PitchedOnset(notes=(_note(2),), start=Fraction(1, 8), duration=Fraction(1, 8)),
+            PitchedOnset(notes=(_note(3),), start=Fraction(1, 4), duration=Fraction(1, 8)),
+        ),
+    )
+
+    figures = build_figure_ngrams_from_run(run, n=2, scale_size=7)
+
+    assert [figure.onsets for figure in figures] == [
+        ((((0, 0),), Fraction(1)), (((1, 0),), Fraction(1))),
+        ((((0, 0),), Fraction(1)), (((1, 0),), Fraction(1))),
+    ]
+
+
+def test_build_figure_ngrams_from_runs_groups_by_n() -> None:
+    runs = [
+        HandOnsetRun(
+            hand=Hand.RIGHT,
+            onsets=(
+                PitchedOnset(notes=(_note(1),), start=Fraction(0), duration=Fraction(1, 8)),
+                PitchedOnset(notes=(_note(2),), start=Fraction(1, 8), duration=Fraction(1, 8)),
+                PitchedOnset(notes=(_note(3),), start=Fraction(1, 4), duration=Fraction(1, 8)),
+            ),
+        )
+    ]
+
+    figures_by_n = build_figure_ngrams_from_runs(runs, min_n=2, max_n=3, scale_size=7)
+
+    assert len(figures_by_n[2]) == 2
+    assert len(figures_by_n[3]) == 1
+
+
+def test_build_figure_ngrams_from_run_rejects_non_positive_n() -> None:
+    with pytest.raises(ValueError, match="n must be positive"):
+        build_figure_ngrams_from_run(
+            HandOnsetRun(hand=Hand.RIGHT, onsets=()),
+            n=0,
+            scale_size=7,
+        )
+
+
+def _note(degree: int) -> NoteToken:
+    return NoteToken(
+        degree=degree,
+        accidental=0,
+        octave_offset=0,
+        duration_id=0,
+    )

@@ -12,6 +12,9 @@ PROCESS_WHOLE_FILE_SEGMENTS ?=
 PROCESS_PROFILE ?= $(PROFILE)
 PROCESS_TOKENIZATION_WORKERS ?=
 PROCESS_TOKENIZATION_BATCH_SIZE ?=
+ANALYSIS_CONFIG ?=
+ANALYSIS_OUTPUT ?=
+ANALYSIS_ENCODED_DIR ?=
 APP_HOST ?= 127.0.0.1
 APP_PORT ?= 8000
 MLFLOW_DIR ?= mlruns
@@ -22,7 +25,7 @@ NOTEBOOK_NAMES := $(subst _,-,$(basename $(notdir $(NOTEBOOK_FILES))))
 NOTEBOOK_TARGETS := $(addprefix notebook-,$(NOTEBOOK_NAMES))
 NOTEBOOK_MODE ?= edit
 
-.PHONY: help install test app parse tokenize process train pretrain finetune mlflow FORCE
+.PHONY: help install test app parse tokenize process analyze-ngrams train pretrain finetune mlflow FORCE
 
 PRETRAIN_DATA_DIR ?= $(DATA_DIR)
 PRETRAIN_PROCESSED_DIR ?=
@@ -56,6 +59,7 @@ help:
 	@printf '%s\n' '  make parse            Parse one MusicXML dataset into parsed artifacts.'
 	@printf '%s\n' '  make tokenize         Encode parsed artifacts into tokenized dataset artifacts.'
 	@printf '%s\n' '  make process          Run parse, then tokenize for one MusicXML dataset.'
+	@printf '%s\n' '  make analyze-ngrams   Extract figure n-gram counts from encoded dataset artifacts.'
 	@printf '%s\n' '  make pretrain         Train the broad token-distribution pretrain model.'
 	@printf '%s\n' '  make finetune         Fine-tune from a pretrain checkpoint with conditioning controls.'
 	@printf '%s\n' '  make train            Run pretrain, then finetune.'
@@ -68,6 +72,7 @@ help:
 	@printf '%s\n' '  make test'
 	@printf '%s\n' '  APP_PORT=8080 make app'
 	@printf '%s\n' '  DATA_DIR=data/PDMX PROCESSED_ROOT=processed NUM_WORKERS=8 make process'
+	@printf '%s\n' '  DATA_DIR=data/PDMX PROCESSED_ROOT=processed make analyze-ngrams'
 	@printf '%s\n' '  DATA_DIR=data/Exercises PROCESS_WHOLE_FILE_SEGMENTS=1 PROCESS_DIFFICULTY_LABELS=data/Exercises/difficulty_labels.json PROCESS_OVERWRITE=1 make process'
 	@printf '%s\n' '  PRETRAIN_DATA_DIR=data/PDMX PRETRAIN_PROCESSED_DIR=processed/PDMX PRETRAIN_EPOCHS=25 PRETRAIN_DEVICE=cuda make pretrain'
 	@printf '%s\n' '  FINETUNE_DATA_DIR=data/Exercises FINETUNE_PROCESSED_DIR=processed/Exercises FINETUNE_DIFFICULTY_LABELS=data/Exercises/difficulty_labels.json PRETRAIN_CHECKPOINT=checkpoints/pretraining/best.pt FINETUNE_EPOCHS=8 make finetune'
@@ -87,6 +92,9 @@ help:
 	@printf '%s\n' '  PROCESS_WHOLE_FILE_SEGMENTS=1 passes --whole-file-segments to process.'
 	@printf '%s\n' '  PROCESS_TOKENIZATION_WORKERS overrides tokenization worker processes.'
 	@printf '%s\n' '  PROCESS_TOKENIZATION_BATCH_SIZE overrides tokenization source files per worker task.'
+	@printf '%s\n' '  ANALYSIS_CONFIG       Optional figure n-gram analysis YAML override.'
+	@printf '%s\n' '  ANALYSIS_OUTPUT       Optional figure n-gram CSV output path. Default: analysis/<dataset-name>.csv'
+	@printf '%s\n' '  ANALYSIS_ENCODED_DIR  Optional encoded run directory override when multiple tokenizer runs exist.'
 	@printf '%s\n' '  PROFILE=1 or PROCESS_PROFILE=1 passes --profile to process.'
 	@printf '%s\n' '  MLFLOW_DIR            MLflow tracking directory. Default: mlruns'
 	@printf '%s\n' '  MLFLOW_HOST           MLflow dashboard host. Default: 127.0.0.1'
@@ -135,6 +143,15 @@ process:
 	$(call require_var,DATA_DIR)
 	$(call process_dataset_command,parse)
 	$(call process_dataset_command,tokenize)
+
+analyze-ngrams:
+	$(call require_var,DATA_DIR)
+	uv run python scripts/extract_figures.py \
+		--data-dir "$(DATA_DIR)" \
+		--processed-root "$(PROCESSED_ROOT)" \
+		$(call optional_arg,ANALYSIS_CONFIG,--analysis-config) \
+		$(call optional_arg,ANALYSIS_OUTPUT,--output) \
+		$(call optional_arg,ANALYSIS_ENCODED_DIR,--encoded-dir)
 
 train:
 	$(MAKE) pretrain
