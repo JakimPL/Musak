@@ -26,6 +26,20 @@ from notebooks.utils.model_output import (
     segment_event_count,
     trace_rows,
 )
+from notebooks.utils.n_grams import (
+    FIGURE_DURATION_UNIT_COLUMN,
+    FIGURE_LABEL_COLUMN,
+    FIGURE_PERCENT_COLUMN,
+    FIGURE_TOTAL_COLUMN,
+    FIGURE_UNIQUE_COLUMN,
+    analysis_result_files,
+    figure_display_unit,
+    figure_group_summary,
+    figure_ngram_to_score_data,
+    parse_figure_ngram,
+    read_figure_count_frame,
+    top_figure_frame,
+)
 from notebooks.utils.panels import HandControls, hand_controls, piano_roll_player_panel
 from notebooks.utils.piano_roll import (
     PianoRollViewData,
@@ -70,6 +84,11 @@ from notebooks.utils.tokens import default_duration_vocabulary, token_label, tok
 __all__ = [
     "DatasetStatistics",
     "FileSelection",
+    "FIGURE_DURATION_UNIT_COLUMN",
+    "FIGURE_LABEL_COLUMN",
+    "FIGURE_PERCENT_COLUMN",
+    "FIGURE_TOTAL_COLUMN",
+    "FIGURE_UNIQUE_COLUMN",
     "HandControls",
     "PianoRollViewData",
     "PitchSpelling",
@@ -83,6 +102,7 @@ __all__ = [
     "LoadedModel",
     "EncodedManifestSelection",
     "EncodedShard",
+    "analysis_result_files",
     "categorical_distribution",
     "default_duration_vocabulary",
     "default_encoded_browser_root",
@@ -94,6 +114,9 @@ __all__ = [
     "encoded_segments_result",
     "encoded_table_frame",
     "eligibility_distribution",
+    "figure_display_unit",
+    "figure_group_summary",
+    "figure_ngram_to_score_data",
     "ineligibility_reason_distribution",
     "scale_root_distribution",
     "load_encoded_shard",
@@ -104,6 +127,7 @@ __all__ = [
     "load_trained_model",
     "parsed_score_piano_roll_dataframe",
     "parsed_score_piano_roll_view_data",
+    "parse_figure_ngram",
     "parse_error_table_frame",
     "parsed_table_frame",
     "piano_roll_chart",
@@ -115,6 +139,7 @@ __all__ = [
     "processed_dataset_dirs",
     "process_score_safely",
     "reason_by_column",
+    "read_figure_count_frame",
     "table_records",
     "token_histogram_distribution",
     "score_summary",
@@ -131,5 +156,6 @@ __all__ = [
     "token_summary_rows",
     "token_label",
     "token_rows",
+    "top_figure_frame",
     "trace_rows",
 ]

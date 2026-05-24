@@ -9,11 +9,12 @@ __pycache__/
 .codex/
 .github/
 
-soundfont/
-processed/
-profiles/
+analysis/
 checkpoints/
 mlruns/
+processed/
+profiles/
+soundfont/
 
 *.egg-info/
 *.pyc

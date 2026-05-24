@@ -8,6 +8,7 @@ from musak_model.analysis.n_grams.counter import (
     count_hand_figure_ngrams,
 )
 from musak_model.analysis.n_grams.parser import extract_hand_onset_runs
+from musak_model.processing.progress import progress
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import Hand, ScaleType
 from musak_model.tokens.vocabulary import TokenVocabulary
@@ -46,9 +47,16 @@ def count_encoded_exercises_figure_ngrams(
     token_vocabulary: TokenVocabulary,
     min_n: int,
     max_n: int,
+    show_progress: bool = False,
 ) -> FigureNGramCountsByScale:
     counts_by_scale: FigureNGramCountsByScale = {}
-    for sample in samples:
+    for sample in progress(
+        samples,
+        description="Counting figure n-grams",
+        unit="sample",
+        enabled=show_progress,
+        total=len(samples),
+    ):
         sample_counts = count_encoded_exercise_figure_ngrams(
             sample,
             duration_vocabulary=duration_vocabulary,

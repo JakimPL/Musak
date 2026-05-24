@@ -51,6 +51,7 @@ def test_make_help_documents_examples_and_variables() -> None:
     assert "ANALYSIS_CONFIG" in output
     assert "ANALYSIS_OUTPUT" in output
     assert "ANALYSIS_ENCODED_DIR" in output
+    assert "ANALYSIS_NO_PROGRESS" in output
     assert "PROFILE=1" in output
     assert "PROCESS_PROFILE=1" in output
     assert "FINETUNE_DIFFICULTY_LABELS" in output
@@ -139,6 +140,7 @@ def test_make_analyze_ngrams_uses_dataset_and_analysis_variables() -> None:
         "ANALYSIS_CONFIG=musak_model/configs/analysis/n_grams.yml",
         "ANALYSIS_OUTPUT=analysis/pdmx-figures.csv",
         "ANALYSIS_ENCODED_DIR=processed/PDMX/encoded/abc",
+        "ANALYSIS_NO_PROGRESS=1",
     )
 
     assert "scripts/extract_figures.py" in output
@@ -147,6 +149,7 @@ def test_make_analyze_ngrams_uses_dataset_and_analysis_variables() -> None:
     assert '--analysis-config "musak_model/configs/analysis/n_grams.yml"' in output
     assert '--output "analysis/pdmx-figures.csv"' in output
     assert '--encoded-dir "processed/PDMX/encoded/abc"' in output
+    assert "--no-progress" in output
 
 
 def test_make_train_pretrain_uses_descriptive_variables() -> None:

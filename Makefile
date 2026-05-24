@@ -15,6 +15,7 @@ PROCESS_TOKENIZATION_BATCH_SIZE ?=
 ANALYSIS_CONFIG ?=
 ANALYSIS_OUTPUT ?=
 ANALYSIS_ENCODED_DIR ?=
+ANALYSIS_NO_PROGRESS ?=
 APP_HOST ?= 127.0.0.1
 APP_PORT ?= 8000
 MLFLOW_DIR ?= mlruns
@@ -95,6 +96,7 @@ help:
 	@printf '%s\n' '  ANALYSIS_CONFIG       Optional figure n-gram analysis YAML override.'
 	@printf '%s\n' '  ANALYSIS_OUTPUT       Optional figure n-gram CSV output path. Default: analysis/<dataset-name>.csv'
 	@printf '%s\n' '  ANALYSIS_ENCODED_DIR  Optional encoded run directory override when multiple tokenizer runs exist.'
+	@printf '%s\n' '  ANALYSIS_NO_PROGRESS=1 disables figure n-gram progress bars.'
 	@printf '%s\n' '  PROFILE=1 or PROCESS_PROFILE=1 passes --profile to process.'
 	@printf '%s\n' '  MLFLOW_DIR            MLflow tracking directory. Default: mlruns'
 	@printf '%s\n' '  MLFLOW_HOST           MLflow dashboard host. Default: 127.0.0.1'
@@ -151,7 +153,8 @@ analyze-ngrams:
 		--processed-root "$(PROCESSED_ROOT)" \
 		$(call optional_arg,ANALYSIS_CONFIG,--analysis-config) \
 		$(call optional_arg,ANALYSIS_OUTPUT,--output) \
-		$(call optional_arg,ANALYSIS_ENCODED_DIR,--encoded-dir)
+		$(call optional_arg,ANALYSIS_ENCODED_DIR,--encoded-dir) \
+		$(call optional_flag,ANALYSIS_NO_PROGRESS,--no-progress)
 
 train:
 	$(MAKE) pretrain
