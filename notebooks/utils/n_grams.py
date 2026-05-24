@@ -36,6 +36,11 @@ FIGURE_UNIQUE_COLUMN: Final[str] = "unique_figures"
 FIGURE_DURATION_UNIT_COLUMN: Final[str] = "duration_unit"
 FIGURE_LABEL_COLUMN: Final[str] = "label"
 FIGURE_TEXT_COLUMN: Final[str] = "figure_text"
+FIGURE_MONOPHONIC_COLUMN: Final[str] = "monophonic"
+FIGURE_CHORDS_ONLY_COLUMN: Final[str] = "chords_only"
+FIGURE_IN_SCALE_COLUMN: Final[str] = "in_scale"
+FIGURE_PROPERTY_COLUMN: Final[str] = "property"
+FIGURE_PROPERTY_VALUE_COLUMN: Final[str] = "value"
 
 _FIGURE_COUNT_COLUMNS: Final[frozenset[str]] = frozenset(
     {SCALE_TYPE_COLUMN, HAND_COLUMN, N_COLUMN, COUNT_COLUMN, FIGURE_COLUMN}
@@ -66,6 +71,11 @@ _REPRESENTABLE_DURATIONS: Final[dict[Fraction, tuple[VexflowDuration, int]]] = {
     for dots in range(_MAX_DOTS + 1)
     if duration * Fraction(2 ** (dots + 1) - 1, 2**dots) <= 1
 }
+_FIGURE_PROPERTY_COLUMNS: Final[tuple[str, ...]] = (
+    FIGURE_MONOPHONIC_COLUMN,
+    FIGURE_CHORDS_ONLY_COLUMN,
+    FIGURE_IN_SCALE_COLUMN,
+)
 
 
 def analysis_result_files(analysis_dir: Path = DEFAULT_ANALYSIS_DIR) -> list[Path]:
@@ -136,12 +146,47 @@ def figure_filter_frame(
     result = filtered.sort_values(COUNT_COLUMN, ascending=False).copy()
     result[FIGURE_PERCENT_COLUMN] = result[COUNT_COLUMN] / max(total, 1)
     result[FIGURE_LABEL_COLUMN] = [f"#{index + 1}" for index in range(len(result))]
-    result[FIGURE_TEXT_COLUMN] = [str(parse_figure_ngram(str(value))) for value in result[FIGURE_COLUMN]]
-    return result
+    return _add_figure_annotations(result)
+
+
+def figure_property_distribution(frame: pd.DataFrame) -> pd.DataFrame:
+    columns = [FIGURE_PROPERTY_COLUMN, FIGURE_PROPERTY_VALUE_COLUMN, COUNT_COLUMN, FIGURE_PERCENT_COLUMN]
+    if frame.empty:
+        return pd.DataFrame(columns=columns)
+
+    annotated = _add_figure_annotations(frame)
+    total = int(annotated[COUNT_COLUMN].sum())
+    rows: list[dict[str, object]] = []
+    for property_column in _FIGURE_PROPERTY_COLUMNS:
+        for value in (True, False):
+            count = int(annotated.loc[annotated[property_column] == value, COUNT_COLUMN].sum())
+            rows.append(
+                {
+                    FIGURE_PROPERTY_COLUMN: property_column,
+                    FIGURE_PROPERTY_VALUE_COLUMN: value,
+                    COUNT_COLUMN: count,
+                    FIGURE_PERCENT_COLUMN: count / max(total, 1),
+                }
+            )
+
+    return pd.DataFrame(rows, columns=columns)
 
 
 def parse_figure_ngram(value: str) -> FigureNGram:
     return FigureNGram.model_validate_json(value)
+
+
+def _add_figure_annotations(frame: pd.DataFrame) -> pd.DataFrame:
+    if all(column in frame.columns for column in (FIGURE_TEXT_COLUMN, *_FIGURE_PROPERTY_COLUMNS)):
+        return frame.copy()
+
+    result = frame.copy()
+    figures = [parse_figure_ngram(str(value)) for value in result[FIGURE_COLUMN]]
+    result[FIGURE_TEXT_COLUMN] = [str(figure) for figure in figures]
+    result[FIGURE_MONOPHONIC_COLUMN] = [figure.monophonic for figure in figures]
+    result[FIGURE_CHORDS_ONLY_COLUMN] = [figure.chords_only for figure in figures]
+    result[FIGURE_IN_SCALE_COLUMN] = [figure.in_scale for figure in figures]
+    return result
 
 
 def figure_ngram_to_score_data(

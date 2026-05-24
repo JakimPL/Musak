@@ -10,6 +10,7 @@ app = marimo.App(width="wide", app_title="N-Gram Analysis")
 def _():
     from fractions import Fraction
     from pathlib import Path
+    from typing import Final
 
     import altair as alt
     import marimo as mo
@@ -21,12 +22,15 @@ def _():
     from notebooks.utils import (
         FIGURE_LABEL_COLUMN,
         FIGURE_PERCENT_COLUMN,
+        FIGURE_PROPERTY_COLUMN,
+        FIGURE_PROPERTY_VALUE_COLUMN,
         FIGURE_TEXT_COLUMN,
         analysis_result_files,
         figure_display_unit,
         figure_filter_frame,
         figure_group_summary,
         figure_ngram_to_score_data,
+        figure_property_distribution,
         parse_figure_ngram,
         read_figure_count_frame,
         selected_table_row,
@@ -35,15 +39,19 @@ def _():
     )
 
     alt.data_transformers.disable_max_rows()
+    n_all_option: Final[str] = "all"
     return (
         COUNT_COLUMN,
         DEFAULT_ANALYSIS_DIR,
         FIGURE_LABEL_COLUMN,
         FIGURE_PERCENT_COLUMN,
+        FIGURE_PROPERTY_COLUMN,
+        FIGURE_PROPERTY_VALUE_COLUMN,
         FIGURE_TEXT_COLUMN,
         Fraction,
         HAND_COLUMN,
         N_COLUMN,
+        n_all_option,
         Path,
         SCALE_TYPE_COLUMN,
         alt,
@@ -52,6 +60,7 @@ def _():
         figure_filter_frame,
         figure_group_summary,
         figure_ngram_to_score_data,
+        figure_property_distribution,
         mo,
         parse_figure_ngram,
         pd,
@@ -128,7 +137,7 @@ def _(mo, pd, read_figure_count_frame, result_path):
 
 
 @app.cell
-def _(HAND_COLUMN, N_COLUMN, SCALE_TYPE_COLUMN, frame, mo):
+def _(HAND_COLUMN, N_COLUMN, SCALE_TYPE_COLUMN, frame, mo, n_all_option):
     if frame is None or frame.empty:
         scale_selector = mo.ui.dropdown(options={}, label="Scale")
         hand_selector = mo.ui.dropdown(options={}, label="Hand")
@@ -140,16 +149,22 @@ def _(HAND_COLUMN, N_COLUMN, SCALE_TYPE_COLUMN, frame, mo):
         n_values = sorted(int(value) for value in frame[N_COLUMN].dropna().unique())
         scale_selector = mo.ui.dropdown(options=scale_values, value=scale_values[0], label="Scale")
         hand_selector = mo.ui.dropdown(options=hand_values, value=hand_values[0], label="Hand")
-        n_options = [str(value) for value in n_values]
+        n_options = [n_all_option, *(str(value) for value in n_values)]
         n_selector = mo.ui.dropdown(
             options=n_options,
-            value=n_options[0],
+            value=n_all_option,
             label="n",
         )
         filter_output = mo.hstack([scale_selector, hand_selector, n_selector], gap=2, justify="start")
 
     filter_output
     return hand_selector, n_selector, scale_selector
+
+
+@app.cell
+def _(n_all_option, n_selector):
+    selected_n = None if n_selector.value in (None, n_all_option) else int(n_selector.value)
+    return (selected_n,)
 
 
 @app.cell
@@ -191,16 +206,18 @@ def _(COUNT_COLUMN, HAND_COLUMN, N_COLUMN, SCALE_TYPE_COLUMN, alt, figure_group_
 @app.cell
 def _(
     COUNT_COLUMN,
-    FIGURE_LABEL_COLUMN,
     FIGURE_PERCENT_COLUMN,
+    FIGURE_PROPERTY_COLUMN,
+    FIGURE_PROPERTY_VALUE_COLUMN,
     FIGURE_TEXT_COLUMN,
     alt,
     figure_filter_frame,
+    figure_property_distribution,
     frame,
     hand_selector,
     mo,
-    n_selector,
     scale_selector,
+    selected_n,
     top_figure_frame,
     top_n,
 ):
@@ -214,21 +231,43 @@ def _(
             frame,
             scale_type=scale_selector.value,
             hand=hand_selector.value,
-            n=int(n_selector.value),
+            n=selected_n,
         )
         top_frame = top_figure_frame(
             frame,
             scale_type=scale_selector.value,
             hand=hand_selector.value,
-            n=int(n_selector.value),
+            n=selected_n,
             top_n=int(top_n.value),
+        )
+        property_distribution = figure_property_distribution(filtered_frame)
+        property_chart = (
+            alt.Chart(property_distribution)
+            .mark_bar()
+            .encode(
+                x=alt.X(f"{FIGURE_PROPERTY_COLUMN}:N", title="Property"),
+                y=alt.Y(f"{FIGURE_PERCENT_COLUMN}:Q", title="Share", axis=alt.Axis(format="%")),
+                color=alt.Color(f"{FIGURE_PROPERTY_VALUE_COLUMN}:N", title="Value"),
+                tooltip=[
+                    alt.Tooltip(f"{FIGURE_PROPERTY_COLUMN}:N", title="Property"),
+                    alt.Tooltip(f"{FIGURE_PROPERTY_VALUE_COLUMN}:N", title="Value"),
+                    alt.Tooltip(f"{COUNT_COLUMN}:Q", title="Count"),
+                    alt.Tooltip(f"{FIGURE_PERCENT_COLUMN}:Q", title="Share", format=".1%"),
+                ],
+            )
+            .properties(width=360, height=220, title="Figure property distribution")
         )
         top_chart = (
             alt.Chart(top_frame)
             .mark_bar()
             .encode(
                 x=alt.X(f"{COUNT_COLUMN}:Q", title="Count"),
-                y=alt.Y(f"{FIGURE_LABEL_COLUMN}:N", title="Figure", sort=None),
+                y=alt.Y(
+                    f"{FIGURE_TEXT_COLUMN}:N",
+                    title="Figure",
+                    sort=None,
+                    axis=alt.Axis(labelLimit=620),
+                ),
                 tooltip=[
                     alt.Tooltip(f"{FIGURE_TEXT_COLUMN}:N", title="Figure"),
                     alt.Tooltip(f"{COUNT_COLUMN}:Q", title="Count"),
@@ -241,6 +280,7 @@ def _(
         top_table = mo.ui.table(table_frame, selection="single", page_size=min(max(len(table_frame), 1), 20))
         top_output = mo.vstack(
             [
+                mo.ui.altair_chart(property_chart, chart_selection=False, legend_selection=False),
                 mo.ui.altair_chart(top_chart, chart_selection=False, legend_selection=False),
                 top_table,
             ],

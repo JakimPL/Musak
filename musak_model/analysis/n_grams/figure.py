@@ -18,6 +18,18 @@ class FigureNGram(BaseModel):
     def n(self) -> int:
         return len(self.onsets)
 
+    @property
+    def monophonic(self) -> bool:
+        return all(len(degrees) == 1 for degrees, _ in self.onsets)
+
+    @property
+    def chords_only(self) -> bool:
+        return all(len(degrees) > 1 for degrees, _ in self.onsets)
+
+    @property
+    def in_scale(self) -> bool:
+        return all(accidental == 0 for degrees, _ in self.onsets for _, accidental in degrees)
+
     def __str__(self) -> str:
         return " ".join(_format_onset(onset) for onset in self.onsets)
 

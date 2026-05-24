@@ -125,6 +125,24 @@ def test_figure_ngram_string_represents_relative_degrees_and_normalized_duration
     assert repr(figure) == "FigureNGram('[0 +2b +4#](1) -1(3/2)')"
 
 
+def test_figure_ngram_properties_classify_texture_and_accidentals() -> None:
+    monophonic = FigureNGram(onsets=((((0, 0),), Fraction(1)), (((2, 0),), Fraction(1))))
+    chords_only = FigureNGram(onsets=((((0, 0), (2, 0)), Fraction(1)), (((1, 0), (3, 0)), Fraction(1))))
+    mixed = FigureNGram(onsets=((((0, 0), (2, 0)), Fraction(1)), (((1, 1),), Fraction(1))))
+
+    assert monophonic.monophonic
+    assert not monophonic.chords_only
+    assert monophonic.in_scale
+
+    assert not chords_only.monophonic
+    assert chords_only.chords_only
+    assert chords_only.in_scale
+
+    assert not mixed.monophonic
+    assert not mixed.chords_only
+    assert not mixed.in_scale
+
+
 def test_build_figure_ngrams_from_run_uses_inter_onset_duration_except_final_onset() -> None:
     run = HandOnsetRun(
         hand=Hand.RIGHT,
