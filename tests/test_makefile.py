@@ -28,45 +28,18 @@ def test_make_install_uses_dev_extra_and_model_group() -> None:
     assert "uv run pre-commit install" in output
 
 
-def test_make_help_documents_examples_and_variables() -> None:
+def test_make_help_lists_main_targets() -> None:
     output = _make_dry_run("help")
 
     assert "Musak development commands" in output
-    assert "make parse" in output
-    assert "make tokenize" in output
-    assert "make analyze-n-grams" in output
-    assert "make pretrain" in output
-    assert "make finetune" in output
-    assert "make mlflow" in output
-    assert "PRETRAIN_PROCESSED_DIR" in output
-    assert "FINETUNE_PROCESSED_DIR" in output
-    assert "MLFLOW_PORT" in output
-    assert "OVERWRITE=1" in output
-    assert "PROCESS_OVERWRITE=1" in output
-    assert "PROCESS_DISABLE_MLFLOW" in output
-    assert "PROCESS_MLFLOW_EXPERIMENT" in output
-    assert "PROCESSING_CONFIG" in output
-    assert "PROCESS_DIFFICULTY_LABELS" in output
-    assert "PROCESS_WHOLE_FILE_SEGMENTS" in output
-    assert "PROCESS_SKIP_FIGURE_ANALYSIS" in output
-    assert "ANALYSIS_CONFIG" in output
-    assert "ANALYSIS_OUTPUT" in output
-    assert "ANALYSIS_ENCODED_DIR" in output
-    assert "ANALYSIS_NO_PROGRESS" in output
-    assert "PROFILE=1" in output
-    assert "PROCESS_PROFILE=1" in output
-    assert "FINETUNE_DIFFICULTY_LABELS" in output
-    assert "FINETUNE_WHOLE_FILE_SEGMENTS" in output
-    assert "make notebook-<name>" in output
-    assert "notebook-tokenizer-explorer" in output
-    assert "NOTEBOOK_MODE" in output
+    for target in ("app", "process", "pretrain", "finetune", "train", "mlflow", "notebook-<name>"):
+        assert f"make {target}" in output
 
 
-def test_make_process_uses_data_dir_and_processed_root() -> None:
+def test_make_process_uses_data_dir_and_processing_options() -> None:
     output = _make_dry_run(
         "process",
         "DATA_DIR=data/PDMX",
-        "PROCESSED_ROOT=processed",
         "NUM_WORKERS=4",
         "PROCESS_MLFLOW_RUN_NAME=process-test",
         "PROCESS_MLFLOW_TRACKING_URI=file:///tmp/mlruns",
@@ -83,12 +56,10 @@ def test_make_process_uses_data_dir_and_processed_root() -> None:
     assert '--stage "parse"' not in output
     assert '--stage "tokenize"' not in output
     assert '--data-dir "data/PDMX"' in output
-    assert '--processed-dir "processed"' in output
     assert '--processing-config "musak_model/configs/data/processing.yml"' in output
     assert '--workers "4"' in output
     assert '--difficulty-labels "data/PDMX/difficulty_labels.json"' in output
     assert "--whole-file-segments" in output
-    assert '--mlflow-experiment-name "musak-process"' in output
     assert '--mlflow-run-name "process-test"' in output
     assert '--mlflow-tracking-uri "file:///tmp/mlruns"' in output
     assert '--analysis-config "musak_model/configs/analysis/n_grams.yml"' in output
@@ -150,7 +121,6 @@ def test_make_analyze_n_grams_uses_dataset_and_analysis_variables() -> None:
     output = _make_dry_run(
         "analyze-n-grams",
         "DATA_DIR=data/PDMX",
-        "PROCESSED_ROOT=processed",
         "ANALYSIS_CONFIG=musak_model/configs/analysis/n_grams.yml",
         "ANALYSIS_OUTPUT=analysis/pdmx-figures.csv",
         "ANALYSIS_ENCODED_DIR=processed/PDMX/encoded/abc",
@@ -159,7 +129,6 @@ def test_make_analyze_n_grams_uses_dataset_and_analysis_variables() -> None:
 
     assert "scripts/extract_figures.py" in output
     assert '--data-dir "data/PDMX"' in output
-    assert '--processed-root "processed"' in output
     assert '--analysis-config "musak_model/configs/analysis/n_grams.yml"' in output
     assert '--output "analysis/pdmx-figures.csv"' in output
     assert '--encoded-dir "processed/PDMX/encoded/abc"' in output
@@ -170,7 +139,6 @@ def test_make_train_pretrain_uses_descriptive_variables() -> None:
     output = _make_dry_run(
         "pretrain",
         "PRETRAIN_DATA_DIR=data/PDMX",
-        "PRETRAIN_PROCESSED_DIR=processed/PDMX",
         "PRETRAIN_EPOCHS=25",
         "PRETRAIN_DEVICE=cuda",
         "PRETRAIN_NUM_WORKERS=2",
@@ -179,59 +147,26 @@ def test_make_train_pretrain_uses_descriptive_variables() -> None:
 
     assert "scripts/pretrain.py" in output
     assert '--data-dir "data/PDMX"' in output
-    assert '--processed-dir "processed/PDMX"' in output
     assert '--epochs "25"' in output
     assert '--device "cuda"' in output
     assert '--num-workers "2"' in output
     assert "--overwrite" in output
 
 
-def test_make_pretrain_can_use_processed_artifacts_without_raw_fallback() -> None:
-    output = _make_dry_run(
-        "pretrain",
-        "PRETRAIN_PROCESSED_DIR=processed/PDMX",
-        "PRETRAIN_EPOCHS=25",
-    )
-
-    assert "scripts/pretrain.py" in output
-    assert '--processed-dir "processed/PDMX"' in output
-    assert "--data-dir" not in output
-    assert '--epochs "25"' in output
-
-
 def test_make_train_runs_pretrain_then_finetune_with_distinct_datasets() -> None:
     output = _make_dry_run(
         "train",
         "PRETRAIN_DATA_DIR=data/PDMX",
-        "PRETRAIN_PROCESSED_DIR=processed/PDMX",
-        "FINETUNE_DATA_DIR=data/exercises",
-        "FINETUNE_PROCESSED_DIR=processed/exercises",
-        "FINETUNE_DIFFICULTY_LABELS=data/exercises/difficulty_labels.json",
+        "FINETUNE_DATA_DIR=data/Exercises",
+        "FINETUNE_DIFFICULTY_LABELS=data/Exercises/difficulty_labels.json",
         "PRETRAIN_CHECKPOINT=checkpoints/pretraining/best.pt",
     )
 
     assert output.index("scripts/pretrain.py") < output.index("scripts/finetune.py")
     assert '--data-dir "data/PDMX"' in output
-    assert '--processed-dir "processed/PDMX"' in output
-    assert '--data-dir "data/exercises"' in output
-    assert '--processed-dir "processed/exercises"' in output
-    assert '--difficulty-labels "data/exercises/difficulty_labels.json"' in output
+    assert '--data-dir "data/Exercises"' in output
+    assert '--difficulty-labels "data/Exercises/difficulty_labels.json"' in output
     assert "--whole-file-segments" in output
-    assert '--pretrain-checkpoint "checkpoints/pretraining/best.pt"' in output
-
-
-def test_make_finetune_can_use_processed_artifacts_without_raw_fallback() -> None:
-    output = _make_dry_run(
-        "finetune",
-        "FINETUNE_PROCESSED_DIR=processed/exercises",
-        "FINETUNE_DIFFICULTY_LABELS=data/exercises/difficulty_labels.json",
-        "PRETRAIN_CHECKPOINT=checkpoints/pretraining/best.pt",
-    )
-
-    assert "scripts/finetune.py" in output
-    assert '--processed-dir "processed/exercises"' in output
-    assert "--data-dir" not in output
-    assert '--difficulty-labels "data/exercises/difficulty_labels.json"' in output
     assert '--pretrain-checkpoint "checkpoints/pretraining/best.pt"' in output
 
 
@@ -239,8 +174,7 @@ def test_make_finetune_requires_difficulty_labels() -> None:
     with pytest.raises(subprocess.CalledProcessError):
         _make_dry_run(
             "finetune",
-            "FINETUNE_DATA_DIR=data/exercises",
-            "FINETUNE_PROCESSED_DIR=processed/exercises",
+            "FINETUNE_DATA_DIR=data/Exercises",
         )
 
 

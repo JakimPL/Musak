@@ -237,7 +237,7 @@ def _log_processing_file_not_found(
 ) -> None:
     _LOGGER.error("Dataset processing input is missing: %s", exception)
     _LOGGER.error(
-        "If you are tokenizing, run the parse stage first with the same --data-dir and --processed-dir, "
+        "If you are tokenizing, run the parse stage first with the same --data-dir, "
         "or run --stage process. Current artifact directory is %s.",
         processed_directory / data_directory.name,
     )
@@ -252,11 +252,9 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         epilog=(
             "Examples:\n"
             "  uv run python scripts/process_dataset.py --data-dir data/PDMX\n"
-            "  uv run python scripts/process_dataset.py --data-dir data/PDMX --processed-dir processed --workers 8\n"
             "  uv run python scripts/process_dataset.py --data-dir data/PDMX --stage parse --no-progress\n\n"
-            "Output layout:\n"
-            "  Artifacts are written below <processed-dir>/<data-dir.name>/.\n"
-            "  For example, --data-dir data/PDMX --processed-dir processed writes to processed/PDMX/.\n"
+            "Output:\n"
+            "  Artifacts are written below processed/<data-dir.name>/ by default.\n"
             "  Pass the dataset root such as data/PDMX, not an internal folder such as data/PDMX/mxl."
         ),
         formatter_class=_ProcessDatasetHelpFormatter,

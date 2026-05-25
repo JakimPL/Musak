@@ -1,41 +1,37 @@
 # Processing and Training Pipeline
 
-This is the user-facing path for turning a MusicXML dataset into processed artifacts, then training the model in one or
-two stages.
+This is the user-facing path for the experimental sight-reading model pipeline. The model is not integrated into the
+Musak web app yet.
 
 ## Dataset Rule
 
-Processing takes a raw dataset root and writes under a processed root:
+Processing takes a dataset root and writes to `processed/<dataset-name>`:
 
 ```text
 data/PDMX -> processed/PDMX
-data/exercises -> processed/exercises
+data/Exercises -> processed/Exercises
 ```
 
-Pass the dataset root, not an internal folder such as `data/PDMX/mxl`.
+Processing recursively gathers `.mxl`, `.xml`, and `.musicxml` files from the dataset root.
 
-Training takes the dataset-specific processed directory, for example `processed/PDMX`. A raw `data/...` directory is
-optional during training and is only needed when you want MusicXML fallback if processed artifacts are missing or stale.
+Training takes the same dataset root and looks for matching artifacts under `processed/<dataset-name>`.
 
 ## Typical End-To-End Run
 
 Process the broad pretraining dataset, process the exercise finetuning dataset, then train both stages:
 
 ```bash
-DATA_DIR=data/PDMX PROCESSED_ROOT=processed NUM_WORKERS=8 make process
+DATA_DIR=data/PDMX make process
 
-DATA_DIR=data/exercises \
-PROCESSED_ROOT=processed \
+DATA_DIR=data/Exercises \
 PROCESS_WHOLE_FILE_SEGMENTS=1 \
-PROCESS_DIFFICULTY_LABELS=data/exercises/difficulty_labels.json \
-NUM_WORKERS=8 \
+PROCESS_DIFFICULTY_LABELS=data/Exercises/difficulty_labels.json \
 make process
 
-PRETRAIN_PROCESSED_DIR=processed/PDMX \
-FINETUNE_PROCESSED_DIR=processed/exercises \
-FINETUNE_DIFFICULTY_LABELS=data/exercises/difficulty_labels.json \
+PRETRAIN_DATA_DIR=data/PDMX \
+FINETUNE_DATA_DIR=data/Exercises \
+FINETUNE_DIFFICULTY_LABELS=data/Exercises/difficulty_labels.json \
 DEVICE=cuda \
-NUM_WORKERS=4 \
 make train
 ```
 
@@ -46,27 +42,12 @@ Use `make pretrain` or `make finetune` instead of `make train` when you want to 
 Run the complete processing pipeline:
 
 ```bash
-DATA_DIR=data/PDMX PROCESSED_ROOT=processed NUM_WORKERS=8 make process
+DATA_DIR=data/PDMX make process
 ```
 
-`make process` runs parsing, tokenization, dataset evaluation diagnostics, and figure-profile extraction in one MLflow
-run. It writes:
-
-```text
-processed/PDMX/
-  parsed.csv
-  parsed/<source-hash-prefix>/<source-hash>.json
-  encoded/<tokenizer-hash>/
-    tokenizer.json
-    encoded.csv
-    data-00000.jsonl
-    figure/
-      config.yml
-      all/
-        counts.csv
-        profile.json
-      by_sample.jsonl
-```
+`make process` recursively gathers MusicXML files from `DATA_DIR`, parses compatible two-part piano scores, tokenizes
+training examples, computes dataset diagnostics, builds figure-profile artifacts, and logs processing metrics to
+MLflow. By default it writes artifacts below `processed/<dataset-name>`.
 
 Useful processing switches:
 
@@ -75,14 +56,14 @@ DATA_DIR=data/PDMX make parse
 DATA_DIR=data/PDMX make tokenize
 DATA_DIR=data/PDMX PROCESS_OVERWRITE=1 make process
 DATA_DIR=data/PDMX PROCESS_SKIP_FIGURE_ANALYSIS=1 make process
-DATA_DIR=data/exercises PROCESS_WHOLE_FILE_SEGMENTS=1 PROCESS_DIFFICULTY_LABELS=data/exercises/difficulty_labels.json make process
+DATA_DIR=data/Exercises PROCESS_WHOLE_FILE_SEGMENTS=1 PROCESS_DIFFICULTY_LABELS=data/Exercises/difficulty_labels.json make process
 ```
 
 `make analyze-n-grams` remains available for standalone figure extraction, but it is not needed after a normal
 `make process` run:
 
 ```bash
-DATA_DIR=data/PDMX PROCESSED_ROOT=processed make analyze-n-grams
+DATA_DIR=data/PDMX make analyze-n-grams
 ```
 
 Start the local MLflow UI with:
@@ -96,14 +77,14 @@ make mlflow
 Run pretraining only:
 
 ```bash
-PRETRAIN_PROCESSED_DIR=processed/PDMX PRETRAIN_EPOCHS=25 PRETRAIN_DEVICE=cuda make pretrain
+PRETRAIN_DATA_DIR=data/PDMX PRETRAIN_EPOCHS=25 PRETRAIN_DEVICE=cuda make pretrain
 ```
 
 Run finetuning only from a pretraining checkpoint:
 
 ```bash
-FINETUNE_PROCESSED_DIR=processed/exercises \
-FINETUNE_DIFFICULTY_LABELS=data/exercises/difficulty_labels.json \
+FINETUNE_DATA_DIR=data/Exercises \
+FINETUNE_DIFFICULTY_LABELS=data/Exercises/difficulty_labels.json \
 PRETRAIN_CHECKPOINT=checkpoints/pretraining/best.pt \
 FINETUNE_EPOCHS=8 \
 FINETUNE_DEVICE=cuda \
@@ -113,20 +94,12 @@ make finetune
 Run both training stages:
 
 ```bash
-PRETRAIN_PROCESSED_DIR=processed/PDMX \
-FINETUNE_PROCESSED_DIR=processed/exercises \
-FINETUNE_DIFFICULTY_LABELS=data/exercises/difficulty_labels.json \
+PRETRAIN_DATA_DIR=data/PDMX \
+FINETUNE_DATA_DIR=data/Exercises \
+FINETUNE_DIFFICULTY_LABELS=data/Exercises/difficulty_labels.json \
 EPOCHS=25 \
 DEVICE=cuda \
-NUM_WORKERS=4 \
 make train
-```
-
-Add raw dataset directories only when you want raw MusicXML fallback:
-
-```bash
-PRETRAIN_DATA_DIR=data/PDMX PRETRAIN_PROCESSED_DIR=processed/PDMX make pretrain
-FINETUNE_DATA_DIR=data/exercises FINETUNE_PROCESSED_DIR=processed/exercises FINETUNE_DIFFICULTY_LABELS=data/exercises/difficulty_labels.json make finetune
 ```
 
 Training logs model metrics to MLflow. Generation evaluation is enabled by the default training configs and logs

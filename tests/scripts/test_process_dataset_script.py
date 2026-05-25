@@ -40,7 +40,7 @@ def test_missing_processing_input_log_mentions_parse_stage(caplog: pytest.LogCap
     )
 
     assert "parsed manifest does not exist: processed/0/parsed.csv" in caplog.text
-    assert "run the parse stage first with the same --data-dir and --processed-dir" in caplog.text
+    assert "run the parse stage first with the same --data-dir" in caplog.text
     assert "processed/0" in caplog.text
 
 

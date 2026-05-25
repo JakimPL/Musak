@@ -27,7 +27,6 @@ from scripts.utils.train import (
 def _args(**overrides: object) -> argparse.Namespace:
     values = {
         "data_dir": Path("data/PDMX"),
-        "processed_dir": Path("processed/PDMX"),
         "ingestion_config": Path("musak_model/configs/training/ingestion.yml"),
         "segmentation_config": Path("musak_model/configs/data/segmentation.yml"),
         "tokenization_config": Path("musak_model/configs/tokens/tokenization.yml"),
@@ -135,7 +134,6 @@ def test_resume_command_for_pretraining_copies_resolved_arguments(tmp_path: Path
 
     assert "uv run python scripts/pretrain.py" in command
     assert "--data-dir data/PDMX" in command
-    assert "--processed-dir processed/PDMX" in command
     assert f"--checkpoint-dir {checkpoint.parent}" in command
     assert f"--resume-checkpoint {checkpoint}" in command
     assert "--epochs 25" in command

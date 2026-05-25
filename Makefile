@@ -1,6 +1,5 @@
 .DEFAULT_GOAL := help
 
-PROCESSED_ROOT ?= processed
 PROCESS_OVERWRITE ?= $(or $(OVERWRITE),$(OVERWITE))
 PROCESS_DISABLE_MLFLOW ?=
 PROCESS_MLFLOW_EXPERIMENT ?= musak-process
@@ -30,7 +29,6 @@ NOTEBOOK_MODE ?= edit
 .PHONY: help install test app parse tokenize process analyze-n-grams train pretrain finetune mlflow FORCE
 
 PRETRAIN_DATA_DIR ?= $(DATA_DIR)
-PRETRAIN_PROCESSED_DIR ?=
 PRETRAIN_EPOCHS ?= $(EPOCHS)
 PRETRAIN_DEVICE ?= $(DEVICE)
 PRETRAIN_NUM_WORKERS ?= $(NUM_WORKERS)
@@ -41,7 +39,6 @@ PRETRAIN_DIFFICULTY_LABELS ?=
 PRETRAIN_WHOLE_FILE_SEGMENTS ?=
 
 FINETUNE_DATA_DIR ?= $(PRETRAIN_DATA_DIR)
-FINETUNE_PROCESSED_DIR ?= $(PRETRAIN_PROCESSED_DIR)
 FINETUNE_EPOCHS ?= $(EPOCHS)
 FINETUNE_DEVICE ?= $(DEVICE)
 FINETUNE_NUM_WORKERS ?= $(NUM_WORKERS)
@@ -73,19 +70,18 @@ help:
 	@printf '%s\n' '  make install'
 	@printf '%s\n' '  make test'
 	@printf '%s\n' '  APP_PORT=8080 make app'
-	@printf '%s\n' '  DATA_DIR=data/PDMX PROCESSED_ROOT=processed NUM_WORKERS=8 make process'
-	@printf '%s\n' '  DATA_DIR=data/PDMX PROCESSED_ROOT=processed make analyze-n-grams'
-	@printf '%s\n' '  DATA_DIR=data/exercises PROCESS_WHOLE_FILE_SEGMENTS=1 PROCESS_DIFFICULTY_LABELS=data/exercises/difficulty_labels.json PROCESS_OVERWRITE=1 make process'
-	@printf '%s\n' '  PRETRAIN_PROCESSED_DIR=processed/PDMX PRETRAIN_EPOCHS=25 PRETRAIN_DEVICE=cuda make pretrain'
-	@printf '%s\n' '  FINETUNE_PROCESSED_DIR=processed/exercises FINETUNE_DIFFICULTY_LABELS=data/exercises/difficulty_labels.json PRETRAIN_CHECKPOINT=checkpoints/pretraining/best.pt FINETUNE_EPOCHS=8 make finetune'
-	@printf '%s\n' '  PRETRAIN_PROCESSED_DIR=processed/PDMX FINETUNE_PROCESSED_DIR=processed/exercises FINETUNE_DIFFICULTY_LABELS=data/exercises/difficulty_labels.json EPOCHS=25 DEVICE=cuda NUM_WORKERS=4 make train'
+	@printf '%s\n' '  DATA_DIR=data/PDMX make process'
+	@printf '%s\n' '  DATA_DIR=data/PDMX make analyze-n-grams'
+	@printf '%s\n' '  DATA_DIR=data/Exercises PROCESS_WHOLE_FILE_SEGMENTS=1 PROCESS_DIFFICULTY_LABELS=data/Exercises/difficulty_labels.json PROCESS_OVERWRITE=1 make process'
+	@printf '%s\n' '  PRETRAIN_DATA_DIR=data/PDMX PRETRAIN_EPOCHS=25 PRETRAIN_DEVICE=cuda make pretrain'
+	@printf '%s\n' '  FINETUNE_DATA_DIR=data/Exercises FINETUNE_DIFFICULTY_LABELS=data/Exercises/difficulty_labels.json PRETRAIN_CHECKPOINT=checkpoints/pretraining/best.pt FINETUNE_EPOCHS=8 make finetune'
+	@printf '%s\n' '  PRETRAIN_DATA_DIR=data/PDMX FINETUNE_DATA_DIR=data/Exercises FINETUNE_DIFFICULTY_LABELS=data/Exercises/difficulty_labels.json EPOCHS=25 DEVICE=cuda make train'
 	@printf '%s\n' '  MLFLOW_DIR=mlruns MLFLOW_PORT=5000 make mlflow'
 	@printf '%s\n' ''
 	@printf '%s\n' 'Variables:'
 	@printf '%s\n' '  APP_HOST              Musak app host. Default: 127.0.0.1'
 	@printf '%s\n' '  APP_PORT              Musak app port. Default: 8000'
 	@printf '%s\n' '  DATA_DIR              Dataset root for process.'
-	@printf '%s\n' '  PROCESSED_ROOT        Processed artifact root for process. Default: processed'
 	@printf '%s\n' '  PROCESS_OVERWRITE=1   Pass --overwrite to process. Defaults to OVERWRITE when set.'
 	@printf '%s\n' '  PROCESS_DISABLE_MLFLOW=1 disables process MLflow dataset metrics.'
 	@printf '%s\n' '  PROCESS_MLFLOW_EXPERIMENT, PROCESS_MLFLOW_RUN_NAME, PROCESS_MLFLOW_TRACKING_URI configure process MLflow logging.'
@@ -103,13 +99,11 @@ help:
 	@printf '%s\n' '  MLFLOW_DIR            MLflow tracking directory. Default: mlruns'
 	@printf '%s\n' '  MLFLOW_HOST           MLflow dashboard host. Default: 127.0.0.1'
 	@printf '%s\n' '  MLFLOW_PORT           MLflow dashboard port. Default: 5000'
-	@printf '%s\n' '  PRETRAIN_DATA_DIR     Optional raw pretrain dataset root for raw fallback.'
-	@printf '%s\n' '  PRETRAIN_PROCESSED_DIR Dataset-specific pretrain artifacts, e.g. processed/PDMX.'
+	@printf '%s\n' '  PRETRAIN_DATA_DIR     Pretrain dataset root. Training reads processed/<name> when available.'
 	@printf '%s\n' '  PRETRAIN_CHECKPOINT_DIR Optional checkpoint output directory override for pretrain.'
 	@printf '%s\n' '  PRETRAIN_DIFFICULTY_LABELS Optional difficulty-label JSON/YAML path for pretrain fallback.'
 	@printf '%s\n' '  PRETRAIN_WHOLE_FILE_SEGMENTS=1 trains pretrain from whole-file segments.'
-	@printf '%s\n' '  FINETUNE_DATA_DIR     Optional raw finetune dataset root for raw fallback. Defaults to PRETRAIN_DATA_DIR.'
-	@printf '%s\n' '  FINETUNE_PROCESSED_DIR Dataset-specific finetune artifacts. Defaults to PRETRAIN_PROCESSED_DIR.'
+	@printf '%s\n' '  FINETUNE_DATA_DIR     Finetune dataset root. Defaults to PRETRAIN_DATA_DIR.'
 	@printf '%s\n' '  FINETUNE_CHECKPOINT_DIR Optional checkpoint output directory override for finetune.'
 	@printf '%s\n' '  FINETUNE_DIFFICULTY_LABELS Required difficulty-label JSON/YAML path for exercise finetuning.'
 	@printf '%s\n' '  FINETUNE_WHOLE_FILE_SEGMENTS=1 passes --whole-file-segments to finetune. Default: 1'
@@ -156,10 +150,9 @@ train:
 	$(MAKE) finetune
 
 pretrain:
-	$(call require_training_source,PRETRAIN_DATA_DIR,PRETRAIN_PROCESSED_DIR)
+	$(call require_var,PRETRAIN_DATA_DIR)
 	uv run python scripts/pretrain.py \
-		$(call optional_arg,PRETRAIN_DATA_DIR,--data-dir) \
-		$(call optional_arg,PRETRAIN_PROCESSED_DIR,--processed-dir) \
+		--data-dir "$(PRETRAIN_DATA_DIR)" \
 		$(call optional_arg,PRETRAIN_CHECKPOINT_DIR,--checkpoint-dir) \
 		$(call optional_arg,PRETRAIN_EPOCHS,--epochs) \
 		$(call optional_arg,PRETRAIN_DEVICE,--device) \
@@ -170,11 +163,10 @@ pretrain:
 		$(call optional_non_resume_flag,PRETRAIN_OVERWRITE,--overwrite)
 
 finetune:
-	$(call require_training_source,FINETUNE_DATA_DIR,FINETUNE_PROCESSED_DIR)
+	$(call require_var,FINETUNE_DATA_DIR)
 	$(call require_var,FINETUNE_DIFFICULTY_LABELS)
 	uv run python scripts/finetune.py \
-		$(call optional_arg,FINETUNE_DATA_DIR,--data-dir) \
-		$(call optional_arg,FINETUNE_PROCESSED_DIR,--processed-dir) \
+		--data-dir "$(FINETUNE_DATA_DIR)" \
 		$(call optional_arg,FINETUNE_CHECKPOINT_DIR,--checkpoint-dir) \
 		--pretrain-checkpoint "$(PRETRAIN_CHECKPOINT)" \
 		$(call optional_arg,FINETUNE_EPOCHS,--epochs) \
@@ -198,10 +190,6 @@ FORCE:
 
 define require_var
 	$(if $($(1)),,$(error $(1) is required))
-endef
-
-define require_training_source
-	$(if $(or $($(1)),$($(2))),,$(error either $(1) or $(2) is required))
 endef
 
 define require_notebook
@@ -231,7 +219,6 @@ endef
 define analyze_n_grams_command
 	uv run python scripts/extract_figures.py \
 		--data-dir "$(DATA_DIR)" \
-		--processed-root "$(PROCESSED_ROOT)" \
 		$(call optional_arg,ANALYSIS_CONFIG,--analysis-config) \
 		$(call optional_arg,ANALYSIS_OUTPUT,--output) \
 		$(call optional_arg,ANALYSIS_ENCODED_DIR,--encoded-dir) \
@@ -241,7 +228,6 @@ endef
 define process_dataset_command
 	uv run python scripts/process_dataset.py \
 		--data-dir "$(DATA_DIR)" \
-		--processed-dir "$(PROCESSED_ROOT)" \
 		--stage "$(1)" \
 		$(call optional_arg,PROCESSING_CONFIG,--processing-config) \
 		$(call optional_arg,NUM_WORKERS,--workers) \

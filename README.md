@@ -1,166 +1,155 @@
 # Musak
 
-A set of web tools for ear training.
+Musak is a web application for musical exercises. The current app includes interval, chord inversion, and rhythm
+practice pages backed by generated notation and audio.
 
-## Installation
+The repository also contains an experimental sight-reading model pipeline. That pipeline can process MusicXML datasets,
+train autoregressive models, and inspect generated outputs, but it is not integrated into the Musak web app yet.
 
-### External dependencies
+## Run The Web App
 
-Run the provided script to install system packages and set up the soundfont:
-
-```bash
-./install.sh
-```
-
-This installs `lilypond`, `fluidsynth`, and `ffmpeg` via the system package manager and, on Debian/Ubuntu, symlinks the system soundfont (`FluidR3_GM.sf2`) to `soundfont/st_concert.sf2`.
-
-On macOS or unsupported systems, install those packages manually and place a `.sf2` soundfont at `soundfont/st_concert.sf2`. A freely available option is [GeneralUser GS](https://schristiancollins.com/generaluser.php).
-
-### Python environment
-
-Requires [uv](https://docs.astral.sh/uv/). Python 3.13 is managed automatically. `./install.sh` runs `uv sync` for you, but you can also run it manually:
-
-```bash
-uv sync --extra dev
-```
-
-## Model Token Text Format
-
-Token sequences use a compact text format for logging, debugging, and tests. The text form is a representation of tokens only; scale, key, and other segment metadata remain external context.
-
-Tokens are separated by spaces. The canonical grammar is:
-
-```text
-Hand:      R | L
-Note:      DEGREE ACCIDENTAL? OCTAVE? DURATION
-Rest:      r DURATION
-Hold:      h DURATION
-Join:      ~
-Start:     BOS
-Bar:       |
-End:       ‖
-
-DEGREE:    1..7
-ACCIDENTAL: ♯ | ♭
-OCTAVE:    ↑N | ↓N        # omitted means 0
-DURATION:  (NUM:DEN)
-```
-
-Examples:
-
-```text
-R 6♯↑1(1:4) 3(1:4) ~ L r(1:8) 1↓1(1:8) | ‖
-```
-
-`6♯↑1(1:4)` means scale degree 6, raised by one semitone, octave offset +1, with duration 1/4. `~` joins the preceding token to the previous note onset, so `n` simultaneous notes are represented with `n - 1` join tokens in the unified stream. This can join notes across `R` and `L` when they share an onset; decoding keeps independent time cursors for each hand.
-
-`~` joins a note to the previous onset for chord representation. `h(NUM:DEN)` extends the active hand's previous same-hand note or chord by the given duration; it is used for tied/held continuations rather than new attacks.
-
-`BOS` is the learned beginning-of-sequence token. Encoded dataset artifacts store musical tokens only and end with `‖`; training prepends `BOS` to the model input so the first musical token is learned as `BOS -> first_token`. Generation should seed the model with the tokenizer vocabulary's `start_token_id`.
-
-Text serialization must use true duration fractions, not duration vocabulary IDs. Parsing text back into tokens converts `(NUM:DEN)` through the active duration vocabulary and should raise a tokenizer-specific error when the duration is unsupported.
-
-## MusicXML Piano Part Policy
-
-The parser accepts only two-part piano scores for the sight-reading model. A score must contain exactly two parts. Parts with no explicit instrument are accepted as piano-compatible; parts with an explicit piano MIDI program are accepted; parts with an explicit non-piano instrument are rejected.
-
-Right and left hand assignment is based on pitch center, not part order or part name. The part with the higher median MIDI pitch is the right hand, and the other part is the left hand. Scores with an empty pitched part or identical pitch centers are rejected as ambiguous.
-
-## Dataset Processing and Training
-
-For the full user-facing workflow, see [docs/pipeline.md](docs/pipeline.md).
-
-Dataset roots and processed artifacts follow one directory rule:
-
-```text
-<data-dir> -> <processed-dir>/<data-dir.name>
-```
-
-For example, processing `data/PDMX` with the default processed root writes to `processed/PDMX`. Pass the dataset root (`data/PDMX`), not an internal folder such as `data/PDMX/mxl`.
-
-```bash
-DATA_DIR=data/PDMX PROCESSED_ROOT=processed NUM_WORKERS=8 make process
-```
-
-`make process` runs parsing, tokenization, dataset evaluation diagnostics, and figure-profile extraction in one
-processing MLflow run. The processed layout is:
-
-```text
-processed/PDMX/
-  parsed.csv
-  parsed/<first_source_hash_char>/<source_hash>.json
-  encoded/<tokenizer_hash>/
-    tokenizer.json
-    encoded.csv
-    data-00000.jsonl
-    figure/
-      config.yml
-      all/
-        counts.csv
-        profile.json
-      by_sample.jsonl
-```
-
-Training can work from encoded JSONL, parsed JSON, or raw MusicXML. `--processed-dir` is the processed artifact directory with the dataset name. `--data-dir` is optional when processed artifacts are usable, and is required only when raw MusicXML fallback is needed.
-
-```bash
-PRETRAIN_PROCESSED_DIR=processed/PDMX PRETRAIN_EPOCHS=25 PRETRAIN_DEVICE=cuda make pretrain
-```
-
-Finetuning is a separate stage initialized from a pretraining checkpoint:
-
-```bash
-FINETUNE_PROCESSED_DIR=processed/exercises \
-FINETUNE_DIFFICULTY_LABELS=data/exercises/difficulty_labels.json \
-PRETRAIN_CHECKPOINT=checkpoints/pretraining/best.pt \
-FINETUNE_EPOCHS=8 \
-make finetune
-```
-
-Run both stages with:
-
-```bash
-PRETRAIN_PROCESSED_DIR=processed/PDMX \
-FINETUNE_PROCESSED_DIR=processed/exercises \
-FINETUNE_DIFFICULTY_LABELS=data/exercises/difficulty_labels.json \
-DEVICE=cuda \
-make train
-```
-
-To allow raw fallback, pass both directories:
-
-```bash
-PRETRAIN_DATA_DIR=data/PDMX PRETRAIN_PROCESSED_DIR=processed/PDMX make pretrain
-```
-
-When both directories are supplied, their dataset names must match. For example, `--data-dir data/PDMX --processed-dir processed/PDMX` is valid; `--data-dir data/PDMX --processed-dir processed` is not a training path. Processing still takes a processed root and writes the dataset subdirectory, while training takes the resolved processed dataset directory.
-
-When `--processed-dir` is provided, training first looks for encoded artifacts under `processed/PDMX/encoded/<tokenizer_hash>`. Encoded artifacts are reused only when `tokenizer.json` matches the active tokenization config. If matching encoded data is unavailable, training falls back to parsed artifacts. If no usable processed artifacts exist, training parses raw MusicXML only when `--data-dir` was supplied; otherwise it exits with an error.
-
-Parsed artifacts can be re-tokenized with a different tokenization config. Encoded artifacts cannot; they are already tokenized and are selected by tokenizer hash. Paths stored in manifests are relative to the dataset or processed artifact directory and are informational, not a replacement for passing `--data-dir` and `--processed-dir`.
-
-## Running
+After installation, start the local FastAPI app:
 
 ```bash
 ./run.sh
 ```
 
-Or with a custom port:
+Then open `http://localhost:8000`.
+
+Use a custom port with:
 
 ```bash
 ./run.sh 9000
 ```
 
-Then open [http://localhost:8000](http://localhost:8000).
-
-To enable verbose error messages in the browser:
+Enable verbose browser-facing errors during development with:
 
 ```bash
 DEBUG=1 ./run.sh
 ```
+
+The main app routes are:
+
+- `/intervals/` for interval exercises.
+- `/inversions/` for chord inversion exercises.
+- `/rhythm/` for rhythm exercises.
+
+## Install
+
+Run the installer to set up system dependencies, Python dependencies, and the default soundfont:
+
+```bash
+./install.sh
+```
+
+This installs `lilypond`, `fluidsynth`, and `ffmpeg` via the system package manager. On Debian/Ubuntu, it also links
+the system `FluidR3_GM.sf2` soundfont to `soundfont/st_concert.sf2`.
+
+On macOS or unsupported systems, install those packages manually and place a `.sf2` soundfont at
+`soundfont/st_concert.sf2`. A freely available option is GeneralUser GS.
+
+Python dependencies are managed with `uv`. To sync the app and development dependencies manually:
+
+```bash
+uv sync --extra dev
+```
+
+To include the model pipeline, notebooks, and training dependencies:
+
+```bash
+uv sync --extra dev --group model
+```
+
+## Development Commands
+
+Common entrypoints are exposed through `make`:
+
+```bash
+make app
+make test
+make mlflow
+make notebook-model-output-explorer
+```
+
+Run `make help` for the full list of app, processing, training, MLflow, and notebook commands.
+
+## Model Pipeline
+
+The model pipeline is separate from the web application. It is current work for a future sight-reading generator and is
+not used by the exercise pages yet.
+
+`make process` prepares a MusicXML dataset for training. It recursively gathers `.mxl`, `.xml`, and `.musicxml` files
+under `DATA_DIR`, parses compatible two-part piano scores, tokenizes training examples, computes dataset diagnostics,
+builds figure-profile artifacts, and logs processing metrics to MLflow. By default, reusable artifacts are written
+under `processed/<dataset-name>`.
+
+Process a broad pretraining dataset:
+
+```bash
+DATA_DIR=data/PDMX make process
+```
+
+Process an exercise-style finetuning dataset with whole-file segments and difficulty labels:
+
+```bash
+DATA_DIR=data/Exercises \
+PROCESS_WHOLE_FILE_SEGMENTS=1 \
+PROCESS_DIFFICULTY_LABELS=data/Exercises/difficulty_labels.json \
+make process
+```
+
+Train pretraining only:
+
+```bash
+PRETRAIN_DATA_DIR=data/PDMX make pretrain
+```
+
+Train finetuning only from a pretraining checkpoint:
+
+```bash
+FINETUNE_DATA_DIR=data/Exercises \
+FINETUNE_DIFFICULTY_LABELS=data/Exercises/difficulty_labels.json \
+PRETRAIN_CHECKPOINT=checkpoints/pretraining/best.pt \
+make finetune
+```
+
+Run both model stages:
+
+```bash
+PRETRAIN_DATA_DIR=data/PDMX \
+FINETUNE_DATA_DIR=data/Exercises \
+FINETUNE_DIFFICULTY_LABELS=data/Exercises/difficulty_labels.json \
+make train
+```
+
+See [docs/pipeline.md](docs/pipeline.md) for the fuller processing and training workflow.
+
+## Inspect Model Outputs
+
+Start MLflow to review processing and training metrics:
+
+```bash
+make mlflow
+```
+
+Open the model output explorer notebook to sample from a checkpoint and inspect generated notation, piano-roll playback,
+and figure metrics:
+
+```bash
+make notebook-model-output-explorer
+```
+
+Figure metrics in the explorer are for comparison only. They do not constrain generation.
 
 ## Tests
 
 ```bash
 uv run pytest tests/
 ```
+
+## Technical References
+
+- [docs/pipeline.md](docs/pipeline.md): model dataset processing and training commands.
+- [docs/model.md](docs/model.md): token semantics, MusicXML processing assumptions, generation evaluation, and model
+  internals.
+- [docs/metrics.md](docs/metrics.md): dataset and generation metric families.

@@ -87,7 +87,7 @@ def run_training(stage: TrainingStage) -> None:
                     tokenization_config=tokenization_config,
                     conditioning_config_path=args.conditioning_config,
                     show_progress=not args.no_progress,
-                    allow_raw_fallback=args.data_dir is not None,
+                    allow_raw_fallback=True,
                 ),
                 stage=stage,
                 args=args,
@@ -111,7 +111,7 @@ def run_training(stage: TrainingStage) -> None:
                     tokenization_config=tokenization_config,
                     conditioning_config_path=args.conditioning_config,
                     show_progress=not args.no_progress,
-                    allow_raw_fallback=args.data_dir is not None,
+                    allow_raw_fallback=True,
                 ),
                 stage=stage,
                 args=args,
@@ -194,7 +194,6 @@ def resume_command(
 ) -> str:
     command = ["uv", "run", "python", _executable(stage)]
     command.extend(_optional_path_argument("--data-dir", args.data_dir))
-    command.extend(_optional_path_argument("--processed-dir", args.processed_dir))
     command.extend(
         [
             "--ingestion-config",
@@ -282,8 +281,8 @@ def add_common_training_arguments(
     parser.add_argument(
         "--data-dir",
         type=Path,
-        default=None,
-        help="Optional raw dataset root, including the dataset name, for example data/PDMX.",
+        required=True,
+        help="Dataset root, including the dataset name, for example data/PDMX.",
     )
     parser.add_argument("--ingestion-config", type=Path, default=INGESTION_CONFIG_PATH, help="Ingestion YAML config.")
     parser.add_argument(
@@ -352,12 +351,6 @@ def add_common_training_arguments(
     )
     parser.add_argument("--difficulty-labels", type=Path, default=None, help="Optional YAML difficulty-label mapping.")
     parser.add_argument(
-        "--processed-dir",
-        type=Path,
-        default=None,
-        help="Processed artifact directory for the same dataset, for example processed/PDMX.",
-    )
-    parser.add_argument(
         "--log-level",
         choices=("DEBUG", "INFO", "WARNING", "ERROR"),
         default="INFO",
@@ -369,7 +362,6 @@ def add_common_training_arguments(
 def build_ingestion_config(args: argparse.Namespace) -> IngestionConfig:
     config = IngestionConfig.load(args.ingestion_config)
     difficulty_labels = load_difficulty_labels(args.difficulty_labels)
-    processed_root = args.processed_dir.parent if args.processed_dir is not None else config.processed_root
     return config.model_copy(
         update={
             key: value
@@ -377,7 +369,6 @@ def build_ingestion_config(args: argparse.Namespace) -> IngestionConfig:
                 "validation_fraction": args.validation_fraction,
                 "split_seed": args.split_seed,
                 "difficulty_labels": difficulty_labels if difficulty_labels is not None else config.difficulty_labels,
-                "processed_root": processed_root,
             }.items()
             if value is not None
         }
@@ -385,31 +376,12 @@ def build_ingestion_config(args: argparse.Namespace) -> IngestionConfig:
 
 
 def validate_training_paths(args: argparse.Namespace) -> None:
-    if args.data_dir is None and args.processed_dir is None:
-        raise ValueError("training requires --processed-dir, --data-dir, or both")
-
-    if args.processed_dir is None:
-        return None
-
-    if args.data_dir is not None and args.processed_dir.name != args.data_dir.name:
-        raise ValueError(
-            f"Processed dataset directory {args.processed_dir} belongs to dataset {args.processed_dir.name!r}, "
-            f"but --data-dir resolves to dataset {args.data_dir.name!r}. Training requires matching dataset "
-            "directory names, for example --data-dir data/PDMX --processed-dir processed/PDMX."
-        )
-
-    return None
+    if args.data_dir is None:
+        raise ValueError("training requires --data-dir")
 
 
 def training_source_dir(args: argparse.Namespace) -> Path:
-    if args.data_dir is not None:
-        return Path(args.data_dir)
-
-    if args.processed_dir is None:
-        raise ValueError("training requires --processed-dir, --data-dir, or both")
-
-    processed_dir = Path(args.processed_dir)
-    return Path(processed_dir.name)
+    return Path(args.data_dir)
 
 
 def build_pretraining_training_config(args: argparse.Namespace) -> TrainingConfig:
@@ -514,9 +486,6 @@ def log_training_start(
 ) -> None:
     _LOGGER.info("Starting %s training", stage.value)
     _LOGGER.info("Raw input directory: %s", args.data_dir)
-    _LOGGER.info("Processed artifact directory: %s", args.processed_dir)
-    if args.data_dir is None:
-        _LOGGER.info("Raw MusicXML fallback: disabled because --data-dir was not provided")
     _LOGGER.info("Internal processed root: %s", ingestion_config.processed_root)
     _LOGGER.info("Training config: %s", args.training_config)
     _LOGGER.info("Segmentation config: %s", args.segmentation_config)
@@ -553,8 +522,8 @@ def _description(stage: TrainingStage) -> str:
     match stage:
         case TrainingStage.PRETRAINING:
             return (
-                "Train the Musak Stage 1 autoregressive model. Pass --processed-dir processed/PDMX for "
-                "processed-only training, or add --data-dir data/PDMX to allow raw MusicXML fallback."
+                "Train the Musak Stage 1 autoregressive model. Pass --data-dir data/PDMX; training reads "
+                "processed/PDMX when matching artifacts exist."
             )
         case TrainingStage.FINETUNING:
             return (
@@ -570,18 +539,16 @@ def _epilog(stage: TrainingStage) -> str:
         finetuning_extra = " --pretrain-checkpoint checkpoints/pretraining/best.pt"
     return (
         "Examples:\n"
-        f"  uv run python {executable} --processed-dir processed/PDMX{finetuning_extra}\n"
-        f"  uv run python {executable} --data-dir data/PDMX --processed-dir processed/PDMX "
+        f"  uv run python {executable} --data-dir data/PDMX{finetuning_extra}\n"
+        f"  uv run python {executable} --data-dir data/PDMX "
         "--tokenization-config musak_model/configs/tokens/tokenization.yml"
         f"{finetuning_extra}\n\n"
         "Artifact lookup:\n"
-        "  --processed-dir must include the dataset name, for example processed/PDMX.\n"
-        "  --data-dir is optional when processed artifacts are usable. Provide it to allow raw fallback.\n"
-        "  When both are supplied, dataset names must match: --data-dir data/PDMX --processed-dir processed/PDMX.\n"
-        "  Encoded artifacts are reused only from <processed-dir>/encoded/<tokenizer-hash>/ when "
+        "  The dataset name comes from --data-dir, for example PDMX from data/PDMX.\n"
+        "  Encoded artifacts are reused from processed/<dataset>/encoded/<tokenizer-hash>/ when "
         "tokenizer.json matches the active tokenization config.\n"
         "  If matching encoded artifacts are unavailable, parsed JSON artifacts are used when present.\n"
-        "  If no usable processed artifacts exist, MusicXML files are parsed only when --data-dir was supplied."
+        "  If no usable processed artifacts exist, MusicXML files from --data-dir are parsed for training."
     )
 
 

@@ -5,7 +5,7 @@
 The primary dataset workflow is:
 
 ```bash
-DATA_DIR=data/PDMX PROCESSED_ROOT=processed NUM_WORKERS=8 make process
+DATA_DIR=data/PDMX make process
 ```
 
 `make process` runs parsing, tokenization, dataset evaluation diagnostics, and figure-profile extraction as one
@@ -15,13 +15,13 @@ disabled.
 The training workflow can be run as separate stages or as the combined training pipeline:
 
 ```bash
-PRETRAIN_PROCESSED_DIR=processed/PDMX make pretrain
-FINETUNE_PROCESSED_DIR=processed/exercises FINETUNE_DIFFICULTY_LABELS=data/exercises/difficulty_labels.json make finetune
-PRETRAIN_PROCESSED_DIR=processed/PDMX FINETUNE_PROCESSED_DIR=processed/exercises FINETUNE_DIFFICULTY_LABELS=data/exercises/difficulty_labels.json make train
+PRETRAIN_DATA_DIR=data/PDMX make pretrain
+FINETUNE_DATA_DIR=data/Exercises FINETUNE_DIFFICULTY_LABELS=data/Exercises/difficulty_labels.json make finetune
+PRETRAIN_DATA_DIR=data/PDMX FINETUNE_DATA_DIR=data/Exercises FINETUNE_DIFFICULTY_LABELS=data/Exercises/difficulty_labels.json make train
 ```
 
-Training targets accept processed artifacts without raw data. Add `PRETRAIN_DATA_DIR` or `FINETUNE_DATA_DIR` only when
-raw MusicXML fallback should be available. See `docs/pipeline.md` for the operational command guide.
+Training targets take dataset roots and look for matching artifacts under `processed/<dataset-name>`. See
+`docs/pipeline.md` for the operational command guide.
 
 ## Current Encoded Dataset
 
@@ -43,7 +43,10 @@ processed/<dataset-name>/
       by_sample.jsonl
 ```
 
-Training receives explicit dataset directories. With `--processed-dir processed/PDMX`, the training code looks for reusable encoded artifacts under `processed/PDMX/encoded/<tokenizer-hash>`. `--data-dir data/PDMX` is optional when processed artifacts are usable, and is required only for raw MusicXML fallback. When both directories are supplied, dataset names must match. Encoded artifacts are used only when `tokenizer.json` matches the active tokenizer snapshot. Otherwise, training falls back to parsed JSON, and then raw MusicXML only if `--data-dir` was supplied.
+Training receives dataset roots. With `--data-dir data/PDMX`, the training code looks for reusable encoded artifacts
+under `processed/PDMX/encoded/<tokenizer-hash>`. Encoded artifacts are used only when `tokenizer.json` matches the
+active tokenizer snapshot. Otherwise, training falls back to parsed JSON, then parses MusicXML from the dataset root
+when processed artifacts are unavailable.
 
 Each encoded JSONL row is an `EncodedExercise`:
 
@@ -120,6 +123,61 @@ pitch classes in semitones from C. Conversion between these coordinate systems i
 spelling with the simpler key signature.
 
 `JoinWithPreviousToken` is not a tie token. It represents simultaneous note onsets, usually chord notes. True prolongation is represented by `HoldToken`.
+
+## Token Text Format
+
+Token sequences use a compact text format for logging, debugging, and tests. The text form represents tokens only;
+scale, key, and other segment metadata remain external context.
+
+Tokens are separated by spaces. The canonical grammar is:
+
+```text
+Hand:      R | L
+Note:      DEGREE ACCIDENTAL? OCTAVE? DURATION
+Rest:      r DURATION
+Hold:      h DURATION
+Join:      ~
+Start:     BOS
+Bar:       |
+End:       ‖
+
+DEGREE:    1..7
+ACCIDENTAL: ♯ | ♭
+OCTAVE:    ↑N | ↓N        # omitted means 0
+DURATION:  (NUM:DEN)
+```
+
+Example:
+
+```text
+R 6♯↑1(1:4) 3(1:4) ~ L r(1:8) 1↓1(1:8) | ‖
+```
+
+`6♯↑1(1:4)` means scale degree 6, raised by one semitone, octave offset +1, with duration 1/4. `~` joins the
+preceding token to the previous note onset, so `n` simultaneous notes are represented with `n - 1` join tokens in the
+unified stream. This can join notes across `R` and `L` when they share an onset; decoding keeps independent time
+cursors for each hand.
+
+`h(NUM:DEN)` extends the active hand's previous same-hand note or chord by the given duration. It is used for
+tied/held continuations rather than new attacks.
+
+`BOS` is the learned beginning-of-sequence token. Encoded dataset artifacts store musical tokens only and end with `‖`;
+training prepends `BOS` to the model input so the first musical token is learned as `BOS -> first_token`. Generation
+should seed the model with the tokenizer vocabulary's `start_token_id`.
+
+Text serialization must use true duration fractions, not duration vocabulary IDs. Parsing text back into tokens
+converts `(NUM:DEN)` through the active duration vocabulary and raises a tokenizer-specific error when the duration is
+unsupported.
+
+## MusicXML Piano Part Policy
+
+The parser accepts only two-part piano scores for the sight-reading model. A score must contain exactly two parts.
+Parts with no explicit instrument are accepted as piano-compatible; parts with an explicit piano MIDI program are
+accepted; parts with an explicit non-piano instrument are rejected.
+
+Right and left hand assignment is based on pitch center, not part order or part name. The part with the higher median
+MIDI pitch is the right hand, and the other part is the left hand. Scores with an empty pitched part or identical pitch
+centers are rejected as ambiguous.
 
 ## Scale Matching Procedure
 
