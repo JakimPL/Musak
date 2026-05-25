@@ -29,6 +29,8 @@ def main() -> None:
     _LOGGER.info("Configured encoded directory: %s", args.encoded_directory)
     _LOGGER.info("Analysis config: %s", args.analysis_config)
     _LOGGER.info("Progress bars: %s", not args.no_progress)
+    _LOGGER.info("Overwrite: %s", args.overwrite)
+    _LOGGER.info("Resume: %s", args.resume)
     try:
         config = NGramAnalysisConfig.load(args.analysis_config)
         encoded_directory = resolve_encoded_directory(
@@ -54,12 +56,18 @@ def main() -> None:
     _LOGGER.info("Limit per group: %s", config.limit_per_group)
     _LOGGER.info("Workers: %s", config.workers)
     _LOGGER.info("Batch size: %s", config.batch_size)
-    result = extract_figure_artifacts(
-        encoded_directory=encoded_directory,
-        analysis_config_path=args.analysis_config,
-        output_path=args.output,
-        show_progress=not args.no_progress,
-    )
+    try:
+        result = extract_figure_artifacts(
+            encoded_directory=encoded_directory,
+            analysis_config_path=args.analysis_config,
+            output_path=args.output,
+            show_progress=not args.no_progress,
+            overwrite=args.overwrite,
+            resume=args.resume,
+        )
+    except RuntimeError as exception:
+        _LOGGER.error("Figure n-gram extraction failed: %s", exception)
+        raise SystemExit(_EXIT_FAILURE) from exception
     _LOGGER.info("Encoded samples loaded: %s", result.encoded_sample_count)
     _LOGGER.info("Figure profile groups: %s", result.profile_group_count)
     _LOGGER.info("Figure sample profiles: %s", result.sample_profile_count)
@@ -170,6 +178,8 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="Minimum logging level.",
     )
     parser.add_argument("--no-progress", action="store_true", help="Disable tqdm progress bars.")
+    parser.add_argument("--overwrite", action="store_true", help="Overwrite existing figure artifacts and work state.")
+    parser.add_argument("--resume", action="store_true", help="Resume an incomplete figure extraction.")
     return parser.parse_args(argv)
 
 

@@ -3,22 +3,12 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from musak_model.analysis.n_grams.config import NGramAnalysisConfig
-from musak_model.analysis.n_grams.figure.samples.counter import count_encoded_exercises_figure_ngrams_with_samples
 from musak_model.analysis.n_grams.profile.artifacts import FigureArtifactPaths, figure_artifact_paths
-from musak_model.analysis.n_grams.profile.builder import build_figure_profile, build_figure_sample_counts
-from musak_model.analysis.n_grams.profile.io import (
-    figure_count_records,
-    write_figure_count_csv,
-    write_figure_counts_csv,
-    write_figure_profile,
-    write_figure_sample_counts_jsonl,
+from musak_model.analysis.n_grams.profile.streaming import (
+    extract_streaming_figure_artifacts,
 )
-from musak_model.analysis.n_grams.profile.schema import FigureProfileMetadata
-from musak_model.processing.io import load_encoded_jsonl, load_tokenizer_snapshot_json
+from musak_model.processing.io import load_tokenizer_snapshot_json
 from musak_model.processing.paths import ENCODED_JSONL_NAME, TOKENIZER_SNAPSHOT_NAME
-from musak_model.tokens.config import TokenizationConfig
-from musak_model.tokens.duration import DurationVocabulary
-from musak_model.tokens.vocabulary import TokenVocabulary
 
 
 @dataclass(frozen=True)
@@ -36,55 +26,34 @@ def extract_figure_artifacts(
     analysis_config_path: Path,
     output_path: Path | None,
     show_progress: bool,
+    overwrite: bool = False,
+    resume: bool = False,
 ) -> FigureExtractionResult:
     config = NGramAnalysisConfig.load(analysis_config_path)
     artifact_paths = figure_artifact_paths(encoded_directory)
     tokenizer_snapshot_path = encoded_directory / TOKENIZER_SNAPSHOT_NAME
     encoded_jsonl_path = encoded_directory / ENCODED_JSONL_NAME
+    if not encoded_jsonl_path.exists():
+        raise FileNotFoundError(f"encoded JSONL does not exist: {encoded_jsonl_path}")
+
     snapshot = load_tokenizer_snapshot_json(tokenizer_snapshot_path)
-    tokenization_config = TokenizationConfig.model_validate(snapshot.tokenization_config)
-    duration_vocabulary = DurationVocabulary(tokenization_config)
-    token_vocabulary = TokenVocabulary(duration_vocabulary)
-    samples = load_encoded_jsonl(encoded_jsonl_path)
-    counted_figures = count_encoded_exercises_figure_ngrams_with_samples(
-        samples,
-        duration_vocabulary=duration_vocabulary,
-        token_vocabulary=token_vocabulary,
-        min_n=config.min_n,
-        max_n=config.max_n,
-        workers=config.workers,
-        batch_size=config.batch_size,
+    summary = extract_streaming_figure_artifacts(
+        encoded_directory=encoded_directory,
+        artifact_paths=artifact_paths,
+        config=config,
+        snapshot=snapshot,
+        output_path=output_path,
+        analysis_config_path=analysis_config_path,
         show_progress=show_progress,
+        overwrite=overwrite,
+        resume=resume,
     )
-    profile = build_figure_profile(
-        counted_figures.counts_by_scale,
-        FigureProfileMetadata(
-            min_n=config.min_n,
-            max_n=config.max_n,
-            sample_count=len(samples),
-        ),
-    )
-    sample_counts = tuple(
-        build_figure_sample_counts(
-            sample_index=sample_count.sample_index,
-            scale_type=sample_count.scale_type,
-            counts_by_hand=sample_count.counts_by_hand,
-        )
-        for sample_count in counted_figures.counts_by_sample
-    )
-    write_figure_counts_csv(counted_figures.counts_by_scale, artifact_paths.counts_path)
-    write_figure_profile(profile, artifact_paths.profile_path)
-    write_figure_sample_counts_jsonl(sample_counts, artifact_paths.by_sample_path)
-    copy_analysis_config(analysis_config_path, artifact_paths.config_path)
-    if output_path is not None:
-        records = figure_count_records(counted_figures.counts_by_scale, limit_per_group=config.limit_per_group)
-        write_figure_count_csv(records, output_path)
 
     return FigureExtractionResult(
         artifact_paths=artifact_paths,
-        encoded_sample_count=len(samples),
-        profile_group_count=len(profile.groups),
-        sample_profile_count=len(sample_counts),
+        encoded_sample_count=summary.encoded_sample_count,
+        profile_group_count=summary.profile_group_count,
+        sample_profile_count=summary.sample_profile_count,
         extra_output_path=output_path,
     )
 

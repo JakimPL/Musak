@@ -120,11 +120,16 @@ def main() -> None:
                 output_path=args.analysis_output,
                 skip_figure_analysis=args.skip_figure_analysis,
                 show_progress=not args.no_progress,
+                overwrite=args.overwrite,
+                resume=args.resume,
             )
             if figure_result is not None:
                 tracker.log_figure_extraction_result(figure_result)
     except FileNotFoundError as exception:
         _log_processing_file_not_found(exception, data_directory=args.data_dir, processed_directory=args.processed_dir)
+        raise SystemExit(_EXIT_FAILURE) from exception
+    except RuntimeError as exception:
+        _LOGGER.error("Processing failed: %s", exception)
         raise SystemExit(_EXIT_FAILURE) from exception
     if profiler.enabled:
         profiler.write_reports()
@@ -183,6 +188,8 @@ def extract_process_figure_artifacts(
     output_path: Path | None,
     skip_figure_analysis: bool,
     show_progress: bool,
+    overwrite: bool = False,
+    resume: bool = False,
 ) -> FigureExtractionResult | None:
     if skip_figure_analysis or result.encoded_manifest_path is None:
         return None
@@ -194,6 +201,8 @@ def extract_process_figure_artifacts(
         analysis_config_path=analysis_config_path,
         output_path=output_path,
         show_progress=show_progress,
+        overwrite=overwrite,
+        resume=resume,
     )
     _LOGGER.info("Figure profile groups: %s", figure_result.profile_group_count)
     _LOGGER.info("Figure sample profiles: %s", figure_result.sample_profile_count)
@@ -367,6 +376,7 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--no-progress", action="store_true", help="Disable tqdm progress bars.")
     parser.add_argument("--overwrite", action="store_true", help="Overwrite existing parsed/encoded artifacts.")
+    parser.add_argument("--resume", action="store_true", help="Resume incomplete resumable processing artifacts.")
     parser.add_argument(
         "--analysis-config",
         type=Path,

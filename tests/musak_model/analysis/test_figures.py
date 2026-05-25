@@ -7,10 +7,10 @@ from musak_model.analysis.n_grams.figure.builder import (
     build_figure_ngram,
     build_figure_ngrams_from_run,
     build_figure_ngrams_from_runs,
-    note_diatonic_position,
     scale_size_for_type,
 )
 from musak_model.analysis.n_grams.figure.parser import HandOnsetRun, PitchedOnset
+from musak_model.analysis.n_grams.figure.pitch import note_diatonic_position
 from musak_model.analysis.n_grams.figure.schema import FigureNGram
 from musak_model.tokens.schema import Hand, NoteToken, ScaleType
 
@@ -180,6 +180,40 @@ def test_build_figure_ngrams_from_run_slides_over_onset_run() -> None:
         ((((0, 0),), Fraction(1)), (((1, 0),), Fraction(1))),
         ((((0, 0),), Fraction(1)), (((1, 0),), Fraction(1))),
     ]
+
+
+def test_build_figure_ngrams_from_run_recomputes_duration_units_per_window() -> None:
+    run = HandOnsetRun(
+        hand=Hand.RIGHT,
+        onsets=(
+            PitchedOnset(notes=(_note(1),), start=Fraction(0), duration=Fraction(1, 2)),
+            PitchedOnset(notes=(_note(2),), start=Fraction(1, 8), duration=Fraction(1, 2)),
+            PitchedOnset(notes=(_note(3),), start=Fraction(1, 4), duration=Fraction(1, 8)),
+        ),
+    )
+
+    two_grams = build_figure_ngrams_from_run(run, n=2, scale_size=7)
+    three_grams = build_figure_ngrams_from_run(run, n=3, scale_size=7)
+
+    assert [duration for _, duration in two_grams[0].onsets] == [Fraction(1), Fraction(4)]
+    assert [duration for _, duration in three_grams[0].onsets] == [Fraction(1), Fraction(1), Fraction(1)]
+
+
+def test_build_figure_ngrams_from_run_reanchors_later_windows() -> None:
+    run = HandOnsetRun(
+        hand=Hand.RIGHT,
+        onsets=(
+            PitchedOnset(notes=(_note(1),), start=Fraction(0), duration=Fraction(1, 8)),
+            PitchedOnset(notes=(_note(3),), start=Fraction(1, 8), duration=Fraction(1, 8)),
+            PitchedOnset(notes=(_note(4),), start=Fraction(1, 4), duration=Fraction(1, 8)),
+        ),
+    )
+
+    figures = build_figure_ngrams_from_run(run, n=2, scale_size=7)
+
+    assert figures[0].onsets[1][0] == ((2, 0),)
+    assert figures[1].onsets[0][0] == ((0, 0),)
+    assert figures[1].onsets[1][0] == ((1, 0),)
 
 
 def test_build_figure_ngrams_from_runs_groups_by_n() -> None:

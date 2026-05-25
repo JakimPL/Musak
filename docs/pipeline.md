@@ -67,6 +67,9 @@ DATA_DIR=data/exercises PROCESS_WHOLE_FILE_SEGMENTS=1 PROCESS_DIFFICULTY_LABELS=
 DATA_DIR=data/PDMX make analyze-n-grams
 ```
 
+Figure extraction writes resumable batch progress below the encoded run while it is incomplete. Compatible partial
+work resumes automatically, and `OVERWRITE=1` restarts from scratch.
+
 Start the local MLflow UI with:
 
 ```bash

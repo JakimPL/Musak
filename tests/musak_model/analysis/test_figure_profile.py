@@ -2,6 +2,7 @@ from collections import Counter
 from fractions import Fraction
 from pathlib import Path
 
+from musak_model.analysis.n_grams.config import NGramAnalysisConfig
 from musak_model.analysis.n_grams.figure.schema import FigureNGram
 from musak_model.analysis.n_grams.profile.artifacts import FigureArtifactPaths, figure_artifact_paths
 from musak_model.analysis.n_grams.profile.builder import build_figure_profile, build_figure_sample_counts
@@ -20,6 +21,13 @@ from musak_model.analysis.n_grams.profile.loading import (
     load_processed_figure_profile_artifacts,
 )
 from musak_model.analysis.n_grams.profile.schema import FigureProfileMetadata, FigureSampleCounts
+from musak_model.analysis.n_grams.profile.streaming import (
+    FigureBatchTask,
+    FigureWorkStore,
+    figure_state_key,
+    figure_work_store_path,
+    process_figure_batch_task,
+)
 from musak_model.data.schema import SegmentMetadata
 from musak_model.processing.io import append_jsonl, write_json_model
 from musak_model.processing.paths import ProcessedDatasetPaths
@@ -201,6 +209,123 @@ def test_extract_figure_artifacts_writes_by_sample_jsonl(
     assert _group_total(sample_counts[1], hand=Hand.LEFT) == 1
 
 
+def test_extract_figure_artifacts_resumes_partial_work_store(
+    tmp_path: Path,
+    tokenization_config: TokenizationConfig,
+    duration_vocabulary: DurationVocabulary,
+    token_vocabulary: TokenVocabulary,
+) -> None:
+    encoded_directory, analysis_config_path = _write_encoded_figure_inputs(
+        tmp_path,
+        tokenization_config=tokenization_config,
+        duration_vocabulary=duration_vocabulary,
+        token_vocabulary=token_vocabulary,
+    )
+    config = NGramAnalysisConfig.load(analysis_config_path)
+    paths = figure_artifact_paths(encoded_directory)
+    snapshot = build_tokenizer_snapshot(
+        tokenization_config,
+        duration_vocabulary=duration_vocabulary,
+        token_vocabulary=token_vocabulary,
+    )
+    first_line = (encoded_directory / "data-00000.jsonl").read_text(encoding="utf-8").splitlines()[0]
+    with FigureWorkStore(
+        figure_work_store_path(paths),
+        state_key=figure_state_key(config=config, snapshot=snapshot),
+        resume=False,
+    ) as store:
+        store.commit_batch(
+            process_figure_batch_task(
+                FigureBatchTask(
+                    batch_index=0,
+                    sample_start_index=0,
+                    encoded_lines=(first_line,),
+                    tokenization_config=tokenization_config,
+                    min_n=config.min_n,
+                    max_n=config.max_n,
+                )
+            )
+        )
+
+    result = extract_figure_artifacts(
+        encoded_directory=encoded_directory,
+        analysis_config_path=analysis_config_path,
+        output_path=None,
+        show_progress=False,
+    )
+
+    assert result.sample_profile_count == 2
+    assert not figure_work_store_path(paths).exists()
+    assert len(read_figure_sample_counts_jsonl(paths.by_sample_path)) == 2
+
+
+def test_extract_figure_artifacts_rejects_stale_partial_work(
+    tmp_path: Path,
+    tokenization_config: TokenizationConfig,
+    duration_vocabulary: DurationVocabulary,
+    token_vocabulary: TokenVocabulary,
+) -> None:
+    encoded_directory, analysis_config_path = _write_encoded_figure_inputs(
+        tmp_path,
+        tokenization_config=tokenization_config,
+        duration_vocabulary=duration_vocabulary,
+        token_vocabulary=token_vocabulary,
+    )
+    config = NGramAnalysisConfig.load(analysis_config_path)
+    paths = figure_artifact_paths(encoded_directory)
+    snapshot = build_tokenizer_snapshot(
+        tokenization_config,
+        duration_vocabulary=duration_vocabulary,
+        token_vocabulary=token_vocabulary,
+    )
+    with FigureWorkStore(
+        figure_work_store_path(paths),
+        state_key=figure_state_key(config=config, snapshot=snapshot),
+        resume=False,
+    ):
+        pass
+
+    try:
+        extract_figure_artifacts(
+            encoded_directory=encoded_directory,
+            analysis_config_path=_stale_analysis_config_path(tmp_path),
+            output_path=None,
+            show_progress=False,
+        )
+    except RuntimeError as error:
+        message = str(error)
+    else:
+        raise AssertionError("expected stale partial figure work to raise")
+
+    assert "does not match" in message
+
+
+def test_extract_figure_artifacts_parallel_writes_expected_profiles(
+    tmp_path: Path,
+    tokenization_config: TokenizationConfig,
+    duration_vocabulary: DurationVocabulary,
+    token_vocabulary: TokenVocabulary,
+) -> None:
+    encoded_directory, analysis_config_path = _write_encoded_figure_inputs(
+        tmp_path,
+        tokenization_config=tokenization_config,
+        duration_vocabulary=duration_vocabulary,
+        token_vocabulary=token_vocabulary,
+        workers=2,
+    )
+
+    result = extract_figure_artifacts(
+        encoded_directory=encoded_directory,
+        analysis_config_path=analysis_config_path,
+        output_path=None,
+        show_progress=False,
+    )
+
+    assert result.encoded_sample_count == 2
+    assert result.sample_profile_count == 2
+    assert read_figure_profile(result.artifact_paths.profile_path).metadata.sample_count == 2
+
+
 def test_figure_artifact_paths_resolve_under_encoded_run() -> None:
     paths = figure_artifact_paths(Path("processed/PDMX/encoded/abc"))
 
@@ -363,6 +488,73 @@ def _write_required_artifact_placeholders(paths: FigureArtifactPaths) -> None:
     paths.config_path.write_text("min_n: 1\nmax_n: 1\n", encoding="utf-8")
     paths.counts_path.parent.mkdir(parents=True, exist_ok=True)
     paths.counts_path.write_text("scale_type,hand,n,count,figure\n", encoding="utf-8")
+
+
+def _write_encoded_figure_inputs(
+    tmp_path: Path,
+    *,
+    tokenization_config: TokenizationConfig,
+    duration_vocabulary: DurationVocabulary,
+    token_vocabulary: TokenVocabulary,
+    workers: int = 1,
+) -> tuple[Path, Path]:
+    encoded_directory = tmp_path / "processed" / "PDMX" / "encoded" / "abc"
+    analysis_config_path = tmp_path / "n_grams.yml"
+    analysis_config_path.write_text(
+        "\n".join(
+            [
+                "min_n: 2",
+                "max_n: 2",
+                "limit_per_group: null",
+                f"workers: {workers}",
+                "batch_size: 1",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    snapshot = build_tokenizer_snapshot(
+        tokenization_config,
+        duration_vocabulary=duration_vocabulary,
+        token_vocabulary=token_vocabulary,
+    )
+    write_json_model(snapshot, encoded_directory / "tokenizer.json", overwrite=True)
+    quarter_id = duration_vocabulary.require_duration_id(Fraction(1, 4))
+    for hand, degree, scale_type in (
+        (Hand.RIGHT, 2, ScaleType.MAJOR),
+        (Hand.LEFT, 3, ScaleType.HARMONIC_MINOR),
+    ):
+        append_jsonl(
+            _sample(
+                token_vocabulary.encode(
+                    [
+                        HandToken(hand=hand),
+                        _note(1, duration_id=quarter_id),
+                        _note(degree, duration_id=quarter_id),
+                    ]
+                ),
+                scale_type=scale_type,
+            ),
+            encoded_directory / "data-00000.jsonl",
+        )
+
+    return encoded_directory, analysis_config_path
+
+
+def _stale_analysis_config_path(tmp_path: Path) -> Path:
+    path = tmp_path / "stale_n_grams.yml"
+    path.write_text(
+        "\n".join(
+            [
+                "min_n: 2",
+                "max_n: 3",
+                "limit_per_group: null",
+                "workers: 1",
+                "batch_size: 1",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    return path
 
 
 def _sample(token_ids: list[int], *, scale_type: ScaleType) -> EncodedExercise:

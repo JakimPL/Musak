@@ -1,6 +1,7 @@
 .DEFAULT_GOAL := help
 
 PROCESS_OVERWRITE ?= $(or $(OVERWRITE),$(OVERWITE))
+PROCESS_RESUME ?= $(RESUME)
 PROCESS_DISABLE_MLFLOW ?=
 PROCESS_MLFLOW_EXPERIMENT ?= musak-process
 PROCESS_MLFLOW_RUN_NAME ?=
@@ -16,6 +17,8 @@ ANALYSIS_CONFIG ?=
 ANALYSIS_OUTPUT ?=
 ANALYSIS_ENCODED_DIR ?=
 ANALYSIS_NO_PROGRESS ?=
+ANALYSIS_OVERWRITE ?= $(OVERWRITE)
+ANALYSIS_RESUME ?= $(RESUME)
 APP_HOST ?= 127.0.0.1
 APP_PORT ?= 8000
 MLFLOW_DIR ?= mlruns
@@ -95,6 +98,8 @@ help:
 	@printf '%s\n' '  ANALYSIS_OUTPUT       Optional extra figure n-gram CSV output path.'
 	@printf '%s\n' '  ANALYSIS_ENCODED_DIR  Optional encoded run directory override when multiple tokenizer runs exist.'
 	@printf '%s\n' '  ANALYSIS_NO_PROGRESS=1 disables figure n-gram progress bars.'
+	@printf '%s\n' '  ANALYSIS_OVERWRITE=1 restarts figure analysis. Defaults to OVERWRITE when set.'
+	@printf '%s\n' '  ANALYSIS_RESUME=1 passes --resume to standalone figure analysis. Partial compatible work resumes automatically.'
 	@printf '%s\n' '  PROFILE=1 or PROCESS_PROFILE=1 passes --profile to process.'
 	@printf '%s\n' '  MLFLOW_DIR            MLflow tracking directory. Default: mlruns'
 	@printf '%s\n' '  MLFLOW_HOST           MLflow dashboard host. Default: 127.0.0.1'
@@ -222,7 +227,9 @@ define analyze_n_grams_command
 		$(call optional_arg,ANALYSIS_CONFIG,--analysis-config) \
 		$(call optional_arg,ANALYSIS_OUTPUT,--output) \
 		$(call optional_arg,ANALYSIS_ENCODED_DIR,--encoded-dir) \
-		$(call optional_flag,ANALYSIS_NO_PROGRESS,--no-progress)
+		$(call optional_flag,ANALYSIS_NO_PROGRESS,--no-progress) \
+		$(call optional_non_resume_flag,ANALYSIS_OVERWRITE,--overwrite) \
+		$(call optional_flag,ANALYSIS_RESUME,--resume)
 endef
 
 define process_dataset_command
@@ -239,8 +246,9 @@ define process_dataset_command
 		$(call optional_arg,ANALYSIS_OUTPUT,--analysis-output) \
 		$(call optional_flag,ANALYSIS_NO_PROGRESS,--no-progress) \
 		$(call optional_flag,PROCESS_SKIP_FIGURE_ANALYSIS,--skip-figure-analysis) \
+		$(call optional_flag,PROCESS_RESUME,--resume) \
 		$(call optional_flag,PROCESS_PROFILE,--profile) \
-		$(call optional_flag,PROCESS_OVERWRITE,--overwrite) \
+		$(call optional_non_resume_flag,PROCESS_OVERWRITE,--overwrite) \
 		$(call optional_flag,PROCESS_DISABLE_MLFLOW,--disable-mlflow) \
 		--mlflow-experiment-name "$(PROCESS_MLFLOW_EXPERIMENT)" \
 		$(call optional_arg,PROCESS_MLFLOW_RUN_NAME,--mlflow-run-name) \

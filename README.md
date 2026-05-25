@@ -82,7 +82,8 @@ not used by the exercise pages yet.
 under `DATA_DIR`, parses compatible two-part piano scores, tokenizes training examples, computes dataset diagnostics,
 builds figure-profile artifacts, and logs processing metrics to MLflow. By default, reusable artifacts are written
 under `processed/<dataset-name>`. This is a dataset-level processing step; train/validation splits are created later
-during training.
+during training. Interrupted figure analysis continues from compatible partial progress and can be restarted with
+`OVERWRITE=1`.
 
 Process a broad pretraining dataset:
 

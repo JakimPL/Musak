@@ -61,7 +61,8 @@ Encoded runs may also contain canonical figure-profile artifacts under `figure/`
 `make process` unless figure analysis is skipped, and can be loaded from an encoded run without reparsing the dataset.
 Consumers use these artifacts for evaluation and notebook inspection. The artifact set is all-or-nothing:
 `config.yml`, `all/counts.csv`, `all/profile.json`, and `by_sample.jsonl` must all exist. Workflows may proceed when no
-figure artifacts exist, but a partially written figure artifact set is invalid.
+figure artifacts exist, but a partially written figure artifact set is invalid. Incomplete figure extraction keeps
+resumable batch progress under `figure/`; compatible progress resumes automatically and `OVERWRITE=1` restarts it.
 
 `all/profile.json` stores aggregate count-weighted property totals grouped by scale type, hand, and n-gram length.
 `by_sample.jsonl` stores one sample-level summary per encoded JSONL row, indexed by contiguous `sample_index` values

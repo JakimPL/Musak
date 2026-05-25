@@ -2,23 +2,17 @@ from collections.abc import Sequence
 from fractions import Fraction
 
 from musak_model.analysis.n_grams.figure.parser import HandOnsetRun, PitchedOnset
+from musak_model.analysis.n_grams.figure.pitch import note_diatonic_position
 from musak_model.analysis.n_grams.figure.schema import FigureDegree, FigureNGram, FigureOnset
+from musak_model.analysis.n_grams.figure.signature import (
+    figure_signature_to_ngram,
+    iter_figure_signatures_from_run,
+)
 from musak_model.tokens.schema import SCALE_INTERVALS, NoteToken, ScaleType
 
 
 def scale_size_for_type(scale_type: ScaleType) -> int:
     return len(SCALE_INTERVALS[scale_type])
-
-
-def note_diatonic_position(
-    token: NoteToken,
-    *,
-    scale_size: int,
-) -> int:
-    if scale_size <= 0:
-        raise ValueError("scale_size must be positive")
-
-    return token.octave_offset * scale_size + (token.degree - 1)
 
 
 def build_figure_ngram(
@@ -68,11 +62,13 @@ def build_figure_ngrams_from_run(
         return ()
 
     return tuple(
-        _build_figure_ngram_from_onsets(
-            run.onsets[start_index : start_index + n],
+        figure_signature_to_ngram(signature)
+        for _, signature in iter_figure_signatures_from_run(
+            run,
+            min_n=n,
+            max_n=n,
             scale_size=scale_size,
         )
-        for start_index in range(len(run.onsets) - n + 1)
     )
 
 
