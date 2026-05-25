@@ -4,7 +4,8 @@ from pathlib import Path
 import pytest
 
 from musak_model.conditioning.config import ConditioningConfig
-from musak_model.conditioning.structural import UNKNOWN_CONTROL_ID, StructuralControlName, StructuralControlVocabulary
+from musak_model.conditioning.structural.constants import UNKNOWN_CONTROL_ID, StructuralControlName
+from musak_model.conditioning.structural.vocabulary import StructuralControlVocabulary
 from musak_model.conditioning.time_signature import TimeSignatureVocabulary, TimeSignatureVocabularyConfig
 from musak_model.data.schema import SegmentMetadata
 from musak_model.tokens.duration import DurationVocabulary
@@ -12,7 +13,8 @@ from musak_model.tokens.schema import Hand, HandToken, NoteToken, ScaleType
 from musak_model.tokens.vocabulary import TokenVocabulary
 from musak_model.training.conditioning import difficulty_level_to_id, scale_type_to_id, time_signature_to_id
 from musak_model.training.config import TrainingConditioningConfig
-from musak_model.training.dataset import EncodedExerciseDataset, collate_training_examples
+from musak_model.training.dataset.collate import collate_training_examples
+from musak_model.training.dataset.examples import EncodedExerciseDataset
 from musak_model.training.ingestion.schema import EncodedExercise
 
 

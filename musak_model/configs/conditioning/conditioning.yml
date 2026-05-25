@@ -5,7 +5,7 @@ time_signature:
   relative_numerator_range: 2
 structural:
   shortest_note_duration:
-    thresholds: ["1/16", "1/8", "1/4", "1/2"]
+    thresholds: [16, 8, 4, 2]
   max_notes_per_onset:
     thresholds: [1, 2, 3, 4]
   max_notes_per_hand:

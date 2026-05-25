@@ -22,7 +22,9 @@ from musak_model.training.config import (
     TrainingConditioningConfig,
     TrainingConfig,
 )
-from musak_model.training.dataset import EncodedExerciseDataset, TrainingBatch, collate_training_examples
+from musak_model.training.dataset.collate import collate_training_examples
+from musak_model.training.dataset.examples import EncodedExerciseDataset
+from musak_model.training.dataset.schema import TrainingBatch
 from musak_model.training.ingestion.schema import EncodedExercise, IngestionErrorRecord, IngestionSplit
 from musak_model.training.metrics import EpochMetrics
 from musak_model.training.stages.pretraining import PretrainingTrainer

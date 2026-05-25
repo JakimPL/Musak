@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from musak_model.conditioning.structural import extract_structural_control_features
+from musak_model.conditioning.structural.features import extract_structural_control_features
 from musak_model.data.schema import Segment
 from musak_model.evaluation.diagnostics.activity import (
     calculate_activity_balance,

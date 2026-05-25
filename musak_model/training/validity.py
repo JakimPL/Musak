@@ -17,7 +17,7 @@ from musak_model.generation.constraints import (
 from musak_model.tokens.pitch import note_token_to_midi_pitch
 from musak_model.tokens.schema import Hand, HoldToken, NoteToken, RestToken, ScaleType, StartToken
 from musak_model.tokens.vocabulary import TokenVocabulary
-from musak_model.training.dataset import TrainingBatch
+from musak_model.training.dataset.schema import TrainingBatch
 
 MAX_ONSET_SPAN_SEMITONES: Final[int] = 12
 _INVALID_MIDI_PITCH: Final[int] = -1_000_000

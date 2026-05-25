@@ -14,7 +14,7 @@ def _():
     import marimo as mo
     import torch
 
-    from musak_model.conditioning.structural import StructuralControlFeatures
+    from musak_model.conditioning.structural.schema import StructuralControlFeatures
     from musak_model.decoder.notation import segment_to_score_data
     from musak_model.generation.constraints import GenerationConstraints
     from musak_model.paths import DEFAULT_CHECKPOINT_DIR, TOKENIZATION_CONFIG_PATH

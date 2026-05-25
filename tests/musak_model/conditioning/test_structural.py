@@ -3,17 +3,19 @@ from pathlib import Path
 
 import pytest
 
-from musak_model.conditioning.structural import (
+from musak_model.conditioning.structural.config import (
+    DurationDenominatorBucketConfig,
+    IntegerBucketConfig,
+    StructuralConditioningConfig,
+)
+from musak_model.conditioning.structural.constants import (
     FALSE_CONTROL_ID,
     TRUE_CONTROL_ID,
     UNKNOWN_CONTROL_ID,
-    FractionBucketConfig,
-    IntegerBucketConfig,
-    StructuralConditioningConfig,
-    StructuralControlFeatures,
-    StructuralControlVocabulary,
-    extract_structural_control_features,
 )
+from musak_model.conditioning.structural.features import extract_structural_control_features
+from musak_model.conditioning.structural.schema import StructuralControlFeatures
+from musak_model.conditioning.structural.vocabulary import StructuralControlVocabulary
 from musak_model.data.schema import Segment, SegmentMetadata
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import Hand, HandToken, JoinWithPreviousToken, NoteToken, RestToken, ScaleType
@@ -65,7 +67,7 @@ def test_extract_structural_control_features_from_tokens(duration_vocabulary: Du
 def test_structural_control_vocabulary_maps_features_to_bucket_ids() -> None:
     vocabulary = StructuralControlVocabulary(
         StructuralConditioningConfig(
-            shortest_note_duration=FractionBucketConfig(thresholds=("1/8", "1/4")),
+            shortest_note_duration=DurationDenominatorBucketConfig(thresholds=(8, 4)),
             max_notes_per_onset=IntegerBucketConfig(thresholds=(1, 2)),
             max_notes_per_hand=IntegerBucketConfig(thresholds=(1, 2, 5)),
             max_onset_span_semitones=IntegerBucketConfig(thresholds=(4, 12)),
@@ -123,6 +125,21 @@ def test_structural_control_vocabulary_maps_missing_features_to_unknown() -> Non
 def test_structural_control_config_rejects_unsorted_thresholds() -> None:
     with pytest.raises(ValueError, match="sorted"):
         IntegerBucketConfig(thresholds=(2, 1))
+
+
+def test_duration_denominator_bucket_config_rejects_non_power_of_two_thresholds() -> None:
+    with pytest.raises(ValueError, match="powers of two"):
+        DurationDenominatorBucketConfig(thresholds=(16, 12, 8))
+
+
+def test_duration_denominator_bucket_config_rejects_string_thresholds() -> None:
+    with pytest.raises(ValueError, match="integer denominators"):
+        DurationDenominatorBucketConfig.model_validate({"thresholds": ["1/16", "1/8"]})
+
+
+def test_duration_denominator_bucket_config_rejects_duration_order_mismatch() -> None:
+    with pytest.raises(ValueError, match="shortest to longest duration"):
+        DurationDenominatorBucketConfig(thresholds=(4, 8, 16))
 
 
 def test_boolean_control_ids_are_stable() -> None:

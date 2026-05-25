@@ -8,7 +8,7 @@ from torch import Tensor
 from torch.optim import AdamW
 from torch.utils.data import DataLoader
 
-from musak_model.conditioning.structural import StructuralControlVocabulary
+from musak_model.conditioning.structural.vocabulary import StructuralControlVocabulary
 from musak_model.conditioning.time_signature import TimeSignatureVocabulary
 from musak_model.data.config import SegmentationConfig
 from musak_model.evaluation import GenerationSuiteEvaluator
@@ -20,7 +20,8 @@ from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.vocabulary import TokenVocabulary
 from musak_model.training.checkpoint import load_checkpoint, save_checkpoint
 from musak_model.training.config import TrainingConfig
-from musak_model.training.dataset import TrainingBatch, build_dataloaders
+from musak_model.training.dataset.loaders import build_dataloaders
+from musak_model.training.dataset.schema import TrainingBatch
 from musak_model.training.ingestion.config import IngestionConfig
 from musak_model.training.ingestion.schema import IngestionErrorRecord
 from musak_model.training.ingestion.split import build_split

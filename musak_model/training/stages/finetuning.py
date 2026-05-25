@@ -5,7 +5,7 @@ from pathlib import Path
 
 import torch
 
-from musak_model.conditioning.structural import StructuralControlVocabulary
+from musak_model.conditioning.structural.vocabulary import StructuralControlVocabulary
 from musak_model.conditioning.time_signature import TimeSignatureVocabulary
 from musak_model.data.config import SegmentationConfig
 from musak_model.evaluation import GenerationSuiteEvaluator
@@ -17,7 +17,7 @@ from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.vocabulary import TokenVocabulary
 from musak_model.training.checkpoint import load_model_weights
 from musak_model.training.config import FinetuningTrainingConfig
-from musak_model.training.dataset import build_dataloaders
+from musak_model.training.dataset.loaders import build_dataloaders
 from musak_model.training.ingestion.config import IngestionConfig
 from musak_model.training.ingestion.split import build_split
 from musak_model.training.metrics import build_token_kind_ids

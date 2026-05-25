@@ -9,7 +9,8 @@ from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import BarToken, JoinWithPreviousToken, NoteToken, ScaleType
 from musak_model.tokens.vocabulary import TokenVocabulary
 from musak_model.training.config import TrainingConditioningConfig
-from musak_model.training.dataset import EncodedExerciseDataset, collate_training_examples
+from musak_model.training.dataset.collate import collate_training_examples
+from musak_model.training.dataset.examples import EncodedExerciseDataset
 from musak_model.training.ingestion.schema import EncodedExercise
 from musak_model.training.validity import TrainingValidityMaskBuilder
 

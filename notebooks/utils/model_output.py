@@ -8,7 +8,8 @@ from typing import Callable, Literal, Protocol, cast
 import torch
 from torch import Tensor
 
-from musak_model.conditioning.structural import StructuralControlFeatures, StructuralControlVocabulary
+from musak_model.conditioning.structural.schema import StructuralControlFeatures
+from musak_model.conditioning.structural.vocabulary import StructuralControlVocabulary
 from musak_model.conditioning.time_signature import TimeSignatureVocabulary
 from musak_model.data.schema import Segment, SegmentMetadata
 from musak_model.decoder import segment_to_piano_roll_events
