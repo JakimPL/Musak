@@ -35,6 +35,10 @@ constraints. Avoid a single aggregate quality score until the separate distribut
 - Figure properties: monophonic, chords-only, in-scale.
 - Contour distribution and normalized duration-shape distribution.
 
+Current implemented figure comparisons cover aggregate property-rate errors and direct figure identity distribution
+distance against canonical `figure/all/counts.csv` artifacts. Training generation evaluation logs these when figure
+artifacts are available, and the model output explorer shows generated-output figure metrics for notebook inspection.
+
 ### Rhythm and Meter
 
 - Note density and onset density per beat or bar.
@@ -104,6 +108,9 @@ the common ground for dataset processing and generation evaluation.
 
 V1 compares generated output with reference dataset distributions. Comparisons should be sliced by compatible metadata
 where possible: scale type, time signature, hand, and figure n-gram length.
+
+The implemented V1 slice currently covers figure profile property comparisons and figure identity total variation
+distance. These are descriptive metrics only; they do not constrain generation.
 
 - Common, rare, and novel figure mass.
 - Figure distribution distance.

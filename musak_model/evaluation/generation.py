@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+from collections import Counter
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from fractions import Fraction
@@ -15,6 +16,7 @@ from musak_model.analysis.n_grams.figure.counter import count_hand_figure_ngrams
 from musak_model.analysis.n_grams.figure.parser import extract_hand_onset_runs
 from musak_model.analysis.n_grams.figure.samples.merge import merge_scale_counts
 from musak_model.analysis.n_grams.figure.samples.schema import FigureNGramCountsByScale
+from musak_model.analysis.n_grams.figure.schema import FigureNGram
 from musak_model.analysis.n_grams.profile.builder import build_figure_profile
 from musak_model.analysis.n_grams.profile.loading import FigureProfileArtifacts
 from musak_model.analysis.n_grams.profile.schema import FigureProfile, FigureProfileGroup, FigureProfileMetadata
@@ -366,15 +368,24 @@ def _figure_profile_metrics(
     if artifacts is None:
         return {}
 
-    generated_profile = _generated_figure_profile(
+    generated_counts_by_scale, generated_sample_count = _generated_figure_counts(
         samples,
         reference_profile=artifacts.profile,
         config=config,
         duration_vocabulary=duration_vocabulary,
     )
+    generated_profile = _generated_figure_profile(
+        generated_counts_by_scale,
+        reference_profile=artifacts.profile,
+        sample_count=generated_sample_count,
+    )
     return {
         **_figure_profile_count_metrics(artifacts),
         **_figure_profile_comparison_metrics(reference_profile=artifacts.profile, generated_profile=generated_profile),
+        **_figure_distribution_metrics(
+            reference_counts=artifacts.counts_by_scale,
+            generated_counts=generated_counts_by_scale,
+        ),
     }
 
 
@@ -387,12 +398,28 @@ def _figure_profile_count_metrics(artifacts: FigureProfileArtifacts) -> dict[str
 
 
 def _generated_figure_profile(
+    counts_by_scale: FigureNGramCountsByScale,
+    *,
+    reference_profile: FigureProfile,
+    sample_count: int,
+) -> FigureProfile:
+    return build_figure_profile(
+        counts_by_scale,
+        FigureProfileMetadata(
+            min_n=reference_profile.metadata.min_n,
+            max_n=reference_profile.metadata.max_n,
+            sample_count=sample_count,
+        ),
+    )
+
+
+def _generated_figure_counts(
     samples: list[GenerationSample],
     *,
     reference_profile: FigureProfile,
     config: GenerationEvaluationOptions,
     duration_vocabulary: DurationVocabulary,
-) -> FigureProfile:
+) -> tuple[FigureNGramCountsByScale, int]:
     counts_by_scale: FigureNGramCountsByScale = {}
     counted_sample_count = 0
     for sample in samples:
@@ -418,14 +445,7 @@ def _generated_figure_profile(
         merge_scale_counts(counts_by_scale, scale_type=config.scale_type, sample_counts=counts_by_hand)
         counted_sample_count += 1
 
-    return build_figure_profile(
-        counts_by_scale,
-        FigureProfileMetadata(
-            min_n=reference_profile.metadata.min_n,
-            max_n=reference_profile.metadata.max_n,
-            sample_count=counted_sample_count,
-        ),
-    )
+    return counts_by_scale, counted_sample_count
 
 
 def _figure_profile_comparison_metrics(
@@ -469,6 +489,56 @@ def _figure_profile_comparison_metrics(
         "generation/figure/mean/chords_only_rate_abs_error": _mean(chords_only_rate_errors),
         "generation/figure/mean/in_scale_rate_abs_error": _mean(in_scale_rate_errors),
     }
+
+
+def _figure_distribution_metrics(
+    *,
+    reference_counts: FigureNGramCountsByScale,
+    generated_counts: FigureNGramCountsByScale,
+) -> dict[str, float]:
+    distances: list[float] = []
+    for scale_type, reference_counts_by_hand in reference_counts.items():
+        for hand, reference_counts_by_n in reference_counts_by_hand.items():
+            for n, reference_figure_counts in reference_counts_by_n.items():
+                if not reference_figure_counts:
+                    continue
+
+                generated_figure_counts = generated_counts.get(scale_type, {}).get(hand, {}).get(n, Counter())
+                distances.append(
+                    _total_variation_distance(
+                        reference_figure_counts,
+                        generated_figure_counts,
+                    )
+                )
+
+    if not distances:
+        return {
+            "generation/figure/count/distribution_groups": 0.0,
+        }
+
+    return {
+        "generation/figure/count/distribution_groups": float(len(distances)),
+        "generation/figure/mean/identity_total_variation_distance": _mean(distances),
+    }
+
+
+def _total_variation_distance(
+    reference_counts: Counter[FigureNGram],
+    generated_counts: Counter[FigureNGram],
+) -> float:
+    reference_total = sum(reference_counts.values())
+    if reference_total == 0:
+        return math.nan
+
+    generated_total = sum(generated_counts.values())
+    figures = set(reference_counts) | set(generated_counts)
+    return 0.5 * sum(
+        abs(
+            (reference_counts[figure] / reference_total)
+            - (generated_counts[figure] / generated_total if generated_total > 0 else 0.0)
+        )
+        for figure in figures
+    )
 
 
 def _figure_profile_group_key(group: FigureProfileGroup) -> tuple[ScaleType, Hand, int]:

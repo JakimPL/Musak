@@ -68,6 +68,8 @@ Right and left hand assignment is based on pitch center, not part order or part 
 
 ## Dataset Processing and Training
 
+For the full user-facing workflow, see [docs/pipeline.md](docs/pipeline.md).
+
 Dataset roots and processed artifacts follow one directory rule:
 
 ```text
@@ -77,10 +79,11 @@ Dataset roots and processed artifacts follow one directory rule:
 For example, processing `data/PDMX` with the default processed root writes to `processed/PDMX`. Pass the dataset root (`data/PDMX`), not an internal folder such as `data/PDMX/mxl`.
 
 ```bash
-uv run python scripts/process_dataset.py --data-dir data/PDMX --processed-dir processed
+DATA_DIR=data/PDMX PROCESSED_ROOT=processed NUM_WORKERS=8 make process
 ```
 
-The processed layout is:
+`make process` runs parsing, tokenization, dataset evaluation diagnostics, and figure-profile extraction in one
+processing MLflow run. The processed layout is:
 
 ```text
 processed/PDMX/
@@ -90,18 +93,44 @@ processed/PDMX/
     tokenizer.json
     encoded.csv
     data-00000.jsonl
+    figure/
+      config.yml
+      all/
+        counts.csv
+        profile.json
+      by_sample.jsonl
 ```
 
 Training can work from encoded JSONL, parsed JSON, or raw MusicXML. `--processed-dir` is the processed artifact directory with the dataset name. `--data-dir` is optional when processed artifacts are usable, and is required only when raw MusicXML fallback is needed.
 
 ```bash
-uv run python scripts/pretrain.py --processed-dir processed/PDMX
+PRETRAIN_PROCESSED_DIR=processed/PDMX PRETRAIN_EPOCHS=25 PRETRAIN_DEVICE=cuda make pretrain
+```
+
+Finetuning is a separate stage initialized from a pretraining checkpoint:
+
+```bash
+FINETUNE_PROCESSED_DIR=processed/exercises \
+FINETUNE_DIFFICULTY_LABELS=data/exercises/difficulty_labels.json \
+PRETRAIN_CHECKPOINT=checkpoints/pretraining/best.pt \
+FINETUNE_EPOCHS=8 \
+make finetune
+```
+
+Run both stages with:
+
+```bash
+PRETRAIN_PROCESSED_DIR=processed/PDMX \
+FINETUNE_PROCESSED_DIR=processed/exercises \
+FINETUNE_DIFFICULTY_LABELS=data/exercises/difficulty_labels.json \
+DEVICE=cuda \
+make train
 ```
 
 To allow raw fallback, pass both directories:
 
 ```bash
-uv run python scripts/pretrain.py --data-dir data/PDMX --processed-dir processed/PDMX
+PRETRAIN_DATA_DIR=data/PDMX PRETRAIN_PROCESSED_DIR=processed/PDMX make pretrain
 ```
 
 When both directories are supplied, their dataset names must match. For example, `--data-dir data/PDMX --processed-dir processed/PDMX` is valid; `--data-dir data/PDMX --processed-dir processed` is not a training path. Processing still takes a processed root and writes the dataset subdirectory, while training takes the resolved processed dataset directory.

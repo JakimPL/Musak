@@ -1,11 +1,14 @@
 import csv
+from collections import Counter
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Final
 
 from musak_model.analysis.n_grams.figure.samples.schema import FigureNGramCountsByScale
+from musak_model.analysis.n_grams.figure.schema import FigureNGram
 from musak_model.analysis.n_grams.profile.schema import FigureProfile, FigureSampleCounts
 from musak_model.processing.io import JSON_INDENT
+from musak_model.tokens.schema import Hand, ScaleType
 
 SCALE_TYPE_COLUMN: Final[str] = "scale_type"
 HAND_COLUMN: Final[str] = "hand"
@@ -66,6 +69,21 @@ def write_figure_counts_csv(
     path: Path,
 ) -> None:
     write_figure_count_csv(figure_count_records(counts), path)
+
+
+def read_figure_counts_csv(path: Path) -> FigureNGramCountsByScale:
+    counts: FigureNGramCountsByScale = {}
+    with path.open("r", encoding="utf-8", newline="") as file:
+        reader = csv.DictReader(file)
+        for row in reader:
+            scale_type = ScaleType(row[SCALE_TYPE_COLUMN])
+            hand = Hand(row[HAND_COLUMN])
+            n = int(row[N_COLUMN])
+            count = int(row[COUNT_COLUMN])
+            figure = FigureNGram.model_validate_json(row[FIGURE_COLUMN])
+            counts.setdefault(scale_type, {}).setdefault(hand, {}).setdefault(n, Counter())[figure] += count
+
+    return counts
 
 
 def write_figure_profile(profile: FigureProfile, path: Path) -> None:

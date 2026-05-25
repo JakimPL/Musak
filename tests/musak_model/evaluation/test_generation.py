@@ -190,6 +190,37 @@ def test_generation_suite_compares_generated_figures_to_loaded_profile(tmp_path:
     assert metrics["generation/figure/mean/monophonic_rate_abs_error"] == 0.0
     assert metrics["generation/figure/mean/chords_only_rate_abs_error"] == 0.0
     assert metrics["generation/figure/mean/in_scale_rate_abs_error"] == 0.0
+    assert metrics["generation/figure/count/distribution_groups"] == 1.0
+    assert metrics["generation/figure/mean/identity_total_variation_distance"] == 0.0
+
+
+def test_generation_suite_identity_distribution_distance_detects_different_figures(tmp_path: Path) -> None:
+    duration_vocabulary = DurationVocabulary(TokenizationConfig(shortest_duration=16, allowed_tuplets=(3,), max_dots=1))
+    token_vocabulary = TokenVocabulary(duration_vocabulary)
+    quarter_id = duration_vocabulary.fraction_to_id(Fraction(1, 4))
+    scripted_ids = token_vocabulary.encode(
+        [
+            HandToken(hand=Hand.RIGHT),
+            NoteToken(degree=1, accidental=1, octave_offset=0, duration_id=quarter_id),
+            EndToken(),
+        ]
+    )
+    evaluator = GenerationSuiteEvaluator(
+        config=_generation_config(soft_sample_count=1, hard_sample_count=0),
+        conditioning=_conditioning_config(),
+        model_config=_model_config(token_vocabulary.vocabulary_size),
+        token_vocabulary=token_vocabulary,
+        duration_vocabulary=duration_vocabulary,
+        include_bar_count_control=False,
+        figure_profile_artifacts=_figure_profile_artifacts(tmp_path),
+    )
+
+    metrics = evaluator.evaluate(
+        ScriptedModel(scripted_ids, vocabulary_size=token_vocabulary.vocabulary_size),
+        device=torch.device("cpu"),
+    )
+
+    assert metrics["generation/figure/mean/identity_total_variation_distance"] == 1.0
 
 
 def test_generation_config_validates_minimum_duration_denominator() -> None:
@@ -221,6 +252,13 @@ def _figure_profile_artifacts(tmp_path: Path) -> FigureProfileArtifacts:
     return FigureProfileArtifacts(
         paths=figure_artifact_paths(tmp_path / "encoded"),
         profile=profile,
+        counts_by_scale={
+            ScaleType.MAJOR: {
+                Hand.RIGHT: {
+                    1: Counter({figure: 1}),
+                }
+            }
+        },
         sample_counts=(sample_counts,),
     )
 

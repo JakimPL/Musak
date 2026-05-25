@@ -7,8 +7,10 @@ from musak_model.analysis.n_grams.profile.artifacts import FigureArtifactPaths, 
 from musak_model.analysis.n_grams.profile.builder import build_figure_profile, build_figure_sample_counts
 from musak_model.analysis.n_grams.profile.extraction import extract_figure_artifacts
 from musak_model.analysis.n_grams.profile.io import (
+    read_figure_counts_csv,
     read_figure_profile,
     read_figure_sample_counts_jsonl,
+    write_figure_counts_csv,
     write_figure_profile,
     write_figure_sample_counts_jsonl,
 )
@@ -93,6 +95,22 @@ def test_figure_profile_json_round_trips(tmp_path: Path) -> None:
     write_figure_profile(profile, path)
 
     assert read_figure_profile(path) == profile
+
+
+def test_figure_counts_csv_round_trips(tmp_path: Path) -> None:
+    figure = FigureNGram(onsets=((((0, 0),), Fraction(1)),))
+    counts = {
+        ScaleType.MAJOR: {
+            Hand.RIGHT: {
+                1: Counter({figure: 2}),
+            }
+        }
+    }
+    path = tmp_path / "counts.csv"
+
+    write_figure_counts_csv(counts, path)
+
+    assert read_figure_counts_csv(path) == counts
 
 
 def test_figure_sample_counts_jsonl_round_trips(tmp_path: Path) -> None:

@@ -27,7 +27,9 @@ def _():
         PitchSpelling,
         SamplingOptions,
         empty_prompt,
+        figure_output_metric_rows,
         hand_controls,
+        load_figure_reference_counts,
         load_trained_model,
         piano_roll_player_panel,
         prompt_from_text,
@@ -56,7 +58,9 @@ def _():
         TOKENIZATION_CONFIG_PATH,
         alt,
         empty_prompt,
+        figure_output_metric_rows,
         hand_controls,
+        load_figure_reference_counts,
         load_trained_model,
         mo,
         piano_roll_player_panel,
@@ -103,17 +107,25 @@ def _(
         multiple=False,
         label="Tokenization config",
     )
+    figure_counts_browser = mo.ui.file_browser(
+        initial_path=".",
+        filetypes=[".csv"],
+        selection_mode="file",
+        multiple=False,
+        label="Figure counts CSV",
+    )
     device = mo.ui.dropdown(options=["cpu", "cuda"], value="cpu", label="Device")
     setup_output = mo.vstack(
         [
             mo.md("## Setup"),
             mo.hstack([checkpoint_browser, tokenization_browser], gap=2, align="end", widths="equal"),
+            figure_counts_browser,
             device,
         ],
         gap=2,
     )
     setup_output
-    return checkpoint_browser, device, tokenization_browser
+    return checkpoint_browser, device, figure_counts_browser, tokenization_browser
 
 
 @app.cell
@@ -534,6 +546,59 @@ def _(
         )
 
     piano_roll_output
+    return
+
+
+@app.cell
+def _(
+    figure_counts_browser,
+    figure_output_metric_rows,
+    load_figure_reference_counts,
+    mo,
+    output,
+    selected_file,
+):
+    if output is None:
+        figure_metrics_output = mo.md("")
+    elif output.decode_error is not None:
+        figure_metrics_output = mo.callout(
+            f"Figure metrics skipped because decoding failed: {output.decode_error}",
+            kind="warn",
+        )
+    else:
+        reference_counts = None
+        reference_status = mo.md("")
+        if figure_counts_browser.value:
+            selection = selected_file(
+                figure_counts_browser,
+                supported_suffixes=frozenset({".csv"}),
+                description="figure counts CSV",
+            )
+            if selection.path is None:
+                reference_status = mo.callout(selection.message or "Figure counts CSV is unavailable.", kind="warn")
+            else:
+                try:
+                    reference_counts = load_figure_reference_counts(selection.path)
+                except ValueError as exception:
+                    reference_status = mo.callout(f"Figure counts CSV could not be loaded: {exception}", kind="warn")
+                else:
+                    reference_status = mo.callout(f"Comparing against `{selection.path.name}`.", kind="success")
+
+        rows = figure_output_metric_rows(
+            output.decoded_segment,
+            duration_vocabulary=output.duration_vocabulary,
+            reference_counts=reference_counts,
+        )
+        figure_metrics_output = mo.vstack(
+            [
+                mo.md("## Figure Metrics"),
+                reference_status,
+                mo.ui.table(rows, selection=None, label="Generated figure metrics"),
+            ],
+            gap=1,
+        )
+
+    figure_metrics_output
     return
 
 

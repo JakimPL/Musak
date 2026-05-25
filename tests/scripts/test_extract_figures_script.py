@@ -62,11 +62,11 @@ def test_encoded_run_directories_requires_jsonl_and_tokenizer_snapshot(tmp_path:
 
 def test_dataset_name_prefers_data_dir() -> None:
     name = dataset_name_for_analysis(
-        data_directory=Path("data/Exercises"),
+        data_directory=Path("data/exercises"),
         encoded_directory=Path("processed/PDMX/encoded/abc"),
     )
 
-    assert name == "Exercises"
+    assert name == "exercises"
 
 
 def test_default_output_path_uses_analysis_directory() -> None:

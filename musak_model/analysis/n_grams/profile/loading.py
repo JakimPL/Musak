@@ -1,8 +1,13 @@
 from dataclasses import dataclass
 from pathlib import Path
 
+from musak_model.analysis.n_grams.figure.samples.schema import FigureNGramCountsByScale
 from musak_model.analysis.n_grams.profile.artifacts import FigureArtifactPaths, figure_artifact_paths
-from musak_model.analysis.n_grams.profile.io import read_figure_profile, read_figure_sample_counts_jsonl
+from musak_model.analysis.n_grams.profile.io import (
+    read_figure_counts_csv,
+    read_figure_profile,
+    read_figure_sample_counts_jsonl,
+)
 from musak_model.analysis.n_grams.profile.schema import FigureProfile, FigureSampleCounts
 from musak_model.processing.paths import ProcessedDatasetPaths
 from musak_model.processing.snapshot import build_tokenizer_snapshot
@@ -15,6 +20,7 @@ from musak_model.tokens.vocabulary import TokenVocabulary
 class FigureProfileArtifacts:
     paths: FigureArtifactPaths
     profile: FigureProfile
+    counts_by_scale: FigureNGramCountsByScale
     sample_counts: tuple[FigureSampleCounts, ...]
 
 
@@ -35,9 +41,15 @@ def load_figure_profile_artifacts(
         )
 
     profile = read_figure_profile(paths.profile_path)
+    counts_by_scale = read_figure_counts_csv(paths.counts_path)
     sample_counts = tuple(read_figure_sample_counts_jsonl(paths.by_sample_path))
     _validate_artifact_consistency(profile=profile, sample_counts=sample_counts, paths=paths)
-    return FigureProfileArtifacts(paths=paths, profile=profile, sample_counts=sample_counts)
+    return FigureProfileArtifacts(
+        paths=paths,
+        profile=profile,
+        counts_by_scale=counts_by_scale,
+        sample_counts=sample_counts,
+    )
 
 
 def figure_profile_encoded_directory(

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import dataclass
 from fractions import Fraction
 from pathlib import Path
@@ -8,6 +9,13 @@ from typing import Callable, Literal, Protocol, cast
 import torch
 from torch import Tensor
 
+from musak_model.analysis.n_grams.figure.builder import scale_size_for_type
+from musak_model.analysis.n_grams.figure.counter import count_hand_figure_ngrams
+from musak_model.analysis.n_grams.figure.parser import extract_hand_onset_runs
+from musak_model.analysis.n_grams.figure.samples.merge import merge_scale_counts
+from musak_model.analysis.n_grams.figure.samples.schema import FigureNGramCountsByScale
+from musak_model.analysis.n_grams.figure.schema import FigureNGram
+from musak_model.analysis.n_grams.profile.io import read_figure_counts_csv
 from musak_model.conditioning.structural.schema import StructuralControlFeatures
 from musak_model.conditioning.structural.vocabulary import StructuralControlVocabulary
 from musak_model.conditioning.time_signature import TimeSignatureVocabulary
@@ -416,8 +424,199 @@ def segment_diagnostic_rows(segment: Segment, *, duration_vocabulary: DurationVo
     ]
 
 
+def load_figure_reference_counts(path: Path) -> FigureNGramCountsByScale:
+    return read_figure_counts_csv(path)
+
+
+def figure_output_metric_rows(
+    segment: Segment,
+    *,
+    duration_vocabulary: DurationVocabulary,
+    reference_counts: FigureNGramCountsByScale | None = None,
+) -> list[dict[str, object]]:
+    min_n, max_n = _figure_n_range(reference_counts)
+    generated_counts = _segment_figure_counts(
+        segment,
+        duration_vocabulary=duration_vocabulary,
+        min_n=min_n,
+        max_n=max_n,
+    )
+    generated_groups = _nonempty_figure_groups(generated_counts)
+    generated_total = _total_figure_count(generated_counts)
+    generated_unique = _unique_figure_count(generated_counts)
+    rows: list[dict[str, object]] = [
+        {"metric": "n range", "value": f"{min_n}-{max_n}"},
+        {"metric": "generated figure groups", "value": generated_groups},
+        {"metric": "generated figure occurrences", "value": generated_total},
+        {"metric": "generated unique figures", "value": generated_unique},
+    ]
+    if reference_counts is None:
+        return rows
+
+    reference_groups = _nonempty_figure_groups(reference_counts)
+    reference_total = _total_figure_count(reference_counts)
+    reference_unique = _unique_figure_count(reference_counts)
+    comparable_distances = _identity_distances(reference_counts=reference_counts, generated_counts=generated_counts)
+    total_relative_errors = _total_relative_errors(reference_counts=reference_counts, generated_counts=generated_counts)
+    rows.extend(
+        [
+            {"metric": "reference figure groups", "value": reference_groups},
+            {"metric": "reference figure occurrences", "value": reference_total},
+            {"metric": "reference unique figures", "value": reference_unique},
+            {"metric": "comparable groups", "value": len(comparable_distances)},
+            {
+                "metric": "mean identity total variation distance",
+                "value": _format_optional_float(_mean(comparable_distances)),
+            },
+            {
+                "metric": "mean total relative abs error",
+                "value": _format_optional_float(_mean(total_relative_errors)),
+            },
+        ]
+    )
+    return rows
+
+
 def _format_percent(value: float) -> str:
     return f"{100 * value:.1f}%"
+
+
+def _format_optional_float(value: float | None) -> str:
+    return "-" if value is None else f"{value:.3f}"
+
+
+def _figure_n_range(reference_counts: FigureNGramCountsByScale | None) -> tuple[int, int]:
+    if reference_counts is None:
+        return 1, 3
+
+    n_values = [
+        n
+        for counts_by_hand in reference_counts.values()
+        for counts_by_n in counts_by_hand.values()
+        for n, figure_counts in counts_by_n.items()
+        if figure_counts
+    ]
+    if not n_values:
+        return 1, 3
+
+    return min(n_values), max(n_values)
+
+
+def _segment_figure_counts(
+    segment: Segment,
+    *,
+    duration_vocabulary: DurationVocabulary,
+    min_n: int,
+    max_n: int,
+) -> FigureNGramCountsByScale:
+    runs_by_hand = extract_hand_onset_runs(
+        segment.tokens,
+        duration_vocabulary=duration_vocabulary,
+        time_numerator=segment.time_numerator,
+        time_denominator=segment.time_denominator,
+    )
+    counts_by_hand = count_hand_figure_ngrams(
+        runs_by_hand,
+        min_n=min_n,
+        max_n=max_n,
+        scale_size=scale_size_for_type(segment.scale_type),
+    )
+    counts_by_scale: FigureNGramCountsByScale = {}
+    merge_scale_counts(counts_by_scale, scale_type=segment.scale_type, sample_counts=counts_by_hand)
+    return counts_by_scale
+
+
+def _nonempty_figure_groups(counts_by_scale: FigureNGramCountsByScale) -> int:
+    return sum(
+        1
+        for counts_by_hand in counts_by_scale.values()
+        for counts_by_n in counts_by_hand.values()
+        for figure_counts in counts_by_n.values()
+        if figure_counts
+    )
+
+
+def _total_figure_count(counts_by_scale: FigureNGramCountsByScale) -> int:
+    return sum(
+        figure_count
+        for counts_by_hand in counts_by_scale.values()
+        for counts_by_n in counts_by_hand.values()
+        for figure_counts in counts_by_n.values()
+        for figure_count in figure_counts.values()
+    )
+
+
+def _unique_figure_count(counts_by_scale: FigureNGramCountsByScale) -> int:
+    return sum(
+        len(figure_counts)
+        for counts_by_hand in counts_by_scale.values()
+        for counts_by_n in counts_by_hand.values()
+        for figure_counts in counts_by_n.values()
+    )
+
+
+def _identity_distances(
+    *,
+    reference_counts: FigureNGramCountsByScale,
+    generated_counts: FigureNGramCountsByScale,
+) -> list[float]:
+    distances: list[float] = []
+    for scale_type, reference_counts_by_hand in reference_counts.items():
+        for hand, reference_counts_by_n in reference_counts_by_hand.items():
+            for n, reference_figure_counts in reference_counts_by_n.items():
+                if not reference_figure_counts:
+                    continue
+
+                generated_figure_counts = generated_counts.get(scale_type, {}).get(hand, {}).get(n) or Counter()
+                distances.append(_total_variation_distance(reference_figure_counts, generated_figure_counts))
+
+    return distances
+
+
+def _total_relative_errors(
+    *,
+    reference_counts: FigureNGramCountsByScale,
+    generated_counts: FigureNGramCountsByScale,
+) -> list[float]:
+    errors: list[float] = []
+    for scale_type, reference_counts_by_hand in reference_counts.items():
+        for hand, reference_counts_by_n in reference_counts_by_hand.items():
+            for n, reference_figure_counts in reference_counts_by_n.items():
+                reference_total = sum(reference_figure_counts.values())
+                if reference_total == 0:
+                    continue
+
+                generated_figure_counts = generated_counts.get(scale_type, {}).get(hand, {}).get(n)
+                generated_total = sum(generated_figure_counts.values()) if generated_figure_counts else 0
+                errors.append(abs(generated_total - reference_total) / reference_total)
+
+    return errors
+
+
+def _total_variation_distance(
+    reference_counts: Counter[FigureNGram],
+    generated_counts: Counter[FigureNGram],
+) -> float:
+    reference_total = sum(reference_counts.values())
+    if reference_total == 0:
+        return 0.0
+
+    generated_total = sum(generated_counts.values())
+    figures = set(reference_counts) | set(generated_counts)
+    return 0.5 * sum(
+        abs(
+            (reference_counts[figure] / reference_total)
+            - (generated_counts[figure] / generated_total if generated_total > 0 else 0.0)
+        )
+        for figure in figures
+    )
+
+
+def _mean(values: list[float]) -> float | None:
+    if not values:
+        return None
+
+    return sum(values) / len(values)
 
 
 def _display_bar_count(tokens: list[Token]) -> int:

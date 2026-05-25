@@ -558,7 +558,7 @@ def _description(stage: TrainingStage) -> str:
             )
         case TrainingStage.FINETUNING:
             return (
-                "Fine-tune the Musak Stage 2 constrained autoregressive model from a Stage 1 checkpoint. "
+                "Fine-tune the Musak Stage 2 conditioned autoregressive model from a Stage 1 checkpoint. "
                 "Use the same explicit dataset directory policy as Stage 1."
             )
 
