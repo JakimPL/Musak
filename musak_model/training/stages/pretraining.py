@@ -92,7 +92,7 @@ class PretrainingTrainer:
         start_epoch, best_validation_loss = self._resume_training_state()
         metrics: list[EpochMetrics] = []
         best_checkpoint_path: Path | None = None
-        latest_checkpoint_path = self._config.checkpoints.checkpoint_dir / "latest.pt"
+        latest_checkpoint_path = self._config.checkpoints.checkpoint_directory / "latest.pt"
 
         for epoch in range(start_epoch, self._config.optimization.epochs):
             metric = self._run_epoch(epoch=epoch)
@@ -240,7 +240,7 @@ class PretrainingTrainer:
         if not self._config.checkpoints.save_all_epochs:
             return
 
-        epoch_checkpoint_path = self._config.checkpoints.checkpoint_dir / f"epoch_{epoch:04d}.pt"
+        epoch_checkpoint_path = self._config.checkpoints.checkpoint_directory / f"epoch_{epoch:04d}.pt"
         self._save_checkpoint(epoch_checkpoint_path, epoch=epoch, best_validation_loss=best_validation_loss)
         _LOGGER.info("Saved epoch checkpoint: %s", epoch_checkpoint_path)
 
@@ -257,7 +257,7 @@ class PretrainingTrainer:
             return best_validation_loss, best_checkpoint_path
 
         best_validation_loss = score
-        best_checkpoint_path = self._config.checkpoints.checkpoint_dir / "best.pt"
+        best_checkpoint_path = self._config.checkpoints.checkpoint_directory / "best.pt"
         self._save_checkpoint(best_checkpoint_path, epoch=epoch, best_validation_loss=best_validation_loss)
         _LOGGER.info("Saved best checkpoint: %s", best_checkpoint_path)
         return best_validation_loss, best_checkpoint_path

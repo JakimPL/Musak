@@ -138,7 +138,7 @@ def should_skip_pretraining(*, args: argparse.Namespace, training_config: Traini
 
 
 def existing_training_checkpoints(training_config: TrainingConfig) -> tuple[Path, ...]:
-    checkpoint_dir = training_config.checkpoints.checkpoint_dir
+    checkpoint_dir = training_config.checkpoints.checkpoint_directory
     candidates = (checkpoint_dir / "latest.pt", checkpoint_dir / "best.pt")
     return tuple(path for path in candidates if path.exists())
 
@@ -169,9 +169,9 @@ def handle_keyboard_interrupt(
     args: argparse.Namespace,
     training_config: TrainingConfig,
 ) -> None:
-    latest_checkpoint_path = training_config.checkpoints.checkpoint_dir / "latest.pt"
+    latest_checkpoint_path = training_config.checkpoints.checkpoint_directory / "latest.pt"
     _LOGGER.warning("%s training interrupted by KeyboardInterrupt", stage.value)
-    _LOGGER.warning("Checkpoint directory: %s", training_config.checkpoints.checkpoint_dir)
+    _LOGGER.warning("Checkpoint directory: %s", training_config.checkpoints.checkpoint_directory)
     if not latest_checkpoint_path.exists():
         _LOGGER.warning("No latest checkpoint exists yet; resume command is unavailable.")
         print("Training interrupted. No latest checkpoint exists yet; resume command is unavailable.")
@@ -208,7 +208,7 @@ def resume_command(
             "--training-config",
             str(args.training_config),
             "--checkpoint-dir",
-            str(training_config.checkpoints.checkpoint_dir),
+            str(training_config.checkpoints.checkpoint_directory),
             "--resume-checkpoint",
             str(checkpoint_path),
             "--mlflow-dir",
@@ -435,7 +435,7 @@ def build_finetuning_training_config(args: argparse.Namespace) -> FinetuningTrai
         raise TypeError("checkpoint update must be a CheckpointConfig")
 
     updates["checkpoints"] = FinetuningCheckpointConfig(
-        checkpoint_dir=checkpoint_config.checkpoint_dir,
+        checkpoint_directory=checkpoint_config.checkpoint_directory,
         resume_checkpoint=checkpoint_config.resume_checkpoint,
         save_all_epochs=checkpoint_config.save_all_epochs,
         pretraining_checkpoint=(
@@ -466,7 +466,9 @@ def common_training_section_updates(
         ),
         "conditioning": config.conditioning,
         "checkpoints": CheckpointConfig(
-            checkpoint_dir=args.checkpoint_dir or config.checkpoints.checkpoint_dir or default_checkpoint_dir,
+            checkpoint_directory=args.checkpoint_dir
+            or config.checkpoints.checkpoint_directory
+            or default_checkpoint_dir,
             resume_checkpoint=(
                 args.resume_checkpoint if args.resume_checkpoint is not None else config.checkpoints.resume_checkpoint
             ),
@@ -526,9 +528,9 @@ def log_training_start(
     _LOGGER.info("Batch size: %s", training_config.optimization.batch_size)
     _LOGGER.info("Workers: %s", training_config.runtime.num_workers)
     _LOGGER.info("Progress bars: %s", not args.no_progress)
-    _LOGGER.info("Checkpoint directory: %s", training_config.checkpoints.checkpoint_dir)
-    _LOGGER.info("Latest checkpoint target: %s", training_config.checkpoints.checkpoint_dir / "latest.pt")
-    _LOGGER.info("Best checkpoint target: %s", training_config.checkpoints.checkpoint_dir / "best.pt")
+    _LOGGER.info("Checkpoint directory: %s", training_config.checkpoints.checkpoint_directory)
+    _LOGGER.info("Latest checkpoint target: %s", training_config.checkpoints.checkpoint_directory / "latest.pt")
+    _LOGGER.info("Best checkpoint target: %s", training_config.checkpoints.checkpoint_directory / "best.pt")
     if isinstance(training_config, FinetuningTrainingConfig):
         _LOGGER.info("Stage-one checkpoint: %s", training_config.checkpoints.pretraining_checkpoint)
 

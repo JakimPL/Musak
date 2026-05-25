@@ -12,22 +12,22 @@ FIGURE_BY_SAMPLE_NAME: Final[str] = "by_sample.jsonl"
 
 @dataclass(frozen=True)
 class FigureArtifactPaths:
-    root_dir: Path
+    root_directory: Path
     config_path: Path
-    all_dir: Path
+    all_directory: Path
     profile_path: Path
     counts_path: Path
     by_sample_path: Path
 
 
-def figure_artifact_paths(encoded_dir: Path) -> FigureArtifactPaths:
-    figure_dir = encoded_dir / FIGURE_DIR_NAME
-    all_dir = figure_dir / FIGURE_ALL_DIR_NAME
+def figure_artifact_paths(encoded_directory: Path) -> FigureArtifactPaths:
+    figure_directory = encoded_directory / FIGURE_DIR_NAME
+    all_directory = figure_directory / FIGURE_ALL_DIR_NAME
     return FigureArtifactPaths(
-        root_dir=figure_dir,
-        config_path=figure_dir / FIGURE_CONFIG_NAME,
-        all_dir=all_dir,
-        profile_path=all_dir / FIGURE_PROFILE_NAME,
-        counts_path=all_dir / FIGURE_COUNTS_NAME,
-        by_sample_path=figure_dir / FIGURE_BY_SAMPLE_NAME,
+        root_directory=figure_directory,
+        config_path=figure_directory / FIGURE_CONFIG_NAME,
+        all_directory=all_directory,
+        profile_path=all_directory / FIGURE_PROFILE_NAME,
+        counts_path=all_directory / FIGURE_COUNTS_NAME,
+        by_sample_path=figure_directory / FIGURE_BY_SAMPLE_NAME,
     )

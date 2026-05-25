@@ -53,7 +53,11 @@ def load_encoded_shard(path: Path) -> EncodedShard:
     )
 
 
-def encoded_sample_to_segment(sample: EncodedExercise, *, shard: EncodedShard) -> Segment:
+def encoded_sample_to_segment(
+    sample: EncodedExercise,
+    *,
+    shard: EncodedShard,
+) -> Segment:
     return encoded_exercise_to_segment(sample, token_vocabulary=shard.token_vocabulary)
 
 
@@ -61,10 +65,12 @@ def load_encoded_manifest_selection(
     row: Mapping[str, object],
     *,
     dataset_dir: Path,
-    encoded_dir: Path | None = None,
+    encoded_directory: Path | None = None,
 ) -> EncodedManifestSelection:
     if (encoded_line := _optional_encoded_line(row)) is not None:
-        encoded_shard_path = _encoded_shard_path(row, dataset_dir=dataset_dir, encoded_dir=encoded_dir)
+        encoded_shard_path = _encoded_shard_path(
+            row, dataset_directory=dataset_dir, encoded_directory=encoded_directory
+        )
         shard = load_encoded_shard(encoded_shard_path)
         if encoded_line >= len(shard.samples):
             raise IndexError(f"encoded line {encoded_line} is outside shard with {len(shard.samples)} sample(s)")
@@ -79,7 +85,7 @@ def load_encoded_manifest_selection(
             encoded_line=encoded_line,
         )
 
-    duration_vocabulary, token_vocabulary = _vocabularies_from_encoded_dir(encoded_dir)
+    duration_vocabulary, token_vocabulary = _vocabularies_from_encoded_directory(encoded_directory)
     segment = _segment_from_manifest_row(
         row,
         dataset_dir=dataset_dir,
@@ -93,11 +99,11 @@ def load_encoded_manifest_selection(
     )
 
 
-def _vocabularies_from_encoded_dir(encoded_dir: Path | None) -> tuple[DurationVocabulary, TokenVocabulary]:
-    if encoded_dir is None:
+def _vocabularies_from_encoded_directory(encoded_directory: Path | None) -> tuple[DurationVocabulary, TokenVocabulary]:
+    if encoded_directory is None:
         raise ValueError("select an encoded run before previewing ineligible rows")
 
-    snapshot = load_tokenizer_snapshot_json(encoded_dir / TOKENIZER_SNAPSHOT_NAME)
+    snapshot = load_tokenizer_snapshot_json(encoded_directory / TOKENIZER_SNAPSHOT_NAME)
     tokenization_config = TokenizationConfig.model_validate(snapshot.tokenization_config)
     duration_vocabulary = DurationVocabulary(tokenization_config)
     return duration_vocabulary, TokenVocabulary(duration_vocabulary)
@@ -109,7 +115,7 @@ def _segment_from_manifest_row(
     dataset_dir: Path,
     duration_vocabulary: DurationVocabulary,
 ) -> Segment:
-    parsed_path = _parsed_path(row, dataset_dir=dataset_dir)
+    parsed_path = _parsed_path(row, dataset_directory=dataset_dir)
     window_start_bar = _integer_field(row, EncodedManifestField.WINDOW_START_BAR)
     bar_count = _integer_field(row, EncodedManifestField.BAR_COUNT)
     score = load_parsed_score_json(parsed_path)
@@ -127,32 +133,44 @@ def _segment_from_manifest_row(
     raise ValueError(f"no segment found at window_start_bar={window_start_bar}, bar_count={bar_count}")
 
 
-def _parsed_path(row: Mapping[str, object], *, dataset_dir: Path) -> Path:
+def _parsed_path(
+    row: Mapping[str, object],
+    *,
+    dataset_directory: Path,
+) -> Path:
     value = row.get(str(EncodedManifestField.PARSED_PATH), row.get(EncodedManifestField.PARSED_PATH))
     if not _is_missing(value):
-        return dataset_dir / str(value)
+        return dataset_directory / str(value)
 
     source_id = row.get(str(EncodedManifestField.SOURCE_ID), row.get(EncodedManifestField.SOURCE_ID))
     if not _is_missing(source_id):
-        return ProcessedDatasetPaths(root=dataset_dir).parsed_score_path(str(source_id))
+        return ProcessedDatasetPaths(root=dataset_directory).parsed_score_path(str(source_id))
 
     raise ValueError("selected manifest row has no parsed_path or source_id")
 
 
-def default_encoded_browser_root(processed_root: Path, dataset_root: Path) -> Path:
+def default_encoded_browser_root(
+    processed_root: Path,
+    dataset_root: Path,
+) -> Path:
     paths = ProcessedDatasetPaths.from_dataset_root(processed_root=processed_root, dataset_root=dataset_root)
     return paths.root / "encoded"
 
 
-def _encoded_shard_path(row: Mapping[str, object], *, dataset_dir: Path, encoded_dir: Path | None) -> Path:
+def _encoded_shard_path(
+    row: Mapping[str, object],
+    *,
+    dataset_directory: Path,
+    encoded_directory: Path | None,
+) -> Path:
     value = row.get(str(EncodedManifestField.ENCODED_SHARD), row.get(EncodedManifestField.ENCODED_SHARD))
-    if _is_missing(value) and encoded_dir is not None:
-        return encoded_dir / ENCODED_JSONL_NAME
+    if _is_missing(value) and encoded_directory is not None:
+        return encoded_directory / ENCODED_JSONL_NAME
 
     if not isinstance(value, str) or value == "":
         raise ValueError("selected manifest row has no encoded shard")
 
-    return dataset_dir / value
+    return dataset_directory / value
 
 
 def _optional_encoded_line(row: Mapping[str, object]) -> int | None:
@@ -176,7 +194,12 @@ def _integer_field(row: Mapping[str, object], field: EncodedManifestField) -> in
     return int(value)
 
 
-def _string_field(row: Mapping[str, object], field: EncodedManifestField, *, default: str | None = None) -> str:
+def _string_field(
+    row: Mapping[str, object],
+    field: EncodedManifestField,
+    *,
+    default: str | None = None,
+) -> str:
     value = row.get(str(field), row.get(field))
     if _is_missing(value):
         if default is not None:

@@ -25,7 +25,7 @@ class ProcessedDatasetPaths:
         return cls(root=processed_root / dataset_root.name)
 
     @property
-    def parsed_dir(self) -> Path:
+    def parsed_directory(self) -> Path:
         return self.root / "parsed"
 
     @property
@@ -36,19 +36,19 @@ class ProcessedDatasetPaths:
         if source_id_value == "":
             raise ValueError("source_id_value must not be empty")
 
-        return self.parsed_dir / source_id_value[0] / f"{source_id_value}.json"
+        return self.parsed_directory / source_id_value[0] / f"{source_id_value}.json"
 
-    def encoded_dir(self, tokenizer_hash_value: str) -> Path:
+    def encoded_directory(self, tokenizer_hash_value: str) -> Path:
         return self.root / "encoded" / tokenizer_hash_value
 
     def encoded_manifest_path(self, tokenizer_hash_value: str) -> Path:
-        return self.encoded_dir(tokenizer_hash_value) / ENCODED_MANIFEST_NAME
+        return self.encoded_directory(tokenizer_hash_value) / ENCODED_MANIFEST_NAME
 
     def encoded_jsonl_path(self, tokenizer_hash_value: str) -> Path:
-        return self.encoded_dir(tokenizer_hash_value) / ENCODED_JSONL_NAME
+        return self.encoded_directory(tokenizer_hash_value) / ENCODED_JSONL_NAME
 
     def tokenizer_snapshot_path(self, tokenizer_hash_value: str) -> Path:
-        return self.encoded_dir(tokenizer_hash_value) / TOKENIZER_SNAPSHOT_NAME
+        return self.encoded_directory(tokenizer_hash_value) / TOKENIZER_SNAPSHOT_NAME
 
     def tokenization_state_path(self, tokenizer_hash_value: str) -> Path:
-        return self.encoded_dir(tokenizer_hash_value) / TOKENIZATION_STATE_NAME
+        return self.encoded_directory(tokenizer_hash_value) / TOKENIZATION_STATE_NAME

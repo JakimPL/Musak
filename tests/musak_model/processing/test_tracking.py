@@ -66,11 +66,11 @@ def test_processing_tracker_logs_complete_manifest_metrics(
     dataset_dir = tmp_path / "data" / "PDMX"
     processed_root = tmp_path / "processed"
     artifact_dir = processed_root / "PDMX"
-    encoded_dir = artifact_dir / "encoded" / "abc123"
+    encoded_directory = artifact_dir / "encoded" / "abc123"
     parsed_manifest_path = artifact_dir / "parsed.csv"
-    encoded_manifest_path = encoded_dir / "encoded.csv"
-    tokenizer_snapshot_path = encoded_dir / "tokenizer.json"
-    encoded_jsonl_path = encoded_dir / "data-00000.jsonl"
+    encoded_manifest_path = encoded_directory / "encoded.csv"
+    tokenizer_snapshot_path = encoded_directory / "tokenizer.json"
+    encoded_jsonl_path = encoded_directory / "data-00000.jsonl"
     dataset_dir.mkdir(parents=True)
     tokenizer_snapshot_path.parent.mkdir(parents=True)
     tokenizer_snapshot_path.write_text("{}", encoding="utf-8")
@@ -160,8 +160,8 @@ def test_processing_tracker_logs_figure_artifacts_in_same_run(
 ) -> None:
     fake_mlflow = FakeMlflow()
     monkeypatch.setitem(sys.modules, "mlflow", fake_mlflow)
-    encoded_dir = tmp_path / "processed" / "PDMX" / "encoded" / "abc123"
-    figure_dir = encoded_dir / "figure"
+    encoded_directory = tmp_path / "processed" / "PDMX" / "encoded" / "abc123"
+    figure_dir = encoded_directory / "figure"
     all_dir = figure_dir / "all"
     config_path = figure_dir / "config.yml"
     counts_path = all_dir / "counts.csv"
@@ -173,9 +173,9 @@ def test_processing_tracker_logs_figure_artifacts_in_same_run(
         path.write_text("", encoding="utf-8")
     figure_result = FigureExtractionResult(
         artifact_paths=FigureArtifactPaths(
-            root_dir=figure_dir,
+            root_directory=figure_dir,
             config_path=config_path,
-            all_dir=all_dir,
+            all_directory=all_dir,
             profile_path=profile_path,
             counts_path=counts_path,
             by_sample_path=by_sample_path,

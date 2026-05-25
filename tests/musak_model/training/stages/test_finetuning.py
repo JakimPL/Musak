@@ -127,7 +127,7 @@ def test_train_finetuning_loads_pretraining_checkpoint_and_runs_epoch(
             optimization=OptimizationConfig(epochs=1, batch_size=2, learning_rate=0.001, weight_decay=0.0),
             runtime=RuntimeConfig(num_workers=1, device="cpu"),
             checkpoints=FinetuningCheckpointConfig(
-                checkpoint_dir=tmp_path / "finetuning",
+                checkpoint_directory=tmp_path / "finetuning",
                 pretraining_checkpoint=pretraining_checkpoint,
             ),
             conditioning=TrainingConditioningConfig(

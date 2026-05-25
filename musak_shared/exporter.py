@@ -27,10 +27,10 @@ class Exporter:
         *,
         sf2: str = SOUNDFONT,
         gain: float = GAIN,
-        soundfont_dir: pathlib.Path | None = None,
+        soundfont_directory: pathlib.Path | None = None,
     ) -> None:
-        root = pathlib.Path.cwd() if soundfont_dir is None else soundfont_dir
-        self.soundfont_path: pathlib.Path = root / "soundfont" / sf2 if soundfont_dir is None else root / sf2
+        root = pathlib.Path.cwd() if soundfont_directory is None else soundfont_directory
+        self.soundfont_path: pathlib.Path = root / "soundfont" / sf2 if soundfont_directory is None else root / sf2
         self.gain: float = gain
 
     def export_audio(self, midi_data: bytes) -> str:
@@ -38,10 +38,10 @@ class Exporter:
             raise AudioExportError(f"soundfont not found: {self.soundfont_path}")
 
         with tempfile.TemporaryDirectory() as tmp:
-            tmp_dir = pathlib.Path(tmp)
-            midi_path = tmp_dir / "audio.mid"
-            wav_path = tmp_dir / "audio.wav"
-            mp3_path = tmp_dir / "audio.mp3"
+            temp_directory = pathlib.Path(tmp)
+            midi_path = temp_directory / "audio.mid"
+            wav_path = temp_directory / "audio.wav"
+            mp3_path = temp_directory / "audio.mp3"
             midi_path.write_bytes(midi_data)
             self._to_audio(midi_path, wav_path)
             try:

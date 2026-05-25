@@ -32,15 +32,15 @@ class FigureExtractionResult:
 
 def extract_figure_artifacts(
     *,
-    encoded_dir: Path,
+    encoded_directory: Path,
     analysis_config_path: Path,
     output_path: Path | None,
     show_progress: bool,
 ) -> FigureExtractionResult:
     config = NGramAnalysisConfig.load(analysis_config_path)
-    artifact_paths = figure_artifact_paths(encoded_dir)
-    tokenizer_snapshot_path = encoded_dir / TOKENIZER_SNAPSHOT_NAME
-    encoded_jsonl_path = encoded_dir / ENCODED_JSONL_NAME
+    artifact_paths = figure_artifact_paths(encoded_directory)
+    tokenizer_snapshot_path = encoded_directory / TOKENIZER_SNAPSHOT_NAME
+    encoded_jsonl_path = encoded_directory / ENCODED_JSONL_NAME
     snapshot = load_tokenizer_snapshot_json(tokenizer_snapshot_path)
     tokenization_config = TokenizationConfig.model_validate(snapshot.tokenization_config)
     duration_vocabulary = DurationVocabulary(tokenization_config)

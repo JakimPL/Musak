@@ -16,10 +16,10 @@ def create_cpu_profiler() -> cProfile.Profile:
     return cProfile.Profile()
 
 
-def write_cpu_reports(profile: cProfile.Profile, output_dir: Path) -> None:
-    stats_path = output_dir / _CPU_PROFILE_STATS_NAME
-    table_path = output_dir / _CPU_PROFILE_TABLE_NAME
-    functions_path = output_dir / _CPU_PROFILE_FUNCTIONS_NAME
+def write_cpu_reports(profile: cProfile.Profile, output_directory: Path) -> None:
+    stats_path = output_directory / _CPU_PROFILE_STATS_NAME
+    table_path = output_directory / _CPU_PROFILE_TABLE_NAME
+    functions_path = output_directory / _CPU_PROFILE_FUNCTIONS_NAME
 
     profile.dump_stats(str(stats_path))
     with table_path.open("w", encoding="utf-8") as file:

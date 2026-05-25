@@ -36,8 +36,8 @@ def test_load_dataset_statistics_requires_current_encoded_manifest_columns(tmp_p
 
 def test_dataset_overview_counts_parsed_and_encoded_rows(tmp_path: Path) -> None:
     dataset_dir = tmp_path / "PDMX"
-    encoded_dir = dataset_dir / "encoded" / "abc"
-    encoded_dir.mkdir(parents=True)
+    encoded_directory = dataset_dir / "encoded" / "abc"
+    encoded_directory.mkdir(parents=True)
     _write_csv(
         dataset_dir / "parsed.csv",
         ParsedManifestField,
@@ -47,7 +47,7 @@ def test_dataset_overview_counts_parsed_and_encoded_rows(tmp_path: Path) -> None
         ],
     )
     _write_csv(
-        encoded_dir / "encoded.csv",
+        encoded_directory / "encoded.csv",
         EncodedManifestField,
         [
             {
@@ -64,7 +64,7 @@ def test_dataset_overview_counts_parsed_and_encoded_rows(tmp_path: Path) -> None
         ],
     )
 
-    stats = load_dataset_statistics(dataset_dir, encoded_dir)
+    stats = load_dataset_statistics(dataset_dir, encoded_directory)
 
     assert overview_rows(stats) == [
         {"Metric": "Parsed files", "Value": "2"},
@@ -80,11 +80,11 @@ def test_dataset_overview_counts_parsed_and_encoded_rows(tmp_path: Path) -> None
 
 def test_encoded_statistics_expand_reasons_and_token_summary(tmp_path: Path) -> None:
     dataset_dir = tmp_path / "PDMX"
-    encoded_dir = dataset_dir / "encoded" / "abc"
-    encoded_dir.mkdir(parents=True)
+    encoded_directory = dataset_dir / "encoded" / "abc"
+    encoded_directory.mkdir(parents=True)
     _write_csv(dataset_dir / "parsed.csv", ParsedManifestField, [{ParsedManifestField.SOURCE_ID: "a"}])
     _write_csv(
-        encoded_dir / "encoded.csv",
+        encoded_directory / "encoded.csv",
         EncodedManifestField,
         [
             {
@@ -108,7 +108,7 @@ def test_encoded_statistics_expand_reasons_and_token_summary(tmp_path: Path) -> 
             },
         ],
     )
-    stats = load_dataset_statistics(dataset_dir, encoded_dir)
+    stats = load_dataset_statistics(dataset_dir, encoded_directory)
     assert stats.encoded is not None
 
     eligibility = eligibility_distribution(stats.encoded)
@@ -130,11 +130,11 @@ def test_encoded_statistics_expand_reasons_and_token_summary(tmp_path: Path) -> 
 
 def test_diagnostic_statistics_parse_and_summarize_encoded_manifest(tmp_path: Path) -> None:
     dataset_dir = tmp_path / "PDMX"
-    encoded_dir = dataset_dir / "encoded" / "abc"
-    encoded_dir.mkdir(parents=True)
+    encoded_directory = dataset_dir / "encoded" / "abc"
+    encoded_directory.mkdir(parents=True)
     _write_csv(dataset_dir / "parsed.csv", ParsedManifestField, [{ParsedManifestField.SOURCE_ID: "a"}])
     _write_csv(
-        encoded_dir / "encoded.csv",
+        encoded_directory / "encoded.csv",
         EncodedManifestField,
         [
             {
@@ -163,7 +163,7 @@ def test_diagnostic_statistics_parse_and_summarize_encoded_manifest(tmp_path: Pa
             },
         ],
     )
-    stats = load_dataset_statistics(dataset_dir, encoded_dir)
+    stats = load_dataset_statistics(dataset_dir, encoded_directory)
     assert stats.encoded is not None
 
     summary = diagnostic_summary_rows(stats.encoded)
@@ -177,11 +177,11 @@ def test_diagnostic_statistics_parse_and_summarize_encoded_manifest(tmp_path: Pa
 
 def test_scale_root_distribution_maps_pitch_classes_to_names(tmp_path: Path) -> None:
     dataset_dir = tmp_path / "PDMX"
-    encoded_dir = dataset_dir / "encoded" / "abc"
-    encoded_dir.mkdir(parents=True)
+    encoded_directory = dataset_dir / "encoded" / "abc"
+    encoded_directory.mkdir(parents=True)
     _write_csv(dataset_dir / "parsed.csv", ParsedManifestField, [{ParsedManifestField.SOURCE_ID: "a"}])
     _write_csv(
-        encoded_dir / "encoded.csv",
+        encoded_directory / "encoded.csv",
         EncodedManifestField,
         [
             {EncodedManifestField.SEGMENT_ID: "a-0", EncodedManifestField.SCALE_ROOT: "0"},
@@ -189,7 +189,7 @@ def test_scale_root_distribution_maps_pitch_classes_to_names(tmp_path: Path) -> 
             {EncodedManifestField.SEGMENT_ID: "a-2", EncodedManifestField.SCALE_ROOT: "10"},
         ],
     )
-    stats = load_dataset_statistics(dataset_dir, encoded_dir)
+    stats = load_dataset_statistics(dataset_dir, encoded_directory)
     assert stats.encoded is not None
 
     distribution = scale_root_distribution(stats.encoded, EncodedManifestField.SCALE_ROOT, top_n=12)
@@ -233,11 +233,11 @@ def test_manifest_table_frames_are_not_truncated(tmp_path: Path) -> None:
 
 def test_encoded_table_frame_includes_fields_needed_for_selection(tmp_path: Path) -> None:
     dataset_dir = tmp_path / "PDMX"
-    encoded_dir = dataset_dir / "encoded" / "abc"
-    encoded_dir.mkdir(parents=True)
+    encoded_directory = dataset_dir / "encoded" / "abc"
+    encoded_directory.mkdir(parents=True)
     _write_csv(dataset_dir / "parsed.csv", ParsedManifestField, [{ParsedManifestField.SOURCE_ID: "a"}])
     _write_csv(
-        encoded_dir / "encoded.csv",
+        encoded_directory / "encoded.csv",
         EncodedManifestField,
         [
             {
@@ -248,7 +248,7 @@ def test_encoded_table_frame_includes_fields_needed_for_selection(tmp_path: Path
         ],
     )
 
-    stats = load_dataset_statistics(dataset_dir, encoded_dir)
+    stats = load_dataset_statistics(dataset_dir, encoded_directory)
     assert stats.encoded is not None
     frame = encoded_table_frame(stats.encoded)
 

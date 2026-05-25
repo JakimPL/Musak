@@ -29,15 +29,15 @@ def synchronize_cuda(enabled: bool) -> None:
         torch.cuda.synchronize()
 
 
-def write_torch_reports(profiler: torch.profiler.profile, output_dir: Path) -> None:
+def write_torch_reports(profiler: torch.profiler.profile, output_directory: Path) -> None:
     sort_by = "self_cuda_time_total" if torch.cuda.is_available() else "self_cpu_time_total"
     events = profiler.key_averages()
-    (output_dir / "torch_profiler_table.txt").write_text(
+    (output_directory / "torch_profiler_table.txt").write_text(
         events.table(sort_by=sort_by, row_limit=80),
         encoding="utf-8",
     )
-    _write_torch_functions_report(events, output_dir / _TORCH_PROFILE_FUNCTIONS_NAME)
-    profiler.export_chrome_trace(str(output_dir / "torch_profiler_trace.json"))
+    _write_torch_functions_report(events, output_directory / _TORCH_PROFILE_FUNCTIONS_NAME)
+    profiler.export_chrome_trace(str(output_directory / "torch_profiler_trace.json"))
 
 
 def _write_torch_functions_report(events: Any, path: Path) -> None:

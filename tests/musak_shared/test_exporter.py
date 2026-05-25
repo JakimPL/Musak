@@ -8,7 +8,7 @@ from musak_shared.exporter import AudioExportError, Exporter
 
 def _make_exporter(tmp_path) -> Exporter:
     (tmp_path / "st_concert.sf2").write_bytes(b"soundfont")
-    return Exporter(soundfont_dir=tmp_path)
+    return Exporter(soundfont_directory=tmp_path)
 
 
 def _fluidsynth_error() -> subprocess.CalledProcessError:
@@ -38,7 +38,7 @@ def test_ffmpeg_failure_raises_audio_export_error(tmp_path) -> None:
 
 def test_missing_soundfont_raises_audio_export_error(tmp_path) -> None:
     with pytest.raises(AudioExportError, match="soundfont not found"):
-        Exporter(soundfont_dir=tmp_path).export_audio(b"")
+        Exporter(soundfont_directory=tmp_path).export_audio(b"")
 
 
 def test_audio_export_error_is_runtime_error() -> None:

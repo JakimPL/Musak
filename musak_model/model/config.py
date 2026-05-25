@@ -52,13 +52,13 @@ class ModelConfig(BaseModel):
         cls,
         *,
         vocabulary_size: int,
-        config_dir: Path = MODEL_CONFIG_DIR,
+        config_directory: Path = MODEL_CONFIG_DIR,
         conditioning_config_path: Path = CONDITIONING_CONFIG_PATH,
     ) -> ModelConfig:
         return cls(
             vocabulary_size=vocabulary_size,
-            cnn=CNNConfig.model_validate(load_yaml_config(config_dir / "cnn.yml")),
-            gru=GRUConfig.model_validate(load_yaml_config(config_dir / "gru.yml")),
-            transformer=TransformerConfig.model_validate(load_yaml_config(config_dir / "transformer.yml")),
+            cnn=CNNConfig.model_validate(load_yaml_config(config_directory / "cnn.yml")),
+            gru=GRUConfig.model_validate(load_yaml_config(config_directory / "gru.yml")),
+            transformer=TransformerConfig.model_validate(load_yaml_config(config_directory / "transformer.yml")),
             conditioning=ConditioningConfig.load(conditioning_config_path),
         )

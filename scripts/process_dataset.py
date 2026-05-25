@@ -74,16 +74,16 @@ def main() -> None:
     )
     tokenization_config = TokenizationConfig.load(args.tokenization_config)
     difficulty_labels = load_difficulty_labels(args.difficulty_labels)
-    profile_output_dir = _profile_output_dir(args.stage, configured=args.profile_output_dir)
+    profile_output_directory = _profile_output_dir(args.stage, configured=args.profile_output_dir)
     source_files = _source_files_for_stage(args.data_dir, stage=args.stage)
     _log_processing_start(
         args,
         segmentation_config=segmentation_config,
         processing_config=processing_config,
-        profile_output_dir=profile_output_dir,
+        profile_output_dir=profile_output_directory,
         source_files=source_files,
     )
-    profiler = build_processing_profiler(enabled=args.profile, output_dir=profile_output_dir)
+    profiler = build_processing_profiler(enabled=args.profile, output_dir=profile_output_directory)
     tracker = build_processing_tracker(
         config=ProcessingMlflowConfig(
             enabled=not args.disable_mlflow and not args.profile,
@@ -124,11 +124,11 @@ def main() -> None:
             if figure_result is not None:
                 tracker.log_figure_extraction_result(figure_result)
     except FileNotFoundError as exception:
-        _log_processing_file_not_found(exception, data_dir=args.data_dir, processed_dir=args.processed_dir)
+        _log_processing_file_not_found(exception, data_directory=args.data_dir, processed_directory=args.processed_dir)
         raise SystemExit(_EXIT_FAILURE) from exception
     if profiler.enabled:
         profiler.write_reports()
-        _LOGGER.info("Profile reports written to %s", profile_output_dir)
+        _LOGGER.info("Profile reports written to %s", profile_output_directory)
     _LOGGER.info("Finished dataset processing")
     _LOGGER.info("Parsed manifest: %s", result.parsed_manifest_path)
     if result.encoded_manifest_path is not None:
@@ -187,10 +187,10 @@ def extract_process_figure_artifacts(
     if skip_figure_analysis or result.encoded_manifest_path is None:
         return None
 
-    encoded_dir = result.encoded_manifest_path.parent
-    _LOGGER.info("Starting figure n-gram extraction for %s", encoded_dir)
+    encoded_directory = result.encoded_manifest_path.parent
+    _LOGGER.info("Starting figure n-gram extraction for %s", encoded_directory)
     figure_result = extract_figure_artifacts(
-        encoded_dir=encoded_dir,
+        encoded_directory=encoded_directory,
         analysis_config_path=analysis_config_path,
         output_path=output_path,
         show_progress=show_progress,
@@ -232,14 +232,14 @@ def _profile_output_dir(stage: str, *, configured: Path | None) -> Path:
 def _log_processing_file_not_found(
     exception: FileNotFoundError,
     *,
-    data_dir: Path,
-    processed_dir: Path,
+    data_directory: Path,
+    processed_directory: Path,
 ) -> None:
     _LOGGER.error("Dataset processing input is missing: %s", exception)
     _LOGGER.error(
         "If you are tokenizing, run the parse stage first with the same --data-dir and --processed-dir, "
         "or run --stage process. Current artifact directory is %s.",
-        processed_dir / data_dir.name,
+        processed_directory / data_directory.name,
     )
 
 

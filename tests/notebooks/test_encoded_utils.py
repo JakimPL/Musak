@@ -19,14 +19,14 @@ def test_load_encoded_manifest_selection_decodes_selected_manifest_row(tmp_path:
     tokenization_config = TokenizationConfig(shortest_duration=16, allowed_tuplets=(3,), max_dots=1)
     duration_vocabulary = DurationVocabulary(tokenization_config)
     token_vocabulary = TokenVocabulary(duration_vocabulary)
-    encoded_dir = tmp_path / "encoded" / "abc"
-    encoded_shard = encoded_dir / "data-00000.jsonl"
+    encoded_directory = tmp_path / "encoded" / "abc"
+    encoded_shard = encoded_directory / "data-00000.jsonl"
     snapshot = build_tokenizer_snapshot(
         tokenization_config,
         duration_vocabulary=duration_vocabulary,
         token_vocabulary=token_vocabulary,
     )
-    write_json_model(snapshot, encoded_dir / "tokenizer.json", overwrite=True)
+    write_json_model(snapshot, encoded_directory / "tokenizer.json", overwrite=True)
     duration_id = duration_vocabulary.fraction_to_id(Fraction(1, 4))
     sample = EncodedExercise(
         token_ids=token_vocabulary.encode(
@@ -61,15 +61,15 @@ def test_load_encoded_manifest_selection_decodes_selected_manifest_row(tmp_path:
     assert selection.shard.path == encoded_shard
 
 
-def test_load_encoded_manifest_selection_uses_encoded_dir_when_row_has_no_shard(tmp_path: Path) -> None:
-    encoded_dir, sample, token_vocabulary = _write_encoded_run(tmp_path)
+def test_load_encoded_manifest_selection_uses_encoded_directory_when_row_has_no_shard(tmp_path: Path) -> None:
+    encoded_directory, sample, token_vocabulary = _write_encoded_run(tmp_path)
 
     selection = load_encoded_manifest_selection(
         {
             EncodedManifestField.ENCODED_LINE.value: 0,
         },
         dataset_dir=tmp_path,
-        encoded_dir=encoded_dir,
+        encoded_directory=encoded_directory,
     )
 
     assert selection.segment.tokens == sample.to_segment(token_vocabulary=token_vocabulary).tokens
@@ -87,7 +87,7 @@ def test_load_encoded_manifest_selection_rejects_rows_without_encoded_sample(tmp
 
 
 def test_load_encoded_manifest_selection_reconstructs_ineligible_row_from_parsed_score(tmp_path: Path) -> None:
-    encoded_dir, _, _ = _write_encoded_run(tmp_path)
+    encoded_directory, _, _ = _write_encoded_run(tmp_path)
     parsed_path = tmp_path / "parsed" / "score.json"
     score = ParsedScore(
         scale_root=0,
@@ -115,7 +115,7 @@ def test_load_encoded_manifest_selection_reconstructs_ineligible_row_from_parsed
             EncodedManifestField.BAR_COUNT.value: 1,
         },
         dataset_dir=tmp_path,
-        encoded_dir=encoded_dir,
+        encoded_directory=encoded_directory,
     )
 
     assert selection.encoded_line is None
@@ -125,7 +125,7 @@ def test_load_encoded_manifest_selection_reconstructs_ineligible_row_from_parsed
 
 
 def test_load_encoded_manifest_selection_recovers_parsed_path_from_source_id(tmp_path: Path) -> None:
-    encoded_dir, _, _ = _write_encoded_run(tmp_path)
+    encoded_directory, _, _ = _write_encoded_run(tmp_path)
     source_id = "abcdef"
     parsed_path = tmp_path / "parsed" / source_id[0] / f"{source_id}.json"
     score = ParsedScore(
@@ -148,7 +148,7 @@ def test_load_encoded_manifest_selection_recovers_parsed_path_from_source_id(tmp
             EncodedManifestField.BAR_COUNT.value: 1,
         },
         dataset_dir=tmp_path,
-        encoded_dir=encoded_dir,
+        encoded_directory=encoded_directory,
     )
 
     assert selection.segment.tokens
@@ -167,14 +167,14 @@ def _write_encoded_run(tmp_path: Path) -> tuple[Path, EncodedExercise, TokenVoca
     tokenization_config = TokenizationConfig(shortest_duration=16, allowed_tuplets=(3,), max_dots=1)
     duration_vocabulary = DurationVocabulary(tokenization_config)
     token_vocabulary = TokenVocabulary(duration_vocabulary)
-    encoded_dir = tmp_path / "encoded" / "abc"
-    encoded_shard = encoded_dir / "data-00000.jsonl"
+    encoded_directory = tmp_path / "encoded" / "abc"
+    encoded_shard = encoded_directory / "data-00000.jsonl"
     snapshot = build_tokenizer_snapshot(
         tokenization_config,
         duration_vocabulary=duration_vocabulary,
         token_vocabulary=token_vocabulary,
     )
-    write_json_model(snapshot, encoded_dir / "tokenizer.json", overwrite=True)
+    write_json_model(snapshot, encoded_directory / "tokenizer.json", overwrite=True)
     duration_id = duration_vocabulary.fraction_to_id(Fraction(1, 4))
     sample = EncodedExercise(
         token_ids=token_vocabulary.encode(
@@ -195,4 +195,4 @@ def _write_encoded_run(tmp_path: Path) -> tuple[Path, EncodedExercise, TokenVoca
         ),
     )
     append_jsonl(sample, encoded_shard)
-    return encoded_dir, sample, token_vocabulary
+    return encoded_directory, sample, token_vocabulary

@@ -79,24 +79,28 @@ class DatasetStatistics:
         return self.encoded is not None
 
 
-def processed_dataset_dirs(processed_root: Path) -> list[Path]:
+def processed_dataset_directories(processed_root: Path) -> list[Path]:
     if not processed_root.exists():
         return []
 
     return sorted(path for path in processed_root.iterdir() if path.is_dir())
 
 
-def encoded_run_dirs(dataset_dir: Path) -> list[Path]:
-    encoded_root = dataset_dir / "encoded"
+def encoded_run_directories(dataset_directory: Path) -> list[Path]:
+    encoded_root = dataset_directory / "encoded"
     if not encoded_root.exists():
         return []
 
     return sorted(path for path in encoded_root.iterdir() if (path / ENCODED_MANIFEST_NAME).is_file())
 
 
-def load_dataset_statistics(dataset_dir: Path, encoded_dir: Path | None) -> DatasetStatistics:
-    parsed = read_parsed_manifest_frame(dataset_dir / PARSED_MANIFEST_NAME)
-    encoded = read_encoded_manifest_frame(encoded_dir / ENCODED_MANIFEST_NAME) if encoded_dir is not None else None
+def load_dataset_statistics(dataset_directory: Path, encoded_directory: Path | None) -> DatasetStatistics:
+    parsed = read_parsed_manifest_frame(dataset_directory / PARSED_MANIFEST_NAME)
+    encoded = (
+        read_encoded_manifest_frame(encoded_directory / ENCODED_MANIFEST_NAME)
+        if encoded_directory is not None
+        else None
+    )
     return DatasetStatistics(parsed=parsed, encoded=encoded)
 
 

@@ -101,7 +101,7 @@ def _training_config(
         runtime=RuntimeConfig(num_workers=1, device="cpu"),
         conditioning=conditioning if conditioning is not None else _conditioning_config(),
         checkpoints=CheckpointConfig(
-            checkpoint_dir=checkpoint_dir,
+            checkpoint_directory=checkpoint_dir,
             resume_checkpoint=resume_checkpoint,
             save_all_epochs=save_all_epochs,
         ),

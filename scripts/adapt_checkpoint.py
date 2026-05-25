@@ -27,7 +27,7 @@ def main() -> None:
     token_vocabulary = TokenVocabulary(DurationVocabulary(tokenization_config))
     model_config = ModelConfig.load(
         vocabulary_size=token_vocabulary.vocabulary_size,
-        config_dir=args.model_config_dir,
+        config_directory=args.model_config_dir,
         conditioning_config_path=args.conditioning_config,
     )
     model = HierarchicalAutoregressiveModel(model_config)

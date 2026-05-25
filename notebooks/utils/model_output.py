@@ -157,7 +157,7 @@ def load_trained_model(
     *,
     device: str,
     tokenization_config_path: Path | None = None,
-    model_config_dir: Path | None = None,
+    model_config_directory: Path | None = None,
 ) -> LoadedModel:
     resolved_device = torch.device(device)
     tokenization_config = (
@@ -169,7 +169,7 @@ def load_trained_model(
     token_vocabulary = TokenVocabulary(duration_vocabulary)
     model_config = ModelConfig.load(
         vocabulary_size=token_vocabulary.vocabulary_size,
-        config_dir=model_config_dir or MODEL_CONFIG_DIR,
+        config_directory=model_config_directory or MODEL_CONFIG_DIR,
     )
     model = HierarchicalAutoregressiveModel(model_config)
     state = cast(dict[str, object], torch.load(checkpoint_path, map_location=resolved_device))

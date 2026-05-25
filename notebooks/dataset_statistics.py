@@ -22,7 +22,7 @@ def _():
         diagnostic_bucket_distribution,
         diagnostic_summary_rows,
         eligibility_distribution,
-        encoded_run_dirs,
+        encoded_run_directories,
         encoded_table_frame,
         hand_controls,
         ineligibility_reason_distribution,
@@ -32,7 +32,7 @@ def _():
         parse_error_table_frame,
         parsed_table_frame,
         piano_roll_player_panel,
-        processed_dataset_dirs,
+        processed_dataset_directories,
         reason_by_column,
         scale_root_distribution,
         segment_diagnostic_rows,
@@ -58,7 +58,7 @@ def _():
         diagnostic_bucket_distribution,
         diagnostic_summary_rows,
         eligibility_distribution,
-        encoded_run_dirs,
+        encoded_run_directories,
         encoded_table_frame,
         hand_controls,
         ineligibility_reason_distribution,
@@ -71,7 +71,7 @@ def _():
         parsed_table_frame,
         piano_roll_player_panel,
         pd,
-        processed_dataset_dirs,
+        processed_dataset_directories,
         reason_by_column,
         score_data_html,
         segment_diagnostic_rows,
@@ -96,9 +96,9 @@ def _(mo):
 
 
 @app.cell
-def _(DEFAULT_PROCESSED_ROOT, mo, processed_dataset_dirs):
-    dataset_dirs = processed_dataset_dirs(DEFAULT_PROCESSED_ROOT)
-    dataset_options = {path.name: str(path) for path in dataset_dirs}
+def _(DEFAULT_PROCESSED_ROOT, mo, processed_dataset_directories):
+    dataset_directories = processed_dataset_directories(DEFAULT_PROCESSED_ROOT)
+    dataset_options = {path.name: str(path) for path in dataset_directories}
     dataset_selector = mo.ui.dropdown(
         options=dataset_options,
         value=next(iter(dataset_options), None),
@@ -116,13 +116,13 @@ def _(Path, dataset_selector):
 
 
 @app.cell
-def _(dataset_dir, encoded_run_dirs, mo):
+def _(dataset_dir, encoded_run_directories, mo):
     if dataset_dir is None:
         encoded_selector = mo.ui.dropdown(options={}, label="Tokenizer run", searchable=True)
         encoded_selector_output = mo.md("")
     else:
-        encoded_dirs = encoded_run_dirs(dataset_dir)
-        encoded_options = {path.name: str(path) for path in encoded_dirs}
+        encoded_directorys = encoded_run_directories(dataset_dir)
+        encoded_options = {path.name: str(path) for path in encoded_directorys}
         encoded_selector = mo.ui.dropdown(
             options=encoded_options,
             value=next(iter(encoded_options), None),
@@ -143,8 +143,8 @@ def _(dataset_dir, encoded_run_dirs, mo):
 
 @app.cell
 def _(Path, encoded_selector):
-    encoded_dir = Path(encoded_selector.value) if encoded_selector.value is not None else None
-    return (encoded_dir,)
+    encoded_directory = Path(encoded_selector.value) if encoded_selector.value is not None else None
+    return (encoded_directory,)
 
 
 @app.cell
@@ -158,25 +158,25 @@ def _(mo):
 
 
 @app.cell
-def _(dataset_dir, encoded_dir, load_dataset_statistics, pd):
+def _(dataset_dir, encoded_directory, load_dataset_statistics, pd):
     stats = None
     stats_error = ""
     if dataset_dir is not None:
         try:
-            stats = load_dataset_statistics(dataset_dir, encoded_dir)
+            stats = load_dataset_statistics(dataset_dir, encoded_directory)
         except (FileNotFoundError, ValueError, pd.errors.ParserError) as exception:
             stats_error = f"{type(exception).__name__}: {exception}"
     return stats, stats_error
 
 
 @app.cell
-def _(dataset_dir, encoded_dir, mo, stats_error):
+def _(dataset_dir, encoded_directory, mo, stats_error):
     if dataset_dir is None:
         load_output = mo.callout("No processed dataset is available.", kind="warn")
     elif stats_error:
         load_output = mo.callout(stats_error, kind="danger")
     else:
-        encoded_text = str(encoded_dir) if encoded_dir is not None else "none"
+        encoded_text = str(encoded_directory) if encoded_directory is not None else "none"
         load_output = mo.callout(
             f"Loaded dataset `{dataset_dir}` with encoded run `{encoded_text}`.",
             kind="success",
@@ -594,7 +594,7 @@ def _(encoded_manifest_table, selected_table_row):
 
 
 @app.cell
-def _(dataset_dir, encoded_dir, load_encoded_manifest_selection, selected_encoded_row):
+def _(dataset_dir, encoded_directory, load_encoded_manifest_selection, selected_encoded_row):
     selected_encoded_segment = None
     selected_encoded_error = ""
     selected_encoded_error_kind = "danger"
@@ -603,7 +603,7 @@ def _(dataset_dir, encoded_dir, load_encoded_manifest_selection, selected_encode
             selected_encoded_segment = load_encoded_manifest_selection(
                 selected_encoded_row,
                 dataset_dir=dataset_dir,
-                encoded_dir=encoded_dir,
+                encoded_directory=encoded_directory,
             )
         except ValueError as exception:
             selected_encoded_error = f"{type(exception).__name__}: {exception}"

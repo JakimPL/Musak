@@ -88,7 +88,7 @@ def profile_mode_paths(profile_root: Path) -> dict[str, Path]:
     if profile_artifact_count(profile_root) > 0:
         candidates["selected directory"] = profile_root
     if profile_root.exists():
-        for path in _ordered_profile_mode_dirs(profile_root):
+        for path in _ordered_profile_mode_directories(profile_root):
             if profile_artifact_count(path) > 0:
                 candidates[path.name] = path
 
@@ -147,7 +147,7 @@ def metric_rows(
     ]
 
 
-def _ordered_profile_mode_dirs(profile_root: Path) -> list[Path]:
+def _ordered_profile_mode_directories(profile_root: Path) -> list[Path]:
     stage_names = ("parse", "tokenize", "process")
     stage_paths = [profile_root / stage_name for stage_name in stage_names]
     other_paths = [path for path in sorted(profile_root.iterdir()) if path.is_dir() and path.name not in stage_names]

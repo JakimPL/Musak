@@ -35,8 +35,8 @@ def test_missing_processing_input_log_mentions_parse_stage(caplog: pytest.LogCap
 
     process_dataset_script._log_processing_file_not_found(
         FileNotFoundError("parsed manifest does not exist: processed/0/parsed.csv"),
-        data_dir=Path("data/PDMX/0"),
-        processed_dir=Path("processed"),
+        data_directory=Path("data/PDMX/0"),
+        processed_directory=Path("processed"),
     )
 
     assert "parsed manifest does not exist: processed/0/parsed.csv" in caplog.text

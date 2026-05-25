@@ -47,7 +47,7 @@ def main() -> None:
     for raw_level in raw_levels:
         output_paths = split_raw_level(
             raw_level,
-            output_dir=arguments.output_dir,
+            output_directory=arguments.output_dir,
             force=arguments.force,
         )
         difficulty_labels.update(
@@ -61,16 +61,21 @@ def main() -> None:
     print(f"Wrote difficulty labels to {arguments.difficulty_labels_output}")
 
 
-def split_raw_level(raw_level: RawLevel, *, output_dir: Path, force: bool) -> list[Path]:
-    level_output_dir = output_dir / str(raw_level.level)
-    if level_output_dir.exists():
+def split_raw_level(
+    raw_level: RawLevel,
+    *,
+    output_directory: Path,
+    force: bool,
+) -> list[Path]:
+    level_output_directory = output_directory / str(raw_level.level)
+    if level_output_directory.exists():
         if not force:
-            raise FileExistsError(f"{level_output_dir} already exists; pass --force to replace it")
-        remove_directory_tree(level_output_dir)
+            raise FileExistsError(f"{level_output_directory} already exists; pass --force to replace it")
+        remove_directory_tree(level_output_directory)
 
     with tempfile.TemporaryDirectory(prefix=f"musak-level-{raw_level.level}-") as temporary_directory:
-        temporary_output_dir = Path(temporary_directory) / str(raw_level.level)
-        temporary_output_dir.mkdir(parents=True)
+        temporary_output_directory = Path(temporary_directory) / str(raw_level.level)
+        temporary_output_directory.mkdir(parents=True)
 
         source_archive = _read_mxl(raw_level.path)
         score_root = ET.fromstring(source_archive.score_xml)
@@ -78,7 +83,7 @@ def split_raw_level(raw_level: RawLevel, *, output_dir: Path, force: bool) -> li
 
         output_paths = []
         for index, exercise_root in enumerate(exercises, start=1):
-            output_path = temporary_output_dir / f"{index:0{OUTPUT_NAME_WIDTH}d}.mxl"
+            output_path = temporary_output_directory / f"{index:0{OUTPUT_NAME_WIDTH}d}.mxl"
             exercise_xml = _serialize_score(exercise_root)
             _write_mxl(
                 output_path,
@@ -86,10 +91,10 @@ def split_raw_level(raw_level: RawLevel, *, output_dir: Path, force: bool) -> li
                 container_xml=source_archive.container_xml,
                 score_path=source_archive.score_path,
             )
-            output_paths.append(level_output_dir / output_path.name)
+            output_paths.append(level_output_directory / output_path.name)
 
-        level_output_dir.parent.mkdir(parents=True, exist_ok=True)
-        move_path(temporary_output_dir, level_output_dir)
+        level_output_directory.parent.mkdir(parents=True, exist_ok=True)
+        move_path(temporary_output_directory, level_output_directory)
 
     return output_paths
 

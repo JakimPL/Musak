@@ -39,7 +39,7 @@ class ProcessingProfiler:
         synchronize_cuda_before_measurement: bool = True,
         retain_records: bool = True,
     ) -> None:
-        self._output_dir = output_dir
+        self._output_directory = output_dir
         self._records: list[ProcessingProfileRecord] = []
         self._retain_records = retain_records
         self._use_torch_profiler_labels = use_torch_profiler_labels
@@ -84,7 +84,6 @@ class ProcessingProfiler:
             self._torch_profiler.__exit__(exc_type, exc_value, traceback)  # type: ignore[no-untyped-call]
 
         self._close_records_report()
-        return None
 
     def measure(self, stage: str, *, source_file: Path | None = None) -> AbstractContextManager[None]:
         return _ProcessingProfileScope(
@@ -115,16 +114,16 @@ class ProcessingProfiler:
 
     def write_reports(self) -> None:
         self._close_records_report()
-        self._output_dir.mkdir(parents=True, exist_ok=True)
-        write_summary_report(self.summary(), self._output_dir)
-        write_stage_stats_report(self.stage_stats(), self._output_dir)
-        write_source_stats_report(self._per_file_totals, self._output_dir)
+        self._output_directory.mkdir(parents=True, exist_ok=True)
+        write_summary_report(self.summary(), self._output_directory)
+        write_stage_stats_report(self.stage_stats(), self._output_directory)
+        write_source_stats_report(self._per_file_totals, self._output_directory)
         if self._retain_records:
-            write_records_report(self._records, self._output_dir)
+            write_records_report(self._records, self._output_directory)
         if self._cpu_profiler is not None:
-            write_cpu_reports(self._cpu_profiler, self._output_dir)
+            write_cpu_reports(self._cpu_profiler, self._output_directory)
         if self._torch_profiler is not None:
-            write_torch_reports(self._torch_profiler, self._output_dir)
+            write_torch_reports(self._torch_profiler, self._output_directory)
 
     def stage_stats(self) -> list[ProcessingProfileStageStats]:
         return [
@@ -154,8 +153,8 @@ class ProcessingProfiler:
             )
 
     def _open_records_report(self) -> None:
-        self._output_dir.mkdir(parents=True, exist_ok=True)
-        self._records_file = (self._output_dir / "records.csv").open("w", encoding="utf-8", newline="")
+        self._output_directory.mkdir(parents=True, exist_ok=True)
+        self._records_file = (self._output_directory / "records.csv").open("w", encoding="utf-8", newline="")
         self._records_writer = csv.DictWriter(
             self._records_file,
             fieldnames=list(ProcessingProfileRecord.__dataclass_fields__),

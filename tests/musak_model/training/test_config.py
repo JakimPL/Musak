@@ -53,14 +53,14 @@ def test_training_config_accepts_nested_constructor() -> None:
         optimization=OptimizationConfig(epochs=1, batch_size=2, learning_rate=0.001, weight_decay=0.0),
         runtime=RuntimeConfig(num_workers=0, device="cpu"),
         conditioning=_conditioning_config(),
-        checkpoints=CheckpointConfig(checkpoint_dir=Path("checkpoints")),
+        checkpoints=CheckpointConfig(checkpoint_directory=Path("checkpoints")),
         generation_evaluation=_generation_evaluation_config(),
     )
 
     assert config.optimization.batch_size == 2
     assert config.runtime.num_workers == 0
     assert config.runtime.device == "cpu"
-    assert config.checkpoints.checkpoint_dir == Path("checkpoints")
+    assert config.checkpoints.checkpoint_directory == Path("checkpoints")
     assert config.checkpoints.save_all_epochs is False
 
 
@@ -81,7 +81,7 @@ def test_training_config_rejects_old_conditioning_field() -> None:
         TrainingConfig(
             optimization=OptimizationConfig(epochs=1, batch_size=2, learning_rate=0.001, weight_decay=0.0),
             runtime=RuntimeConfig(num_workers=1, device="cpu"),
-            checkpoints=CheckpointConfig(checkpoint_dir=Path("checkpoints")),
+            checkpoints=CheckpointConfig(checkpoint_directory=Path("checkpoints")),
             conditioning={"use_conditioning": True},
             generation_evaluation=_generation_evaluation_config(),
         )

@@ -42,7 +42,7 @@ class TrainingConditioningConfig(BaseModel):
 class CheckpointConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    checkpoint_dir: Path
+    checkpoint_directory: Path
     resume_checkpoint: Path | None = None
     save_all_epochs: bool = False
 

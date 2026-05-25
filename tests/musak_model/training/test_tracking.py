@@ -73,7 +73,7 @@ def _training_config(tmp_path: Path, *, enable_mlflow: bool = True, tracking_uri
             use_validity_penalty=False,
             validity_penalty_weight=0.05,
         ),
-        checkpoints=CheckpointConfig(checkpoint_dir=tmp_path / "checkpoints"),
+        checkpoints=CheckpointConfig(checkpoint_directory=tmp_path / "checkpoints"),
         mlflow=MlflowConfig(
             enable_mlflow=enable_mlflow,
             mlflow_tracking_uri=tracking_uri,
