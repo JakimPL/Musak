@@ -35,6 +35,7 @@ from musak_model.training.metrics import (
     module_gradient_norm_metrics,
 )
 from musak_model.training.progress import log_split_summary, progress
+from musak_model.training.stages.figure_profiles import load_generation_figure_profile_artifacts
 from musak_model.training.tracking import NoOpTrainingTracker, TrainingTracker, build_training_tracker
 from musak_model.training.validity import TrainingValidityMaskBuilder
 
@@ -461,6 +462,15 @@ def pretrain(
         structural_control_vocabulary=structural_control_vocabulary,
         max_sequence_length=resolved_model_config.transformer.max_sequence_length,
     )
+    figure_profile_artifacts = (
+        load_generation_figure_profile_artifacts(
+            source_directory=source_directory,
+            ingestion_config=ingestion_config,
+            tokenization_config=tokenization_config,
+        )
+        if training_config.generation_evaluation.enabled
+        else None
+    )
     model = HierarchicalAutoregressiveModel(resolved_model_config)
     tracker = build_training_tracker(training_config=training_config)
     with tracker:
@@ -485,6 +495,7 @@ def pretrain(
                 token_vocabulary=vocabulary,
                 duration_vocabulary=vocabulary.duration_vocabulary,
                 include_bar_count_control=False,
+                figure_profile_artifacts=figure_profile_artifacts,
             ),
         )
         return trainer.train(invalid_files=split.invalid_files)

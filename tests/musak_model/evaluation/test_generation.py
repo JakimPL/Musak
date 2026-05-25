@@ -1,3 +1,4 @@
+from collections import Counter
 from fractions import Fraction
 from pathlib import Path
 
@@ -5,6 +6,11 @@ import pytest
 import torch
 from torch import Tensor
 
+from musak_model.analysis.n_grams.figure.schema import FigureNGram
+from musak_model.analysis.n_grams.profile.artifacts import figure_artifact_paths
+from musak_model.analysis.n_grams.profile.builder import build_figure_profile, build_figure_sample_counts
+from musak_model.analysis.n_grams.profile.loading import FigureProfileArtifacts
+from musak_model.analysis.n_grams.profile.schema import FigureProfileMetadata
 from musak_model.conditioning.config import ConditioningConfig, DifficultyConfig
 from musak_model.conditioning.time_signature import TimeSignatureVocabularyConfig
 from musak_model.evaluation.generation import GenerationSuiteEvaluator
@@ -106,6 +112,7 @@ def test_generation_suite_logs_soft_and_hard_constraint_metrics() -> None:
         token_vocabulary=token_vocabulary,
         duration_vocabulary=duration_vocabulary,
         include_bar_count_control=False,
+        figure_profile_artifacts=None,
     )
 
     metrics = evaluator.evaluate(
@@ -128,9 +135,60 @@ def test_generation_suite_logs_soft_and_hard_constraint_metrics() -> None:
     assert metrics["generation/hard/mean/constraint_valid_token_fraction"] == 1.0
 
 
+def test_generation_suite_includes_loaded_figure_profile_context_metrics(tmp_path: Path) -> None:
+    duration_vocabulary = DurationVocabulary(TokenizationConfig(shortest_duration=16, allowed_tuplets=(3,), max_dots=1))
+    token_vocabulary = TokenVocabulary(duration_vocabulary)
+    evaluator = GenerationSuiteEvaluator(
+        config=_generation_config(soft_sample_count=0, hard_sample_count=0),
+        conditioning=_conditioning_config(),
+        model_config=_model_config(token_vocabulary.vocabulary_size),
+        token_vocabulary=token_vocabulary,
+        duration_vocabulary=duration_vocabulary,
+        include_bar_count_control=False,
+        figure_profile_artifacts=_figure_profile_artifacts(tmp_path),
+    )
+
+    metrics = evaluator.evaluate(
+        ScriptedModel([token_vocabulary.end_token_id], vocabulary_size=token_vocabulary.vocabulary_size),
+        device=torch.device("cpu"),
+    )
+
+    assert metrics["generation/figure/count/profile_samples"] == 1.0
+    assert metrics["generation/figure/count/profile_groups"] == 1.0
+    assert metrics["generation/figure/count/sample_profiles"] == 1.0
+
+
 def test_generation_config_validates_minimum_duration_denominator() -> None:
     with pytest.raises(ValueError, match="power of two"):
         _generation_config(minimum_duration_denominator=12)
+
+
+def _figure_profile_artifacts(tmp_path: Path) -> FigureProfileArtifacts:
+    figure = FigureNGram(onsets=((((0, 0),), Fraction(1)),))
+    profile = build_figure_profile(
+        {
+            ScaleType.MAJOR: {
+                Hand.RIGHT: {
+                    1: Counter({figure: 2}),
+                }
+            }
+        },
+        FigureProfileMetadata(min_n=1, max_n=1, sample_count=1),
+    )
+    sample_counts = build_figure_sample_counts(
+        sample_index=0,
+        scale_type=ScaleType.MAJOR,
+        counts_by_hand={
+            Hand.RIGHT: {
+                1: Counter({figure: 2}),
+            }
+        },
+    )
+    return FigureProfileArtifacts(
+        paths=figure_artifact_paths(tmp_path / "encoded"),
+        profile=profile,
+        sample_counts=(sample_counts,),
+    )
 
 
 def _model_config(vocabulary_size: int) -> ModelConfig:

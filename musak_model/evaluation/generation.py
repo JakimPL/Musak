@@ -10,6 +10,7 @@ from typing import Protocol
 import torch
 from torch import Tensor
 
+from musak_model.analysis.n_grams.profile.loading import FigureProfileArtifacts
 from musak_model.conditioning.structural.schema import StructuralControlFeatures
 from musak_model.conditioning.structural.vocabulary import StructuralControlVocabulary
 from musak_model.conditioning.time_signature import TimeSignatureVocabulary
@@ -112,6 +113,7 @@ class GenerationSuiteEvaluator:
         token_vocabulary: TokenVocabulary,
         duration_vocabulary: DurationVocabulary,
         include_bar_count_control: bool,
+        figure_profile_artifacts: FigureProfileArtifacts | None,
     ) -> None:
         self._config = config
         self._conditioning = conditioning
@@ -119,6 +121,7 @@ class GenerationSuiteEvaluator:
         self._token_vocabulary = token_vocabulary
         self._duration_vocabulary = duration_vocabulary
         self._include_bar_count_control = include_bar_count_control
+        self._figure_profile_artifacts = figure_profile_artifacts
 
     def evaluate(self, model: GenerationModel, *, device: torch.device) -> dict[str, float]:
         was_training = model.training
@@ -145,6 +148,7 @@ class GenerationSuiteEvaluator:
         return {
             **_suite_metrics(_SOFT_SUITE_NAME, soft_samples),
             **_suite_metrics(_HARD_SUITE_NAME, hard_samples),
+            **_figure_profile_metrics(self._figure_profile_artifacts),
         }
 
     def _sample_suite(
@@ -338,6 +342,17 @@ def _suite_metrics(suite_name: str, samples: list[GenerationSample]) -> dict[str
         f"{prefix}/mean/independent_onset_fraction": _mean(item.independent_onset_fraction for item in diagnostics),
     }
     return {name: value for name, value in metrics.items() if math.isfinite(value)}
+
+
+def _figure_profile_metrics(artifacts: FigureProfileArtifacts | None) -> dict[str, float]:
+    if artifacts is None:
+        return {}
+
+    return {
+        "generation/figure/count/profile_samples": float(artifacts.profile.metadata.sample_count),
+        "generation/figure/count/profile_groups": float(len(artifacts.profile.groups)),
+        "generation/figure/count/sample_profiles": float(len(artifacts.sample_counts)),
+    }
 
 
 def _constraint_report(

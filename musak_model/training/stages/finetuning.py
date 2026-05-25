@@ -22,6 +22,7 @@ from musak_model.training.ingestion.config import IngestionConfig
 from musak_model.training.ingestion.split import build_split
 from musak_model.training.metrics import build_token_kind_ids
 from musak_model.training.progress import log_split_summary
+from musak_model.training.stages.figure_profiles import load_generation_figure_profile_artifacts
 from musak_model.training.stages.pretraining import PretrainingTrainer, TrainingResult
 from musak_model.training.tracking import build_training_tracker
 from musak_model.training.validity import TrainingValidityMaskBuilder
@@ -72,6 +73,15 @@ def finetune(
         structural_control_vocabulary=structural_control_vocabulary,
         max_sequence_length=resolved_model_config.transformer.max_sequence_length,
     )
+    figure_profile_artifacts = (
+        load_generation_figure_profile_artifacts(
+            source_directory=source_directory,
+            ingestion_config=ingestion_config,
+            tokenization_config=tokenization_config,
+        )
+        if training_config.generation_evaluation.enabled
+        else None
+    )
     model = HierarchicalAutoregressiveModel(resolved_model_config)
     _LOGGER.info("Loading pretrain model weights from: %s", training_config.checkpoints.pretraining_checkpoint)
     load_model_weights(
@@ -104,6 +114,7 @@ def finetune(
                 token_vocabulary=token_vocabulary,
                 duration_vocabulary=duration_vocabulary,
                 include_bar_count_control=True,
+                figure_profile_artifacts=figure_profile_artifacts,
             ),
         )
 

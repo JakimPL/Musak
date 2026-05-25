@@ -316,6 +316,9 @@ Current metric families:
   - `generation/<soft|hard>/mean/static_hand_span_degrees`
   - `generation/<soft|hard>/mean/synchronized_onset_fraction`
   - `generation/<soft|hard>/mean/independent_onset_fraction`
+  - `generation/figure/count/profile_samples`
+  - `generation/figure/count/profile_groups`
+  - `generation/figure/count/sample_profiles`
 
 ## Stage Two Constrained Fine-Tuning
 
