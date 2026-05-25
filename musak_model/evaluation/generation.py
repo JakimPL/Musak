@@ -5,12 +5,19 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from fractions import Fraction
 from pathlib import Path
-from typing import Protocol
+from typing import Literal, Protocol
 
 import torch
 from torch import Tensor
 
+from musak_model.analysis.n_grams.figure.builder import scale_size_for_type
+from musak_model.analysis.n_grams.figure.counter import count_hand_figure_ngrams
+from musak_model.analysis.n_grams.figure.parser import extract_hand_onset_runs
+from musak_model.analysis.n_grams.figure.samples.merge import merge_scale_counts
+from musak_model.analysis.n_grams.figure.samples.schema import FigureNGramCountsByScale
+from musak_model.analysis.n_grams.profile.builder import build_figure_profile
 from musak_model.analysis.n_grams.profile.loading import FigureProfileArtifacts
+from musak_model.analysis.n_grams.profile.schema import FigureProfile, FigureProfileGroup, FigureProfileMetadata
 from musak_model.conditioning.structural.schema import StructuralControlFeatures
 from musak_model.conditioning.structural.vocabulary import StructuralControlVocabulary
 from musak_model.conditioning.time_signature import TimeSignatureVocabulary
@@ -25,7 +32,7 @@ from musak_model.generation.constraints import (
 )
 from musak_model.model.config import ModelConfig
 from musak_model.tokens.duration import DurationVocabulary
-from musak_model.tokens.schema import BarToken, EndToken, ScaleType, Token
+from musak_model.tokens.schema import BarToken, EndToken, Hand, ScaleType, Token
 from musak_model.tokens.vocabulary import TokenVocabulary
 
 
@@ -148,7 +155,12 @@ class GenerationSuiteEvaluator:
         return {
             **_suite_metrics(_SOFT_SUITE_NAME, soft_samples),
             **_suite_metrics(_HARD_SUITE_NAME, hard_samples),
-            **_figure_profile_metrics(self._figure_profile_artifacts),
+            **_figure_profile_metrics(
+                self._figure_profile_artifacts,
+                samples=[*soft_samples, *hard_samples],
+                config=self._config,
+                duration_vocabulary=self._duration_vocabulary,
+            ),
         }
 
     def _sample_suite(
@@ -344,15 +356,141 @@ def _suite_metrics(suite_name: str, samples: list[GenerationSample]) -> dict[str
     return {name: value for name, value in metrics.items() if math.isfinite(value)}
 
 
-def _figure_profile_metrics(artifacts: FigureProfileArtifacts | None) -> dict[str, float]:
+def _figure_profile_metrics(
+    artifacts: FigureProfileArtifacts | None,
+    *,
+    samples: list[GenerationSample],
+    config: GenerationEvaluationOptions,
+    duration_vocabulary: DurationVocabulary,
+) -> dict[str, float]:
     if artifacts is None:
         return {}
 
+    generated_profile = _generated_figure_profile(
+        samples,
+        reference_profile=artifacts.profile,
+        config=config,
+        duration_vocabulary=duration_vocabulary,
+    )
+    return {
+        **_figure_profile_count_metrics(artifacts),
+        **_figure_profile_comparison_metrics(reference_profile=artifacts.profile, generated_profile=generated_profile),
+    }
+
+
+def _figure_profile_count_metrics(artifacts: FigureProfileArtifacts) -> dict[str, float]:
     return {
         "generation/figure/count/profile_samples": float(artifacts.profile.metadata.sample_count),
         "generation/figure/count/profile_groups": float(len(artifacts.profile.groups)),
         "generation/figure/count/sample_profiles": float(len(artifacts.sample_counts)),
     }
+
+
+def _generated_figure_profile(
+    samples: list[GenerationSample],
+    *,
+    reference_profile: FigureProfile,
+    config: GenerationEvaluationOptions,
+    duration_vocabulary: DurationVocabulary,
+) -> FigureProfile:
+    counts_by_scale: FigureNGramCountsByScale = {}
+    counted_sample_count = 0
+    for sample in samples:
+        if sample.decode_error is not None:
+            continue
+
+        try:
+            runs_by_hand = extract_hand_onset_runs(
+                sample.tokens,
+                duration_vocabulary=duration_vocabulary,
+                time_numerator=config.time_numerator,
+                time_denominator=config.time_denominator,
+            )
+            counts_by_hand = count_hand_figure_ngrams(
+                runs_by_hand,
+                min_n=reference_profile.metadata.min_n,
+                max_n=reference_profile.metadata.max_n,
+                scale_size=scale_size_for_type(config.scale_type),
+            )
+        except ValueError:
+            continue
+
+        merge_scale_counts(counts_by_scale, scale_type=config.scale_type, sample_counts=counts_by_hand)
+        counted_sample_count += 1
+
+    return build_figure_profile(
+        counts_by_scale,
+        FigureProfileMetadata(
+            min_n=reference_profile.metadata.min_n,
+            max_n=reference_profile.metadata.max_n,
+            sample_count=counted_sample_count,
+        ),
+    )
+
+
+def _figure_profile_comparison_metrics(
+    *,
+    reference_profile: FigureProfile,
+    generated_profile: FigureProfile,
+) -> dict[str, float]:
+    reference_groups = {
+        _figure_profile_group_key(group): group for group in reference_profile.groups if group.total > 0
+    }
+    generated_groups = {_figure_profile_group_key(group): group for group in generated_profile.groups}
+    if not reference_groups:
+        return {
+            "generation/figure/count/generated_profile_samples": float(generated_profile.metadata.sample_count),
+            "generation/figure/count/comparable_groups": 0.0,
+        }
+
+    total_relative_errors: list[float] = []
+    monophonic_rate_errors: list[float] = []
+    chords_only_rate_errors: list[float] = []
+    in_scale_rate_errors: list[float] = []
+    for key, reference_group in reference_groups.items():
+        generated_group = generated_groups.get(key)
+        generated_total = generated_group.total if generated_group is not None else 0
+        total_relative_errors.append(abs(generated_total - reference_group.total) / reference_group.total)
+        monophonic_rate_errors.append(
+            abs(_group_rate(generated_group, "monophonic") - _group_rate(reference_group, "monophonic"))
+        )
+        chords_only_rate_errors.append(
+            abs(_group_rate(generated_group, "chords_only") - _group_rate(reference_group, "chords_only"))
+        )
+        in_scale_rate_errors.append(
+            abs(_group_rate(generated_group, "in_scale") - _group_rate(reference_group, "in_scale"))
+        )
+
+    return {
+        "generation/figure/count/generated_profile_samples": float(generated_profile.metadata.sample_count),
+        "generation/figure/count/comparable_groups": float(len(reference_groups)),
+        "generation/figure/mean/total_relative_abs_error": _mean(total_relative_errors),
+        "generation/figure/mean/monophonic_rate_abs_error": _mean(monophonic_rate_errors),
+        "generation/figure/mean/chords_only_rate_abs_error": _mean(chords_only_rate_errors),
+        "generation/figure/mean/in_scale_rate_abs_error": _mean(in_scale_rate_errors),
+    }
+
+
+def _figure_profile_group_key(group: FigureProfileGroup) -> tuple[ScaleType, Hand, int]:
+    return group.scale_type, group.hand, group.n
+
+
+def _group_rate(
+    group: FigureProfileGroup | None,
+    field_name: Literal["monophonic", "chords_only", "in_scale"],
+) -> float:
+    if group is None or group.total == 0:
+        return 0.0
+
+    match field_name:
+        case "monophonic":
+            return group.monophonic / group.total
+        case "chords_only":
+            return group.chords_only / group.total
+        case "in_scale":
+            return group.in_scale / group.total
+
+    raise ValueError(f"unknown figure profile group field: {field_name}")
 
 
 def _constraint_report(

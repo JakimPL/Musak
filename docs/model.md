@@ -319,6 +319,12 @@ Current metric families:
   - `generation/figure/count/profile_samples`
   - `generation/figure/count/profile_groups`
   - `generation/figure/count/sample_profiles`
+  - `generation/figure/count/generated_profile_samples`
+  - `generation/figure/count/comparable_groups`
+  - `generation/figure/mean/total_relative_abs_error`
+  - `generation/figure/mean/monophonic_rate_abs_error`
+  - `generation/figure/mean/chords_only_rate_abs_error`
+  - `generation/figure/mean/in_scale_rate_abs_error`
 
 ## Stage Two Constrained Fine-Tuning
 
