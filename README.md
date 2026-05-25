@@ -92,9 +92,9 @@ DATA_DIR=data/PDMX make process
 Process an exercise-style finetuning dataset with whole-file segments and difficulty labels:
 
 ```bash
-DATA_DIR=data/Exercises \
+DATA_DIR=data/exercises \
 PROCESS_WHOLE_FILE_SEGMENTS=1 \
-PROCESS_DIFFICULTY_LABELS=data/Exercises/difficulty_labels.json \
+PROCESS_DIFFICULTY_LABELS=data/exercises/difficulty_labels.json \
 make process
 ```
 
@@ -107,8 +107,8 @@ PRETRAIN_DATA_DIR=data/PDMX make pretrain
 Train finetuning only from a pretraining checkpoint:
 
 ```bash
-FINETUNE_DATA_DIR=data/Exercises \
-FINETUNE_DIFFICULTY_LABELS=data/Exercises/difficulty_labels.json \
+FINETUNE_DATA_DIR=data/exercises \
+FINETUNE_DIFFICULTY_LABELS=data/exercises/difficulty_labels.json \
 PRETRAIN_CHECKPOINT=checkpoints/pretraining/best.pt \
 make finetune
 ```
@@ -117,8 +117,8 @@ Run both model stages:
 
 ```bash
 PRETRAIN_DATA_DIR=data/PDMX \
-FINETUNE_DATA_DIR=data/Exercises \
-FINETUNE_DIFFICULTY_LABELS=data/Exercises/difficulty_labels.json \
+FINETUNE_DATA_DIR=data/exercises \
+FINETUNE_DIFFICULTY_LABELS=data/exercises/difficulty_labels.json \
 make train
 ```
 

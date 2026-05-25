@@ -9,7 +9,7 @@ Processing takes a dataset root and writes to `processed/<dataset-name>`:
 
 ```text
 data/PDMX -> processed/PDMX
-data/Exercises -> processed/Exercises
+data/exercises -> processed/exercises
 ```
 
 Processing recursively gathers `.mxl`, `.xml`, and `.musicxml` files from the dataset root.
@@ -23,14 +23,14 @@ Process the broad pretraining dataset, process the exercise finetuning dataset, 
 ```bash
 DATA_DIR=data/PDMX make process
 
-DATA_DIR=data/Exercises \
+DATA_DIR=data/exercises \
 PROCESS_WHOLE_FILE_SEGMENTS=1 \
-PROCESS_DIFFICULTY_LABELS=data/Exercises/difficulty_labels.json \
+PROCESS_DIFFICULTY_LABELS=data/exercises/difficulty_labels.json \
 make process
 
 PRETRAIN_DATA_DIR=data/PDMX \
-FINETUNE_DATA_DIR=data/Exercises \
-FINETUNE_DIFFICULTY_LABELS=data/Exercises/difficulty_labels.json \
+FINETUNE_DATA_DIR=data/exercises \
+FINETUNE_DIFFICULTY_LABELS=data/exercises/difficulty_labels.json \
 DEVICE=cuda \
 make train
 ```
@@ -56,7 +56,7 @@ DATA_DIR=data/PDMX make parse
 DATA_DIR=data/PDMX make tokenize
 DATA_DIR=data/PDMX PROCESS_OVERWRITE=1 make process
 DATA_DIR=data/PDMX PROCESS_SKIP_FIGURE_ANALYSIS=1 make process
-DATA_DIR=data/Exercises PROCESS_WHOLE_FILE_SEGMENTS=1 PROCESS_DIFFICULTY_LABELS=data/Exercises/difficulty_labels.json make process
+DATA_DIR=data/exercises PROCESS_WHOLE_FILE_SEGMENTS=1 PROCESS_DIFFICULTY_LABELS=data/exercises/difficulty_labels.json make process
 ```
 
 `make analyze-n-grams` remains available for standalone figure extraction, but it is not needed after a normal
@@ -83,8 +83,8 @@ PRETRAIN_DATA_DIR=data/PDMX PRETRAIN_EPOCHS=25 PRETRAIN_DEVICE=cuda make pretrai
 Run finetuning only from a pretraining checkpoint:
 
 ```bash
-FINETUNE_DATA_DIR=data/Exercises \
-FINETUNE_DIFFICULTY_LABELS=data/Exercises/difficulty_labels.json \
+FINETUNE_DATA_DIR=data/exercises \
+FINETUNE_DIFFICULTY_LABELS=data/exercises/difficulty_labels.json \
 PRETRAIN_CHECKPOINT=checkpoints/pretraining/best.pt \
 FINETUNE_EPOCHS=8 \
 FINETUNE_DEVICE=cuda \
@@ -95,8 +95,8 @@ Run both training stages:
 
 ```bash
 PRETRAIN_DATA_DIR=data/PDMX \
-FINETUNE_DATA_DIR=data/Exercises \
-FINETUNE_DIFFICULTY_LABELS=data/Exercises/difficulty_labels.json \
+FINETUNE_DATA_DIR=data/exercises \
+FINETUNE_DIFFICULTY_LABELS=data/exercises/difficulty_labels.json \
 EPOCHS=25 \
 DEVICE=cuda \
 make train

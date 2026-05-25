@@ -16,8 +16,8 @@ The training workflow can be run as separate stages or as the combined training 
 
 ```bash
 PRETRAIN_DATA_DIR=data/PDMX make pretrain
-FINETUNE_DATA_DIR=data/Exercises FINETUNE_DIFFICULTY_LABELS=data/Exercises/difficulty_labels.json make finetune
-PRETRAIN_DATA_DIR=data/PDMX FINETUNE_DATA_DIR=data/Exercises FINETUNE_DIFFICULTY_LABELS=data/Exercises/difficulty_labels.json make train
+FINETUNE_DATA_DIR=data/exercises FINETUNE_DIFFICULTY_LABELS=data/exercises/difficulty_labels.json make finetune
+PRETRAIN_DATA_DIR=data/PDMX FINETUNE_DATA_DIR=data/exercises FINETUNE_DIFFICULTY_LABELS=data/exercises/difficulty_labels.json make train
 ```
 
 Training targets take dataset roots and look for matching artifacts under `processed/<dataset-name>`. See

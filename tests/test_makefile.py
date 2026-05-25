@@ -157,15 +157,15 @@ def test_make_train_runs_pretrain_then_finetune_with_distinct_datasets() -> None
     output = _make_dry_run(
         "train",
         "PRETRAIN_DATA_DIR=data/PDMX",
-        "FINETUNE_DATA_DIR=data/Exercises",
-        "FINETUNE_DIFFICULTY_LABELS=data/Exercises/difficulty_labels.json",
+        "FINETUNE_DATA_DIR=data/exercises",
+        "FINETUNE_DIFFICULTY_LABELS=data/exercises/difficulty_labels.json",
         "PRETRAIN_CHECKPOINT=checkpoints/pretraining/best.pt",
     )
 
     assert output.index("scripts/pretrain.py") < output.index("scripts/finetune.py")
     assert '--data-dir "data/PDMX"' in output
-    assert '--data-dir "data/Exercises"' in output
-    assert '--difficulty-labels "data/Exercises/difficulty_labels.json"' in output
+    assert '--data-dir "data/exercises"' in output
+    assert '--difficulty-labels "data/exercises/difficulty_labels.json"' in output
     assert "--whole-file-segments" in output
     assert '--pretrain-checkpoint "checkpoints/pretraining/best.pt"' in output
 
@@ -174,7 +174,7 @@ def test_make_finetune_requires_difficulty_labels() -> None:
     with pytest.raises(subprocess.CalledProcessError):
         _make_dry_run(
             "finetune",
-            "FINETUNE_DATA_DIR=data/Exercises",
+            "FINETUNE_DATA_DIR=data/exercises",
         )
 
 
