@@ -139,6 +139,12 @@ def test_processing_tracker_logs_complete_manifest_metrics(
     assert metrics["dataset/diagnostics/mean/silent_bar_count"] == 1.0
     assert metrics["dataset/diagnostics/mean/silent_bar_fraction"] == 0.5
     assert metrics["dataset/diagnostics/mean/silent_edge_bar_count"] == 0.0
+    assert metrics["dataset/diagnostics/mean/accidental_note_fraction"] == 0.125
+    assert metrics["dataset/diagnostics/mean/in_scale_note_fraction"] == 0.875
+    assert metrics["dataset/diagnostics/mean/note_density_per_beat"] == 0.5
+    assert metrics["dataset/diagnostics/rate/has_dotted_notes"] == 0.5
+    assert metrics["dataset/diagnostics/mean/max_notes_per_onset"] == 1.5
+    assert metrics["dataset/diagnostics/mean/synchronized_onset_fraction"] == 0.25
     assert metrics["dataset/scale_match/mean/in_scale_weight_fraction"] == 0.8
     assert metrics["dataset/scale_match/mean/unexplained_out_of_scale_weight_fraction"] == 0.05
     assert metrics["dataset/scale_match/mean/explanation_pitch_class_count"] == 8.0
@@ -188,6 +194,21 @@ def _encoded_row(
             EncodedManifestField.NOTE_TOKEN_FRACTION: 0.25,
             EncodedManifestField.REST_TOKEN_FRACTION: 0.5,
             EncodedManifestField.HOLD_TOKEN_FRACTION: 0.0,
+            EncodedManifestField.ACCIDENTAL_NOTE_FRACTION: 0.25 if eligible else 0.0,
+            EncodedManifestField.IN_SCALE_NOTE_FRACTION: 0.75 if eligible else 1.0,
+            EncodedManifestField.NOTE_DENSITY_PER_BEAT: 0.25 if eligible else 0.75,
+            EncodedManifestField.ONSET_DENSITY_PER_BEAT: 0.5,
+            EncodedManifestField.RIGHT_ONSET_DENSITY_PER_BEAT: 0.25,
+            EncodedManifestField.LEFT_ONSET_DENSITY_PER_BEAT: 0.25,
+            EncodedManifestField.SHORTEST_NOTE_DURATION_BEATS: 1.0,
+            EncodedManifestField.HAS_DOTTED_NOTES: str(eligible),
+            EncodedManifestField.MAX_NOTES_PER_ONSET: 1 if eligible else 2,
+            EncodedManifestField.MAX_NOTES_PER_HAND: 1 if eligible else 2,
+            EncodedManifestField.MAX_ONSET_SPAN_SEMITONES: 0 if eligible else 7,
+            EncodedManifestField.MAX_MELODIC_GAP_SEMITONES: 2 if eligible else 4,
+            EncodedManifestField.STATIC_HAND_SPAN_DEGREES: 3 if eligible else 5,
+            EncodedManifestField.SYNCHRONIZED_ONSET_FRACTION: 0.5 if eligible else 0.0,
+            EncodedManifestField.INDEPENDENT_ONSET_FRACTION: 0.5 if eligible else 1.0,
             EncodedManifestField.SCALE_MATCH_IN_SCALE_WEIGHT_FRACTION: 0.8,
             EncodedManifestField.SCALE_MATCH_OUT_OF_SCALE_WEIGHT_FRACTION: 0.2,
             EncodedManifestField.SCALE_MATCH_EXPLAINED_OUT_OF_SCALE_WEIGHT_FRACTION: 0.15,

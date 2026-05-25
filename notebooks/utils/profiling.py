@@ -19,7 +19,11 @@ PROFILE_FILES: Final[tuple[str, ...]] = (
 DEFAULT_SORT_COLUMN: Final[str] = "total_seconds"
 
 
-def existing_directory(path: Path, *, fallback: Path) -> Path:
+def existing_directory(
+    path: Path,
+    *,
+    fallback: Path,
+) -> Path:
     current = path
     while not current.exists() or not current.is_dir():
         if current == current.parent:
@@ -30,7 +34,11 @@ def existing_directory(path: Path, *, fallback: Path) -> Path:
     return current
 
 
-def selected_profile_root(browser: Any, *, default: Path) -> Path:
+def selected_profile_root(
+    browser: Any,
+    *,
+    default: Path,
+) -> Path:
     try:
         selected_path = browser.path(0)
     except (AttributeError, IndexError, TypeError, ValueError):

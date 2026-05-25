@@ -120,6 +120,11 @@ def test_generation_suite_logs_soft_and_hard_constraint_metrics() -> None:
     assert metrics["generation/soft/mean/bar_count_error"] == 0.0
     assert metrics["generation/soft/rate/constraint_failure"] == 0.0
     assert metrics["generation/soft/rate/empty_score"] == 1.0
+    assert metrics["generation/soft/mean/accidental_note_fraction"] == 0.0
+    assert metrics["generation/soft/mean/in_scale_note_fraction"] == 0.0
+    assert metrics["generation/soft/mean/note_density_per_beat"] == 0.0
+    assert metrics["generation/soft/rate/has_dotted_notes"] == 0.0
+    assert metrics["generation/soft/mean/max_notes_per_onset"] == 0.0
     assert metrics["generation/hard/mean/constraint_valid_token_fraction"] == 1.0
 
 

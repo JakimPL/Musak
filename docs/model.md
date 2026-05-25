@@ -220,6 +220,21 @@ Current metric families:
   - `dataset/diagnostics/mean/silent_bar_count`
   - `dataset/diagnostics/mean/silent_bar_fraction`
   - `dataset/diagnostics/mean/silent_edge_bar_count`
+  - `dataset/diagnostics/mean/accidental_note_fraction`
+  - `dataset/diagnostics/mean/in_scale_note_fraction`
+  - `dataset/diagnostics/mean/note_density_per_beat`
+  - `dataset/diagnostics/mean/onset_density_per_beat`
+  - `dataset/diagnostics/mean/right_onset_density_per_beat`
+  - `dataset/diagnostics/mean/left_onset_density_per_beat`
+  - `dataset/diagnostics/mean/shortest_note_duration_beats`
+  - `dataset/diagnostics/rate/has_dotted_notes`
+  - `dataset/diagnostics/mean/max_notes_per_onset`
+  - `dataset/diagnostics/mean/max_notes_per_hand`
+  - `dataset/diagnostics/mean/max_onset_span_semitones`
+  - `dataset/diagnostics/mean/max_melodic_gap_semitones`
+  - `dataset/diagnostics/mean/static_hand_span_degrees`
+  - `dataset/diagnostics/mean/synchronized_onset_fraction`
+  - `dataset/diagnostics/mean/independent_onset_fraction`
   - `dataset/tokens/mean/note_fraction`
   - `dataset/tokens/mean/rest_fraction`
   - `dataset/tokens/mean/hold_fraction`
@@ -269,6 +284,21 @@ Current metric families:
   - `generation/<soft|hard>/mean/note_token_fraction`
   - `generation/<soft|hard>/mean/rest_token_fraction`
   - `generation/<soft|hard>/mean/hold_token_fraction`
+  - `generation/<soft|hard>/mean/accidental_note_fraction`
+  - `generation/<soft|hard>/mean/in_scale_note_fraction`
+  - `generation/<soft|hard>/mean/note_density_per_beat`
+  - `generation/<soft|hard>/mean/onset_density_per_beat`
+  - `generation/<soft|hard>/mean/right_onset_density_per_beat`
+  - `generation/<soft|hard>/mean/left_onset_density_per_beat`
+  - `generation/<soft|hard>/mean/shortest_note_duration_beats`
+  - `generation/<soft|hard>/rate/has_dotted_notes`
+  - `generation/<soft|hard>/mean/max_notes_per_onset`
+  - `generation/<soft|hard>/mean/max_notes_per_hand`
+  - `generation/<soft|hard>/mean/max_onset_span_semitones`
+  - `generation/<soft|hard>/mean/max_melodic_gap_semitones`
+  - `generation/<soft|hard>/mean/static_hand_span_degrees`
+  - `generation/<soft|hard>/mean/synchronized_onset_fraction`
+  - `generation/<soft|hard>/mean/independent_onset_fraction`
 
 ## Stage Two Constrained Fine-Tuning
 

@@ -320,6 +320,21 @@ def _suite_metrics(suite_name: str, samples: list[GenerationSample]) -> dict[str
         f"{prefix}/mean/note_token_fraction": _mean(item.note_token_fraction for item in diagnostics),
         f"{prefix}/mean/rest_token_fraction": _mean(item.rest_token_fraction for item in diagnostics),
         f"{prefix}/mean/hold_token_fraction": _mean(item.hold_token_fraction for item in diagnostics),
+        f"{prefix}/mean/accidental_note_fraction": _mean(item.accidental_note_fraction for item in diagnostics),
+        f"{prefix}/mean/in_scale_note_fraction": _mean(item.in_scale_note_fraction for item in diagnostics),
+        f"{prefix}/mean/note_density_per_beat": _mean(item.note_density_per_beat for item in diagnostics),
+        f"{prefix}/mean/onset_density_per_beat": _mean(item.onset_density_per_beat for item in diagnostics),
+        f"{prefix}/mean/right_onset_density_per_beat": _mean(item.right_onset_density_per_beat for item in diagnostics),
+        f"{prefix}/mean/left_onset_density_per_beat": _mean(item.left_onset_density_per_beat for item in diagnostics),
+        f"{prefix}/mean/shortest_note_duration_beats": _mean(item.shortest_note_duration_beats for item in diagnostics),
+        f"{prefix}/rate/has_dotted_notes": _rate(diagnostics, lambda item: item.has_dotted_notes),
+        f"{prefix}/mean/max_notes_per_onset": _mean(item.max_notes_per_onset for item in diagnostics),
+        f"{prefix}/mean/max_notes_per_hand": _mean(item.max_notes_per_hand for item in diagnostics),
+        f"{prefix}/mean/max_onset_span_semitones": _mean(item.max_onset_span_semitones for item in diagnostics),
+        f"{prefix}/mean/max_melodic_gap_semitones": _mean(item.max_melodic_gap_semitones for item in diagnostics),
+        f"{prefix}/mean/static_hand_span_degrees": _mean(item.static_hand_span_degrees for item in diagnostics),
+        f"{prefix}/mean/synchronized_onset_fraction": _mean(item.synchronized_onset_fraction for item in diagnostics),
+        f"{prefix}/mean/independent_onset_fraction": _mean(item.independent_onset_fraction for item in diagnostics),
     }
     return {name: value for name, value in metrics.items() if math.isfinite(value)}
 

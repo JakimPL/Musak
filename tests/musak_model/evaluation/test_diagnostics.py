@@ -110,6 +110,71 @@ def test_chord_notes_count_as_one_onset(duration_vocabulary: DurationVocabulary)
 
     assert diagnostics.right_note_onsets_per_bar == 1.0
     assert diagnostics.note_token_fraction == 0.5
+    assert diagnostics.max_notes_per_onset == 2
+    assert diagnostics.max_notes_per_hand == 2
+    assert diagnostics.onset_density_per_beat == 0.25
+    assert diagnostics.note_density_per_beat == 0.5
+
+
+def test_pitch_and_playability_diagnostics(duration_vocabulary: DurationVocabulary) -> None:
+    quarter_id = duration_vocabulary.fraction_to_id(Fraction(1, 4))
+    segment = _segment(
+        [
+            HandToken(hand=Hand.RIGHT),
+            NoteToken(degree=1, accidental=0, octave_offset=0, duration_id=quarter_id),
+            NoteToken(degree=3, accidental=1, octave_offset=0, duration_id=quarter_id),
+            JoinWithPreviousToken(),
+            NoteToken(degree=1, accidental=0, octave_offset=1, duration_id=quarter_id),
+        ]
+    )
+
+    diagnostics = diagnose_segment(segment, duration_vocabulary=duration_vocabulary)
+
+    assert diagnostics.accidental_note_fraction == 1 / 3
+    assert diagnostics.in_scale_note_fraction == 2 / 3
+    assert diagnostics.max_onset_span_semitones == 5
+    assert diagnostics.max_melodic_gap_semitones == 7
+    assert diagnostics.static_hand_span_degrees == 8
+    assert diagnostics.shortest_note_duration_beats == 1.0
+    assert diagnostics.has_dotted_notes is False
+
+
+def test_dotted_duration_diagnostic(duration_vocabulary: DurationVocabulary) -> None:
+    dotted_quarter_id = duration_vocabulary.fraction_to_id(Fraction(3, 8))
+    segment = _segment(
+        [
+            HandToken(hand=Hand.RIGHT),
+            NoteToken(degree=1, accidental=0, octave_offset=0, duration_id=dotted_quarter_id),
+        ]
+    )
+
+    diagnostics = diagnose_segment(segment, duration_vocabulary=duration_vocabulary)
+
+    assert diagnostics.has_dotted_notes is True
+    assert diagnostics.shortest_note_duration_beats == 1.5
+
+
+def test_hand_onset_coordination_diagnostics(duration_vocabulary: DurationVocabulary) -> None:
+    quarter_id = duration_vocabulary.fraction_to_id(Fraction(1, 4))
+    segment = _segment(
+        [
+            HandToken(hand=Hand.RIGHT),
+            NoteToken(degree=1, accidental=0, octave_offset=0, duration_id=quarter_id),
+            RestToken(duration_id=quarter_id),
+            NoteToken(degree=2, accidental=0, octave_offset=0, duration_id=quarter_id),
+            HandToken(hand=Hand.LEFT),
+            NoteToken(degree=1, accidental=0, octave_offset=0, duration_id=quarter_id),
+            NoteToken(degree=2, accidental=0, octave_offset=0, duration_id=quarter_id),
+        ]
+    )
+
+    diagnostics = diagnose_segment(segment, duration_vocabulary=duration_vocabulary)
+
+    assert diagnostics.right_onset_density_per_beat == 0.5
+    assert diagnostics.left_onset_density_per_beat == 0.5
+    assert diagnostics.onset_density_per_beat == 1.0
+    assert diagnostics.synchronized_onset_fraction == 1 / 3
+    assert diagnostics.independent_onset_fraction == 2 / 3
 
 
 def test_silent_bar_diagnostics_count_edge_and_interior_silent_bars(

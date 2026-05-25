@@ -81,6 +81,21 @@ class EncodedManifestField(StrEnum):
     NOTE_TOKEN_FRACTION = "note_token_fraction"
     REST_TOKEN_FRACTION = "rest_token_fraction"
     HOLD_TOKEN_FRACTION = "hold_token_fraction"
+    ACCIDENTAL_NOTE_FRACTION = "accidental_note_fraction"
+    IN_SCALE_NOTE_FRACTION = "in_scale_note_fraction"
+    NOTE_DENSITY_PER_BEAT = "note_density_per_beat"
+    ONSET_DENSITY_PER_BEAT = "onset_density_per_beat"
+    RIGHT_ONSET_DENSITY_PER_BEAT = "right_onset_density_per_beat"
+    LEFT_ONSET_DENSITY_PER_BEAT = "left_onset_density_per_beat"
+    SHORTEST_NOTE_DURATION_BEATS = "shortest_note_duration_beats"
+    HAS_DOTTED_NOTES = "has_dotted_notes"
+    MAX_NOTES_PER_ONSET = "max_notes_per_onset"
+    MAX_NOTES_PER_HAND = "max_notes_per_hand"
+    MAX_ONSET_SPAN_SEMITONES = "max_onset_span_semitones"
+    MAX_MELODIC_GAP_SEMITONES = "max_melodic_gap_semitones"
+    STATIC_HAND_SPAN_DEGREES = "static_hand_span_degrees"
+    SYNCHRONIZED_ONSET_FRACTION = "synchronized_onset_fraction"
+    INDEPENDENT_ONSET_FRACTION = "independent_onset_fraction"
 
 
 class ParsedManifestStatus(StrEnum):
@@ -155,6 +170,21 @@ ENCODED_MANIFEST_FIELDS: Final[tuple[EncodedManifestField, ...]] = (
     EncodedManifestField.NOTE_TOKEN_FRACTION,
     EncodedManifestField.REST_TOKEN_FRACTION,
     EncodedManifestField.HOLD_TOKEN_FRACTION,
+    EncodedManifestField.ACCIDENTAL_NOTE_FRACTION,
+    EncodedManifestField.IN_SCALE_NOTE_FRACTION,
+    EncodedManifestField.NOTE_DENSITY_PER_BEAT,
+    EncodedManifestField.ONSET_DENSITY_PER_BEAT,
+    EncodedManifestField.RIGHT_ONSET_DENSITY_PER_BEAT,
+    EncodedManifestField.LEFT_ONSET_DENSITY_PER_BEAT,
+    EncodedManifestField.SHORTEST_NOTE_DURATION_BEATS,
+    EncodedManifestField.HAS_DOTTED_NOTES,
+    EncodedManifestField.MAX_NOTES_PER_ONSET,
+    EncodedManifestField.MAX_NOTES_PER_HAND,
+    EncodedManifestField.MAX_ONSET_SPAN_SEMITONES,
+    EncodedManifestField.MAX_MELODIC_GAP_SEMITONES,
+    EncodedManifestField.STATIC_HAND_SPAN_DEGREES,
+    EncodedManifestField.SYNCHRONIZED_ONSET_FRACTION,
+    EncodedManifestField.INDEPENDENT_ONSET_FRACTION,
 )
 
 
@@ -338,6 +368,21 @@ def encoded_row(
         EncodedManifestField.NOTE_TOKEN_FRACTION: diagnostics.note_token_fraction,
         EncodedManifestField.REST_TOKEN_FRACTION: diagnostics.rest_token_fraction,
         EncodedManifestField.HOLD_TOKEN_FRACTION: diagnostics.hold_token_fraction,
+        EncodedManifestField.ACCIDENTAL_NOTE_FRACTION: diagnostics.accidental_note_fraction,
+        EncodedManifestField.IN_SCALE_NOTE_FRACTION: diagnostics.in_scale_note_fraction,
+        EncodedManifestField.NOTE_DENSITY_PER_BEAT: diagnostics.note_density_per_beat,
+        EncodedManifestField.ONSET_DENSITY_PER_BEAT: diagnostics.onset_density_per_beat,
+        EncodedManifestField.RIGHT_ONSET_DENSITY_PER_BEAT: diagnostics.right_onset_density_per_beat,
+        EncodedManifestField.LEFT_ONSET_DENSITY_PER_BEAT: diagnostics.left_onset_density_per_beat,
+        EncodedManifestField.SHORTEST_NOTE_DURATION_BEATS: diagnostics.shortest_note_duration_beats,
+        EncodedManifestField.HAS_DOTTED_NOTES: diagnostics.has_dotted_notes,
+        EncodedManifestField.MAX_NOTES_PER_ONSET: diagnostics.max_notes_per_onset,
+        EncodedManifestField.MAX_NOTES_PER_HAND: diagnostics.max_notes_per_hand,
+        EncodedManifestField.MAX_ONSET_SPAN_SEMITONES: diagnostics.max_onset_span_semitones,
+        EncodedManifestField.MAX_MELODIC_GAP_SEMITONES: diagnostics.max_melodic_gap_semitones,
+        EncodedManifestField.STATIC_HAND_SPAN_DEGREES: diagnostics.static_hand_span_degrees,
+        EncodedManifestField.SYNCHRONIZED_ONSET_FRACTION: diagnostics.synchronized_onset_fraction,
+        EncodedManifestField.INDEPENDENT_ONSET_FRACTION: diagnostics.independent_onset_fraction,
     }
 
 

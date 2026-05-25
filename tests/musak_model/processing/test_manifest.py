@@ -58,3 +58,10 @@ def test_encoded_row_includes_segment_diagnostics(duration_vocabulary: DurationV
     assert row[EncodedManifestField.SILENT_BAR_FRACTION] == 0.0
     assert row[EncodedManifestField.SILENT_EDGE_BAR_COUNT] == 0
     assert row[EncodedManifestField.NOTE_TOKEN_FRACTION] == 0.5
+    assert row[EncodedManifestField.ACCIDENTAL_NOTE_FRACTION] == 0.0
+    assert row[EncodedManifestField.IN_SCALE_NOTE_FRACTION] == 1.0
+    assert row[EncodedManifestField.NOTE_DENSITY_PER_BEAT] == 0.25
+    assert row[EncodedManifestField.RIGHT_ONSET_DENSITY_PER_BEAT] == 0.25
+    assert row[EncodedManifestField.HAS_DOTTED_NOTES] is False
+    assert row[EncodedManifestField.MAX_NOTES_PER_ONSET] == 1
+    assert row[EncodedManifestField.MAX_NOTES_PER_HAND] == 1
