@@ -22,7 +22,10 @@ from musak_model.training.ingestion.config import IngestionConfig
 from musak_model.training.ingestion.split import build_split
 from musak_model.training.metrics import build_token_kind_ids
 from musak_model.training.progress import log_split_summary
-from musak_model.training.stages.figure_profiles import load_generation_figure_profile_artifacts
+from musak_model.training.stages.figure_profiles import (
+    load_generation_figure_profile_artifacts,
+    split_figure_profile_metrics,
+)
 from musak_model.training.stages.pretraining import PretrainingTrainer, TrainingResult
 from musak_model.training.tracking import build_training_tracker
 from musak_model.training.validity import TrainingValidityMaskBuilder
@@ -96,6 +99,14 @@ def finetune(
             training_config=training_config,
             model_config=resolved_model_config,
             split=split,
+        )
+        tracker.log_split_figure_metrics(
+            metrics=split_figure_profile_metrics(
+                split,
+                token_vocabulary=token_vocabulary,
+                workers=training_config.runtime.num_workers,
+                show_progress=show_progress,
+            )
         )
 
         trainer = PretrainingTrainer(

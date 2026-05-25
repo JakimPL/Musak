@@ -81,7 +81,8 @@ not used by the exercise pages yet.
 `make process` prepares a MusicXML dataset for training. It recursively gathers `.mxl`, `.xml`, and `.musicxml` files
 under `DATA_DIR`, parses compatible two-part piano scores, tokenizes training examples, computes dataset diagnostics,
 builds figure-profile artifacts, and logs processing metrics to MLflow. By default, reusable artifacts are written
-under `processed/<dataset-name>`.
+under `processed/<dataset-name>`. This is a dataset-level processing step; train/validation splits are created later
+during training.
 
 Process a broad pretraining dataset:
 
@@ -121,6 +122,9 @@ FINETUNE_DATA_DIR=data/exercises \
 FINETUNE_DIFFICULTY_LABELS=data/exercises/difficulty_labels.json \
 make train
 ```
+
+Training also logs train-vs-validation figure-profile metrics to MLflow so the split distribution can be inspected
+alongside loss, accuracy, and generation evaluation.
 
 See [docs/pipeline.md](docs/pipeline.md) for the fuller processing and training workflow.
 

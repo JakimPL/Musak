@@ -412,6 +412,17 @@ Current metric families:
   - `generation/figure/mean/in_scale_rate_abs_error`
   - `generation/figure/count/distribution_groups`
   - `generation/figure/mean/identity_total_variation_distance`
+  - `model/split/figure/count/train_samples`
+  - `model/split/figure/count/validation_samples`
+  - `model/split/figure/count/train_profile_groups`
+  - `model/split/figure/count/validation_profile_groups`
+  - `model/split/figure/count/comparable_groups`
+  - `model/split/figure/mean/total_relative_abs_error`
+  - `model/split/figure/mean/monophonic_rate_abs_error`
+  - `model/split/figure/mean/chords_only_rate_abs_error`
+  - `model/split/figure/mean/in_scale_rate_abs_error`
+  - `model/split/figure/count/distribution_groups`
+  - `model/split/figure/mean/identity_total_variation_distance`
 
 ## Stage Two Constrained Fine-Tuning
 
@@ -578,6 +589,7 @@ The current generation and training pipeline includes:
 - constrained sampling in generation evaluation and the model output explorer;
 - generated-vs-reference figure metric comparison in training generation evaluation when figure artifacts are
   available;
+- train-vs-validation figure profile metrics during pretraining and finetuning setup;
 - notebook-only figure metric inspection below the generated score, player, and piano roll.
 
 Remaining work:

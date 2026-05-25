@@ -1,12 +1,11 @@
 from __future__ import annotations
 
 import math
-from collections import Counter
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from fractions import Fraction
 from pathlib import Path
-from typing import Literal, Protocol
+from typing import Protocol
 
 import torch
 from torch import Tensor
@@ -16,10 +15,13 @@ from musak_model.analysis.n_grams.figure.counter import count_hand_figure_ngrams
 from musak_model.analysis.n_grams.figure.parser import extract_hand_onset_runs
 from musak_model.analysis.n_grams.figure.samples.merge import merge_scale_counts
 from musak_model.analysis.n_grams.figure.samples.schema import FigureNGramCountsByScale
-from musak_model.analysis.n_grams.figure.schema import FigureNGram
 from musak_model.analysis.n_grams.profile.builder import build_figure_profile
 from musak_model.analysis.n_grams.profile.loading import FigureProfileArtifacts
-from musak_model.analysis.n_grams.profile.schema import FigureProfile, FigureProfileGroup, FigureProfileMetadata
+from musak_model.analysis.n_grams.profile.metrics import (
+    figure_distribution_metrics,
+    figure_profile_comparison_metrics,
+)
+from musak_model.analysis.n_grams.profile.schema import FigureProfile, FigureProfileMetadata
 from musak_model.conditioning.structural.schema import StructuralControlFeatures
 from musak_model.conditioning.structural.vocabulary import StructuralControlVocabulary
 from musak_model.conditioning.time_signature import TimeSignatureVocabulary
@@ -34,7 +36,7 @@ from musak_model.generation.constraints import (
 )
 from musak_model.model.config import ModelConfig
 from musak_model.tokens.duration import DurationVocabulary
-from musak_model.tokens.schema import BarToken, EndToken, Hand, ScaleType, Token
+from musak_model.tokens.schema import BarToken, EndToken, ScaleType, Token
 from musak_model.tokens.vocabulary import TokenVocabulary
 
 
@@ -381,10 +383,16 @@ def _figure_profile_metrics(
     )
     return {
         **_figure_profile_count_metrics(artifacts),
-        **_figure_profile_comparison_metrics(reference_profile=artifacts.profile, generated_profile=generated_profile),
-        **_figure_distribution_metrics(
+        **figure_profile_comparison_metrics(
+            reference_profile=artifacts.profile,
+            comparison_profile=generated_profile,
+            metric_prefix="generation/figure",
+            comparison_sample_count_metric="generated_profile_samples",
+        ),
+        **figure_distribution_metrics(
             reference_counts=artifacts.counts_by_scale,
-            generated_counts=generated_counts_by_scale,
+            comparison_counts=generated_counts_by_scale,
+            metric_prefix="generation/figure",
         ),
     }
 
@@ -446,121 +454,6 @@ def _generated_figure_counts(
         counted_sample_count += 1
 
     return counts_by_scale, counted_sample_count
-
-
-def _figure_profile_comparison_metrics(
-    *,
-    reference_profile: FigureProfile,
-    generated_profile: FigureProfile,
-) -> dict[str, float]:
-    reference_groups = {
-        _figure_profile_group_key(group): group for group in reference_profile.groups if group.total > 0
-    }
-    generated_groups = {_figure_profile_group_key(group): group for group in generated_profile.groups}
-    if not reference_groups:
-        return {
-            "generation/figure/count/generated_profile_samples": float(generated_profile.metadata.sample_count),
-            "generation/figure/count/comparable_groups": 0.0,
-        }
-
-    total_relative_errors: list[float] = []
-    monophonic_rate_errors: list[float] = []
-    chords_only_rate_errors: list[float] = []
-    in_scale_rate_errors: list[float] = []
-    for key, reference_group in reference_groups.items():
-        generated_group = generated_groups.get(key)
-        generated_total = generated_group.total if generated_group is not None else 0
-        total_relative_errors.append(abs(generated_total - reference_group.total) / reference_group.total)
-        monophonic_rate_errors.append(
-            abs(_group_rate(generated_group, "monophonic") - _group_rate(reference_group, "monophonic"))
-        )
-        chords_only_rate_errors.append(
-            abs(_group_rate(generated_group, "chords_only") - _group_rate(reference_group, "chords_only"))
-        )
-        in_scale_rate_errors.append(
-            abs(_group_rate(generated_group, "in_scale") - _group_rate(reference_group, "in_scale"))
-        )
-
-    return {
-        "generation/figure/count/generated_profile_samples": float(generated_profile.metadata.sample_count),
-        "generation/figure/count/comparable_groups": float(len(reference_groups)),
-        "generation/figure/mean/total_relative_abs_error": _mean(total_relative_errors),
-        "generation/figure/mean/monophonic_rate_abs_error": _mean(monophonic_rate_errors),
-        "generation/figure/mean/chords_only_rate_abs_error": _mean(chords_only_rate_errors),
-        "generation/figure/mean/in_scale_rate_abs_error": _mean(in_scale_rate_errors),
-    }
-
-
-def _figure_distribution_metrics(
-    *,
-    reference_counts: FigureNGramCountsByScale,
-    generated_counts: FigureNGramCountsByScale,
-) -> dict[str, float]:
-    distances: list[float] = []
-    for scale_type, reference_counts_by_hand in reference_counts.items():
-        for hand, reference_counts_by_n in reference_counts_by_hand.items():
-            for n, reference_figure_counts in reference_counts_by_n.items():
-                if not reference_figure_counts:
-                    continue
-
-                generated_figure_counts = generated_counts.get(scale_type, {}).get(hand, {}).get(n, Counter())
-                distances.append(
-                    _total_variation_distance(
-                        reference_figure_counts,
-                        generated_figure_counts,
-                    )
-                )
-
-    if not distances:
-        return {
-            "generation/figure/count/distribution_groups": 0.0,
-        }
-
-    return {
-        "generation/figure/count/distribution_groups": float(len(distances)),
-        "generation/figure/mean/identity_total_variation_distance": _mean(distances),
-    }
-
-
-def _total_variation_distance(
-    reference_counts: Counter[FigureNGram],
-    generated_counts: Counter[FigureNGram],
-) -> float:
-    reference_total = sum(reference_counts.values())
-    if reference_total == 0:
-        return math.nan
-
-    generated_total = sum(generated_counts.values())
-    figures = set(reference_counts) | set(generated_counts)
-    return 0.5 * sum(
-        abs(
-            (reference_counts[figure] / reference_total)
-            - (generated_counts[figure] / generated_total if generated_total > 0 else 0.0)
-        )
-        for figure in figures
-    )
-
-
-def _figure_profile_group_key(group: FigureProfileGroup) -> tuple[ScaleType, Hand, int]:
-    return group.scale_type, group.hand, group.n
-
-
-def _group_rate(
-    group: FigureProfileGroup | None,
-    field_name: Literal["monophonic", "chords_only", "in_scale"],
-) -> float:
-    if group is None or group.total == 0:
-        return 0.0
-
-    match field_name:
-        case "monophonic":
-            return group.monophonic / group.total
-        case "chords_only":
-            return group.chords_only / group.total
-        case "in_scale":
-            return group.in_scale / group.total
-
-    raise ValueError(f"unknown figure profile group field: {field_name}")
 
 
 def _constraint_report(

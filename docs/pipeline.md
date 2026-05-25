@@ -47,7 +47,8 @@ DATA_DIR=data/PDMX make process
 
 `make process` recursively gathers MusicXML files from `DATA_DIR`, parses compatible two-part piano scores, tokenizes
 training examples, computes dataset diagnostics, builds figure-profile artifacts, and logs processing metrics to
-MLflow. By default it writes artifacts below `processed/<dataset-name>`.
+MLflow. By default it writes artifacts below `processed/<dataset-name>`. No train/validation split exists at this
+stage; training creates the split later from the processed dataset.
 
 Useful processing switches:
 
@@ -103,9 +104,10 @@ make train
 ```
 
 Training logs model metrics to MLflow. Generation evaluation is enabled by the default training configs and logs
-sample-quality metrics during training. When matching figure artifacts are available under the processed encoded run,
-generation evaluation also logs figure comparison metrics; figure profiles are not generation constraints and do not
-change sampling.
+sample-quality metrics during training. Training also builds figure profiles for the actual train and validation
+partitions and logs `model/split/figure/...` metrics so the split distribution can be inspected. When matching figure
+artifacts are available under the processed encoded run, generation evaluation also logs figure comparison metrics;
+figure profiles are not generation constraints and do not change sampling.
 
 ## Inspect Output
 

@@ -41,6 +41,8 @@ class TrainingTracker(Protocol):
 
     def log_generation_evaluation(self, *, metrics: dict[str, float], epoch: int) -> None: ...
 
+    def log_split_figure_metrics(self, *, metrics: dict[str, float]) -> None: ...
+
     def log_checkpoints(self, *, latest_checkpoint_path: Path | None, best_checkpoint_path: Path | None) -> None: ...
 
     def log_invalid_files(self, *, invalid_files: list[IngestionErrorRecord]) -> None: ...
@@ -75,6 +77,9 @@ class NoOpTrainingTracker:
         return None
 
     def log_generation_evaluation(self, *, metrics: dict[str, float], epoch: int) -> None:
+        return None
+
+    def log_split_figure_metrics(self, *, metrics: dict[str, float]) -> None:
         return None
 
     def log_checkpoints(
@@ -156,6 +161,11 @@ class MlflowTrainingTracker:
         for name, value in metrics.items():
             if math.isfinite(value):
                 self._mlflow.log_metric(name, value, step=epoch)
+
+    def log_split_figure_metrics(self, *, metrics: dict[str, float]) -> None:
+        for name, value in metrics.items():
+            if math.isfinite(value):
+                self._mlflow.log_metric(name, value, step=0)
 
     def log_checkpoints(
         self,
