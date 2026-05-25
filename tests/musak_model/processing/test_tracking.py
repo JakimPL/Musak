@@ -4,6 +4,7 @@ from types import ModuleType
 
 import pytest
 
+from musak_model.analysis.n_grams.profile import FigureArtifactPaths, FigureExtractionResult
 from musak_model.data.scale_matcher.config import ScaleMatcherConfig
 from musak_model.data.schema import SegmentMetadata
 from musak_model.processing.dataset import ProcessDatasetResult
@@ -150,6 +151,50 @@ def test_processing_tracker_logs_complete_manifest_metrics(
     assert metrics["dataset/scale_match/mean/explanation_pitch_class_count"] == 8.0
     assert metrics["dataset/scale_match/rate/declared_match_used"] == 0.5
     assert (str(encoded_manifest_path), "dataset") in fake_mlflow.artifacts
+
+
+def test_processing_tracker_logs_figure_artifacts_in_same_run(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_mlflow = FakeMlflow()
+    monkeypatch.setitem(sys.modules, "mlflow", fake_mlflow)
+    encoded_dir = tmp_path / "processed" / "PDMX" / "encoded" / "abc123"
+    figure_dir = encoded_dir / "figure"
+    all_dir = figure_dir / "all"
+    config_path = figure_dir / "config.yml"
+    counts_path = all_dir / "counts.csv"
+    profile_path = all_dir / "profile.json"
+    extra_output_path = tmp_path / "analysis" / "figures.csv"
+    for path in (config_path, counts_path, profile_path, extra_output_path):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("", encoding="utf-8")
+    figure_result = FigureExtractionResult(
+        artifact_paths=FigureArtifactPaths(
+            root_dir=figure_dir,
+            config_path=config_path,
+            all_dir=all_dir,
+            profile_path=profile_path,
+            counts_path=counts_path,
+            by_sample_path=figure_dir / "by_sample.jsonl",
+        ),
+        encoded_sample_count=12,
+        profile_group_count=4,
+        extra_output_path=extra_output_path,
+    )
+
+    with ProcessingTracker(config=ProcessingMlflowConfig(run_name="process-run"), tracking_root=tmp_path) as tracker:
+        tracker.log_figure_extraction_result(figure_result)
+
+    metrics = dict(fake_mlflow.metrics)
+    assert fake_mlflow.run_name == "process-run"
+    assert fake_mlflow.ended_status == "FINISHED"
+    assert metrics["dataset/figure/count/encoded_samples"] == 12.0
+    assert metrics["dataset/figure/count/profile_groups"] == 4.0
+    assert (str(config_path), "dataset/figure") in fake_mlflow.artifacts
+    assert (str(counts_path), "dataset/figure/all") in fake_mlflow.artifacts
+    assert (str(profile_path), "dataset/figure/all") in fake_mlflow.artifacts
+    assert (str(extra_output_path), "dataset/figure/extra") in fake_mlflow.artifacts
 
 
 def _parsed_row(source_path: str, status: ParsedManifestStatus) -> dict[object, object]:

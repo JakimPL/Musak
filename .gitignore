@@ -9,7 +9,7 @@ __pycache__/
 .codex/
 .github/
 
-analysis/
+/analysis/
 checkpoints/
 mlruns/
 processed/

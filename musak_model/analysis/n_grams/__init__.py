@@ -16,6 +16,7 @@ from musak_model.analysis.n_grams.counter import (
 from musak_model.analysis.n_grams.encoded import (
     FigureNGramCountsByScale,
     count_encoded_exercise_figure_ngrams,
+    count_encoded_exercises_figure_n_grams,
     count_encoded_exercises_figure_ngrams,
 )
 from musak_model.analysis.n_grams.export import (
@@ -23,9 +24,24 @@ from musak_model.analysis.n_grams.export import (
     FigureNGramCountRecord,
     figure_count_records,
     write_figure_count_csv,
+    write_figure_counts_csv,
 )
 from musak_model.analysis.n_grams.figure import FigureDegree, FigureNGram, FigureOnset
 from musak_model.analysis.n_grams.parser import HandOnsetRun, PitchedOnset, extract_hand_onset_runs
+from musak_model.analysis.n_grams.profile import (
+    FigureArtifactPaths,
+    FigureExtractionResult,
+    FigureProfile,
+    FigureProfileGroup,
+    FigureProfileMetadata,
+    FigureSampleCounts,
+    build_figure_profile,
+    copy_analysis_config,
+    extract_figure_artifacts,
+    figure_artifact_paths,
+    read_figure_profile,
+    write_figure_profile,
+)
 
 __all__ = [
     "FigureDegree",
@@ -36,6 +52,12 @@ __all__ = [
     "FigureNGramCountsByScale",
     "FigureNGramCountRecord",
     "FigureOnset",
+    "FigureArtifactPaths",
+    "FigureExtractionResult",
+    "FigureProfile",
+    "FigureProfileGroup",
+    "FigureProfileMetadata",
+    "FigureSampleCounts",
     "HandOnsetRun",
     "NGramAnalysisConfig",
     "PitchedOnset",
@@ -43,13 +65,21 @@ __all__ = [
     "build_figure_ngrams_from_run",
     "build_figure_ngrams_from_runs",
     "build_figure_ngram",
+    "build_figure_profile",
+    "copy_analysis_config",
     "count_figure_ngrams",
     "count_encoded_exercise_figure_ngrams",
+    "count_encoded_exercises_figure_n_grams",
     "count_encoded_exercises_figure_ngrams",
     "count_hand_figure_ngrams",
     "extract_hand_onset_runs",
+    "extract_figure_artifacts",
+    "figure_artifact_paths",
     "figure_count_records",
     "note_diatonic_position",
+    "read_figure_profile",
     "scale_size_for_type",
     "write_figure_count_csv",
+    "write_figure_counts_csv",
+    "write_figure_profile",
 ]

@@ -3,6 +3,8 @@ from pathlib import Path
 
 import pytest
 
+from musak_model.data.scale_matcher.config import ScaleMatcherConfig
+from musak_model.processing.dataset import ProcessDatasetResult
 from scripts import process_dataset as process_dataset_script
 
 
@@ -58,3 +60,59 @@ def test_profile_output_dir_uses_explicit_directory(tmp_path: Path) -> None:
     configured = tmp_path / "profile"
 
     assert process_dataset_script._profile_output_dir("parse", configured=configured) == configured
+
+
+def test_extract_process_figure_artifacts_skips_parse_result(tmp_path: Path) -> None:
+    result = ProcessDatasetResult(
+        parsed_manifest_path=tmp_path / "parsed.csv",
+        encoded_manifest_path=None,
+        tokenizer_snapshot_path=None,
+        parsed_count=1,
+        encoded_count=0,
+        error_count=0,
+        scale_matcher_config=ScaleMatcherConfig(
+            support_score_margin=0.08,
+            selection_score_margin=0.03,
+            maximum_unexplained_weight_fraction=0.10,
+            maximum_explanation_pitch_class_count=9,
+        ),
+    )
+
+    assert (
+        process_dataset_script.extract_process_figure_artifacts(
+            result=result,
+            analysis_config_path=tmp_path / "n_grams.yml",
+            output_path=None,
+            skip_figure_analysis=False,
+            show_progress=False,
+        )
+        is None
+    )
+
+
+def test_extract_process_figure_artifacts_respects_skip_flag(tmp_path: Path) -> None:
+    result = ProcessDatasetResult(
+        parsed_manifest_path=tmp_path / "parsed.csv",
+        encoded_manifest_path=tmp_path / "encoded" / "abc" / "encoded.csv",
+        tokenizer_snapshot_path=tmp_path / "encoded" / "abc" / "tokenizer.json",
+        parsed_count=1,
+        encoded_count=1,
+        error_count=0,
+        scale_matcher_config=ScaleMatcherConfig(
+            support_score_margin=0.08,
+            selection_score_margin=0.03,
+            maximum_unexplained_weight_fraction=0.10,
+            maximum_explanation_pitch_class_count=9,
+        ),
+    )
+
+    assert (
+        process_dataset_script.extract_process_figure_artifacts(
+            result=result,
+            analysis_config_path=tmp_path / "n_grams.yml",
+            output_path=None,
+            skip_figure_analysis=True,
+            show_progress=False,
+        )
+        is None
+    )

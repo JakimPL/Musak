@@ -3,7 +3,7 @@ from pathlib import Path
 
 from musak_model.analysis.n_grams import (
     count_encoded_exercise_figure_ngrams,
-    count_encoded_exercises_figure_ngrams,
+    count_encoded_exercises_figure_n_grams,
 )
 from musak_model.data.schema import SegmentMetadata
 from musak_model.tokens.duration import DurationVocabulary
@@ -53,7 +53,7 @@ def test_count_encoded_exercises_figure_ngrams_keeps_scale_types_separate(
         ]
     )
 
-    counts = count_encoded_exercises_figure_ngrams(
+    counts = count_encoded_exercises_figure_n_grams(
         [
             _sample(tokens, scale_type=ScaleType.MAJOR),
             _sample(tokens, scale_type=ScaleType.HARMONIC_MINOR),
@@ -84,7 +84,7 @@ def test_count_encoded_exercises_figure_ngrams_merges_same_scale_counts(
         ]
     )
 
-    counts = count_encoded_exercises_figure_ngrams(
+    counts = count_encoded_exercises_figure_n_grams(
         [
             _sample(tokens, scale_type=ScaleType.MAJOR),
             _sample(tokens, scale_type=ScaleType.MAJOR),
@@ -118,7 +118,7 @@ def test_count_encoded_exercises_figure_ngrams_parallel_matches_serial(
         _sample(tokens, scale_type=ScaleType.HARMONIC_MINOR),
     ]
 
-    serial_counts = count_encoded_exercises_figure_ngrams(
+    serial_counts = count_encoded_exercises_figure_n_grams(
         samples,
         duration_vocabulary=duration_vocabulary,
         token_vocabulary=token_vocabulary,
@@ -127,7 +127,7 @@ def test_count_encoded_exercises_figure_ngrams_parallel_matches_serial(
         workers=1,
         batch_size=1,
     )
-    parallel_counts = count_encoded_exercises_figure_ngrams(
+    parallel_counts = count_encoded_exercises_figure_n_grams(
         samples,
         duration_vocabulary=duration_vocabulary,
         token_vocabulary=token_vocabulary,

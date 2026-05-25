@@ -34,7 +34,7 @@ def test_make_help_documents_examples_and_variables() -> None:
     assert "Musak development commands" in output
     assert "make parse" in output
     assert "make tokenize" in output
-    assert "make analyze-ngrams" in output
+    assert "make analyze-n-grams" in output
     assert "make pretrain" in output
     assert "make finetune" in output
     assert "make mlflow" in output
@@ -48,6 +48,7 @@ def test_make_help_documents_examples_and_variables() -> None:
     assert "PROCESSING_CONFIG" in output
     assert "PROCESS_DIFFICULTY_LABELS" in output
     assert "PROCESS_WHOLE_FILE_SEGMENTS" in output
+    assert "PROCESS_SKIP_FIGURE_ANALYSIS" in output
     assert "ANALYSIS_CONFIG" in output
     assert "ANALYSIS_OUTPUT" in output
     assert "ANALYSIS_ENCODED_DIR" in output
@@ -72,11 +73,15 @@ def test_make_process_uses_data_dir_and_processed_root() -> None:
         "PROCESSING_CONFIG=musak_model/configs/data/processing.yml",
         "PROCESS_DIFFICULTY_LABELS=data/PDMX/difficulty_labels.json",
         "PROCESS_WHOLE_FILE_SEGMENTS=1",
+        "ANALYSIS_CONFIG=musak_model/configs/analysis/n_grams.yml",
+        "ANALYSIS_OUTPUT=analysis/pdmx-figures.csv",
+        "ANALYSIS_NO_PROGRESS=1",
     )
 
     assert "scripts/process_dataset.py" in output
-    assert '--stage "parse"' in output
-    assert '--stage "tokenize"' in output
+    assert '--stage "process"' in output
+    assert '--stage "parse"' not in output
+    assert '--stage "tokenize"' not in output
     assert '--data-dir "data/PDMX"' in output
     assert '--processed-dir "processed"' in output
     assert '--processing-config "musak_model/configs/data/processing.yml"' in output
@@ -86,6 +91,9 @@ def test_make_process_uses_data_dir_and_processed_root() -> None:
     assert '--mlflow-experiment-name "musak-process"' in output
     assert '--mlflow-run-name "process-test"' in output
     assert '--mlflow-tracking-uri "file:///tmp/mlruns"' in output
+    assert '--analysis-config "musak_model/configs/analysis/n_grams.yml"' in output
+    assert '--analysis-output "analysis/pdmx-figures.csv"' in output
+    assert "--no-progress" in output
 
 
 def test_make_process_forwards_overwrite_flag() -> None:
@@ -112,6 +120,12 @@ def test_make_process_can_disable_mlflow() -> None:
     assert "--disable-mlflow" in output
 
 
+def test_make_process_can_skip_figure_analysis() -> None:
+    output = _make_dry_run("process", "DATA_DIR=data/PDMX", "PROCESS_SKIP_FIGURE_ANALYSIS=1")
+
+    assert "--skip-figure-analysis" in output
+
+
 def test_make_process_supports_profile_flag() -> None:
     output = _make_dry_run("process", "DATA_DIR=data/PDMX", "PROFILE=1")
 
@@ -132,9 +146,9 @@ def test_make_parse_and_tokenize_expose_separate_stages() -> None:
     assert '--stage "tokenize"' in tokenize_output
 
 
-def test_make_analyze_ngrams_uses_dataset_and_analysis_variables() -> None:
+def test_make_analyze_n_grams_uses_dataset_and_analysis_variables() -> None:
     output = _make_dry_run(
-        "analyze-ngrams",
+        "analyze-n-grams",
         "DATA_DIR=data/PDMX",
         "PROCESSED_ROOT=processed",
         "ANALYSIS_CONFIG=musak_model/configs/analysis/n_grams.yml",

@@ -4,7 +4,9 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Final
 
+from musak_model.analysis.n_grams import FigureExtractionResult, extract_figure_artifacts
 from musak_model.data.config import (
+    SegmentationConfig,
     SegmentationMode,
     load_difficulty_labels,
     load_segmentation_config,
@@ -15,12 +17,13 @@ from musak_model.paths import (
     DEFAULT_PROCESSED_ROOT,
     DEFAULT_PROCESSING_PROFILE_OUTPUT_DIR,
     DEFAULT_TOKENIZATION_PROFILE_OUTPUT_DIR,
+    N_GRAM_ANALYSIS_CONFIG_PATH,
     PROCESSING_CONFIG_PATH,
     SEGMENTATION_CONFIG_PATH,
     TOKENIZATION_CONFIG_PATH,
 )
 from musak_model.processing.config import ProcessingConfig, processing_config_with_overrides
-from musak_model.processing.dataset import process_dataset
+from musak_model.processing.dataset import ProcessDatasetResult, process_dataset
 from musak_model.processing.profiler import build_processing_profiler
 from musak_model.processing.tracking import ProcessingMlflowConfig, build_processing_tracker
 from musak_model.tokens.config import TokenizationConfig
@@ -72,30 +75,14 @@ def main() -> None:
     tokenization_config = TokenizationConfig.load(args.tokenization_config)
     difficulty_labels = load_difficulty_labels(args.difficulty_labels)
     profile_output_dir = _profile_output_dir(args.stage, configured=args.profile_output_dir)
-    _LOGGER.info("Starting dataset processing")
-    _LOGGER.info("Input directory: %s", args.data_dir)
-    _LOGGER.info("Processed root: %s", args.processed_dir)
-    _LOGGER.info("Resolved artifact directory: %s", args.processed_dir / args.data_dir.name)
-    _LOGGER.info("Stage: %s", args.stage)
-    _LOGGER.info("Processing config: %s", args.processing_config)
-    _LOGGER.info("Parsing workers: %s", processing_config.parsing.workers)
-    _LOGGER.info("Tokenization workers: %s", processing_config.tokenization.workers)
-    _LOGGER.info("Tokenization batch size: %s", processing_config.tokenization.batch_size)
-    _LOGGER.info("Overwrite: %s", args.overwrite)
-    _LOGGER.info("Progress bars: %s", not args.no_progress)
-    _LOGGER.info("Segmentation config: %s", args.segmentation_config)
-    _LOGGER.info("Segmentation mode: %s", segmentation_config.mode.value)
-    _LOGGER.info("Tokenization config: %s", args.tokenization_config)
-    _LOGGER.info(
-        "Remove segments with silent bars: %s",
-        processing_config.tokenization.remove_segments_with_silent_bars,
-    )
-    _LOGGER.info("Profiler enabled: %s", args.profile)
-    if args.profile:
-        _LOGGER.info("Profile output directory: %s", profile_output_dir)
     source_files = _source_files_for_stage(args.data_dir, stage=args.stage)
-    if source_files:
-        _LOGGER.info("MusicXML files found: %s", len(source_files))
+    _log_processing_start(
+        args,
+        segmentation_config=segmentation_config,
+        processing_config=processing_config,
+        profile_output_dir=profile_output_dir,
+        source_files=source_files,
+    )
     profiler = build_processing_profiler(enabled=args.profile, output_dir=profile_output_dir)
     tracker = build_processing_tracker(
         config=ProcessingMlflowConfig(
@@ -127,6 +114,15 @@ def main() -> None:
                 stage=args.stage,
                 overwrite=args.overwrite,
             )
+            figure_result = extract_process_figure_artifacts(
+                result=result,
+                analysis_config_path=args.analysis_config,
+                output_path=args.analysis_output,
+                skip_figure_analysis=args.skip_figure_analysis,
+                show_progress=not args.no_progress,
+            )
+            if figure_result is not None:
+                tracker.log_figure_extraction_result(figure_result)
     except FileNotFoundError as exception:
         _log_processing_file_not_found(exception, data_dir=args.data_dir, processed_dir=args.processed_dir)
         raise SystemExit(_EXIT_FAILURE) from exception
@@ -142,6 +138,70 @@ def main() -> None:
     _LOGGER.info(
         "Counts: parsed=%s encoded=%s errors=%s", result.parsed_count, result.encoded_count, result.error_count
     )
+
+
+def _log_processing_start(
+    args: argparse.Namespace,
+    *,
+    segmentation_config: SegmentationConfig,
+    processing_config: ProcessingConfig,
+    profile_output_dir: Path,
+    source_files: list[Path],
+) -> None:
+    _LOGGER.info("Starting dataset processing")
+    _LOGGER.info("Input directory: %s", args.data_dir)
+    _LOGGER.info("Processed root: %s", args.processed_dir)
+    _LOGGER.info("Resolved artifact directory: %s", args.processed_dir / args.data_dir.name)
+    _LOGGER.info("Stage: %s", args.stage)
+    _LOGGER.info("Processing config: %s", args.processing_config)
+    _LOGGER.info("Parsing workers: %s", processing_config.parsing.workers)
+    _LOGGER.info("Tokenization workers: %s", processing_config.tokenization.workers)
+    _LOGGER.info("Tokenization batch size: %s", processing_config.tokenization.batch_size)
+    _LOGGER.info("Overwrite: %s", args.overwrite)
+    _LOGGER.info("Progress bars: %s", not args.no_progress)
+    _LOGGER.info("Segmentation config: %s", args.segmentation_config)
+    _LOGGER.info("Segmentation mode: %s", segmentation_config.mode.value)
+    _LOGGER.info("Tokenization config: %s", args.tokenization_config)
+    _LOGGER.info("Figure analysis config: %s", args.analysis_config)
+    _LOGGER.info("Figure analysis output: %s", args.analysis_output or "none")
+    _LOGGER.info("Figure analysis enabled: %s", not args.skip_figure_analysis)
+    _LOGGER.info(
+        "Remove segments with silent bars: %s",
+        processing_config.tokenization.remove_segments_with_silent_bars,
+    )
+    _LOGGER.info("Profiler enabled: %s", args.profile)
+    if args.profile:
+        _LOGGER.info("Profile output directory: %s", profile_output_dir)
+    if source_files:
+        _LOGGER.info("MusicXML files found: %s", len(source_files))
+
+
+def extract_process_figure_artifacts(
+    *,
+    result: ProcessDatasetResult,
+    analysis_config_path: Path,
+    output_path: Path | None,
+    skip_figure_analysis: bool,
+    show_progress: bool,
+) -> FigureExtractionResult | None:
+    if skip_figure_analysis or result.encoded_manifest_path is None:
+        return None
+
+    encoded_dir = result.encoded_manifest_path.parent
+    _LOGGER.info("Starting figure n-gram extraction for %s", encoded_dir)
+    figure_result = extract_figure_artifacts(
+        encoded_dir=encoded_dir,
+        analysis_config_path=analysis_config_path,
+        output_path=output_path,
+        show_progress=show_progress,
+    )
+    _LOGGER.info("Figure profile groups: %s", figure_result.profile_group_count)
+    _LOGGER.info("Figure n-gram counts written to %s", figure_result.artifact_paths.counts_path)
+    _LOGGER.info("Figure profile written to %s", figure_result.artifact_paths.profile_path)
+    if figure_result.extra_output_path is not None:
+        _LOGGER.info("Extra figure n-gram counts written to %s", figure_result.extra_output_path)
+
+    return figure_result
 
 
 def _source_files_for_stage(data_dir: Path, *, stage: str) -> list[Path]:
@@ -282,7 +342,10 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "--workers",
         type=int,
         default=None,
-        help="Override processing config: worker processes for MusicXML parsing. Use 1 to disable parse multiprocessing.",
+        help=(
+            "Override processing config: worker processes for MusicXML parsing. "
+            "Use 1 to disable parse multiprocessing."
+        ),
     )
     parser.add_argument(
         "--tokenization-workers",
@@ -304,6 +367,23 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--no-progress", action="store_true", help="Disable tqdm progress bars.")
     parser.add_argument("--overwrite", action="store_true", help="Overwrite existing parsed/encoded artifacts.")
+    parser.add_argument(
+        "--analysis-config",
+        type=Path,
+        default=N_GRAM_ANALYSIS_CONFIG_PATH,
+        help="YAML file containing figure n-gram analysis settings.",
+    )
+    parser.add_argument(
+        "--analysis-output",
+        type=Path,
+        default=None,
+        help="Optional extra figure n-gram CSV output path.",
+    )
+    parser.add_argument(
+        "--skip-figure-analysis",
+        action="store_true",
+        help="Skip figure n-gram/profile extraction after tokenization.",
+    )
     parser.add_argument(
         "--profile",
         action="store_true",

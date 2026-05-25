@@ -12,6 +12,7 @@ PROCESS_WHOLE_FILE_SEGMENTS ?=
 PROCESS_PROFILE ?= $(PROFILE)
 PROCESS_TOKENIZATION_WORKERS ?=
 PROCESS_TOKENIZATION_BATCH_SIZE ?=
+PROCESS_SKIP_FIGURE_ANALYSIS ?=
 ANALYSIS_CONFIG ?=
 ANALYSIS_OUTPUT ?=
 ANALYSIS_ENCODED_DIR ?=
@@ -26,7 +27,7 @@ NOTEBOOK_NAMES := $(subst _,-,$(basename $(notdir $(NOTEBOOK_FILES))))
 NOTEBOOK_TARGETS := $(addprefix notebook-,$(NOTEBOOK_NAMES))
 NOTEBOOK_MODE ?= edit
 
-.PHONY: help install test app parse tokenize process analyze-ngrams train pretrain finetune mlflow FORCE
+.PHONY: help install test app parse tokenize process analyze-n-grams train pretrain finetune mlflow FORCE
 
 PRETRAIN_DATA_DIR ?= $(DATA_DIR)
 PRETRAIN_PROCESSED_DIR ?=
@@ -59,8 +60,8 @@ help:
 	@printf '%s\n' '  make app              Start the Musak FastAPI app with reload enabled.'
 	@printf '%s\n' '  make parse            Parse one MusicXML dataset into parsed artifacts.'
 	@printf '%s\n' '  make tokenize         Encode parsed artifacts into tokenized dataset artifacts.'
-	@printf '%s\n' '  make process          Run parse, then tokenize for one MusicXML dataset.'
-	@printf '%s\n' '  make analyze-ngrams   Extract figure n-gram counts from encoded dataset artifacts.'
+	@printf '%s\n' '  make process          Run parse, tokenize, then figure analysis for one MusicXML dataset.'
+	@printf '%s\n' '  make analyze-n-grams  Extract figure n-gram counts from encoded dataset artifacts.'
 	@printf '%s\n' '  make pretrain         Train the broad token-distribution pretrain model.'
 	@printf '%s\n' '  make finetune         Fine-tune from a pretrain checkpoint with conditioning controls.'
 	@printf '%s\n' '  make train            Run pretrain, then finetune.'
@@ -73,7 +74,7 @@ help:
 	@printf '%s\n' '  make test'
 	@printf '%s\n' '  APP_PORT=8080 make app'
 	@printf '%s\n' '  DATA_DIR=data/PDMX PROCESSED_ROOT=processed NUM_WORKERS=8 make process'
-	@printf '%s\n' '  DATA_DIR=data/PDMX PROCESSED_ROOT=processed make analyze-ngrams'
+	@printf '%s\n' '  DATA_DIR=data/PDMX PROCESSED_ROOT=processed make analyze-n-grams'
 	@printf '%s\n' '  DATA_DIR=data/Exercises PROCESS_WHOLE_FILE_SEGMENTS=1 PROCESS_DIFFICULTY_LABELS=data/Exercises/difficulty_labels.json PROCESS_OVERWRITE=1 make process'
 	@printf '%s\n' '  PRETRAIN_DATA_DIR=data/PDMX PRETRAIN_PROCESSED_DIR=processed/PDMX PRETRAIN_EPOCHS=25 PRETRAIN_DEVICE=cuda make pretrain'
 	@printf '%s\n' '  FINETUNE_DATA_DIR=data/Exercises FINETUNE_PROCESSED_DIR=processed/Exercises FINETUNE_DIFFICULTY_LABELS=data/Exercises/difficulty_labels.json PRETRAIN_CHECKPOINT=checkpoints/pretraining/best.pt FINETUNE_EPOCHS=8 make finetune'
@@ -93,8 +94,9 @@ help:
 	@printf '%s\n' '  PROCESS_WHOLE_FILE_SEGMENTS=1 passes --whole-file-segments to process.'
 	@printf '%s\n' '  PROCESS_TOKENIZATION_WORKERS overrides tokenization worker processes.'
 	@printf '%s\n' '  PROCESS_TOKENIZATION_BATCH_SIZE overrides tokenization source files per worker task.'
+	@printf '%s\n' '  PROCESS_SKIP_FIGURE_ANALYSIS=1 skips figure analysis during process/tokenize.'
 	@printf '%s\n' '  ANALYSIS_CONFIG       Optional figure n-gram analysis YAML override.'
-	@printf '%s\n' '  ANALYSIS_OUTPUT       Optional figure n-gram CSV output path. Default: analysis/<dataset-name>.csv'
+	@printf '%s\n' '  ANALYSIS_OUTPUT       Optional extra figure n-gram CSV output path.'
 	@printf '%s\n' '  ANALYSIS_ENCODED_DIR  Optional encoded run directory override when multiple tokenizer runs exist.'
 	@printf '%s\n' '  ANALYSIS_NO_PROGRESS=1 disables figure n-gram progress bars.'
 	@printf '%s\n' '  PROFILE=1 or PROCESS_PROFILE=1 passes --profile to process.'
@@ -143,18 +145,11 @@ tokenize:
 
 process:
 	$(call require_var,DATA_DIR)
-	$(call process_dataset_command,parse)
-	$(call process_dataset_command,tokenize)
+	$(call process_dataset_command,process)
 
 analyze-n-grams:
 	$(call require_var,DATA_DIR)
-	uv run python scripts/extract_figures.py \
-		--data-dir "$(DATA_DIR)" \
-		--processed-root "$(PROCESSED_ROOT)" \
-		$(call optional_arg,ANALYSIS_CONFIG,--analysis-config) \
-		$(call optional_arg,ANALYSIS_OUTPUT,--output) \
-		$(call optional_arg,ANALYSIS_ENCODED_DIR,--encoded-dir) \
-		$(call optional_flag,ANALYSIS_NO_PROGRESS,--no-progress)
+	$(call analyze_n_grams_command)
 
 train:
 	$(MAKE) pretrain
@@ -231,6 +226,16 @@ define optional_resume_checkpoint
 	$(if $(RESUME),--resume-checkpoint "$($(1))",)
 endef
 
+define analyze_n_grams_command
+	uv run python scripts/extract_figures.py \
+		--data-dir "$(DATA_DIR)" \
+		--processed-root "$(PROCESSED_ROOT)" \
+		$(call optional_arg,ANALYSIS_CONFIG,--analysis-config) \
+		$(call optional_arg,ANALYSIS_OUTPUT,--output) \
+		$(call optional_arg,ANALYSIS_ENCODED_DIR,--encoded-dir) \
+		$(call optional_flag,ANALYSIS_NO_PROGRESS,--no-progress)
+endef
+
 define process_dataset_command
 	uv run python scripts/process_dataset.py \
 		--data-dir "$(DATA_DIR)" \
@@ -242,6 +247,10 @@ define process_dataset_command
 		$(call optional_arg,PROCESS_TOKENIZATION_BATCH_SIZE,--tokenization-batch-size) \
 		$(call optional_arg,PROCESS_DIFFICULTY_LABELS,--difficulty-labels) \
 		$(call optional_flag,PROCESS_WHOLE_FILE_SEGMENTS,--whole-file-segments) \
+		$(call optional_arg,ANALYSIS_CONFIG,--analysis-config) \
+		$(call optional_arg,ANALYSIS_OUTPUT,--analysis-output) \
+		$(call optional_flag,ANALYSIS_NO_PROGRESS,--no-progress) \
+		$(call optional_flag,PROCESS_SKIP_FIGURE_ANALYSIS,--skip-figure-analysis) \
 		$(call optional_flag,PROCESS_PROFILE,--profile) \
 		$(call optional_flag,PROCESS_OVERWRITE,--overwrite) \
 		$(call optional_flag,PROCESS_DISABLE_MLFLOW,--disable-mlflow) \

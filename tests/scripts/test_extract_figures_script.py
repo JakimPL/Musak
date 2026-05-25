@@ -2,6 +2,7 @@ from pathlib import Path
 
 import pytest
 
+from musak_model.analysis.n_grams import copy_analysis_config
 from scripts.extract_figures import (
     dataset_name_for_analysis,
     default_output_path,
@@ -74,7 +75,17 @@ def test_default_output_path_uses_analysis_directory() -> None:
         encoded_dir=Path("processed/PDMX/encoded/abc"),
     )
 
-    assert path == Path("analysis/PDMX.csv").resolve()
+    assert path == Path("processed/PDMX/encoded/abc/figure/all/counts.csv")
+
+
+def test_copy_analysis_config_writes_canonical_config(tmp_path: Path) -> None:
+    source = tmp_path / "n_grams.yml"
+    target = tmp_path / "encoded" / "figure" / "config.yml"
+    source.write_text("min_n: 1\n", encoding="utf-8")
+
+    copy_analysis_config(source, target)
+
+    assert target.read_text(encoding="utf-8") == "min_n: 1\n"
 
 
 def _write_encoded_run(path: Path) -> None:
