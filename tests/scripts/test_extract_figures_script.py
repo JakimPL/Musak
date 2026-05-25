@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from musak_model.analysis.n_grams import copy_analysis_config
+from musak_model.analysis.n_grams.profile.extraction import copy_analysis_config
 from scripts.extract_figures import (
     dataset_name_for_analysis,
     default_output_path,

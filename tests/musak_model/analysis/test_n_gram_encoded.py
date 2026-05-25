@@ -1,10 +1,11 @@
 from fractions import Fraction
 from pathlib import Path
 
-from musak_model.analysis.n_grams import (
-    count_encoded_exercise_figure_ngrams,
+from musak_model.analysis.n_grams.figure.samples.counter import (
     count_encoded_exercises_figure_n_grams,
+    count_encoded_exercises_figure_ngrams_with_samples,
 )
+from musak_model.analysis.n_grams.figure.samples.single import count_encoded_exercise_figure_ngrams
 from musak_model.data.schema import SegmentMetadata
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import Hand, HandToken, NoteToken, ScaleType
@@ -138,6 +139,50 @@ def test_count_encoded_exercises_figure_ngrams_parallel_matches_serial(
     )
 
     assert parallel_counts == serial_counts
+
+
+def test_count_encoded_exercises_figure_ngrams_with_samples_keeps_sample_indices(
+    duration_vocabulary: DurationVocabulary,
+    token_vocabulary: TokenVocabulary,
+) -> None:
+    quarter_id = duration_vocabulary.require_duration_id(Fraction(1, 4))
+    first_tokens = token_vocabulary.encode(
+        [
+            HandToken(hand=Hand.RIGHT),
+            _note(1, duration_id=quarter_id),
+            _note(2, duration_id=quarter_id),
+        ]
+    )
+    second_tokens = token_vocabulary.encode(
+        [
+            HandToken(hand=Hand.LEFT),
+            _note(1, duration_id=quarter_id),
+            _note(3, duration_id=quarter_id),
+        ]
+    )
+
+    counted_figures = count_encoded_exercises_figure_ngrams_with_samples(
+        [
+            _sample(first_tokens, scale_type=ScaleType.MAJOR),
+            _sample(second_tokens, scale_type=ScaleType.HARMONIC_MINOR),
+        ],
+        duration_vocabulary=duration_vocabulary,
+        token_vocabulary=token_vocabulary,
+        min_n=2,
+        max_n=2,
+        workers=1,
+        batch_size=1,
+    )
+
+    assert [sample_counts.sample_index for sample_counts in counted_figures.counts_by_sample] == [0, 1]
+    assert [sample_counts.scale_type for sample_counts in counted_figures.counts_by_sample] == [
+        ScaleType.MAJOR,
+        ScaleType.HARMONIC_MINOR,
+    ]
+    assert sum(counted_figures.counts_by_sample[0].counts_by_hand[Hand.RIGHT][2].values()) == 1
+    assert sum(counted_figures.counts_by_sample[1].counts_by_hand[Hand.LEFT][2].values()) == 1
+    assert sum(counted_figures.counts_by_scale[ScaleType.MAJOR][Hand.RIGHT][2].values()) == 1
+    assert sum(counted_figures.counts_by_scale[ScaleType.HARMONIC_MINOR][Hand.LEFT][2].values()) == 1
 
 
 def _sample(token_ids: list[int], *, scale_type: ScaleType) -> EncodedExercise:

@@ -4,7 +4,8 @@ from types import ModuleType
 
 import pytest
 
-from musak_model.analysis.n_grams.profile import FigureArtifactPaths, FigureExtractionResult
+from musak_model.analysis.n_grams.profile.artifacts import FigureArtifactPaths
+from musak_model.analysis.n_grams.profile.extraction import FigureExtractionResult
 from musak_model.data.scale_matcher.config import ScaleMatcherConfig
 from musak_model.data.schema import SegmentMetadata
 from musak_model.processing.dataset import ProcessDatasetResult
@@ -165,8 +166,9 @@ def test_processing_tracker_logs_figure_artifacts_in_same_run(
     config_path = figure_dir / "config.yml"
     counts_path = all_dir / "counts.csv"
     profile_path = all_dir / "profile.json"
+    by_sample_path = figure_dir / "by_sample.jsonl"
     extra_output_path = tmp_path / "analysis" / "figures.csv"
-    for path in (config_path, counts_path, profile_path, extra_output_path):
+    for path in (config_path, counts_path, profile_path, by_sample_path, extra_output_path):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("", encoding="utf-8")
     figure_result = FigureExtractionResult(
@@ -176,10 +178,11 @@ def test_processing_tracker_logs_figure_artifacts_in_same_run(
             all_dir=all_dir,
             profile_path=profile_path,
             counts_path=counts_path,
-            by_sample_path=figure_dir / "by_sample.jsonl",
+            by_sample_path=by_sample_path,
         ),
         encoded_sample_count=12,
         profile_group_count=4,
+        sample_profile_count=12,
         extra_output_path=extra_output_path,
     )
 
@@ -191,7 +194,9 @@ def test_processing_tracker_logs_figure_artifacts_in_same_run(
     assert fake_mlflow.ended_status == "FINISHED"
     assert metrics["dataset/figure/count/encoded_samples"] == 12.0
     assert metrics["dataset/figure/count/profile_groups"] == 4.0
+    assert metrics["dataset/figure/count/sample_profiles"] == 12.0
     assert (str(config_path), "dataset/figure") in fake_mlflow.artifacts
+    assert (str(by_sample_path), "dataset/figure") in fake_mlflow.artifacts
     assert (str(counts_path), "dataset/figure/all") in fake_mlflow.artifacts
     assert (str(profile_path), "dataset/figure/all") in fake_mlflow.artifacts
     assert (str(extra_output_path), "dataset/figure/extra") in fake_mlflow.artifacts

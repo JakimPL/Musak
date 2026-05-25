@@ -4,7 +4,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Final
 
-from musak_model.analysis.n_grams import FigureExtractionResult, extract_figure_artifacts
+from musak_model.analysis.n_grams.profile.extraction import FigureExtractionResult, extract_figure_artifacts
 from musak_model.data.config import (
     SegmentationConfig,
     SegmentationMode,
@@ -196,8 +196,10 @@ def extract_process_figure_artifacts(
         show_progress=show_progress,
     )
     _LOGGER.info("Figure profile groups: %s", figure_result.profile_group_count)
+    _LOGGER.info("Figure sample profiles: %s", figure_result.sample_profile_count)
     _LOGGER.info("Figure n-gram counts written to %s", figure_result.artifact_paths.counts_path)
     _LOGGER.info("Figure profile written to %s", figure_result.artifact_paths.profile_path)
+    _LOGGER.info("Figure sample profiles written to %s", figure_result.artifact_paths.by_sample_path)
     if figure_result.extra_output_path is not None:
         _LOGGER.info("Extra figure n-gram counts written to %s", figure_result.extra_output_path)
 

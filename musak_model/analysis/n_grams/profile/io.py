@@ -3,8 +3,8 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Final
 
-from musak_model.analysis.n_grams.figure.encoded import FigureNGramCountsByScale
-from musak_model.analysis.n_grams.profile.schema import FigureProfile
+from musak_model.analysis.n_grams.figure.samples.schema import FigureNGramCountsByScale
+from musak_model.analysis.n_grams.profile.schema import FigureProfile, FigureSampleCounts
 from musak_model.processing.io import JSON_INDENT
 
 SCALE_TYPE_COLUMN: Final[str] = "scale_type"
@@ -75,3 +75,25 @@ def write_figure_profile(profile: FigureProfile, path: Path) -> None:
 
 def read_figure_profile(path: Path) -> FigureProfile:
     return FigureProfile.model_validate_json(path.read_text(encoding="utf-8"))
+
+
+def write_figure_sample_counts_jsonl(
+    sample_counts: Sequence[FigureSampleCounts],
+    path: Path,
+) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as file:
+        for sample_count in sample_counts:
+            file.write(sample_count.model_dump_json())
+            file.write("\n")
+
+
+def read_figure_sample_counts_jsonl(path: Path) -> list[FigureSampleCounts]:
+    if not path.exists():
+        return []
+
+    return [
+        FigureSampleCounts.model_validate_json(line)
+        for line in path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]

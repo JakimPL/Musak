@@ -6,7 +6,7 @@ from pathlib import Path
 from types import TracebackType
 from typing import Final, Protocol, Self
 
-from musak_model.analysis.n_grams.profile import FigureExtractionResult
+from musak_model.analysis.n_grams.profile.extraction import FigureExtractionResult
 from musak_model.paths import DEFAULT_MLFLOW_DIR
 from musak_model.processing.dataset import ProcessDatasetResult
 from musak_model.processing.fingerprint import encoded_samples_jsonl_fingerprint, file_sha256
@@ -187,7 +187,9 @@ class ProcessingTracker:
     def log_figure_extraction_result(self, result: FigureExtractionResult) -> None:
         self._mlflow.log_metric("dataset/figure/count/encoded_samples", float(result.encoded_sample_count))
         self._mlflow.log_metric("dataset/figure/count/profile_groups", float(result.profile_group_count))
+        self._mlflow.log_metric("dataset/figure/count/sample_profiles", float(result.sample_profile_count))
         _log_artifact_if_exists(self._mlflow, result.artifact_paths.config_path, artifact_path="dataset/figure")
+        _log_artifact_if_exists(self._mlflow, result.artifact_paths.by_sample_path, artifact_path="dataset/figure")
         _log_artifact_if_exists(self._mlflow, result.artifact_paths.counts_path, artifact_path="dataset/figure/all")
         _log_artifact_if_exists(self._mlflow, result.artifact_paths.profile_path, artifact_path="dataset/figure/all")
         _log_artifact_if_exists(self._mlflow, result.extra_output_path, artifact_path="dataset/figure/extra")

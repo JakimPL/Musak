@@ -2,12 +2,8 @@ from fractions import Fraction
 
 import pytest
 
-from musak_model.analysis.n_grams import (
-    HandOnsetRun,
-    PitchedOnset,
-    count_figure_ngrams,
-    count_hand_figure_ngrams,
-)
+from musak_model.analysis.n_grams.figure.counter import count_figure_ngrams, count_hand_figure_ngrams
+from musak_model.analysis.n_grams.figure.parser import HandOnsetRun, PitchedOnset
 from musak_model.tokens.schema import Hand, NoteToken
 
 

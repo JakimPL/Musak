@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from enum import StrEnum
 from fractions import Fraction
 from typing import Final

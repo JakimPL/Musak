@@ -4,11 +4,9 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Final
 
-from musak_model.analysis.n_grams import (
-    NGramAnalysisConfig,
-    extract_figure_artifacts,
-    figure_artifact_paths,
-)
+from musak_model.analysis.n_grams.config import NGramAnalysisConfig
+from musak_model.analysis.n_grams.profile.artifacts import figure_artifact_paths
+from musak_model.analysis.n_grams.profile.extraction import extract_figure_artifacts
 from musak_model.paths import DEFAULT_PROCESSED_ROOT, N_GRAM_ANALYSIS_CONFIG_PATH
 from musak_model.processing.paths import ENCODED_JSONL_NAME, TOKENIZER_SNAPSHOT_NAME
 
@@ -64,8 +62,10 @@ def main() -> None:
     )
     _LOGGER.info("Encoded samples loaded: %s", result.encoded_sample_count)
     _LOGGER.info("Figure profile groups: %s", result.profile_group_count)
+    _LOGGER.info("Figure sample profiles: %s", result.sample_profile_count)
     _LOGGER.info("Figure n-gram counts written to %s", output_path)
     _LOGGER.info("Figure profile written to %s", artifact_paths.profile_path)
+    _LOGGER.info("Figure sample profiles written to %s", artifact_paths.by_sample_path)
     if args.output is not None:
         _LOGGER.info("Extra figure n-gram counts written to %s", args.output)
 
