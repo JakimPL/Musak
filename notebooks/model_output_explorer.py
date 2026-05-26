@@ -17,7 +17,7 @@ def _():
     from musak_model.conditioning.structural.schema import StructuralControlFeatures
     from musak_model.decoder.notation import segment_to_score_data
     from musak_model.generation.constraints import GenerationConstraints
-    from musak_model.paths import DEFAULT_CHECKPOINT_DIR, TOKENIZATION_CONFIG_PATH
+    from musak_model.paths import DEFAULT_CHECKPOINT_DIR, DEFAULT_TRAINING_FIGURE_DIR, TOKENIZATION_CONFIG_PATH
     from musak_model.tokens.schema import ScaleType
     from musak_shared.notation.html import score_data_html
     from notebooks.utils import (
@@ -47,6 +47,7 @@ def _():
     alt.data_transformers.disable_max_rows()
     return (
         DEFAULT_CHECKPOINT_DIR,
+        DEFAULT_TRAINING_FIGURE_DIR,
         Fraction,
         GeneratedOutput,
         GenerationRequest,
@@ -90,6 +91,7 @@ def _(mo):
 @app.cell
 def _(
     DEFAULT_CHECKPOINT_DIR,
+    DEFAULT_TRAINING_FIGURE_DIR,
     TOKENIZATION_CONFIG_PATH,
     mo,
 ):
@@ -108,7 +110,7 @@ def _(
         label="Tokenization config",
     )
     figure_counts_browser = mo.ui.file_browser(
-        initial_path=".",
+        initial_path=DEFAULT_TRAINING_FIGURE_DIR if DEFAULT_TRAINING_FIGURE_DIR.exists() else ".",
         filetypes=[".csv"],
         selection_mode="file",
         multiple=False,
