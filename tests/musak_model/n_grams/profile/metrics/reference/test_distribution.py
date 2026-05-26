@@ -3,15 +3,15 @@ from fractions import Fraction
 
 import pytest
 
-from musak_model.n_grams.figure.schema import FigureDegree, FigureNGram
+from musak_model.n_grams.figure.schema import FigureNGram
 from musak_model.n_grams.profile.metrics.reference.distribution import figure_reference_distribution_metrics
 from musak_model.tokens.schema import Hand, ScaleType
 
 
 def test_figure_reference_distribution_metrics_compare_common_rare_novel_and_shape_distributions() -> None:
-    common_figure = _figure((((0, 0),), Fraction(1)), (((1, 0),), Fraction(1)))
-    rare_figure = _figure((((0, 0),), Fraction(1)), (((2, 0),), Fraction(2)))
-    novel_figure = _figure((((0, 0), (2, 0)), Fraction(1)), (((-1, 0),), Fraction(1)))
+    common_figure = FigureNGram(onsets=((((0, 0),), Fraction(1)), (((1, 0),), Fraction(1))))
+    rare_figure = FigureNGram(onsets=((((0, 0),), Fraction(1)), (((2, 0),), Fraction(2))))
+    novel_figure = FigureNGram(onsets=((((0, 0), (2, 0)), Fraction(1)), (((-1, 0),), Fraction(1))))
     reference_counts = {
         ScaleType.MAJOR: {
             Hand.RIGHT: {
@@ -57,7 +57,3 @@ def test_figure_reference_distribution_metrics_handles_empty_reference_counts() 
     )
 
     assert metrics == {"generation/figure/count/distribution_groups": 0.0}
-
-
-def _figure(*onsets: tuple[tuple[FigureDegree, ...], Fraction]) -> FigureNGram:
-    return FigureNGram(onsets=onsets)

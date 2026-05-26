@@ -44,7 +44,6 @@ musak_model/evaluation/generation/
   reference_free.py
   figure_metrics.py
   rhythm_metrics.py
-  notebook_rows.py
 ```
 
 Responsibilities:
@@ -55,7 +54,8 @@ Responsibilities:
 - `reference_free.py`: curated reference-free generation summaries shared by training and notebook code.
 - `figure_metrics.py`: reference-distribution figure comparisons from existing figure count/profile artifacts.
 - `rhythm_metrics.py`: rhythm, duration, grid-alignment, and strong-beat distribution extraction/comparison.
-- `notebook_rows.py`: small formatting adapters that turn shared metric records into notebook table rows.
+
+Notebook-specific formatting adapters belong under `notebooks/utils`; `musak_model` should remain notebook-agnostic.
 
 The package `__init__.py` should re-export the current public evaluator symbols so existing imports from
 `musak_model.evaluation.generation` remain valid.
@@ -109,7 +109,7 @@ metric code.
 
 Below output, show two tables:
 
-- `Reference-Free Metrics`: a compact curated set from shared reference-free generation summaries, not the current raw
+- `Generated Music Summary`: a compact curated set from shared reference-free generation summaries, not the current raw
   diagnostics list.
 - `Dataset-Relative N-Gram Metrics`: n-gram and distribution comparison metrics. When only `figure/all/counts.csv` is
   available, show figure-only rows and omit richer rhythm/reference rows.
@@ -136,5 +136,5 @@ Each phase must update `docs/generation-evaluation-metrics-progress.md` before s
   distribution comparisons.
 - Add focused tests for rhythmic n-gram, duration entropy, grid alignment, and strong-beat onset extraction from
   tokenized segments.
-- Add notebook row-helper tests proving the notebook uses shared generation evaluation code.
+- Add notebook utility tests proving the notebook uses shared generation evaluation records.
 - Run existing generation, figure-profile, notebook model-output, and n-gram tests after each behavioral phase.

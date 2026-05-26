@@ -4,6 +4,10 @@ from musak_model.evaluation.generation.protocols import (
     GenerationEvaluationOptions,
     GenerationModel,
 )
+from musak_model.evaluation.generation.reference_free import (
+    ReferenceFreeGenerationMetric,
+    reference_free_generation_metrics,
+)
 from musak_model.evaluation.generation.schema import ConstraintReport, GenerationSample
 
 __all__ = [
@@ -13,4 +17,6 @@ __all__ = [
     "GenerationModel",
     "GenerationSample",
     "GenerationSuiteEvaluator",
+    "ReferenceFreeGenerationMetric",
+    "reference_free_generation_metrics",
 ]

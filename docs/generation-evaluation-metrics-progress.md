@@ -10,14 +10,14 @@ any phase, re-read `docs/guidelines.md` and keep the phase scoped to the roadmap
 | 1. Docs and baseline inventory | complete | Plan and tracker saved in docs. |
 | 2. Refactor generation evaluation package | complete | Existing behavior preserved; generation package split by concern. |
 | 3. Extend shared n-gram analysis config | complete | `analysis/n_grams.yml` and `NGramAnalysisConfig` own reference comparison parameters. |
-| 4. Add shared reference-distribution figure metrics | ready_for_review | Common/rare/novel, property, contour, and duration-shape metrics implemented. |
-| 5. Add reference-free notebook metrics | planned | Notebook uses shared reference-free generation rows instead of raw diagnostics. |
+| 4. Add shared reference-distribution figure metrics | accepted | Common/rare/novel, property, contour, and duration-shape metrics implemented. |
+| 5. Add reference-free notebook metrics | ready_for_review | Notebook uses shared reference-free generation rows instead of raw diagnostics. |
 | 6. Add rhythm/grid/strong-beat reference metrics | planned | New reference distribution artifacts and comparison metrics implemented. |
 | 7. Wire training and notebook integration | planned | Training generation evaluation and notebook use the same shared metric code. |
 
 ## Current Gate
 
-Phase 4 is `ready_for_review`. Do not start Phase 5 until Phase 4 is accepted.
+Phase 5 is `ready_for_review`. Do not start Phase 6 until Phase 5 is accepted.
 
 ## Phase 1 Log
 
@@ -137,7 +137,7 @@ complete
 
 ### Status
 
-ready_for_review
+accepted
 
 ### Changed Files
 
@@ -160,6 +160,7 @@ ready_for_review
 - `uv run python -m py_compile musak_model/n_grams/profile/metrics/__init__.py musak_model/n_grams/profile/metrics/distribution.py musak_model/n_grams/profile/metrics/profile_comparison.py musak_model/n_grams/profile/metrics/reference_distribution.py musak_model/n_grams/profile/metrics/stats.py musak_model/evaluation/generation/figure_metrics.py musak_model/training/stages/figure_profiles.py tests/musak_model/n_grams/profile/metrics/test_reference_distribution.py`
 - searched code, tests, and planning docs for legacy version labels
 - `git diff --check`
+- `uv run pytest tests/musak_model/n_grams/profile/metrics/reference/test_distribution.py tests/musak_model/n_grams/profile/test_builder.py tests/musak_model/n_grams/profile/test_io.py tests/musak_model/evaluation/test_generation.py tests/musak_model/training/stages/test_figure_profiles.py`
 
 ### Review Notes
 
@@ -174,5 +175,45 @@ ready_for_review
 
 ## Next Step
 
-Phase 5: add shared reference-free notebook metrics so the notebook can show curated generation rows instead of raw
-diagnostics.
+Phase 6: add rhythm/grid/strong-beat reference distribution artifacts and metrics after Phase 5 is accepted.
+
+## Phase 5 Log
+
+### Status
+
+ready_for_review
+
+### Changed Files
+
+- `docs/generation-evaluation-metrics-progress.md`
+- `musak_model/evaluation/generation/__init__.py`
+- `musak_model/evaluation/generation/reference_free.py`
+- `notebooks/model_output_explorer.py`
+- `notebooks/utils/__init__.py`
+- `notebooks/utils/model_output.py`
+- `tests/musak_model/evaluation/generation/test_reference_free.py`
+- `tests/notebooks/utils/test_model_output.py`
+
+### Tests Run
+
+- `uv run pytest tests/musak_model/evaluation/generation/test_reference_free.py tests/notebooks/utils/test_model_output.py tests/notebooks/test_model_output_explorer.py tests/musak_model/evaluation/test_generation.py`
+- `uv run pytest tests/notebooks/utils/test_model_output.py tests/notebooks/test_model_output_explorer.py`
+- `uv run mypy musak_model/evaluation/generation notebooks/utils/model_output.py tests/musak_model/evaluation/generation/test_reference_free.py tests/notebooks/utils/test_model_output.py`
+- `uv run mypy notebooks/utils/model_output.py tests/notebooks/utils/test_model_output.py`
+- `uv run python -m py_compile musak_model/evaluation/generation/reference_free.py musak_model/evaluation/generation/__init__.py notebooks/utils/model_output.py notebooks/utils/__init__.py notebooks/model_output_explorer.py tests/musak_model/evaluation/generation/test_reference_free.py tests/notebooks/utils/test_model_output.py`
+- `uv run python -m py_compile notebooks/model_output_explorer.py notebooks/utils/model_output.py notebooks/utils/__init__.py tests/notebooks/utils/test_model_output.py`
+- `git diff --check`
+
+### Review Notes
+
+- Added shared curated reference-free generation metrics from `SegmentDiagnostics`.
+- Kept notebook row formatting in `notebooks/utils/model_output.py` so `musak_model` remains notebook-agnostic.
+- Updated the model output explorer to show a top-level `Generated Music Summary` table and move detailed raw musical
+  diagnostics into the lower-level diagnostics accordion.
+- Kept dataset-statistics diagnostic rows unchanged; the new helper is specific to generated model output.
+- Removed the generated figure metrics panel, its figure-count CSV browser, and notebook-only figure metric helper code
+  because it was slow and not useful in the model output notebook.
+- Added a lightweight generated-output-only `Figure Patterns` table below `Generated Music Summary`.
+- Added an opt-in reference alignment table for exact figure distribution, contour, duration-shape, property distance,
+  common figure mass, rare figure mass, and novel figure mass when a reference figure-count CSV is selected.
+- Added generated rhythm-grid rows for onset grid fit, duration grid fit, and strong-beat onset share.
