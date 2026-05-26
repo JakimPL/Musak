@@ -4,9 +4,9 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Final
 
-from musak_model.analysis.n_grams.config import NGramAnalysisConfig
-from musak_model.analysis.n_grams.profile.artifacts import figure_artifact_paths
-from musak_model.analysis.n_grams.profile.extraction import extract_figure_artifacts
+from musak_model.n_grams.config import NGramAnalysisConfig
+from musak_model.n_grams.profile.artifacts import figure_artifact_paths
+from musak_model.n_grams.profile.extraction import extract_figure_artifacts
 from musak_model.paths import DEFAULT_PROCESSED_ROOT, N_GRAM_ANALYSIS_CONFIG_PATH
 from musak_model.processing.paths import ENCODED_JSONL_NAME, TOKENIZER_SNAPSHOT_NAME
 

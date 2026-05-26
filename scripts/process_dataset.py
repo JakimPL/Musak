@@ -4,13 +4,13 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Final
 
-from musak_model.analysis.n_grams.profile.extraction import FigureExtractionResult, extract_figure_artifacts
 from musak_model.data.config import (
     SegmentationConfig,
     SegmentationMode,
     load_difficulty_labels,
     load_segmentation_config,
 )
+from musak_model.n_grams.profile.extraction import FigureExtractionResult, extract_figure_artifacts
 from musak_model.paths import (
     DEFAULT_COMBINED_PROCESSING_PROFILE_OUTPUT_DIR,
     DEFAULT_PARSING_PROFILE_OUTPUT_DIR,

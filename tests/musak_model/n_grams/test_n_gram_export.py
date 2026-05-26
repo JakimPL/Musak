@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from musak_model.analysis.n_grams.figure.schema import FigureNGram
-from musak_model.analysis.n_grams.profile.io import (
+from musak_model.n_grams.figure.schema import FigureNGram
+from musak_model.n_grams.profile.io import (
     COUNT_CSV_COLUMNS,
     figure_count_records,
     write_figure_count_csv,

@@ -4,10 +4,10 @@ from types import ModuleType
 
 import pytest
 
-from musak_model.analysis.n_grams.profile.artifacts import FigureArtifactPaths
-from musak_model.analysis.n_grams.profile.extraction import FigureExtractionResult
 from musak_model.data.scale_matcher.config import ScaleMatcherConfig
 from musak_model.data.schema import SegmentMetadata
+from musak_model.n_grams.profile.artifacts import FigureArtifactPaths
+from musak_model.n_grams.profile.extraction import FigureExtractionResult
 from musak_model.processing.dataset import ProcessDatasetResult
 from musak_model.processing.io import append_jsonl
 from musak_model.processing.manifest import (

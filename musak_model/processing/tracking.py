@@ -8,8 +8,8 @@ from time import perf_counter
 from types import TracebackType
 from typing import Final, Protocol, Self
 
-from musak_model.analysis.n_grams.profile.extraction import FigureExtractionResult
 from musak_model.mlflow import local_mlflow_tracking_uri
+from musak_model.n_grams.profile.extraction import FigureExtractionResult
 from musak_model.paths import DEFAULT_MLFLOW_DB_PATH
 from musak_model.processing.dataset import ProcessDatasetResult
 from musak_model.processing.fingerprint import encoded_samples_jsonl_fingerprint, file_sha256

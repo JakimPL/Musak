@@ -1,14 +1,14 @@
 from dataclasses import dataclass
 from pathlib import Path
 
-from musak_model.analysis.n_grams.figure.samples.schema import FigureNGramCountsByScale
-from musak_model.analysis.n_grams.profile.artifacts import FigureArtifactPaths, figure_artifact_paths
-from musak_model.analysis.n_grams.profile.io import (
+from musak_model.n_grams.figure.samples.schema import FigureNGramCountsByScale
+from musak_model.n_grams.profile.artifacts import FigureArtifactPaths, figure_artifact_paths
+from musak_model.n_grams.profile.io import (
     read_figure_counts_csv,
     read_figure_profile,
     read_figure_sample_counts_jsonl,
 )
-from musak_model.analysis.n_grams.profile.schema import FigureProfile, FigureSampleCounts
+from musak_model.n_grams.profile.schema import FigureProfile, FigureSampleCounts
 from musak_model.processing.paths import ProcessedDatasetPaths
 from musak_model.processing.snapshot import build_tokenizer_snapshot
 from musak_model.tokens.config import TokenizationConfig

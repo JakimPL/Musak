@@ -1,8 +1,8 @@
 from collections import Counter
 from copy import deepcopy
 
-from musak_model.analysis.n_grams.figure.counter import FigureNGramCountsByHand
-from musak_model.analysis.n_grams.figure.samples.schema import FigureNGramCountsByScale
+from musak_model.n_grams.figure.counter import FigureNGramCountsByHand
+from musak_model.n_grams.figure.samples.schema import FigureNGramCountsByScale
 from musak_model.tokens.schema import Hand, ScaleType
 
 

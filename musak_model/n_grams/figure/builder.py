@@ -1,10 +1,10 @@
 from collections.abc import Sequence
 from fractions import Fraction
 
-from musak_model.analysis.n_grams.figure.parser import HandOnsetRun, PitchedOnset
-from musak_model.analysis.n_grams.figure.pitch import note_diatonic_position
-from musak_model.analysis.n_grams.figure.schema import FigureDegree, FigureNGram, FigureOnset
-from musak_model.analysis.n_grams.figure.signature import (
+from musak_model.n_grams.figure.parser import HandOnsetRun, PitchedOnset
+from musak_model.n_grams.figure.pitch import note_diatonic_position
+from musak_model.n_grams.figure.schema import FigureDegree, FigureNGram, FigureOnset
+from musak_model.n_grams.figure.signature import (
     figure_signature_to_ngram,
     iter_figure_signatures_from_run,
 )

@@ -1,12 +1,12 @@
 from fractions import Fraction
 from pathlib import Path
 
-from musak_model.analysis.n_grams.figure.samples.counter import (
+from musak_model.data.schema import SegmentMetadata
+from musak_model.n_grams.figure.samples.counter import (
     count_encoded_exercises_figure_n_grams,
     count_encoded_exercises_figure_ngrams_with_samples,
 )
-from musak_model.analysis.n_grams.figure.samples.single import count_encoded_exercise_figure_ngrams
-from musak_model.data.schema import SegmentMetadata
+from musak_model.n_grams.figure.samples.single import count_encoded_exercise_figure_ngrams
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import Hand, HandToken, NoteToken, ScaleType
 from musak_model.tokens.vocabulary import TokenVocabulary

@@ -4,9 +4,9 @@ from dataclasses import dataclass
 from fractions import Fraction
 from typing import Final
 
-from musak_model.analysis.n_grams.figure.parser import HandOnsetRun
-from musak_model.analysis.n_grams.figure.pitch import note_diatonic_position
-from musak_model.analysis.n_grams.figure.schema import FigureDegree, FigureNGram
+from musak_model.n_grams.figure.parser import HandOnsetRun
+from musak_model.n_grams.figure.pitch import note_diatonic_position
+from musak_model.n_grams.figure.schema import FigureDegree, FigureNGram
 
 type FigureDurationSignature = tuple[int, int]
 type FigureOnsetSignature = tuple[tuple[FigureDegree, ...], FigureDurationSignature]

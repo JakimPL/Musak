@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from musak_model.analysis.n_grams.figure.counter import FigureNGramCountsByHand
+from musak_model.n_grams.figure.counter import FigureNGramCountsByHand
 from musak_model.tokens.schema import ScaleType
 
 type FigureNGramCountsByScale = dict[ScaleType, FigureNGramCountsByHand]

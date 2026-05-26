@@ -3,15 +3,15 @@ from fractions import Fraction
 import pytest
 from pydantic import ValidationError
 
-from musak_model.analysis.n_grams.figure.builder import (
+from musak_model.n_grams.figure.builder import (
     build_figure_ngram,
     build_figure_ngrams_from_run,
     build_figure_ngrams_from_runs,
     scale_size_for_type,
 )
-from musak_model.analysis.n_grams.figure.parser import HandOnsetRun, PitchedOnset
-from musak_model.analysis.n_grams.figure.pitch import note_diatonic_position
-from musak_model.analysis.n_grams.figure.schema import FigureNGram
+from musak_model.n_grams.figure.parser import HandOnsetRun, PitchedOnset
+from musak_model.n_grams.figure.pitch import note_diatonic_position
+from musak_model.n_grams.figure.schema import FigureNGram
 from musak_model.tokens.schema import Hand, NoteToken, ScaleType
 
 

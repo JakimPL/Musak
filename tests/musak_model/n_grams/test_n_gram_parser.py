@@ -2,7 +2,7 @@ from fractions import Fraction
 
 import pytest
 
-from musak_model.analysis.n_grams.figure.parser import extract_hand_onset_runs
+from musak_model.n_grams.figure.parser import extract_hand_onset_runs
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import (
     BarToken,

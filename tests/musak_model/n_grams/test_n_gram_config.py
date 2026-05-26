@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from musak_model.analysis.n_grams.config import NGramAnalysisConfig
+from musak_model.n_grams.config import NGramAnalysisConfig
 
 
 def test_n_gram_analysis_config_loads_yaml(tmp_path: Path) -> None:

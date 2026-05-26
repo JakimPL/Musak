@@ -9,9 +9,9 @@ from pathlib import Path
 from time import perf_counter
 from typing import Final, Protocol
 
-from musak_model.analysis.n_grams.config import NGramAnalysisConfig
-from musak_model.analysis.n_grams.profile.artifacts import FIGURE_ALL_DIR_NAME, FigureArtifactPaths
-from musak_model.analysis.n_grams.profile.io import (
+from musak_model.n_grams.config import NGramAnalysisConfig
+from musak_model.n_grams.profile.artifacts import FIGURE_ALL_DIR_NAME, FigureArtifactPaths
+from musak_model.n_grams.profile.io import (
     COUNT_COLUMN,
     FIGURE_COLUMN,
     HAND_COLUMN,
@@ -19,18 +19,18 @@ from musak_model.analysis.n_grams.profile.io import (
     SCALE_TYPE_COLUMN,
     read_figure_profile,
 )
-from musak_model.analysis.n_grams.profile.loading import (
+from musak_model.n_grams.profile.loading import (
     FigureProfileArtifacts,
     load_processed_figure_profile_artifacts,
 )
-from musak_model.analysis.n_grams.profile.metrics import figure_profile_comparison_metrics
-from musak_model.analysis.n_grams.profile.schema import FigureProfile
-from musak_model.analysis.n_grams.profile.streaming import (
+from musak_model.n_grams.profile.metrics import figure_profile_comparison_metrics
+from musak_model.n_grams.profile.schema import FigureProfile
+from musak_model.n_grams.profile.streaming.executor import process_missing_sample_batches
+from musak_model.n_grams.profile.streaming.export import export_figure_artifacts
+from musak_model.n_grams.profile.streaming.store import (
     FigureWorkStore,
     complete_figure_artifacts_exist,
-    export_figure_artifacts,
     figure_work_store_path,
-    process_missing_sample_batches,
 )
 from musak_model.paths import DEFAULT_TRAINING_FIGURE_DIR, N_GRAM_ANALYSIS_CONFIG_PATH
 from musak_model.processing.snapshot import build_tokenizer_snapshot

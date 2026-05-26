@@ -9,13 +9,6 @@ from typing import Callable, Literal, Protocol, cast
 import torch
 from torch import Tensor
 
-from musak_model.analysis.n_grams.figure.builder import scale_size_for_type
-from musak_model.analysis.n_grams.figure.counter import count_hand_figure_ngrams
-from musak_model.analysis.n_grams.figure.parser import extract_hand_onset_runs
-from musak_model.analysis.n_grams.figure.samples.merge import merge_scale_counts
-from musak_model.analysis.n_grams.figure.samples.schema import FigureNGramCountsByScale
-from musak_model.analysis.n_grams.figure.schema import FigureNGram
-from musak_model.analysis.n_grams.profile.io import read_figure_counts_csv
 from musak_model.conditioning.structural.schema import StructuralControlFeatures
 from musak_model.conditioning.structural.vocabulary import StructuralControlVocabulary
 from musak_model.conditioning.time_signature import TimeSignatureVocabulary
@@ -30,6 +23,13 @@ from musak_model.generation.constraints import (
 )
 from musak_model.model import HierarchicalAutoregressiveModel
 from musak_model.model.config import ModelConfig
+from musak_model.n_grams.figure.builder import scale_size_for_type
+from musak_model.n_grams.figure.counter import count_hand_figure_ngrams
+from musak_model.n_grams.figure.parser import extract_hand_onset_runs
+from musak_model.n_grams.figure.samples.merge import merge_scale_counts
+from musak_model.n_grams.figure.samples.schema import FigureNGramCountsByScale
+from musak_model.n_grams.figure.schema import FigureNGram
+from musak_model.n_grams.profile.io import read_figure_counts_csv
 from musak_model.paths import MODEL_CONFIG_DIR
 from musak_model.tokens.config import TokenizationConfig
 from musak_model.tokens.duration import DurationVocabulary

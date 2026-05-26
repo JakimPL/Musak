@@ -2,12 +2,12 @@ from collections.abc import Sequence
 from concurrent.futures import Future, ProcessPoolExecutor, as_completed
 from dataclasses import dataclass
 
-from musak_model.analysis.n_grams.figure.samples.merge import merge_scale_counts
-from musak_model.analysis.n_grams.figure.samples.schema import (
+from musak_model.n_grams.figure.samples.merge import merge_scale_counts
+from musak_model.n_grams.figure.samples.schema import (
     EncodedExerciseFigureNGramCounts,
     FigureNGramCountsByScale,
 )
-from musak_model.analysis.n_grams.figure.samples.single import count_encoded_exercise_figure_ngrams
+from musak_model.n_grams.figure.samples.single import count_encoded_exercise_figure_ngrams
 from musak_model.processing.progress import progress
 from musak_model.processing.workers import process_pool_context
 from musak_model.tokens.duration import DurationVocabulary

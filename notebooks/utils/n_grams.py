@@ -6,8 +6,8 @@ from typing import Final
 
 import pandas as pd
 
-from musak_model.analysis.n_grams.figure.schema import FigureNGram
-from musak_model.analysis.n_grams.profile.io import (
+from musak_model.n_grams.figure.schema import FigureNGram
+from musak_model.n_grams.profile.io import (
     COUNT_COLUMN,
     FIGURE_COLUMN,
     HAND_COLUMN,

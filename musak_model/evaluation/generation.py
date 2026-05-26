@@ -12,18 +12,6 @@ from typing import Protocol
 import torch
 from torch import Tensor
 
-from musak_model.analysis.n_grams.figure.builder import scale_size_for_type
-from musak_model.analysis.n_grams.figure.counter import count_hand_figure_ngrams
-from musak_model.analysis.n_grams.figure.parser import extract_hand_onset_runs
-from musak_model.analysis.n_grams.figure.samples.merge import merge_scale_counts
-from musak_model.analysis.n_grams.figure.samples.schema import FigureNGramCountsByScale
-from musak_model.analysis.n_grams.profile.builder import build_figure_profile
-from musak_model.analysis.n_grams.profile.loading import FigureProfileArtifacts
-from musak_model.analysis.n_grams.profile.metrics import (
-    figure_distribution_metrics,
-    figure_profile_comparison_metrics,
-)
-from musak_model.analysis.n_grams.profile.schema import FigureProfile, FigureProfileMetadata
 from musak_model.conditioning.structural.schema import StructuralControlFeatures
 from musak_model.conditioning.structural.vocabulary import StructuralControlVocabulary
 from musak_model.conditioning.time_signature import TimeSignatureVocabulary
@@ -37,6 +25,18 @@ from musak_model.generation.constraints import (
     state_from_tokens,
 )
 from musak_model.model.config import ModelConfig
+from musak_model.n_grams.figure.builder import scale_size_for_type
+from musak_model.n_grams.figure.counter import count_hand_figure_ngrams
+from musak_model.n_grams.figure.parser import extract_hand_onset_runs
+from musak_model.n_grams.figure.samples.merge import merge_scale_counts
+from musak_model.n_grams.figure.samples.schema import FigureNGramCountsByScale
+from musak_model.n_grams.profile.builder import build_figure_profile
+from musak_model.n_grams.profile.loading import FigureProfileArtifacts
+from musak_model.n_grams.profile.metrics import (
+    figure_distribution_metrics,
+    figure_profile_comparison_metrics,
+)
+from musak_model.n_grams.profile.schema import FigureProfile, FigureProfileMetadata
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import BarToken, EndToken, ScaleType, Token
 from musak_model.tokens.vocabulary import TokenVocabulary

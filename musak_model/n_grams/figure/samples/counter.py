@@ -1,8 +1,8 @@
 from collections.abc import Sequence
 
-from musak_model.analysis.n_grams.figure.samples.batches import figure_batch_tasks, run_figure_batch_tasks
-from musak_model.analysis.n_grams.figure.samples.merge import merge_batch_counts
-from musak_model.analysis.n_grams.figure.samples.schema import (
+from musak_model.n_grams.figure.samples.batches import figure_batch_tasks, run_figure_batch_tasks
+from musak_model.n_grams.figure.samples.merge import merge_batch_counts
+from musak_model.n_grams.figure.samples.schema import (
     EncodedExerciseFigureNGramCounts,
     EncodedFigureNGramCounts,
     FigureNGramCountsByScale,

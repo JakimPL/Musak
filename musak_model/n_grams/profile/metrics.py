@@ -1,9 +1,9 @@
 from collections import Counter
 from typing import Literal
 
-from musak_model.analysis.n_grams.figure.samples.schema import FigureNGramCountsByScale
-from musak_model.analysis.n_grams.figure.schema import FigureNGram
-from musak_model.analysis.n_grams.profile.schema import FigureProfile, FigureProfileGroup
+from musak_model.n_grams.figure.samples.schema import FigureNGramCountsByScale
+from musak_model.n_grams.figure.schema import FigureNGram
+from musak_model.n_grams.profile.schema import FigureProfile, FigureProfileGroup
 from musak_model.tokens.schema import Hand, ScaleType
 
 _PropertyName = Literal["monophonic", "chords_only", "in_scale"]

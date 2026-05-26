@@ -6,15 +6,15 @@ import pytest
 import torch
 from torch import Tensor
 
-from musak_model.analysis.n_grams.figure.schema import FigureNGram
-from musak_model.analysis.n_grams.profile.artifacts import figure_artifact_paths
-from musak_model.analysis.n_grams.profile.builder import build_figure_profile, build_figure_sample_counts
-from musak_model.analysis.n_grams.profile.loading import FigureProfileArtifacts
-from musak_model.analysis.n_grams.profile.schema import FigureProfileMetadata
 from musak_model.conditioning.config import ConditioningConfig, DifficultyConfig
 from musak_model.conditioning.time_signature import TimeSignatureVocabularyConfig
 from musak_model.evaluation.generation import GenerationSuiteEvaluator
 from musak_model.model.config import CNNConfig, GRUConfig, ModelConfig, TransformerConfig
+from musak_model.n_grams.figure.schema import FigureNGram
+from musak_model.n_grams.profile.artifacts import figure_artifact_paths
+from musak_model.n_grams.profile.builder import build_figure_profile, build_figure_sample_counts
+from musak_model.n_grams.profile.loading import FigureProfileArtifacts
+from musak_model.n_grams.profile.schema import FigureProfileMetadata
 from musak_model.tokens.config import TokenizationConfig
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import BarToken, EndToken, Hand, HandToken, NoteToken, RestToken, ScaleType

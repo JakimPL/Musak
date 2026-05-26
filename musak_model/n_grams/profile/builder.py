@@ -1,6 +1,6 @@
-from musak_model.analysis.n_grams.figure.counter import FigureNGramCountsByHand
-from musak_model.analysis.n_grams.figure.samples.schema import FigureNGramCountsByScale
-from musak_model.analysis.n_grams.profile.schema import (
+from musak_model.n_grams.figure.counter import FigureNGramCountsByHand
+from musak_model.n_grams.figure.samples.schema import FigureNGramCountsByScale
+from musak_model.n_grams.profile.schema import (
     FigureProfile,
     FigureProfileGroup,
     FigureProfileMetadata,

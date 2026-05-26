@@ -4,9 +4,9 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Final
 
-from musak_model.analysis.n_grams.figure.samples.schema import FigureNGramCountsByScale
-from musak_model.analysis.n_grams.figure.schema import FigureNGram
-from musak_model.analysis.n_grams.profile.schema import FigureProfile, FigureSampleCounts
+from musak_model.n_grams.figure.samples.schema import FigureNGramCountsByScale
+from musak_model.n_grams.figure.schema import FigureNGram
+from musak_model.n_grams.profile.schema import FigureProfile, FigureSampleCounts
 from musak_model.processing.io import JSON_INDENT
 from musak_model.tokens.schema import Hand, ScaleType
 

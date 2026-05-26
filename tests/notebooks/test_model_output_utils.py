@@ -8,8 +8,8 @@ import torch
 import torch.nn as nn
 from torch import Tensor
 
-from musak_model.analysis.n_grams.figure.schema import FigureNGram
 from musak_model.data.schema import Segment, SegmentMetadata
+from musak_model.n_grams.figure.schema import FigureNGram
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import EndToken, Hand, HandToken, HoldToken, NoteToken, ScaleType
 from musak_model.tokens.vocabulary import TokenVocabulary

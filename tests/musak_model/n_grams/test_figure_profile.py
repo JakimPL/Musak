@@ -2,12 +2,13 @@ from collections import Counter
 from fractions import Fraction
 from pathlib import Path
 
-from musak_model.analysis.n_grams.config import NGramAnalysisConfig
-from musak_model.analysis.n_grams.figure.schema import FigureNGram
-from musak_model.analysis.n_grams.profile.artifacts import FigureArtifactPaths, figure_artifact_paths
-from musak_model.analysis.n_grams.profile.builder import build_figure_profile, build_figure_sample_counts
-from musak_model.analysis.n_grams.profile.extraction import extract_figure_artifacts
-from musak_model.analysis.n_grams.profile.io import (
+from musak_model.data.schema import SegmentMetadata
+from musak_model.n_grams.config import NGramAnalysisConfig
+from musak_model.n_grams.figure.schema import FigureNGram
+from musak_model.n_grams.profile.artifacts import FigureArtifactPaths, figure_artifact_paths
+from musak_model.n_grams.profile.builder import build_figure_profile, build_figure_sample_counts
+from musak_model.n_grams.profile.extraction import extract_figure_artifacts
+from musak_model.n_grams.profile.io import (
     read_figure_counts_csv,
     read_figure_profile,
     read_figure_sample_counts_jsonl,
@@ -15,20 +16,16 @@ from musak_model.analysis.n_grams.profile.io import (
     write_figure_profile,
     write_figure_sample_counts_jsonl,
 )
-from musak_model.analysis.n_grams.profile.loading import (
+from musak_model.n_grams.profile.loading import (
     figure_profile_encoded_directory,
     load_figure_profile_artifacts,
     load_processed_figure_profile_artifacts,
 )
-from musak_model.analysis.n_grams.profile.schema import FigureProfileMetadata, FigureSampleCounts
-from musak_model.analysis.n_grams.profile.streaming import (
-    FigureBatchTask,
-    FigureWorkStore,
-    figure_state_key,
-    figure_work_store_path,
-    process_figure_batch_task,
-)
-from musak_model.data.schema import SegmentMetadata
+from musak_model.n_grams.profile.schema import FigureProfileMetadata, FigureSampleCounts
+from musak_model.n_grams.profile.streaming.schema import FigureBatchTask
+from musak_model.n_grams.profile.streaming.state import figure_state_key
+from musak_model.n_grams.profile.streaming.store import FigureWorkStore, figure_work_store_path
+from musak_model.n_grams.profile.streaming.worker import process_figure_batch_task
 from musak_model.processing.io import append_jsonl, write_json_model
 from musak_model.processing.paths import ProcessedDatasetPaths
 from musak_model.processing.snapshot import build_tokenizer_snapshot

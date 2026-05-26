@@ -2,11 +2,9 @@ import shutil
 from dataclasses import dataclass
 from pathlib import Path
 
-from musak_model.analysis.n_grams.config import NGramAnalysisConfig
-from musak_model.analysis.n_grams.profile.artifacts import FigureArtifactPaths, figure_artifact_paths
-from musak_model.analysis.n_grams.profile.streaming import (
-    extract_streaming_figure_artifacts,
-)
+from musak_model.n_grams.config import NGramAnalysisConfig
+from musak_model.n_grams.profile.artifacts import FigureArtifactPaths, figure_artifact_paths
+from musak_model.n_grams.profile.streaming.orchestration import extract_streaming_figure_artifacts
 from musak_model.processing.io import load_tokenizer_snapshot_json
 from musak_model.processing.paths import ENCODED_JSONL_NAME, TOKENIZER_SNAPSHOT_NAME
 

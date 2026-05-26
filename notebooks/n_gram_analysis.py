@@ -16,7 +16,7 @@ def _():
     import marimo as mo
     import pandas as pd
 
-    from musak_model.analysis.n_grams.profile.io import COUNT_COLUMN, HAND_COLUMN, N_COLUMN, SCALE_TYPE_COLUMN
+    from musak_model.n_grams.profile.io import COUNT_COLUMN, HAND_COLUMN, N_COLUMN, SCALE_TYPE_COLUMN
     from musak_model.paths import DEFAULT_ANALYSIS_DIR
     from musak_shared.notation.html import score_data_html
     from notebooks.utils import (

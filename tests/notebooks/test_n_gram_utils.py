@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from musak_model.analysis.n_grams.figure.schema import FigureNGram
+from musak_model.n_grams.figure.schema import FigureNGram
 from notebooks.utils.n_grams import (
     FIGURE_CHORDS_ONLY_COLUMN,
     FIGURE_IN_SCALE_COLUMN,
