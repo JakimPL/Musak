@@ -154,6 +154,20 @@ def test_processing_tracker_logs_complete_manifest_metrics(
     assert (str(encoded_manifest_path), "dataset") in fake_mlflow.artifacts
 
 
+def test_processing_tracker_uses_sqlite_local_fallback(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_mlflow = FakeMlflow()
+    monkeypatch.setitem(sys.modules, "mlflow", fake_mlflow)
+
+    with ProcessingTracker(config=ProcessingMlflowConfig(), tracking_root=tmp_path):
+        pass
+
+    assert fake_mlflow.tracking_uri == f"sqlite:///{tmp_path / 'artifacts/mlflow/mlflow.db'}"
+    assert (tmp_path / "artifacts/mlflow").exists()
+
+
 def test_processing_tracker_logs_figure_artifacts_in_same_run(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

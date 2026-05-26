@@ -32,7 +32,7 @@ def _args(**overrides: object) -> argparse.Namespace:
         "tokenization_config": Path("musak_model/configs/tokens/tokenization.yml"),
         "conditioning_config": Path("musak_model/configs/conditioning/conditioning.yml"),
         "training_config": Path("musak_model/configs/training/pretraining.yml"),
-        "mlflow_dir": Path("mlruns"),
+        "mlflow_db": Path("artifacts/mlflow/mlflow.db"),
         "log_level": "INFO",
         "no_progress": False,
         "learning_rate": None,

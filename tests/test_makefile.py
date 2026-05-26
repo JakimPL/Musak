@@ -42,7 +42,7 @@ def test_make_process_uses_data_dir_and_processing_options() -> None:
         "DATA_DIR=data/sample-dataset",
         "NUM_WORKERS=4",
         "PROCESS_MLFLOW_RUN_NAME=process-test",
-        "PROCESS_MLFLOW_TRACKING_URI=file:///tmp/mlruns",
+        "PROCESS_MLFLOW_TRACKING_URI=sqlite:////tmp/mlflow.db",
         "PROCESSING_CONFIG=musak_model/configs/data/processing.yml",
         "PROCESS_DIFFICULTY_LABELS=data/sample-difficulty.json",
         "PROCESS_WHOLE_FILE_SEGMENTS=1",
@@ -61,7 +61,7 @@ def test_make_process_uses_data_dir_and_processing_options() -> None:
     assert '--difficulty-labels "data/sample-difficulty.json"' in output
     assert "--whole-file-segments" in output
     assert '--mlflow-run-name "process-test"' in output
-    assert '--mlflow-tracking-uri "file:///tmp/mlruns"' in output
+    assert '--mlflow-tracking-uri "sqlite:////tmp/mlflow.db"' in output
     assert '--analysis-config "musak_model/configs/analysis/n_grams.yml"' in output
     assert '--analysis-output "artifacts/analysis/sample-figures.csv"' in output
     assert "--no-progress" in output
@@ -179,10 +179,16 @@ def test_make_finetune_requires_difficulty_labels() -> None:
 
 
 def test_make_mlflow_starts_dashboard_with_configurable_address() -> None:
-    output = _make_dry_run("mlflow", "MLFLOW_DIR=artifacts/mlruns", "MLFLOW_HOST=0.0.0.0", "MLFLOW_PORT=5050")
+    output = _make_dry_run(
+        "mlflow",
+        "MLFLOW_DB=artifacts/mlflow/mlflow.db",
+        "MLFLOW_HOST=0.0.0.0",
+        "MLFLOW_PORT=5050",
+    )
 
     assert "uv run mlflow ui" in output
-    assert '--backend-store-uri "file:artifacts/mlruns"' in output
+    assert 'mkdir -p "artifacts/mlflow/"' in output
+    assert '--backend-store-uri "sqlite:///artifacts/mlflow/mlflow.db"' in output
     assert '--host "0.0.0.0"' in output
     assert '--port "5050"' in output
 

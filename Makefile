@@ -22,7 +22,7 @@ ANALYSIS_RESUME ?= $(RESUME)
 APP_HOST ?= 127.0.0.1
 APP_PORT ?= 8000
 ARTIFACTS_DIR ?= artifacts
-MLFLOW_DIR ?= $(ARTIFACTS_DIR)/mlruns
+MLFLOW_DB ?= $(ARTIFACTS_DIR)/mlflow/mlflow.db
 MLFLOW_HOST ?= 127.0.0.1
 MLFLOW_PORT ?= 5000
 NOTEBOOK_FILES := $(shell grep -l '^[[:space:]]*app[[:space:]]*=[[:space:]]*marimo\.App' notebooks/*.py 2>/dev/null)
@@ -80,7 +80,7 @@ help:
 	@printf '%s\n' '  PRETRAIN_DATA_DIR=data/pretraining-dataset PRETRAIN_EPOCHS=25 PRETRAIN_DEVICE=cuda make pretrain'
 	@printf '%s\n' '  FINETUNE_DATA_DIR=data/finetuning-dataset FINETUNE_DIFFICULTY_LABELS=data/finetuning-difficulty.json FINETUNE_EPOCHS=8 make finetune'
 	@printf '%s\n' '  PRETRAIN_DATA_DIR=data/pretraining-dataset FINETUNE_DATA_DIR=data/finetuning-dataset FINETUNE_DIFFICULTY_LABELS=data/finetuning-difficulty.json EPOCHS=25 DEVICE=cuda make train'
-	@printf '%s\n' '  MLFLOW_DIR=artifacts/mlruns MLFLOW_PORT=5000 make mlflow'
+	@printf '%s\n' '  MLFLOW_DB=artifacts/mlflow/mlflow.db MLFLOW_PORT=5000 make mlflow'
 	@printf '%s\n' ''
 	@printf '%s\n' 'Variables:'
 	@printf '%s\n' '  APP_HOST              Musak app host. Default: 127.0.0.1'
@@ -103,7 +103,7 @@ help:
 	@printf '%s\n' '  ANALYSIS_RESUME=1 passes --resume to standalone figure analysis. Partial compatible work resumes automatically.'
 	@printf '%s\n' '  PROFILE=1 or PROCESS_PROFILE=1 passes --profile to process.'
 	@printf '%s\n' '  ARTIFACTS_DIR         Generated artifact root. Default: artifacts'
-	@printf '%s\n' '  MLFLOW_DIR            MLflow tracking directory. Default: artifacts/mlruns'
+	@printf '%s\n' '  MLFLOW_DB             MLflow SQLite tracking database. Default: artifacts/mlflow/mlflow.db'
 	@printf '%s\n' '  MLFLOW_HOST           MLflow dashboard host. Default: 127.0.0.1'
 	@printf '%s\n' '  MLFLOW_PORT           MLflow dashboard port. Default: 5000'
 	@printf '%s\n' '  PRETRAIN_DATA_DIR     Pretrain dataset root. Training reads artifacts/processed/<name> when available.'
@@ -184,8 +184,9 @@ finetune:
 		$(call optional_resume_checkpoint,FINETUNE_RESUME_CHECKPOINT)
 
 mlflow:
+	@mkdir -p "$(dir $(MLFLOW_DB))"
 	uv run mlflow ui \
-		--backend-store-uri "file:$(MLFLOW_DIR)" \
+		--backend-store-uri "sqlite:///$(MLFLOW_DB)" \
 		--host "$(MLFLOW_HOST)" \
 		--port "$(MLFLOW_PORT)"
 

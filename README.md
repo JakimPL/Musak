@@ -137,6 +137,8 @@ Start MLflow to review processing and training metrics:
 make mlflow
 ```
 
+The local dashboard uses a SQLite tracking database at `artifacts/mlflow/mlflow.db` by default.
+
 Open the model output explorer notebook to sample from a checkpoint and inspect generated notation, piano-roll playback,
 and figure metrics:
 

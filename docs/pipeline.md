@@ -76,6 +76,8 @@ Start the local MLflow UI with:
 make mlflow
 ```
 
+Local MLflow tracking uses a SQLite database at `artifacts/mlflow/mlflow.db` by default.
+
 ## Train A Model
 
 Run pretraining only:

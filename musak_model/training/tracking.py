@@ -11,8 +11,9 @@ from typing import Final, Protocol, Self
 
 from pydantic import BaseModel
 
+from musak_model.mlflow import local_mlflow_tracking_uri
 from musak_model.model.config import ModelConfig
-from musak_model.paths import DEFAULT_MLFLOW_DIR
+from musak_model.paths import DEFAULT_MLFLOW_DB_PATH
 from musak_model.processing.fingerprint import encoded_samples_fingerprint
 from musak_model.training.config import TrainingConfig
 from musak_model.training.ingestion.schema import IngestionErrorRecord, IngestionSplit
@@ -234,7 +235,7 @@ def _resolve_tracking_uri(
     if environment_uri:
         return environment_uri
 
-    return str(tracking_root / DEFAULT_MLFLOW_DIR)
+    return local_mlflow_tracking_uri(database_path=DEFAULT_MLFLOW_DB_PATH, tracking_root=tracking_root)
 
 
 def _serializable_dump(model: BaseModel) -> dict[str, object]:

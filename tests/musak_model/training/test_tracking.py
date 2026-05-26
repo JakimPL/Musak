@@ -221,3 +221,17 @@ def test_mlflow_tracker_uses_environment_uri_before_local_fallback(
         pass
 
     assert fake_mlflow.tracking_uri == "file:///env/mlruns"
+
+
+def test_mlflow_tracker_uses_sqlite_local_fallback(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_mlflow = FakeMlflow()
+    monkeypatch.setitem(sys.modules, "mlflow", fake_mlflow)
+
+    with MlflowTrainingTracker(training_config=_training_config(tmp_path), tracking_root=tmp_path):
+        pass
+
+    assert fake_mlflow.tracking_uri == f"sqlite:///{tmp_path / 'artifacts/mlflow/mlflow.db'}"
+    assert (tmp_path / "artifacts/mlflow").exists()
