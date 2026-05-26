@@ -107,7 +107,8 @@ make train
 
 Training logs model metrics to MLflow. Generation evaluation is enabled by the default training configs and logs
 sample-quality metrics during training. Training also builds figure profiles for the actual train and validation
-partitions and logs `model/split/figure/...` metrics so the split distribution can be inspected. When matching figure
+partitions and logs `model/split/figure/...` metrics so the split distribution can be inspected. Those split figure
+counts are persisted under the generated artifact root and reused by compatible training runs. When matching figure
 artifacts are available under the processed encoded run, generation evaluation also logs figure comparison metrics;
 figure profiles are not generation constraints and do not change sampling.
 

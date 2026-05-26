@@ -11,7 +11,7 @@ from concurrent.futures import FIRST_COMPLETED, Future, ProcessPoolExecutor, wai
 from dataclasses import dataclass
 from pathlib import Path
 from time import perf_counter
-from typing import Final
+from typing import Final, NamedTuple
 
 from musak_model.analysis.n_grams.config import NGramAnalysisConfig
 from musak_model.analysis.n_grams.figure.builder import scale_size_for_type
@@ -41,7 +41,7 @@ from musak_model.training.ingestion.schema import EncodedExercise
 type FigureCountKey = tuple[str, str, int, str]
 type FigureCountCounter = Counter[FigureCountKey]
 type FigureGroupKey = tuple[str, str, int]
-type FigureGroupTotals = dict[FigureGroupKey, list[int]]
+type FigureGroupTotalsByKey = dict[FigureGroupKey, FigureGroupTotals]
 
 _STATE_VERSION: Final[int] = 1
 _WORK_DATABASE_NAME: Final[str] = "work.sqlite3"
@@ -74,6 +74,13 @@ class FigureStoreSummary:
     encoded_sample_count: int
     profile_group_count: int
     sample_profile_count: int
+
+
+class FigureGroupTotals(NamedTuple):
+    total: int
+    monophonic: int
+    chords_only: int
+    in_scale: int
 
 
 def extract_streaming_figure_artifacts(
@@ -196,10 +203,10 @@ def sample_profile_payload(
                 scale_type=ScaleType(group_scale_type),
                 hand=Hand(hand),
                 n=n,
-                total=totals[0],
-                monophonic=totals[1],
-                chords_only=totals[2],
-                in_scale=totals[3],
+                total=totals.total,
+                monophonic=totals.monophonic,
+                chords_only=totals.chords_only,
+                in_scale=totals.in_scale,
             )
         )
 
@@ -371,9 +378,59 @@ def process_missing_batches(
         batch_size=config.batch_size,
         completed_batches=completed_batches,
     )
-    if config.workers == 1:
+    process_figure_batch_tasks(
+        store,
+        tasks,
+        workers=config.workers,
+        show_progress=show_progress,
+        progress_description="Counting figure n-gram batches",
+    )
+
+
+def process_missing_sample_batches(
+    store: FigureWorkStore,
+    *,
+    samples: Iterable[EncodedExercise],
+    tokenization_config: TokenizationConfig,
+    config: NGramAnalysisConfig,
+    show_progress: bool,
+    progress_description: str,
+) -> None:
+    completed_batches = store.completed_batch_indexes()
+    _LOGGER.info(
+        "Preparing in-memory figure n-gram batches: completed_batches=%s batch_size=%s workers=%s",
+        len(completed_batches),
+        config.batch_size,
+        config.workers,
+    )
+    tasks = figure_sample_batch_tasks(
+        samples,
+        tokenization_config=tokenization_config,
+        min_n=config.min_n,
+        max_n=config.max_n,
+        batch_size=config.batch_size,
+        completed_batches=completed_batches,
+    )
+    process_figure_batch_tasks(
+        store,
+        tasks,
+        workers=config.workers,
+        show_progress=show_progress,
+        progress_description=progress_description,
+    )
+
+
+def process_figure_batch_tasks(
+    store: FigureWorkStore,
+    tasks: Iterator[FigureBatchTask],
+    *,
+    workers: int,
+    show_progress: bool,
+    progress_description: str,
+) -> None:
+    if workers == 1:
         started_at = perf_counter()
-        for task in progress(tasks, description="Counting figure n-gram batches", unit="batch", enabled=show_progress):
+        for task in progress(tasks, description=progress_description, unit="batch", enabled=show_progress):
             store.commit_batch(process_figure_batch_task(task))
         _LOGGER.info("Finished serial figure n-gram batches in %.1fs", perf_counter() - started_at)
         return
@@ -382,8 +439,9 @@ def process_missing_batches(
     _process_missing_batches_in_parallel(
         store,
         tasks,
-        workers=config.workers,
+        workers=workers,
         show_progress=show_progress,
+        progress_description=progress_description,
     )
     _LOGGER.info("Finished parallel figure n-gram batches in %.1fs", perf_counter() - started_at)
 
@@ -431,6 +489,45 @@ def figure_batch_tasks(
             )
 
 
+def figure_sample_batch_tasks(
+    samples: Iterable[EncodedExercise],
+    *,
+    tokenization_config: TokenizationConfig,
+    min_n: int,
+    max_n: int,
+    batch_size: int,
+    completed_batches: set[int],
+) -> Iterator[FigureBatchTask]:
+    batch_index = 0
+    sample_start_index = 0
+    encoded_lines: list[str] = []
+    for sample in samples:
+        encoded_lines.append(sample.model_dump_json())
+        if len(encoded_lines) == batch_size:
+            if batch_index not in completed_batches:
+                yield FigureBatchTask(
+                    batch_index=batch_index,
+                    sample_start_index=sample_start_index,
+                    encoded_lines=tuple(encoded_lines),
+                    tokenization_config=tokenization_config,
+                    min_n=min_n,
+                    max_n=max_n,
+                )
+            batch_index += 1
+            sample_start_index += len(encoded_lines)
+            encoded_lines.clear()
+
+    if encoded_lines and batch_index not in completed_batches:
+        yield FigureBatchTask(
+            batch_index=batch_index,
+            sample_start_index=sample_start_index,
+            encoded_lines=tuple(encoded_lines),
+            tokenization_config=tokenization_config,
+            min_n=min_n,
+            max_n=max_n,
+        )
+
+
 def export_figure_artifacts(
     store: FigureWorkStore,
     *,
@@ -469,10 +566,10 @@ def profile_from_store(
                 scale_type=ScaleType(scale_type),
                 hand=Hand(hand),
                 n=n,
-                total=totals[0],
-                monophonic=totals[1],
-                chords_only=totals[2],
-                in_scale=totals[3],
+                total=totals.total,
+                monophonic=totals.monophonic,
+                chords_only=totals.chords_only,
+                in_scale=totals.in_scale,
             )
         )
 
@@ -606,6 +703,7 @@ def _process_missing_batches_in_parallel(
     *,
     workers: int,
     show_progress: bool,
+    progress_description: str,
 ) -> None:
     _LOGGER.info("Running parallel figure n-gram batches: workers=%s", workers)
     with ProcessPoolExecutor(max_workers=workers, mp_context=process_pool_context()) as executor:
@@ -622,7 +720,7 @@ def _process_missing_batches_in_parallel(
                 del pending[future]
             _submit_pending_tasks(executor, pending, task_iterator, workers=workers)
             if show_progress and completed_count % 10 == 0:
-                _LOGGER.info("Completed %s figure n-gram batch(es)", completed_count)
+                _LOGGER.info("%s: completed %s batch(es)", progress_description, completed_count)
         _LOGGER.info("Completed %s figure n-gram batch(es)", completed_count)
 
 
@@ -643,19 +741,29 @@ def _submit_pending_tasks(
         pending[executor.submit(process_figure_batch_task, task)] = task.batch_index
 
 
-def _figure_group_totals(counts: Iterable[tuple[FigureCountKey, int]] | FigureCountCounter) -> FigureGroupTotals:
+def _figure_group_totals(counts: Iterable[tuple[FigureCountKey, int]] | FigureCountCounter) -> FigureGroupTotalsByKey:
     items = counts.items() if isinstance(counts, Counter) else counts
-    totals_by_group: FigureGroupTotals = {}
+    totals_by_group: FigureGroupTotalsByKey = {}
     for (scale_type, hand, n, figure_json), count in items:
         signature = figure_signature_from_json(figure_json)
-        totals = totals_by_group.setdefault((scale_type, hand, n), [0, 0, 0, 0])
-        totals[0] += count
+        key = (scale_type, hand, n)
+        totals = totals_by_group.get(key, FigureGroupTotals(total=0, monophonic=0, chords_only=0, in_scale=0))
+        monophonic = totals.monophonic
+        chords_only = totals.chords_only
+        in_scale = totals.in_scale
         if figure_signature_monophonic(signature):
-            totals[1] += count
+            monophonic += count
         if figure_signature_chords_only(signature):
-            totals[2] += count
+            chords_only += count
         if figure_signature_in_scale(signature):
-            totals[3] += count
+            in_scale += count
+
+        totals_by_group[key] = FigureGroupTotals(
+            total=totals.total + count,
+            monophonic=monophonic,
+            chords_only=chords_only,
+            in_scale=in_scale,
+        )
 
     return totals_by_group
 

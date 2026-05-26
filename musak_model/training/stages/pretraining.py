@@ -494,6 +494,7 @@ def pretrain(
             metrics=split_figure_profile_metrics(
                 split,
                 token_vocabulary=vocabulary,
+                tokenization_config=tokenization_config,
                 workers=training_config.runtime.num_workers,
                 show_progress=show_progress,
             )

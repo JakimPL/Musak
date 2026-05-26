@@ -124,7 +124,8 @@ make train
 ```
 
 Training also logs train-vs-validation figure-profile metrics to MLflow so the split distribution can be inspected
-alongside loss, accuracy, and generation evaluation.
+alongside loss, accuracy, and generation evaluation. Compatible split figure counts are persisted and reused across
+training runs.
 
 See [docs/pipeline.md](docs/pipeline.md) for the fuller processing and training workflow.
 

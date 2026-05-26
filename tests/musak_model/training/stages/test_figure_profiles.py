@@ -11,13 +11,16 @@ from musak_model.training.stages.figure_profiles import split_figure_profile_met
 
 
 def test_split_figure_profile_metrics_compare_matching_train_and_validation(tmp_path: Path) -> None:
-    token_vocabulary = _token_vocabulary()
+    tokenization_config = _tokenization_config()
+    token_vocabulary = _token_vocabulary(tokenization_config)
     sample = _sample(token_vocabulary, accidental=0)
 
     metrics = split_figure_profile_metrics(
         IngestionSplit(train=[sample], validation=[sample], invalid_files=[]),
         token_vocabulary=token_vocabulary,
+        tokenization_config=tokenization_config,
         analysis_config_path=_analysis_config_path(tmp_path),
+        artifact_root=tmp_path / "figure-splits",
         workers=1,
     )
 
@@ -26,10 +29,24 @@ def test_split_figure_profile_metrics_compare_matching_train_and_validation(tmp_
     assert metrics["model/split/figure/count/comparable_groups"] == 1.0
     assert metrics["model/split/figure/mean/total_relative_abs_error"] == 0.0
     assert metrics["model/split/figure/mean/identity_total_variation_distance"] == 0.0
+    assert len(list((tmp_path / "figure-splits").glob("*/train/all/counts.csv"))) == 1
+    assert len(list((tmp_path / "figure-splits").glob("*/validation/all/counts.csv"))) == 1
+
+    reused_metrics = split_figure_profile_metrics(
+        IngestionSplit(train=[sample], validation=[sample], invalid_files=[]),
+        token_vocabulary=token_vocabulary,
+        tokenization_config=tokenization_config,
+        analysis_config_path=_analysis_config_path(tmp_path),
+        artifact_root=tmp_path / "figure-splits",
+        workers=1,
+    )
+
+    assert reused_metrics == metrics
 
 
 def test_split_figure_profile_metrics_detect_different_validation_figures(tmp_path: Path) -> None:
-    token_vocabulary = _token_vocabulary()
+    tokenization_config = _tokenization_config()
+    token_vocabulary = _token_vocabulary(tokenization_config)
 
     metrics = split_figure_profile_metrics(
         IngestionSplit(
@@ -38,7 +55,9 @@ def test_split_figure_profile_metrics_detect_different_validation_figures(tmp_pa
             invalid_files=[],
         ),
         token_vocabulary=token_vocabulary,
+        tokenization_config=tokenization_config,
         analysis_config_path=_analysis_config_path(tmp_path),
+        artifact_root=tmp_path / "figure-splits",
         workers=1,
     )
 
@@ -47,12 +66,15 @@ def test_split_figure_profile_metrics_detect_different_validation_figures(tmp_pa
 
 
 def test_split_figure_profile_metrics_handles_empty_validation_split(tmp_path: Path) -> None:
-    token_vocabulary = _token_vocabulary()
+    tokenization_config = _tokenization_config()
+    token_vocabulary = _token_vocabulary(tokenization_config)
 
     metrics = split_figure_profile_metrics(
         IngestionSplit(train=[_sample(token_vocabulary, accidental=0)], validation=[], invalid_files=[]),
         token_vocabulary=token_vocabulary,
+        tokenization_config=tokenization_config,
         analysis_config_path=_analysis_config_path(tmp_path),
+        artifact_root=tmp_path / "figure-splits",
         workers=0,
     )
 
@@ -79,10 +101,12 @@ def _analysis_config_path(tmp_path: Path) -> Path:
     return path
 
 
-def _token_vocabulary() -> TokenVocabulary:
-    return TokenVocabulary(
-        DurationVocabulary(TokenizationConfig(shortest_duration=16, allowed_tuplets=(3,), max_dots=1))
-    )
+def _tokenization_config() -> TokenizationConfig:
+    return TokenizationConfig(shortest_duration=16, allowed_tuplets=(3,), max_dots=1)
+
+
+def _token_vocabulary(tokenization_config: TokenizationConfig) -> TokenVocabulary:
+    return TokenVocabulary(DurationVocabulary(tokenization_config))
 
 
 def _sample(token_vocabulary: TokenVocabulary, *, accidental: int) -> EncodedExercise:
