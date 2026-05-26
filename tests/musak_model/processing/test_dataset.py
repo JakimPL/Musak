@@ -3,7 +3,6 @@ import warnings
 from fractions import Fraction
 from pathlib import Path
 from typing import Any
-from zipfile import ZipFile
 
 import pytest
 
@@ -21,7 +20,6 @@ from musak_model.processing.manifest import (
     read_encoded_manifest,
     read_parsed_manifest,
 )
-from musak_model.processing.parser import title as title_module
 from musak_model.processing.paths import ProcessedDatasetPaths
 from musak_model.processing.profiler import ProcessingProfiler
 from musak_model.processing.snapshot import build_tokenizer_snapshot
@@ -443,11 +441,6 @@ def test_process_dataset_records_parse_diagnostics_on_errors(
     assert "UserWarning: before failure" in parsed_rows[0][ParsedManifestField.PARSE_DIAGNOSTICS]
 
 
-def test_processing_config_rejects_invalid_worker_count() -> None:
-    with pytest.raises(ValueError, match="workers"):
-        _processing_config(remove_segments_with_silent_bars=True, workers=0)
-
-
 def test_process_dataset_parallel_parse_keeps_manifest_order(
     tmp_path: Path,
     tokenization_config: TokenizationConfig,
@@ -765,65 +758,3 @@ def test_process_dataset_parallel_tokenization_matches_serial_output(
     assert parallel_rows == serial_rows
     assert [sample.model_dump() for sample in parallel_samples] == [sample.model_dump() for sample in serial_samples]
     assert not (parallel_result.encoded_manifest_path.parent / "tmp").exists()
-
-
-def test_score_title_returns_musicxml_movement_title(tmp_path: Path) -> None:
-    source_path = tmp_path / "piece.musicxml"
-    source_path.write_text(
-        """
-        <score-partwise>
-          <movement-title>Prelude</movement-title>
-        </score-partwise>
-        """,
-        encoding="utf-8",
-    )
-
-    assert title_module.score_title(source_path) == "Prelude"
-
-
-def test_score_title_returns_musicxml_work_title(tmp_path: Path) -> None:
-    source_path = tmp_path / "piece.musicxml"
-    source_path.write_text(
-        """
-        <score-partwise>
-          <work>
-            <work-title>Notebook Sketch</work-title>
-          </work>
-        </score-partwise>
-        """,
-        encoding="utf-8",
-    )
-
-    assert title_module.score_title(source_path) == "Notebook Sketch"
-
-
-def test_score_title_returns_compressed_musicxml_title(tmp_path: Path) -> None:
-    source_path = tmp_path / "piece.mxl"
-    with ZipFile(source_path, "w") as archive:
-        archive.writestr(
-            "META-INF/container.xml",
-            """
-            <container>
-              <rootfiles>
-                <rootfile full-path="score.musicxml" />
-              </rootfiles>
-            </container>
-            """,
-        )
-        archive.writestr(
-            "score.musicxml",
-            """
-            <score-partwise>
-              <movement-title>Compressed Piece</movement-title>
-            </score-partwise>
-            """,
-        )
-
-    assert title_module.score_title(source_path) == "Compressed Piece"
-
-
-def test_score_title_returns_empty_for_malformed_musicxml(tmp_path: Path) -> None:
-    source_path = tmp_path / "piece.musicxml"
-    source_path.write_text("<score-partwise>")
-
-    assert title_module.score_title(source_path) == ""

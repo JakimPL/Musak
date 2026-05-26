@@ -61,6 +61,24 @@ def test_tokenization_processing_config_rejects_zero_workers() -> None:
         )
 
 
+def test_processing_config_rejects_invalid_worker_count() -> None:
+    with pytest.raises(ValidationError, match="workers"):
+        ProcessingConfig(
+            parsing=ParsingProcessingConfig(workers=0),
+            tokenization=TokenizationProcessingConfig(
+                workers=1,
+                batch_size=1,
+                remove_segments_with_silent_bars=True,
+                scale_matcher=ScaleMatcherConfig(
+                    support_score_margin=0.08,
+                    selection_score_margin=0.03,
+                    maximum_unexplained_weight_fraction=0.10,
+                    maximum_explanation_pitch_class_count=9,
+                ),
+            ),
+        )
+
+
 def test_processing_config_overrides_keep_yaml_values_by_default() -> None:
     config = ProcessingConfig.load()
 

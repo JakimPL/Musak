@@ -1,21 +1,7 @@
 from fractions import Fraction
 from pathlib import Path
 
-import pytest
-
-from musak_model.conditioning.structural.config import (
-    DurationDenominatorBucketConfig,
-    IntegerBucketConfig,
-    StructuralConditioningConfig,
-)
-from musak_model.conditioning.structural.constants import (
-    FALSE_CONTROL_ID,
-    TRUE_CONTROL_ID,
-    UNKNOWN_CONTROL_ID,
-)
 from musak_model.conditioning.structural.features import extract_structural_control_features
-from musak_model.conditioning.structural.schema import StructuralControlFeatures
-from musak_model.conditioning.structural.vocabulary import StructuralControlVocabulary
 from musak_model.data.schema import Segment, SegmentMetadata
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import Hand, HandToken, JoinWithPreviousToken, NoteToken, RestToken, ScaleType
@@ -64,33 +50,6 @@ def test_extract_structural_control_features_from_tokens(duration_vocabulary: Du
     assert features.bar_count is None
 
 
-def test_structural_control_vocabulary_maps_features_to_bucket_ids() -> None:
-    vocabulary = StructuralControlVocabulary(
-        StructuralConditioningConfig(
-            shortest_note_duration=DurationDenominatorBucketConfig(thresholds=(8, 4)),
-            max_notes_per_onset=IntegerBucketConfig(thresholds=(1, 2)),
-            max_notes_per_hand=IntegerBucketConfig(thresholds=(1, 2, 5)),
-            max_onset_span_semitones=IntegerBucketConfig(thresholds=(4, 12)),
-            max_melodic_gap_semitones=IntegerBucketConfig(thresholds=(2, 7)),
-            static_hand_span_degrees=IntegerBucketConfig(thresholds=(3, 5)),
-            bar_count=IntegerBucketConfig(thresholds=(1, 2, 4)),
-        )
-    )
-    features = StructuralControlFeatures(
-        shortest_note_duration=Fraction(1, 8),
-        has_dotted_notes=True,
-        max_notes_per_onset=3,
-        max_notes_per_hand=5,
-        max_onset_span_semitones=12,
-        max_melodic_gap_semitones=7,
-        static_hand_span_degrees=5,
-        bar_count=4,
-    )
-
-    assert vocabulary.features_to_ids(features) == (1, TRUE_CONTROL_ID, 3, 3, 2, 2, 2, 3)
-    assert vocabulary.vocabulary_sizes == (4, 3, 4, 5, 4, 4, 4, 5)
-
-
 def test_extract_structural_control_features_separates_total_onset_and_per_hand_counts(
     duration_vocabulary: DurationVocabulary,
 ) -> None:
@@ -114,34 +73,3 @@ def test_extract_structural_control_features_separates_total_onset_and_per_hand_
 
     assert features.max_notes_per_onset == 4
     assert features.max_notes_per_hand == 2
-
-
-def test_structural_control_vocabulary_maps_missing_features_to_unknown() -> None:
-    vocabulary = StructuralControlVocabulary(StructuralConditioningConfig())
-
-    assert vocabulary.features_to_ids(None) == (UNKNOWN_CONTROL_ID,) * 8
-
-
-def test_structural_control_config_rejects_unsorted_thresholds() -> None:
-    with pytest.raises(ValueError, match="sorted"):
-        IntegerBucketConfig(thresholds=(2, 1))
-
-
-def test_duration_denominator_bucket_config_rejects_non_power_of_two_thresholds() -> None:
-    with pytest.raises(ValueError, match="powers of two"):
-        DurationDenominatorBucketConfig(thresholds=(16, 12, 8))
-
-
-def test_duration_denominator_bucket_config_rejects_string_thresholds() -> None:
-    with pytest.raises(ValueError, match="integer denominators"):
-        DurationDenominatorBucketConfig.model_validate({"thresholds": ["1/16", "1/8"]})
-
-
-def test_duration_denominator_bucket_config_rejects_duration_order_mismatch() -> None:
-    with pytest.raises(ValueError, match="shortest to longest duration"):
-        DurationDenominatorBucketConfig(thresholds=(4, 8, 16))
-
-
-def test_boolean_control_ids_are_stable() -> None:
-    assert FALSE_CONTROL_ID == 1
-    assert TRUE_CONTROL_ID == 2

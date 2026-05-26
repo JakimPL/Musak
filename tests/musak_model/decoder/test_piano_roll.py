@@ -4,9 +4,8 @@ from pathlib import Path
 import pytest
 
 from musak_model.data.schema import ParsedBar, ParsedChord, ParsedNote, ParsedScore, Segment, SegmentMetadata
-from musak_model.decoder import (
+from musak_model.decoder.piano_roll import (
     parsed_score_to_piano_roll_events,
-    segment_to_music21_score,
     segment_to_piano_roll_events,
     tokens_to_piano_roll_events,
 )
@@ -136,9 +135,7 @@ def test_hold_token_extends_previous_same_hand_note_without_new_attack(
     assert events[0].duration == Fraction(1, 1)
 
 
-def test_hold_token_extends_same_hand_chord_notes(
-    duration_vocabulary: DurationVocabulary,
-) -> None:
+def test_hold_token_extends_same_hand_chord_notes(duration_vocabulary: DurationVocabulary) -> None:
     quarter_id = duration_vocabulary.fraction_to_id(Fraction(1, 4))
     events = tokens_to_piano_roll_events(
         [
@@ -193,9 +190,7 @@ def test_hold_token_is_scoped_to_active_hand_while_other_hand_plays(
     ]
 
 
-def test_hold_token_rejects_missing_same_hand_note(
-    duration_vocabulary: DurationVocabulary,
-) -> None:
+def test_hold_token_rejects_missing_same_hand_note(duration_vocabulary: DurationVocabulary) -> None:
     quarter_id = duration_vocabulary.fraction_to_id(Fraction(1, 4))
 
     with pytest.raises(ValueError, match="left hand"):
@@ -210,25 +205,6 @@ def test_hold_token_rejects_missing_same_hand_note(
             duration_vocabulary=duration_vocabulary,
             default_hand=Hand.RIGHT,
         )
-
-
-def test_segment_to_music21_score_groups_same_onset_notes_as_chord(duration_vocabulary: DurationVocabulary) -> None:
-    quarter_id = duration_vocabulary.fraction_to_id(Fraction(1, 4))
-    segment = Segment(
-        tokens=[
-            HandToken(hand=Hand.RIGHT),
-            NoteToken(degree=1, accidental=0, octave_offset=0, duration_id=quarter_id),
-            NoteToken(degree=3, accidental=0, octave_offset=0, duration_id=quarter_id),
-            JoinWithPreviousToken(),
-        ],
-        metadata=_metadata(),
-    )
-
-    score = segment_to_music21_score(segment, duration_vocabulary=duration_vocabulary)
-    right_notes = list(score.parts[0].flatten().notes)
-
-    assert len(right_notes) == 1
-    assert len(right_notes[0].pitches) == 2
 
 
 def test_segment_to_piano_roll_events_decodes_canonical_unified_tokens(
@@ -262,13 +238,7 @@ def test_parsed_score_to_piano_roll_events_does_not_require_tokenized_segment() 
                 time_numerator=4,
                 time_denominator=4,
                 key_fifths=0,
-                events=[
-                    ParsedChord(
-                        midi_pitches=[60, 64],
-                        duration=Fraction(1, 4),
-                        beat_offset=Fraction(0),
-                    )
-                ],
+                events=[ParsedChord(midi_pitches=[60, 64], duration=Fraction(1, 4), beat_offset=Fraction(0))],
             )
         ],
         left_hand_bars=[
@@ -276,13 +246,7 @@ def test_parsed_score_to_piano_roll_events_does_not_require_tokenized_segment() 
                 time_numerator=4,
                 time_denominator=4,
                 key_fifths=0,
-                events=[
-                    ParsedNote(
-                        midi_pitch=48,
-                        duration=Fraction(1, 2),
-                        beat_offset=Fraction(1, 4),
-                    )
-                ],
+                events=[ParsedNote(midi_pitch=48, duration=Fraction(1, 2), beat_offset=Fraction(1, 4))],
             )
         ],
     )

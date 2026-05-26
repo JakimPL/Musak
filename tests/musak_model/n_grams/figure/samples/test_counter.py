@@ -6,39 +6,10 @@ from musak_model.n_grams.figure.samples.counter import (
     count_encoded_exercises_figure_n_grams,
     count_encoded_exercises_figure_ngrams_with_samples,
 )
-from musak_model.n_grams.figure.samples.single import count_encoded_exercise_figure_ngrams
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import Hand, HandToken, NoteToken, ScaleType
 from musak_model.tokens.vocabulary import TokenVocabulary
 from musak_model.training.ingestion.schema import EncodedExercise
-
-
-def test_count_encoded_exercise_figure_ngrams_decodes_tokens(
-    duration_vocabulary: DurationVocabulary,
-    token_vocabulary: TokenVocabulary,
-) -> None:
-    quarter_id = duration_vocabulary.require_duration_id(Fraction(1, 4))
-    sample = _sample(
-        token_vocabulary.encode(
-            [
-                HandToken(hand=Hand.RIGHT),
-                _note(1, duration_id=quarter_id),
-                _note(2, duration_id=quarter_id),
-            ]
-        ),
-        scale_type=ScaleType.MAJOR,
-    )
-
-    counts = count_encoded_exercise_figure_ngrams(
-        sample,
-        duration_vocabulary=duration_vocabulary,
-        token_vocabulary=token_vocabulary,
-        min_n=2,
-        max_n=2,
-    )
-
-    assert sum(counts[Hand.RIGHT][2].values()) == 1
-    assert sum(counts[Hand.LEFT][2].values()) == 0
 
 
 def test_count_encoded_exercises_figure_ngrams_keeps_scale_types_separate(
@@ -46,13 +17,7 @@ def test_count_encoded_exercises_figure_ngrams_keeps_scale_types_separate(
     token_vocabulary: TokenVocabulary,
 ) -> None:
     quarter_id = duration_vocabulary.require_duration_id(Fraction(1, 4))
-    tokens = token_vocabulary.encode(
-        [
-            HandToken(hand=Hand.RIGHT),
-            _note(1, duration_id=quarter_id),
-            _note(2, duration_id=quarter_id),
-        ]
-    )
+    tokens = _encoded_tokens(token_vocabulary, quarter_id=quarter_id)
 
     counts = count_encoded_exercises_figure_n_grams(
         [
@@ -77,13 +42,7 @@ def test_count_encoded_exercises_figure_ngrams_merges_same_scale_counts(
     token_vocabulary: TokenVocabulary,
 ) -> None:
     quarter_id = duration_vocabulary.require_duration_id(Fraction(1, 4))
-    tokens = token_vocabulary.encode(
-        [
-            HandToken(hand=Hand.RIGHT),
-            _note(1, duration_id=quarter_id),
-            _note(2, duration_id=quarter_id),
-        ]
-    )
+    tokens = _encoded_tokens(token_vocabulary, quarter_id=quarter_id)
 
     counts = count_encoded_exercises_figure_n_grams(
         [
@@ -106,13 +65,7 @@ def test_count_encoded_exercises_figure_ngrams_parallel_matches_serial(
     token_vocabulary: TokenVocabulary,
 ) -> None:
     quarter_id = duration_vocabulary.require_duration_id(Fraction(1, 4))
-    tokens = token_vocabulary.encode(
-        [
-            HandToken(hand=Hand.RIGHT),
-            _note(1, duration_id=quarter_id),
-            _note(2, duration_id=quarter_id),
-        ]
-    )
+    tokens = _encoded_tokens(token_vocabulary, quarter_id=quarter_id)
     samples = [
         _sample(tokens, scale_type=ScaleType.MAJOR),
         _sample(tokens, scale_type=ScaleType.MAJOR),
@@ -146,13 +99,7 @@ def test_count_encoded_exercises_figure_ngrams_with_samples_keeps_sample_indices
     token_vocabulary: TokenVocabulary,
 ) -> None:
     quarter_id = duration_vocabulary.require_duration_id(Fraction(1, 4))
-    first_tokens = token_vocabulary.encode(
-        [
-            HandToken(hand=Hand.RIGHT),
-            _note(1, duration_id=quarter_id),
-            _note(2, duration_id=quarter_id),
-        ]
-    )
+    first_tokens = _encoded_tokens(token_vocabulary, quarter_id=quarter_id)
     second_tokens = token_vocabulary.encode(
         [
             HandToken(hand=Hand.LEFT),
@@ -185,6 +132,16 @@ def test_count_encoded_exercises_figure_ngrams_with_samples_keeps_sample_indices
     assert sum(counted_figures.counts_by_scale[ScaleType.HARMONIC_MINOR][Hand.LEFT][2].values()) == 1
 
 
+def _encoded_tokens(token_vocabulary: TokenVocabulary, *, quarter_id: int) -> list[int]:
+    return token_vocabulary.encode(
+        [
+            HandToken(hand=Hand.RIGHT),
+            _note(1, duration_id=quarter_id),
+            _note(2, duration_id=quarter_id),
+        ]
+    )
+
+
 def _sample(token_ids: list[int], *, scale_type: ScaleType) -> EncodedExercise:
     return EncodedExercise(
         token_ids=token_ids,
@@ -202,9 +159,4 @@ def _sample(token_ids: list[int], *, scale_type: ScaleType) -> EncodedExercise:
 
 
 def _note(degree: int, *, duration_id: int) -> NoteToken:
-    return NoteToken(
-        degree=degree,
-        accidental=0,
-        octave_offset=0,
-        duration_id=duration_id,
-    )
+    return NoteToken(degree=degree, accidental=0, octave_offset=0, duration_id=duration_id)

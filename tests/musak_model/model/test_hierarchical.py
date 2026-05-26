@@ -9,7 +9,6 @@ from musak_model.conditioning.config import ConditioningConfig, DifficultyConfig
 from musak_model.conditioning.time_signature import TimeSignatureVocabularyConfig
 from musak_model.model import HierarchicalAutoregressiveModel
 from musak_model.model.config import CNNConfig, GRUConfig, ModelConfig, TransformerConfig
-from musak_model.model.gru import BarGRUEncoder
 
 VOCAB: Final[int] = 64
 H: Final[int] = 32  # hidden size (small for speed)
@@ -76,14 +75,6 @@ class ValidationCase:
     bar_ndim: int = 2  # 1 triggers ndim error
     difficulty_values: tuple[int, ...] | None = None
     difficulty_ndim: int = 1  # 2 triggers 2D-tensor error
-
-
-@dataclass(frozen=True)
-class GRUShapeCase:
-    label: str
-    batch: int
-    seq_len: int
-    use_lengths: bool = False
 
 
 @dataclass(frozen=True)
@@ -394,34 +385,3 @@ class TestEncoderBypass:
         params_without_grad = [name for name, parameter in model.named_parameters() if parameter.grad is None]
         assert logits.shape == (2, 16, VOCAB)
         assert params_without_grad == [], f"No gradient for: {params_without_grad}"
-
-
-class TestBarGRUEncoder:
-    @pytest.mark.parametrize(
-        "case",
-        [
-            GRUShapeCase(label="without_lengths", batch=4, seq_len=8, use_lengths=False),
-            GRUShapeCase(label="with_lengths", batch=4, seq_len=8, use_lengths=True),
-        ],
-        ids=lambda c: c.label,
-    )
-    def test_output_shape(self, case: GRUShapeCase) -> None:
-        gru = BarGRUEncoder(GRUConfig(enabled=True, hidden_size=H, num_layers=1, dropout=0.0, bidirectional=False))
-        x = torch.randn(case.batch, case.seq_len, H)
-        lengths = torch.tensor([case.seq_len] * case.batch) if case.use_lengths else None
-        out = gru(x, lengths=lengths)
-        assert out.shape == (case.batch, H)
-
-    def test_packed_ignores_padding(self) -> None:
-        torch.manual_seed(42)
-        gru = BarGRUEncoder(GRUConfig(enabled=True, hidden_size=H, num_layers=1, dropout=0.0, bidirectional=False))
-        gru.eval()
-
-        real_tokens = torch.randn(1, 3, H)
-        padded = torch.cat([real_tokens, torch.zeros(1, 5, H)], dim=1)  # same content, trailing zeros
-
-        with torch.no_grad():
-            out_real = gru(real_tokens, lengths=torch.tensor([3]))
-            out_padded = gru(padded, lengths=torch.tensor([3]))
-
-        assert torch.allclose(out_real, out_padded, atol=1e-6)

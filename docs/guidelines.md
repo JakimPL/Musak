@@ -59,6 +59,7 @@
 1. Test files should mirror the ownership of the functionality under test.
 2. Shared helpers in `musak_shared` should be tested under `tests/musak_shared`.
 3. Model-specific behavior in `musak_model` should be tested under the matching `tests/musak_model` subpackage.
-4. When moving functionality between packages, move its direct unit tests in the same change.
-5. Parametrize test functions of the same body and use test case dataclass pattern.
-6. Prefer fixtures over factories.
+4. Tests files should mimic exactly the codebase structure, unless there is a specific reason not to.
+5. When moving functionality between packages, move its direct unit tests in the same change.
+6. Parametrize test functions of the same body and use test case dataclass pattern.
+7. Prefer fixtures over factories.

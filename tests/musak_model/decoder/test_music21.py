@@ -113,3 +113,22 @@ def test_segment_to_music21_score_leaves_in_bar_notes_untied(
     assert len(right_notes) == 1
     assert right_notes[0].duration.quarterLength == 1
     assert right_notes[0].tie is None
+
+
+def test_segment_to_music21_score_groups_same_onset_notes_as_chord(duration_vocabulary: DurationVocabulary) -> None:
+    quarter_id = duration_vocabulary.fraction_to_id(Fraction(1, 4))
+    segment = Segment(
+        tokens=[
+            HandToken(hand=Hand.RIGHT),
+            NoteToken(degree=1, accidental=0, octave_offset=0, duration_id=quarter_id),
+            NoteToken(degree=3, accidental=0, octave_offset=0, duration_id=quarter_id),
+            JoinWithPreviousToken(),
+        ],
+        metadata=_metadata(bar_count=1),
+    )
+
+    score = segment_to_music21_score(segment, duration_vocabulary=duration_vocabulary)
+    right_notes = list(_part(score, Hand.RIGHT).flatten().notes)
+
+    assert len(right_notes) == 1
+    assert len(right_notes[0].pitches) == 2

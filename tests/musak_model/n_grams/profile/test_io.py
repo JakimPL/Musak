@@ -5,12 +5,71 @@ from pathlib import Path
 import pytest
 
 from musak_model.n_grams.figure.schema import FigureNGram
+from musak_model.n_grams.profile.builder import build_figure_profile, build_figure_sample_counts
 from musak_model.n_grams.profile.io import (
     COUNT_CSV_COLUMNS,
     figure_count_records,
+    read_figure_counts_csv,
+    read_figure_profile,
+    read_figure_sample_counts_jsonl,
     write_figure_count_csv,
+    write_figure_counts_csv,
+    write_figure_profile,
+    write_figure_sample_counts_jsonl,
 )
+from musak_model.n_grams.profile.schema import FigureProfileMetadata
 from musak_model.tokens.schema import Hand, ScaleType
+
+
+def test_figure_profile_json_round_trips(tmp_path: Path) -> None:
+    profile = build_figure_profile(
+        {
+            ScaleType.MAJOR: {
+                Hand.RIGHT: {
+                    1: Counter({FigureNGram(onsets=((((0, 0),), Fraction(1)),)): 2}),
+                }
+            }
+        },
+        FigureProfileMetadata(min_n=1, max_n=1, sample_count=3),
+    )
+    path = tmp_path / "profile.json"
+
+    write_figure_profile(profile, path)
+
+    assert read_figure_profile(path) == profile
+
+
+def test_figure_counts_csv_round_trips(tmp_path: Path) -> None:
+    figure = FigureNGram(onsets=((((0, 0),), Fraction(1)),))
+    counts = {
+        ScaleType.MAJOR: {
+            Hand.RIGHT: {
+                1: Counter({figure: 2}),
+            }
+        }
+    }
+    path = tmp_path / "counts.csv"
+
+    write_figure_counts_csv(counts, path)
+
+    assert read_figure_counts_csv(path) == counts
+
+
+def test_figure_sample_counts_jsonl_round_trips(tmp_path: Path) -> None:
+    sample_counts = build_figure_sample_counts(
+        sample_index=3,
+        scale_type=ScaleType.MAJOR,
+        counts_by_hand={
+            Hand.RIGHT: {
+                1: Counter({FigureNGram(onsets=((((0, 0),), Fraction(1)),)): 2}),
+            }
+        },
+    )
+    path = tmp_path / "by_sample.jsonl"
+
+    write_figure_sample_counts_jsonl([sample_counts], path)
+
+    assert read_figure_sample_counts_jsonl(path) == [sample_counts]
 
 
 def test_figure_count_records_serializes_counts_in_stable_order() -> None:
