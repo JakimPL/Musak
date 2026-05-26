@@ -18,8 +18,8 @@ H: Final[int] = 32  # hidden size (small for speed)
 def _small_config() -> ModelConfig:
     return ModelConfig(
         vocabulary_size=VOCAB,
-        cnn=CNNConfig(out_channels=H, kernel_sizes=(3,), num_layers=1, dropout=0.0),
-        gru=GRUConfig(hidden_size=H, num_layers=1, dropout=0.0, bidirectional=False),
+        cnn=CNNConfig(enabled=True, out_channels=H, kernel_sizes=(3,), num_layers=1, dropout=0.0),
+        gru=GRUConfig(enabled=True, hidden_size=H, num_layers=1, dropout=0.0, bidirectional=False),
         transformer=TransformerConfig(
             hidden_size=H,
             num_heads=2,
@@ -33,6 +33,16 @@ def _small_config() -> ModelConfig:
             time_signature=TimeSignatureVocabularyConfig(max_denominator=4, relative_numerator_range=2),
             cfg_dropout_probability=0.0,
         ),
+    )
+
+
+def _small_config_with_encoders(*, cnn_enabled: bool, gru_enabled: bool) -> ModelConfig:
+    config = _small_config()
+    return config.model_copy(
+        update={
+            "cnn": config.cnn.model_copy(update={"enabled": cnn_enabled}),
+            "gru": config.gru.model_copy(update={"enabled": gru_enabled}),
+        }
     )
 
 
@@ -74,6 +84,14 @@ class GRUShapeCase:
     batch: int
     seq_len: int
     use_lengths: bool = False
+
+
+@dataclass(frozen=True)
+class EncoderBypassCase:
+    label: str
+    cnn_enabled: bool
+    gru_enabled: bool
+    omitted_parameter_prefixes: tuple[str, ...]
 
 
 class TestForwardOutputShape:
@@ -280,6 +298,104 @@ class TestForwardBehaviour:
         assert torch.allclose(original_logits[:, :13], changed_logits[:, :13], atol=1e-6)
 
 
+class TestEncoderBypass:
+    @pytest.mark.parametrize(
+        "case",
+        [
+            EncoderBypassCase(
+                label="cnn_disabled",
+                cnn_enabled=False,
+                gru_enabled=True,
+                omitted_parameter_prefixes=("_to_local_hidden", "_local_encoder"),
+            ),
+            EncoderBypassCase(
+                label="gru_disabled",
+                cnn_enabled=True,
+                gru_enabled=False,
+                omitted_parameter_prefixes=(
+                    "_to_bar_hidden",
+                    "_bar_prefix_encoder",
+                    "_bar_encoder",
+                    "_bar_prefix_to_transformer_hidden",
+                    "_bar_to_transformer_hidden",
+                ),
+            ),
+            EncoderBypassCase(
+                label="cnn_and_gru_disabled",
+                cnn_enabled=False,
+                gru_enabled=False,
+                omitted_parameter_prefixes=(
+                    "_to_local_hidden",
+                    "_local_encoder",
+                    "_to_bar_hidden",
+                    "_bar_prefix_encoder",
+                    "_bar_encoder",
+                    "_bar_prefix_to_transformer_hidden",
+                    "_bar_to_transformer_hidden",
+                    "_local_to_transformer_hidden",
+                ),
+            ),
+        ],
+        ids=lambda case: case.label,
+    )
+    def test_omits_disabled_encoder_parameters(self, case: EncoderBypassCase) -> None:
+        config = _small_config_with_encoders(cnn_enabled=case.cnn_enabled, gru_enabled=case.gru_enabled)
+        model = HierarchicalAutoregressiveModel(config)
+
+        parameter_names = tuple(name for name, _parameter in model.named_parameters())
+
+        for prefix in case.omitted_parameter_prefixes:
+            assert not any(name.startswith(prefix) for name in parameter_names)
+
+    @pytest.mark.parametrize(
+        "case",
+        [
+            EncoderBypassCase(
+                label="cnn_disabled",
+                cnn_enabled=False,
+                gru_enabled=True,
+                omitted_parameter_prefixes=(),
+            ),
+            EncoderBypassCase(
+                label="gru_disabled",
+                cnn_enabled=True,
+                gru_enabled=False,
+                omitted_parameter_prefixes=(),
+            ),
+            EncoderBypassCase(
+                label="cnn_and_gru_disabled",
+                cnn_enabled=False,
+                gru_enabled=False,
+                omitted_parameter_prefixes=(),
+            ),
+        ],
+        ids=lambda case: case.label,
+    )
+    def test_forward_and_gradients_work(self, case: EncoderBypassCase) -> None:
+        config = _small_config_with_encoders(cnn_enabled=case.cnn_enabled, gru_enabled=case.gru_enabled)
+        model = HierarchicalAutoregressiveModel(config)
+        token_ids = torch.randint(0, VOCAB, (2, 16))
+        bar_positions = _uniform_bar_positions(2, 16, 2)
+
+        logits = model(
+            token_ids,
+            bar_positions=bar_positions,
+            difficulty_ids=torch.zeros(2, dtype=torch.long),
+            scale_type_ids=torch.zeros(2, dtype=torch.long),
+            time_signature_ids=torch.zeros(2, dtype=torch.long),
+            structural_control_ids=torch.zeros(
+                2,
+                len(config.conditioning.structural_vocabulary_sizes),
+                dtype=torch.long,
+            ),
+        )
+        logits.sum().backward()
+
+        params_without_grad = [name for name, parameter in model.named_parameters() if parameter.grad is None]
+        assert logits.shape == (2, 16, VOCAB)
+        assert params_without_grad == [], f"No gradient for: {params_without_grad}"
+
+
 class TestBarGRUEncoder:
     @pytest.mark.parametrize(
         "case",
@@ -290,7 +406,7 @@ class TestBarGRUEncoder:
         ids=lambda c: c.label,
     )
     def test_output_shape(self, case: GRUShapeCase) -> None:
-        gru = BarGRUEncoder(GRUConfig(hidden_size=H, num_layers=1, dropout=0.0, bidirectional=False))
+        gru = BarGRUEncoder(GRUConfig(enabled=True, hidden_size=H, num_layers=1, dropout=0.0, bidirectional=False))
         x = torch.randn(case.batch, case.seq_len, H)
         lengths = torch.tensor([case.seq_len] * case.batch) if case.use_lengths else None
         out = gru(x, lengths=lengths)
@@ -298,7 +414,7 @@ class TestBarGRUEncoder:
 
     def test_packed_ignores_padding(self) -> None:
         torch.manual_seed(42)
-        gru = BarGRUEncoder(GRUConfig(hidden_size=H, num_layers=1, dropout=0.0, bidirectional=False))
+        gru = BarGRUEncoder(GRUConfig(enabled=True, hidden_size=H, num_layers=1, dropout=0.0, bidirectional=False))
         gru.eval()
 
         real_tokens = torch.randn(1, 3, H)

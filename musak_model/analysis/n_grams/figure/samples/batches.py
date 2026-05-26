@@ -38,14 +38,24 @@ def run_figure_batch_tasks(
     *,
     workers: int,
     show_progress: bool,
+    progress_description: str,
 ) -> tuple[FigureBatchResult, ...]:
     if not tasks:
         return ()
 
     if workers == 1:
-        return _run_figure_batch_tasks_serially(tasks, show_progress=show_progress)
+        return _run_figure_batch_tasks_serially(
+            tasks,
+            show_progress=show_progress,
+            progress_description=progress_description,
+        )
 
-    return _run_figure_batch_tasks_in_parallel(tasks, workers=workers, show_progress=show_progress)
+    return _run_figure_batch_tasks_in_parallel(
+        tasks,
+        workers=workers,
+        show_progress=show_progress,
+        progress_description=progress_description,
+    )
 
 
 def process_figure_batch_task(task: FigureBatchTask) -> FigureBatchResult:
@@ -107,9 +117,10 @@ def _run_figure_batch_tasks_serially(
     tasks: tuple[FigureBatchTask, ...],
     *,
     show_progress: bool,
+    progress_description: str,
 ) -> tuple[FigureBatchResult, ...]:
     results: list[FigureBatchResult] = []
-    for task in progress(tasks, description="Counting figure n-gram batches", unit="batch", enabled=show_progress):
+    for task in progress(tasks, description=progress_description, unit="batch", enabled=show_progress):
         results.append(process_figure_batch_task(task))
 
     return tuple(results)
@@ -120,6 +131,7 @@ def _run_figure_batch_tasks_in_parallel(
     *,
     workers: int,
     show_progress: bool,
+    progress_description: str,
 ) -> tuple[FigureBatchResult, ...]:
     ordered_results: list[FigureBatchResult | None] = [None] * len(tasks)
     with ProcessPoolExecutor(max_workers=workers, mp_context=process_pool_context()) as executor:
@@ -130,7 +142,7 @@ def _run_figure_batch_tasks_in_parallel(
         for future in progress(
             completed_futures,
             total=len(futures),
-            description="Counting figure n-gram batches",
+            description=progress_description,
             unit="batch",
             enabled=show_progress,
         ):

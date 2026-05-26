@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from pathlib import Path
+from time import perf_counter
 from typing import Literal
 
 from musak_model.data.config import SegmentationConfig
@@ -23,6 +25,7 @@ from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.vocabulary import TokenVocabulary
 
 type ProcessingStage = Literal["parse", "tokenize", "process"]
+_LOGGER = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -51,6 +54,8 @@ def process_dataset(
 ) -> ProcessDatasetResult:
     match stage:
         case "parse":
+            _LOGGER.info("Starting parse stage")
+            started_at = perf_counter()
             parse_result = parse_dataset(
                 dataset_root,
                 processed_root=processed_root,
@@ -59,13 +64,19 @@ def process_dataset(
                 show_progress=show_progress,
                 profiler=profiler,
             )
+            _LOGGER.info("Finished parse stage in %.1fs", perf_counter() - started_at)
             return _parse_result_to_process_result(
                 parse_result,
                 tokenization_processing_config=processing_config.tokenization,
             )
         case "tokenize":
+            _LOGGER.info("Loading parsed artifacts for tokenization")
+            started_at = perf_counter()
             parsed_scores = load_parsed_score_artifacts(dataset_root, processed_root=processed_root)
             parse_counts = _parse_counts(dataset_root, processed_root=processed_root)
+            _LOGGER.info("Loaded %s parsed artifact(s) in %.1fs", len(parsed_scores), perf_counter() - started_at)
+            _LOGGER.info("Starting tokenize stage")
+            started_at = perf_counter()
             tokenize_result = _tokenize_existing_parsed_scores(
                 parsed_scores,
                 dataset_root=dataset_root,
@@ -78,12 +89,15 @@ def process_dataset(
                 show_progress=show_progress,
                 profiler=profiler,
             )
+            _LOGGER.info("Finished tokenize stage in %.1fs", perf_counter() - started_at)
             return _tokenize_result_to_process_result(
                 tokenize_result,
                 parsed_count=parse_counts.parsed_count,
                 error_count=parse_counts.error_count,
             )
         case "process":
+            _LOGGER.info("Starting parse stage")
+            started_at = perf_counter()
             parse_result = parse_dataset(
                 dataset_root,
                 processed_root=processed_root,
@@ -92,7 +106,13 @@ def process_dataset(
                 show_progress=show_progress,
                 profiler=profiler,
             )
+            _LOGGER.info("Finished parse stage in %.1fs", perf_counter() - started_at)
+            _LOGGER.info("Loading parsed artifacts for tokenization")
+            started_at = perf_counter()
             parsed_scores = load_parsed_score_artifacts(dataset_root, processed_root=processed_root)
+            _LOGGER.info("Loaded %s parsed artifact(s) in %.1fs", len(parsed_scores), perf_counter() - started_at)
+            _LOGGER.info("Starting tokenize stage")
+            started_at = perf_counter()
             tokenize_result = _tokenize_existing_parsed_scores(
                 parsed_scores,
                 dataset_root=dataset_root,
@@ -105,6 +125,7 @@ def process_dataset(
                 show_progress=show_progress,
                 profiler=profiler,
             )
+            _LOGGER.info("Finished tokenize stage in %.1fs", perf_counter() - started_at)
             return _tokenize_result_to_process_result(
                 tokenize_result,
                 parsed_count=parse_result.parsed_count,

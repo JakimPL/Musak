@@ -72,7 +72,7 @@ def test_training_config_rejects_flat_fields() -> None:
             learning_rate=0.001,
             weight_decay=0.0,
             num_workers=1,
-            checkpoint_dir=Path("checkpoints"),
+            checkpoint_directory=Path("checkpoints"),
         )
 
 

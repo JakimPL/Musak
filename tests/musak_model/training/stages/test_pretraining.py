@@ -70,8 +70,8 @@ class FakeTracker:
 def _small_model_config() -> ModelConfig:
     return ModelConfig(
         vocabulary_size=_token_vocabulary().vocabulary_size,
-        cnn=CNNConfig(out_channels=HIDDEN_SIZE, kernel_sizes=(3,), num_layers=1, dropout=0.0),
-        gru=GRUConfig(hidden_size=HIDDEN_SIZE, num_layers=1, dropout=0.0, bidirectional=False),
+        cnn=CNNConfig(enabled=True, out_channels=HIDDEN_SIZE, kernel_sizes=(3,), num_layers=1, dropout=0.0),
+        gru=GRUConfig(enabled=True, hidden_size=HIDDEN_SIZE, num_layers=1, dropout=0.0, bidirectional=False),
         transformer=TransformerConfig(
             hidden_size=HIDDEN_SIZE,
             num_heads=2,
@@ -89,7 +89,7 @@ def _small_model_config() -> ModelConfig:
 
 
 def _training_config(
-    checkpoint_dir: Path,
+    checkpoint_directory: Path,
     *,
     resume_checkpoint: Path | None = None,
     epochs: int = 1,
@@ -101,7 +101,7 @@ def _training_config(
         runtime=RuntimeConfig(num_workers=1, device="cpu"),
         conditioning=conditioning if conditioning is not None else _conditioning_config(),
         checkpoints=CheckpointConfig(
-            checkpoint_directory=checkpoint_dir,
+            checkpoint_directory=checkpoint_directory,
             resume_checkpoint=resume_checkpoint,
             save_all_epochs=save_all_epochs,
         ),

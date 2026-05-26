@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import shutil
 import sqlite3
 from collections import Counter
@@ -9,6 +10,7 @@ from collections.abc import Iterable, Iterator
 from concurrent.futures import FIRST_COMPLETED, Future, ProcessPoolExecutor, wait
 from dataclasses import dataclass
 from pathlib import Path
+from time import perf_counter
 from typing import Final
 
 from musak_model.analysis.n_grams.config import NGramAnalysisConfig
@@ -45,6 +47,7 @@ _STATE_VERSION: Final[int] = 1
 _WORK_DATABASE_NAME: Final[str] = "work.sqlite3"
 _METADATA_STATE_KEY: Final[str] = "state_key"
 _METADATA_ENCODED_SAMPLE_COUNT: Final[str] = "encoded_sample_count"
+_LOGGER = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -88,12 +91,17 @@ def extract_streaming_figure_artifacts(
     store_path = figure_work_store_path(artifact_paths)
     state_key = figure_state_key(config=config, snapshot=snapshot)
     if overwrite:
+        _LOGGER.info("Clearing existing figure artifacts before extraction: %s", artifact_paths.root_directory)
         clear_figure_work(artifact_paths)
 
     if complete_figure_artifacts_exist(artifact_paths) and not overwrite:
+        _LOGGER.info("Reusing complete figure artifacts: %s", artifact_paths.root_directory)
         return existing_figure_summary(artifact_paths)
 
+    _LOGGER.info("Opening figure work store: %s", store_path)
+    started_at = perf_counter()
     with FigureWorkStore(store_path, state_key=state_key, resume=resume) as store:
+        _LOGGER.info("Opened figure work store in %.1fs", perf_counter() - started_at)
         process_missing_batches(
             store,
             encoded_jsonl_path=encoded_directory / ENCODED_JSONL_NAME,
@@ -101,6 +109,8 @@ def extract_streaming_figure_artifacts(
             config=config,
             show_progress=show_progress,
         )
+        _LOGGER.info("Exporting figure artifacts")
+        started_at = perf_counter()
         summary = export_figure_artifacts(
             store,
             artifact_paths=artifact_paths,
@@ -110,8 +120,10 @@ def extract_streaming_figure_artifacts(
             max_n=config.max_n,
             limit_per_group=config.limit_per_group,
         )
+        _LOGGER.info("Exported figure artifacts in %.1fs", perf_counter() - started_at)
 
     store_path.unlink(missing_ok=True)
+    _LOGGER.info("Removed completed figure work store: %s", store_path)
     return summary
 
 
@@ -344,6 +356,13 @@ def process_missing_batches(
     show_progress: bool,
 ) -> None:
     completed_batches = store.completed_batch_indexes()
+    _LOGGER.info(
+        "Preparing figure n-gram batches: encoded_jsonl=%s completed_batches=%s batch_size=%s workers=%s",
+        encoded_jsonl_path,
+        len(completed_batches),
+        config.batch_size,
+        config.workers,
+    )
     tasks = figure_batch_tasks(
         encoded_jsonl_path,
         tokenization_config=tokenization_config,
@@ -353,16 +372,20 @@ def process_missing_batches(
         completed_batches=completed_batches,
     )
     if config.workers == 1:
+        started_at = perf_counter()
         for task in progress(tasks, description="Counting figure n-gram batches", unit="batch", enabled=show_progress):
             store.commit_batch(process_figure_batch_task(task))
+        _LOGGER.info("Finished serial figure n-gram batches in %.1fs", perf_counter() - started_at)
         return
 
+    started_at = perf_counter()
     _process_missing_batches_in_parallel(
         store,
         tasks,
         workers=config.workers,
         show_progress=show_progress,
     )
+    _LOGGER.info("Finished parallel figure n-gram batches in %.1fs", perf_counter() - started_at)
 
 
 def figure_batch_tasks(
@@ -584,6 +607,7 @@ def _process_missing_batches_in_parallel(
     workers: int,
     show_progress: bool,
 ) -> None:
+    _LOGGER.info("Running parallel figure n-gram batches: workers=%s", workers)
     with ProcessPoolExecutor(max_workers=workers, mp_context=process_pool_context()) as executor:
         pending: dict[Future[FigureBatchResult], int] = {}
         task_iterator = iter(tasks)
@@ -598,7 +622,8 @@ def _process_missing_batches_in_parallel(
                 del pending[future]
             _submit_pending_tasks(executor, pending, task_iterator, workers=workers)
             if show_progress and completed_count % 10 == 0:
-                pass
+                _LOGGER.info("Completed %s figure n-gram batch(es)", completed_count)
+        _LOGGER.info("Completed %s figure n-gram batch(es)", completed_count)
 
 
 def _submit_pending_tasks(

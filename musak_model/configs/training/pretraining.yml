@@ -4,7 +4,7 @@ optimization:
   learning_rate: 3e-4
   weight_decay: 0.01
 runtime:
-  num_workers: 1
+  num_workers: 8
   device: cuda
 conditioning:
   use_time_signature: true
@@ -14,7 +14,7 @@ conditioning:
   use_validity_penalty: true
   validity_penalty_weight: 0.10
 checkpoints:
-  checkpoint_dir: checkpoints/pretraining
+  checkpoint_directory: checkpoints/pretraining
   resume_checkpoint: null
   save_all_epochs: true
 mlflow:

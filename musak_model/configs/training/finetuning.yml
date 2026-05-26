@@ -4,7 +4,7 @@ optimization:
   learning_rate: 1e-4
   weight_decay: 0.01
 runtime:
-  num_workers: 1
+  num_workers: 12
   device: cuda
 conditioning:
   use_time_signature: true
@@ -14,7 +14,7 @@ conditioning:
   use_validity_penalty: true
   validity_penalty_weight: 0.02
 checkpoints:
-  checkpoint_dir: checkpoints/finetuning
+  checkpoint_directory: checkpoints/finetuning
   resume_checkpoint: null
   save_all_epochs: false
   pretraining_checkpoint: checkpoints/pretraining/best.pt

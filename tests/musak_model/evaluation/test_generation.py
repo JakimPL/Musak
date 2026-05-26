@@ -266,8 +266,8 @@ def _figure_profile_artifacts(tmp_path: Path) -> FigureProfileArtifacts:
 def _model_config(vocabulary_size: int) -> ModelConfig:
     return ModelConfig(
         vocabulary_size=vocabulary_size,
-        cnn=CNNConfig(out_channels=16, kernel_sizes=(3,), num_layers=1, dropout=0.0),
-        gru=GRUConfig(hidden_size=16, num_layers=1, dropout=0.0, bidirectional=False),
+        cnn=CNNConfig(enabled=True, out_channels=16, kernel_sizes=(3,), num_layers=1, dropout=0.0),
+        gru=GRUConfig(enabled=True, hidden_size=16, num_layers=1, dropout=0.0, bidirectional=False),
         transformer=TransformerConfig(
             hidden_size=16,
             num_heads=2,

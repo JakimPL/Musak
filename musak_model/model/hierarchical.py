@@ -17,13 +17,20 @@ class HierarchicalAutoregressiveModel(nn.Module):
         self._config = config
 
         self._token_embedding = nn.Embedding(config.vocabulary_size, config.transformer.hidden_size)
-        self._to_local_hidden = nn.Linear(config.transformer.hidden_size, config.cnn.out_channels)
-        self._local_encoder = LocalConvEncoder(config.cnn)
-        self._to_bar_hidden = nn.Linear(config.cnn.out_channels, config.gru.hidden_size)
-        self._bar_prefix_encoder = BarPrefixGRUEncoder(config.gru)
-        self._bar_encoder = BarGRUEncoder(config.gru)
-        self._bar_prefix_to_transformer_hidden = nn.Linear(config.gru.hidden_size, config.transformer.hidden_size)
-        self._bar_to_transformer_hidden = nn.Linear(config.gru.hidden_size, config.transformer.hidden_size)
+        local_hidden_size = config.cnn.out_channels if config.cnn.enabled else config.transformer.hidden_size
+        if config.cnn.enabled:
+            self._to_local_hidden = nn.Linear(config.transformer.hidden_size, config.cnn.out_channels)
+            self._local_encoder = LocalConvEncoder(config.cnn)
+
+        if config.gru.enabled:
+            self._to_bar_hidden = nn.Linear(local_hidden_size, config.gru.hidden_size)
+            self._bar_prefix_encoder = BarPrefixGRUEncoder(config.gru)
+            self._bar_encoder = BarGRUEncoder(config.gru)
+            self._bar_prefix_to_transformer_hidden = nn.Linear(config.gru.hidden_size, config.transformer.hidden_size)
+            self._bar_to_transformer_hidden = nn.Linear(config.gru.hidden_size, config.transformer.hidden_size)
+        elif config.cnn.enabled:
+            self._local_to_transformer_hidden = nn.Linear(local_hidden_size, config.transformer.hidden_size)
+
         self._decoder = CausalTransformerDecoder(config.transformer)
         self._lm_head = nn.Linear(config.transformer.hidden_size, config.vocabulary_size)
 
@@ -52,15 +59,7 @@ class HierarchicalAutoregressiveModel(nn.Module):
         token_padding_mask: Tensor | None = None,
     ) -> Tensor:
         token_embeddings = self._token_embedding(token_ids)
-        local_embeddings = self._local_encoder(self._to_local_hidden(token_embeddings))
-        bar_embeddings = self._to_bar_hidden(local_embeddings)
-        bar_prefixes, bar_context, bar_memory_padding_mask = self._encode_bar_representations(
-            bar_embeddings=bar_embeddings,
-            bar_positions=bar_positions,
-        )
-        transformer_bar_prefixes = self._bar_prefix_to_transformer_hidden(bar_prefixes)
-        transformer_bar_context = self._bar_to_transformer_hidden(bar_context)
-
+        self._validate_bar_input_shapes(bar_embeddings=token_embeddings, bar_positions=bar_positions)
         conditioning_prefix = self._build_conditioning_prefix(
             batch_size=token_ids.size(0),
             device=token_ids.device,
@@ -70,11 +69,75 @@ class HierarchicalAutoregressiveModel(nn.Module):
             structural_control_ids=structural_control_ids,
         )
 
-        memory_context = torch.cat([conditioning_prefix, transformer_bar_context], dim=1)
         target_padding_mask = self._build_target_padding_mask(
             bar_positions=bar_positions,
             token_padding_mask=token_padding_mask,
         )
+        local_embeddings = self._local_embeddings(token_embeddings)
+        decoder_inputs, memory_context, memory_padding_mask, memory_attention_mask = self._decoder_context(
+            token_embeddings=token_embeddings,
+            local_embeddings=local_embeddings,
+            conditioning_prefix=conditioning_prefix,
+            bar_positions=bar_positions,
+        )
+        decoded_embeddings = self._decoder(
+            decoder_inputs,
+            memory_context,
+            target_padding_mask=target_padding_mask,
+            memory_padding_mask=memory_padding_mask,
+            memory_attention_mask=memory_attention_mask,
+        )
+        return cast(Tensor, self._lm_head(decoded_embeddings))
+
+    def _local_embeddings(self, token_embeddings: Tensor) -> Tensor:
+        if not self._config.cnn.enabled:
+            return token_embeddings
+
+        return cast(Tensor, self._local_encoder(self._to_local_hidden(token_embeddings)))
+
+    def _decoder_context(
+        self,
+        *,
+        token_embeddings: Tensor,
+        local_embeddings: Tensor,
+        conditioning_prefix: Tensor,
+        bar_positions: Tensor,
+    ) -> tuple[Tensor, Tensor, Tensor, Tensor]:
+        if self._config.gru.enabled:
+            return self._decoder_context_with_bars(
+                token_embeddings=token_embeddings,
+                local_embeddings=local_embeddings,
+                conditioning_prefix=conditioning_prefix,
+                bar_positions=bar_positions,
+            )
+
+        decoder_inputs = token_embeddings
+        if self._config.cnn.enabled:
+            decoder_inputs = decoder_inputs + self._local_to_transformer_hidden(local_embeddings)
+
+        return (
+            decoder_inputs,
+            conditioning_prefix,
+            self._build_conditioning_memory_padding_mask(conditioning_prefix),
+            self._build_conditioning_memory_attention_mask(bar_positions=bar_positions),
+        )
+
+    def _decoder_context_with_bars(
+        self,
+        *,
+        token_embeddings: Tensor,
+        local_embeddings: Tensor,
+        conditioning_prefix: Tensor,
+        bar_positions: Tensor,
+    ) -> tuple[Tensor, Tensor, Tensor, Tensor]:
+        bar_embeddings = self._to_bar_hidden(local_embeddings)
+        bar_prefixes, bar_context, bar_memory_padding_mask = self._encode_bar_representations(
+            bar_embeddings=bar_embeddings,
+            bar_positions=bar_positions,
+        )
+        transformer_bar_prefixes = self._bar_prefix_to_transformer_hidden(bar_prefixes)
+        transformer_bar_context = self._bar_to_transformer_hidden(bar_context)
+        memory_context = torch.cat([conditioning_prefix, transformer_bar_context], dim=1)
         memory_padding_mask = self._build_memory_padding_mask(
             bar_memory_padding_mask=bar_memory_padding_mask,
         )
@@ -82,14 +145,7 @@ class HierarchicalAutoregressiveModel(nn.Module):
             bar_positions=bar_positions,
             num_bar_memory=transformer_bar_context.size(1),
         )
-        decoded_embeddings = self._decoder(
-            token_embeddings + transformer_bar_prefixes,
-            memory_context,
-            target_padding_mask=target_padding_mask,
-            memory_padding_mask=memory_padding_mask,
-            memory_attention_mask=memory_attention_mask,
-        )
-        return cast(Tensor, self._lm_head(decoded_embeddings))
+        return token_embeddings + transformer_bar_prefixes, memory_context, memory_padding_mask, memory_attention_mask
 
     def _encode_bar_representations(
         self,
@@ -215,6 +271,24 @@ class HierarchicalAutoregressiveModel(nn.Module):
             device=bar_memory_padding_mask.device,
         )
         return torch.cat([condition_padding_mask, bar_memory_padding_mask], dim=1)
+
+    def _build_conditioning_memory_padding_mask(self, memory_context: Tensor) -> Tensor:
+        return torch.zeros(
+            memory_context.size(0),
+            memory_context.size(1),
+            dtype=torch.bool,
+            device=memory_context.device,
+        )
+
+    def _build_conditioning_memory_attention_mask(self, *, bar_positions: Tensor) -> Tensor:
+        batch_size, sequence_length = bar_positions.shape
+        return torch.zeros(
+            batch_size * self._config.transformer.num_heads,
+            sequence_length,
+            1,
+            dtype=torch.bool,
+            device=bar_positions.device,
+        )
 
     def _build_memory_attention_mask(self, *, bar_positions: Tensor, num_bar_memory: int) -> Tensor:
         batch_size, sequence_length = bar_positions.shape

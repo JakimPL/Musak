@@ -1,3 +1,5 @@
+import logging
+from time import perf_counter
 from typing import cast
 
 from torch.utils.data import DataLoader
@@ -10,6 +12,8 @@ from musak_model.training.dataset.collate import collate_training_examples
 from musak_model.training.dataset.examples import EncodedExerciseDataset
 from musak_model.training.dataset.schema import TrainingBatch
 from musak_model.training.ingestion.schema import IngestionSplit
+
+_LOGGER = logging.getLogger(__name__)
 
 
 def build_dataloaders(
@@ -26,6 +30,8 @@ def build_dataloaders(
     include_bar_count_control: bool = False,
     max_sequence_length: int | None = None,
 ) -> tuple[DataLoader[TrainingBatch], DataLoader[TrainingBatch]]:
+    _LOGGER.info("Building training dataset examples: samples=%s", len(split.train))
+    started_at = perf_counter()
     train_dataset = EncodedExerciseDataset(
         split.train,
         conditioning=conditioning,
@@ -36,6 +42,13 @@ def build_dataloaders(
         structural_control_vocabulary=structural_control_vocabulary,
         max_sequence_length=max_sequence_length,
     )
+    _LOGGER.info(
+        "Built training dataset examples in %.1fs: examples=%s",
+        perf_counter() - started_at,
+        len(train_dataset),
+    )
+    _LOGGER.info("Building validation dataset examples: samples=%s", len(split.validation))
+    started_at = perf_counter()
     validation_dataset = EncodedExerciseDataset(
         split.validation,
         conditioning=conditioning,
@@ -45,6 +58,17 @@ def build_dataloaders(
         token_vocabulary=token_vocabulary,
         structural_control_vocabulary=structural_control_vocabulary,
         max_sequence_length=max_sequence_length,
+    )
+    _LOGGER.info(
+        "Built validation dataset examples in %.1fs: examples=%s",
+        perf_counter() - started_at,
+        len(validation_dataset),
+    )
+    _LOGGER.info(
+        "Creating DataLoaders: batch_size=%s shuffle_train=%s num_workers=%s",
+        batch_size,
+        shuffle_train,
+        num_workers,
     )
     train_loader = DataLoader(
         train_dataset,

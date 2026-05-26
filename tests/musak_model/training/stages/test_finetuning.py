@@ -53,8 +53,8 @@ def _token_vocabulary() -> TokenVocabulary:
 def _small_model_config() -> ModelConfig:
     return ModelConfig(
         vocabulary_size=_token_vocabulary().vocabulary_size,
-        cnn=CNNConfig(out_channels=HIDDEN_SIZE, kernel_sizes=(3,), num_layers=1, dropout=0.0),
-        gru=GRUConfig(hidden_size=HIDDEN_SIZE, num_layers=1, dropout=0.0, bidirectional=False),
+        cnn=CNNConfig(enabled=True, out_channels=HIDDEN_SIZE, kernel_sizes=(3,), num_layers=1, dropout=0.0),
+        gru=GRUConfig(enabled=True, hidden_size=HIDDEN_SIZE, num_layers=1, dropout=0.0, bidirectional=False),
         transformer=TransformerConfig(
             hidden_size=HIDDEN_SIZE,
             num_heads=2,

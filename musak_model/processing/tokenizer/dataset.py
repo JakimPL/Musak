@@ -1,6 +1,7 @@
 import logging
 from collections.abc import Iterable
 from pathlib import Path
+from time import perf_counter
 
 from musak_model.data.config import SegmentationConfig
 from musak_model.processing.config import TokenizationProcessingConfig
@@ -85,6 +86,8 @@ def tokenize_parsed_scores(
 ) -> TokenizeDatasetResult:
     parsed_scores = tuple(parsed_scores)
     output_paths = TokenizationOutputPaths.from_paths(paths, snapshot=snapshot)
+    _LOGGER.info("Preparing tokenization resume state: %s", output_paths.state_path)
+    started_at = perf_counter()
     state_key = tokenization_state_key(
         snapshot=snapshot,
         segmentation_config=segmentation_config,
@@ -98,6 +101,7 @@ def tokenize_parsed_scores(
         parsed_scores=parsed_scores,
         profiler=profiler,
     )
+    _LOGGER.info("Prepared tokenization resume state in %.1fs", perf_counter() - started_at)
     reusable_result = _reusable_result(
         parsed_scores=parsed_scores,
         paths=paths,
@@ -108,6 +112,7 @@ def tokenize_parsed_scores(
     if reusable_result is not None:
         return reusable_result
 
+    _LOGGER.info("Writing tokenizer snapshot: %s", output_paths.tokenizer_snapshot_path)
     _write_tokenizer_snapshot(output_paths.tokenizer_snapshot_path, snapshot=snapshot, profiler=profiler)
     return _tokenize_missing_sources(
         parsed_scores,
@@ -194,6 +199,13 @@ def _tokenize_missing_sources(
     log_difficulty_label_stats(parsed_scores, dataset_root=dataset_root, difficulty_labels=difficulty_labels)
     completed_source_ids = set(resume_state.completed_source_ids)
     remaining_scores = missing_tokenization_sources(parsed_scores, completed_source_ids=completed_source_ids)
+    _LOGGER.info(
+        "Tokenization resume state: completed_sources=%s remaining_sources=%s encoded_lines=%s manifest_rows=%s",
+        len(completed_source_ids),
+        len(remaining_scores),
+        resume_state.encoded_line_count,
+        resume_state.manifest_row_count,
+    )
     if tokenization_processing_config.workers == 1:
         return _tokenize_missing_sources_serially(
             remaining_scores,
@@ -246,6 +258,8 @@ def _tokenize_missing_sources_serially(
     encoded_line_count = resume_state.encoded_line_count
     manifest_row_count = resume_state.manifest_row_count
     encoded_count = resume_state.encoded_count
+    _LOGGER.info("Running serial tokenization: sources=%s", len(parsed_scores))
+    started_at = perf_counter()
     for artifact in progress(parsed_scores, description="Encoding scores", unit="score", enabled=show_progress):
         source_encoded_count, source_manifest_count, encoded_line_count = tokenize_source(
             artifact,
@@ -274,6 +288,7 @@ def _tokenize_missing_sources_serially(
         )
         profiler.step()
 
+    _LOGGER.info("Finished serial tokenization in %.1fs", perf_counter() - started_at)
     _LOGGER.info("Wrote encoded manifest: %s", output_paths.encoded_manifest_path)
     return _result(
         paths=paths,
@@ -300,7 +315,10 @@ def _tokenize_missing_sources_in_parallel(
     profiler: ProcessingProfilerProtocol,
 ) -> TokenizeDatasetResult:
     temp_root = output_paths.encoded_manifest_path.parent / "tmp"
+    _LOGGER.info("Clearing tokenization temp directory: %s", temp_root)
     clear_tokenization_temp_root(temp_root)
+    _LOGGER.info("Building tokenization batch tasks")
+    started_at = perf_counter()
     tasks = _tokenization_batch_tasks(
         parsed_scores,
         dataset_root=dataset_root,
@@ -312,16 +330,29 @@ def _tokenize_missing_sources_in_parallel(
         tokenization_processing_config=tokenization_processing_config,
         difficulty_labels=difficulty_labels,
     )
+    _LOGGER.info(
+        "Built %s tokenization batch task(s) in %.1fs: sources=%s batch_size=%s workers=%s",
+        len(tasks),
+        perf_counter() - started_at,
+        len(parsed_scores),
+        tokenization_processing_config.batch_size,
+        tokenization_processing_config.workers,
+    )
     encoded_line_count = resume_state.encoded_line_count
     manifest_row_count = resume_state.manifest_row_count
     encoded_count = resume_state.encoded_count
+    _LOGGER.info("Running tokenization batches")
+    started_at = perf_counter()
     with profiler.measure("run_tokenization_batches"):
         batch_results = run_tokenization_batch_tasks(
             tasks,
             workers=tokenization_processing_config.workers,
             show_progress=show_progress,
         )
+    _LOGGER.info("Finished tokenization batches in %.1fs", perf_counter() - started_at)
 
+    _LOGGER.info("Merging %s tokenization batch result(s)", len(batch_results))
+    started_at = perf_counter()
     with profiler.measure("merge_tokenization_batches"):
         for batch_result in batch_results:
             for source_result in batch_result.source_results:
@@ -344,6 +375,7 @@ def _tokenize_missing_sources_in_parallel(
                     encoded_count=encoded_count,
                 )
                 profiler.step()
+    _LOGGER.info("Finished merging tokenization batches in %.1fs", perf_counter() - started_at)
     clear_tokenization_temp_root(temp_root)
 
     _LOGGER.info("Wrote encoded manifest: %s", output_paths.encoded_manifest_path)

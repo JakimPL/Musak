@@ -12,6 +12,7 @@ from musak_shared.files import load_yaml_config
 class CNNConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
+    enabled: bool
     out_channels: int = Field(ge=1)
     kernel_sizes: tuple[int, ...] = Field(min_length=1)
     num_layers: int = Field(ge=1)
@@ -21,6 +22,7 @@ class CNNConfig(BaseModel):
 class GRUConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
+    enabled: bool
     hidden_size: int = Field(ge=1)
     num_layers: int = Field(ge=1)
     dropout: float = Field(ge=0.0, lt=1.0)

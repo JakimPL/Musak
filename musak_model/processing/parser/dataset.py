@@ -1,6 +1,7 @@
 import logging
 from dataclasses import dataclass
 from pathlib import Path
+from time import perf_counter
 
 from musak_model.processing.ids import source_id
 from musak_model.processing.manifest import ParsedManifestField, ParsedManifestStatus, write_parsed_manifest
@@ -85,8 +86,13 @@ def _process_parsed_scores(
     show_progress: bool,
     profiler: ProcessingProfilerProtocol,
 ) -> list[dict[str, object]]:
+    _LOGGER.info("Collecting MusicXML files from %s", dataset_root)
+    started_at = perf_counter()
     with profiler.measure("collect_musicxml_files"):
         source_paths = collect_musicxml_files(dataset_root)
+    _LOGGER.info("Collected %s MusicXML file(s) in %.1fs", len(source_paths), perf_counter() - started_at)
+    _LOGGER.info("Building parse plan")
+    started_at = perf_counter()
     with profiler.measure("build_parse_plan"):
         plan, reuse_stats = _build_parse_plan(
             source_paths,
@@ -94,7 +100,10 @@ def _process_parsed_scores(
             paths=paths,
             overwrite=overwrite,
         )
+    _LOGGER.info("Built parse plan in %.1fs", perf_counter() - started_at)
     _log_reuse_stats(source_count=len(source_paths), task_count=len(plan.tasks), stats=reuse_stats)
+    _LOGGER.info("Running parse tasks: tasks=%s workers=%s", len(plan.tasks), workers)
+    started_at = perf_counter()
     with profiler.measure("run_parse_tasks"):
         _run_tasks_with_partial_manifest(
             plan,
@@ -103,10 +112,14 @@ def _process_parsed_scores(
             show_progress=show_progress,
             profiler=profiler,
         )
+    _LOGGER.info("Finished parse tasks in %.1fs", perf_counter() - started_at)
+    _LOGGER.info("Finalizing parse results")
+    started_at = perf_counter()
     with profiler.measure("finalize_parse_results"):
         results = _filled_results(plan.ordered_results)
         rows = [result.row for result in results]
         parsed_count = sum(row[ParsedManifestField.STATUS] == ParsedManifestStatus.SUCCESS.value for row in rows)
+    _LOGGER.info("Finalized parse results in %.1fs", perf_counter() - started_at)
     _LOGGER.info("Parsed %s/%s source file(s)", parsed_count, len(source_paths))
     return rows
 

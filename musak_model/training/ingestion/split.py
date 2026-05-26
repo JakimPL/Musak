@@ -1,6 +1,7 @@
 import logging
 from pathlib import Path
 from random import Random
+from time import perf_counter
 from typing import Final
 
 from music21.exceptions21 import Music21Exception
@@ -25,6 +26,7 @@ from musak_model.tokens.schema import BarToken, EndToken, Token
 from musak_model.tokens.vocabulary import TokenVocabulary, encode
 from musak_model.training.ingestion.config import IngestionConfig
 from musak_model.training.ingestion.schema import EncodedExercise, IngestionErrorRecord, IngestionSplit
+from musak_model.training.progress import progress
 from musak_shared.files import collect_musicxml_files
 
 _LOGGER = logging.getLogger(__name__)
@@ -44,10 +46,16 @@ def build_split(
     segmentation: SegmentationConfig,
     tokenization_config: TokenizationConfig,
     allow_raw_fallback: bool = True,
+    show_progress: bool = False,
 ) -> IngestionSplit:
+    _LOGGER.info("Preparing token and duration vocabularies for ingestion split")
+    started_at = perf_counter()
     duration_vocabulary = DurationVocabulary(tokenization_config)
     token_vocabulary = TokenVocabulary(duration_vocabulary)
+    _LOGGER.info("Prepared ingestion vocabularies in %.1fs", perf_counter() - started_at)
 
+    _LOGGER.info("Trying to build train/validation split from processed artifacts")
+    started_at = perf_counter()
     processed_split = _build_split_from_processed_artifacts(
         source_directory,
         config=config,
@@ -57,6 +65,7 @@ def build_split(
         token_vocabulary=token_vocabulary,
     )
     if processed_split is not None:
+        _LOGGER.info("Built split from processed artifacts in %.1fs", perf_counter() - started_at)
         return processed_split
 
     if config.processed_root is not None:
@@ -68,7 +77,10 @@ def build_split(
             "Pass --data-dir to allow raw fallback or rebuild processed artifacts."
         )
 
+    _LOGGER.info("Collecting raw MusicXML files for ingestion fallback")
+    started_at = perf_counter()
     file_paths = collect_musicxml_files(source_directory)
+    _LOGGER.info("Collected %s raw MusicXML file(s) in %.1fs", len(file_paths), perf_counter() - started_at)
     validation_files = set(
         _split_validation_files(
             file_paths=file_paths,
@@ -81,7 +93,14 @@ def build_split(
     validation_samples: list[EncodedExercise] = []
     invalid_files: list[IngestionErrorRecord] = []
 
-    for file_path in file_paths:
+    _LOGGER.info("Building split from raw MusicXML files: files=%s", len(file_paths))
+    started_at = perf_counter()
+    for file_path in progress(
+        file_paths,
+        description="Building raw ingestion split",
+        unit="file",
+        enabled=show_progress,
+    ):
         try:
             segments = process_file(
                 file_path,
@@ -106,6 +125,7 @@ def build_split(
         else:
             train_samples.extend(encoded_samples)
 
+    _LOGGER.info("Built raw ingestion split in %.1fs", perf_counter() - started_at)
     return IngestionSplit(
         train=train_samples,
         validation=validation_samples,
@@ -126,7 +146,10 @@ def _build_split_from_processed_artifacts(
         return None
 
     paths = ProcessedDatasetPaths.from_dataset_root(processed_root=config.processed_root, dataset_root=source_directory)
+    _LOGGER.info("Reading parsed manifest: %s", paths.parsed_manifest_path)
+    started_at = perf_counter()
     parsed_rows = read_parsed_manifest(paths.parsed_manifest_path)
+    _LOGGER.info("Read %s parsed manifest row(s) in %.1fs", len(parsed_rows), perf_counter() - started_at)
     if not parsed_rows:
         _LOGGER.warning("Processed parsed manifest is missing or empty: %s", paths.parsed_manifest_path)
         return None
@@ -145,6 +168,11 @@ def _build_split_from_processed_artifacts(
         for row in parsed_rows
         if row[ParsedManifestField.STATUS] == ParsedManifestStatus.SUCCESS.value
     ]
+    _LOGGER.info(
+        "Selecting validation files: source_files=%s validation_fraction=%s",
+        len(source_paths),
+        config.validation_fraction,
+    )
     validation_keys = {
         _source_key(path, source_directory=source_directory)
         for path in _split_validation_files(
@@ -165,11 +193,14 @@ def _build_split_from_processed_artifacts(
             paths=paths, tokenizer_hash_value=snapshot.tokenizer_hash, segmentation=segmentation
         )
         _LOGGER.info("Using encoded processed artifacts: %s", encoded_path)
+        _LOGGER.info("Loading encoded samples for train/validation split")
+        started_at = perf_counter()
         return _split_encoded_samples(
             load_encoded_jsonl(encoded_path),
             validation_keys=validation_keys,
             source_directory=source_directory,
             invalid_files=invalid_files,
+            started_at=started_at,
         )
 
     parsed_success_rows = [
@@ -177,6 +208,7 @@ def _build_split_from_processed_artifacts(
     ]
     if parsed_success_rows:
         _LOGGER.warning("Encoded processed artifacts unavailable; rebuilding training samples from parsed artifacts")
+        _LOGGER.info("Building split from parsed artifacts: parsed_scores=%s", len(parsed_success_rows))
         return _split_from_parsed_scores(
             parsed_success_rows,
             paths=paths,
@@ -247,6 +279,7 @@ def _split_encoded_samples(
     validation_keys: set[str],
     source_directory: Path,
     invalid_files: list[IngestionErrorRecord],
+    started_at: float,
 ) -> IngestionSplit:
     train_samples: list[EncodedExercise] = []
     validation_samples: list[EncodedExercise] = []
@@ -256,6 +289,11 @@ def _split_encoded_samples(
         else:
             train_samples.append(sample)
 
+    _LOGGER.info(
+        "Loaded and split %s encoded sample(s) in %.1fs",
+        len(samples),
+        perf_counter() - started_at,
+    )
     return IngestionSplit(
         train=train_samples,
         validation=validation_samples,
@@ -278,6 +316,7 @@ def _split_from_parsed_scores(
 ) -> IngestionSplit:
     train_samples: list[EncodedExercise] = []
     validation_samples: list[EncodedExercise] = []
+    started_at = perf_counter()
     for row in parsed_rows:
         relative_source_path = Path(row[ParsedManifestField.SOURCE_PATH])
         source_path = source_directory / relative_source_path
@@ -308,6 +347,7 @@ def _split_from_parsed_scores(
         else:
             train_samples.extend(encoded_samples)
 
+    _LOGGER.info("Built split from parsed artifacts in %.1fs", perf_counter() - started_at)
     return IngestionSplit(
         train=train_samples,
         validation=validation_samples,

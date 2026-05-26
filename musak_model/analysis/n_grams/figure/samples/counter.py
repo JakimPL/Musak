@@ -22,6 +22,7 @@ def count_encoded_exercises_figure_ngrams(
     workers: int,
     batch_size: int,
     show_progress: bool = False,
+    progress_description: str = "Counting figure n-gram batches",
 ) -> FigureNGramCountsByScale:
     return count_encoded_exercises_figure_ngrams_with_samples(
         samples,
@@ -32,6 +33,7 @@ def count_encoded_exercises_figure_ngrams(
         workers=workers,
         batch_size=batch_size,
         show_progress=show_progress,
+        progress_description=progress_description,
     ).counts_by_scale
 
 
@@ -45,6 +47,7 @@ def count_encoded_exercises_figure_ngrams_with_samples(
     workers: int,
     batch_size: int,
     show_progress: bool = False,
+    progress_description: str = "Counting figure n-gram batches",
 ) -> EncodedFigureNGramCounts:
     if workers <= 0:
         raise ValueError("workers must be positive")
@@ -64,6 +67,7 @@ def count_encoded_exercises_figure_ngrams_with_samples(
         tasks,
         workers=workers,
         show_progress=show_progress,
+        progress_description=progress_description,
     )
     counts_by_scale: FigureNGramCountsByScale = {}
     counts_by_sample: list[EncodedExerciseFigureNGramCounts] = []
@@ -87,6 +91,7 @@ def count_encoded_exercises_figure_n_grams(
     workers: int,
     batch_size: int,
     show_progress: bool = False,
+    progress_description: str = "Counting figure n-gram batches",
 ) -> FigureNGramCountsByScale:
     return count_encoded_exercises_figure_ngrams(
         samples,
@@ -97,4 +102,5 @@ def count_encoded_exercises_figure_n_grams(
         workers=workers,
         batch_size=batch_size,
         show_progress=show_progress,
+        progress_description=progress_description,
     )

@@ -1,5 +1,6 @@
 import logging
 from pathlib import Path
+from time import perf_counter
 
 import torch
 import torch.nn as nn
@@ -443,6 +444,7 @@ def pretrain(
         segmentation=segmentation_config,
         tokenization_config=tokenization_config,
         allow_raw_fallback=allow_raw_fallback,
+        show_progress=show_progress,
     )
     log_split_summary(split)
     vocabulary = TokenVocabulary(DurationVocabulary(tokenization_config))
@@ -453,6 +455,8 @@ def pretrain(
     _LOGGER.info("Model vocabulary size: %s", resolved_model_config.vocabulary_size)
     time_signature_vocabulary = TimeSignatureVocabulary(resolved_model_config.conditioning.time_signature)
     structural_control_vocabulary = StructuralControlVocabulary(resolved_model_config.conditioning.structural)
+    _LOGGER.info("Building train/validation DataLoaders")
+    started_at = perf_counter()
     train_loader, validation_loader = build_dataloaders(
         split,
         batch_size=training_config.optimization.batch_size,
@@ -465,6 +469,7 @@ def pretrain(
         structural_control_vocabulary=structural_control_vocabulary,
         max_sequence_length=resolved_model_config.transformer.max_sequence_length,
     )
+    _LOGGER.info("Built train/validation DataLoaders in %.1fs", perf_counter() - started_at)
     figure_profile_artifacts = (
         load_generation_figure_profile_artifacts(
             source_directory=source_directory,
@@ -474,7 +479,10 @@ def pretrain(
         if training_config.generation_evaluation.enabled
         else None
     )
+    _LOGGER.info("Initializing model")
+    started_at = perf_counter()
     model = HierarchicalAutoregressiveModel(resolved_model_config)
+    _LOGGER.info("Initialized model in %.1fs", perf_counter() - started_at)
     tracker = build_training_tracker(training_config=training_config)
     with tracker:
         tracker.log_setup(

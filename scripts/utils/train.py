@@ -138,8 +138,8 @@ def should_skip_pretraining(*, args: argparse.Namespace, training_config: Traini
 
 
 def existing_training_checkpoints(training_config: TrainingConfig) -> tuple[Path, ...]:
-    checkpoint_dir = training_config.checkpoints.checkpoint_directory
-    candidates = (checkpoint_dir / "latest.pt", checkpoint_dir / "best.pt")
+    checkpoint_directory = training_config.checkpoints.checkpoint_directory
+    candidates = (checkpoint_directory / "latest.pt", checkpoint_directory / "best.pt")
     return tuple(path for path in candidates if path.exists())
 
 
@@ -390,7 +390,7 @@ def build_pretraining_training_config(args: argparse.Namespace) -> TrainingConfi
         update=common_training_section_updates(
             args,
             config=config,
-            default_checkpoint_dir=DEFAULT_PRETRAINING_CHECKPOINT_DIR,
+            default_checkpoint_directory=DEFAULT_PRETRAINING_CHECKPOINT_DIR,
         )
     )
 
@@ -400,7 +400,7 @@ def build_finetuning_training_config(args: argparse.Namespace) -> FinetuningTrai
     updates = common_training_section_updates(
         args,
         config=config,
-        default_checkpoint_dir=DEFAULT_FINETUNING_CHECKPOINT_DIR,
+        default_checkpoint_directory=DEFAULT_FINETUNING_CHECKPOINT_DIR,
     )
     checkpoint_config = updates["checkpoints"]
     if not isinstance(checkpoint_config, CheckpointConfig):
@@ -423,7 +423,7 @@ def common_training_section_updates(
     args: argparse.Namespace,
     *,
     config: TrainingConfig,
-    default_checkpoint_dir: Path,
+    default_checkpoint_directory: Path,
 ) -> dict[str, OptimizationConfig | RuntimeConfig | TrainingConditioningConfig | CheckpointConfig | MlflowConfig]:
     return {
         "optimization": OptimizationConfig(
@@ -440,7 +440,7 @@ def common_training_section_updates(
         "checkpoints": CheckpointConfig(
             checkpoint_directory=args.checkpoint_dir
             or config.checkpoints.checkpoint_directory
-            or default_checkpoint_dir,
+            or default_checkpoint_directory,
             resume_checkpoint=(
                 args.resume_checkpoint if args.resume_checkpoint is not None else config.checkpoints.resume_checkpoint
             ),

@@ -53,11 +53,11 @@ def _args(**overrides: object) -> argparse.Namespace:
     return argparse.Namespace(**values)
 
 
-def _training_config(checkpoint_dir: Path, *, epochs: int = 25) -> TrainingConfig:
+def _training_config(checkpoint_directory: Path, *, epochs: int = 25) -> TrainingConfig:
     return TrainingConfig(
         optimization=OptimizationConfig(epochs=epochs, batch_size=8, learning_rate=0.001, weight_decay=0.0),
         runtime=RuntimeConfig(num_workers=2, device="cuda"),
-        checkpoints=CheckpointConfig(checkpoint_directory=checkpoint_dir),
+        checkpoints=CheckpointConfig(checkpoint_directory=checkpoint_directory),
         conditioning=_conditioning_config(use_time_signature=True, use_scale_type=True),
         mlflow=MlflowConfig(enable_mlflow=True),
         generation_evaluation=_generation_evaluation_config(),
@@ -65,7 +65,7 @@ def _training_config(checkpoint_dir: Path, *, epochs: int = 25) -> TrainingConfi
 
 
 def _finetuning_config(
-    checkpoint_dir: Path,
+    checkpoint_directory: Path,
     *,
     pretraining_checkpoint: Path,
     save_all_epochs: bool = True,
@@ -74,7 +74,7 @@ def _finetuning_config(
         optimization=OptimizationConfig(epochs=8, batch_size=8, learning_rate=0.001, weight_decay=0.0),
         runtime=RuntimeConfig(num_workers=4, device="cuda"),
         checkpoints=FinetuningCheckpointConfig(
-            checkpoint_directory=checkpoint_dir,
+            checkpoint_directory=checkpoint_directory,
             pretraining_checkpoint=pretraining_checkpoint,
             save_all_epochs=save_all_epochs,
         ),

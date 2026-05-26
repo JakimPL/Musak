@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import logging
 import math
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from fractions import Fraction
 from pathlib import Path
+from time import perf_counter
 from typing import Protocol
 
 import torch
@@ -38,6 +40,8 @@ from musak_model.model.config import ModelConfig
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import BarToken, EndToken, ScaleType, Token
 from musak_model.tokens.vocabulary import TokenVocabulary
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class GenerationEvaluationOptions(Protocol):
@@ -135,10 +139,20 @@ class GenerationSuiteEvaluator:
         self._figure_profile_artifacts = figure_profile_artifacts
 
     def evaluate(self, model: GenerationModel, *, device: torch.device) -> dict[str, float]:
+        _LOGGER.info(
+            "Starting generation evaluation: soft_samples=%s hard_samples=%s max_new_tokens=%s device=%s",
+            self._config.soft_sample_count,
+            self._config.hard_sample_count,
+            self._config.max_new_tokens,
+            device,
+        )
+        started_at = perf_counter()
         was_training = model.training
         model.eval()
         try:
             with torch.no_grad():
+                _LOGGER.info("Generating soft evaluation samples")
+                soft_started_at = perf_counter()
                 soft_samples = self._sample_suite(
                     model,
                     device=device,
@@ -146,6 +160,9 @@ class GenerationSuiteEvaluator:
                     hard_constraints=False,
                     seed_offset=0,
                 )
+                _LOGGER.info("Generated soft evaluation samples in %.1fs", perf_counter() - soft_started_at)
+                _LOGGER.info("Generating hard-constrained evaluation samples")
+                hard_started_at = perf_counter()
                 hard_samples = self._sample_suite(
                     model,
                     device=device,
@@ -153,10 +170,12 @@ class GenerationSuiteEvaluator:
                     hard_constraints=True,
                     seed_offset=self._config.soft_sample_count,
                 )
+                _LOGGER.info("Generated hard-constrained evaluation samples in %.1fs", perf_counter() - hard_started_at)
         finally:
             model.train(was_training)
 
-        return {
+        _LOGGER.info("Computing generation evaluation metrics")
+        metrics = {
             **_suite_metrics(_SOFT_SUITE_NAME, soft_samples),
             **_suite_metrics(_HARD_SUITE_NAME, hard_samples),
             **_figure_profile_metrics(
@@ -166,6 +185,12 @@ class GenerationSuiteEvaluator:
                 duration_vocabulary=self._duration_vocabulary,
             ),
         }
+        _LOGGER.info(
+            "Finished generation evaluation in %.1fs: metrics=%s",
+            perf_counter() - started_at,
+            len(metrics),
+        )
+        return metrics
 
     def _sample_suite(
         self,
@@ -370,6 +395,8 @@ def _figure_profile_metrics(
     if artifacts is None:
         return {}
 
+    _LOGGER.info("Computing generation figure profile metrics: generated_samples=%s", len(samples))
+    started_at = perf_counter()
     generated_counts_by_scale, generated_sample_count = _generated_figure_counts(
         samples,
         reference_profile=artifacts.profile,
@@ -381,7 +408,7 @@ def _figure_profile_metrics(
         reference_profile=artifacts.profile,
         sample_count=generated_sample_count,
     )
-    return {
+    metrics = {
         **_figure_profile_count_metrics(artifacts),
         **figure_profile_comparison_metrics(
             reference_profile=artifacts.profile,
@@ -395,6 +422,12 @@ def _figure_profile_metrics(
             metric_prefix="generation/figure",
         ),
     }
+    _LOGGER.info(
+        "Computed generation figure profile metrics in %.1fs: profile_samples=%s",
+        perf_counter() - started_at,
+        generated_sample_count,
+    )
+    return metrics
 
 
 def _figure_profile_count_metrics(artifacts: FigureProfileArtifacts) -> dict[str, float]:
