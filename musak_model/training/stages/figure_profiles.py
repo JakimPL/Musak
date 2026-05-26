@@ -23,7 +23,8 @@ from musak_model.n_grams.profile.loading import (
     FigureProfileArtifacts,
     load_processed_figure_profile_artifacts,
 )
-from musak_model.n_grams.profile.metrics import figure_profile_comparison_metrics
+from musak_model.n_grams.profile.metrics.profile_comparison import figure_profile_comparison_metrics
+from musak_model.n_grams.profile.metrics.stats import mean, total_variation_distance
 from musak_model.n_grams.profile.schema import FigureProfile
 from musak_model.n_grams.profile.streaming.executor import process_missing_sample_batches
 from musak_model.n_grams.profile.streaming.export import export_figure_artifacts
@@ -302,14 +303,14 @@ def _figure_distribution_metrics_from_csv(
         else:
             comparison_counts = Counter()
 
-        distances.append(_total_variation_distance(reference_group.counts, comparison_counts))
+        distances.append(total_variation_distance(reference_group.counts, comparison_counts))
 
     if not distances:
         return {f"{metric_prefix}/count/distribution_groups": 0.0}
 
     return {
         f"{metric_prefix}/count/distribution_groups": float(len(distances)),
-        f"{metric_prefix}/mean/identity_total_variation_distance": sum(distances) / len(distances),
+        f"{metric_prefix}/mean/identity_total_variation_distance": mean(distances),
     }
 
 
@@ -329,19 +330,3 @@ def _iter_count_groups(path: Path) -> Iterator[FigureCountGroup]:
 
         if current_key is not None:
             yield FigureCountGroup(key=current_key, counts=counts)
-
-
-def _total_variation_distance(reference_counts: Counter[str], comparison_counts: Counter[str]) -> float:
-    reference_total = sum(reference_counts.values())
-    if reference_total == 0:
-        return 0.0
-
-    comparison_total = sum(comparison_counts.values())
-    figures = set(reference_counts) | set(comparison_counts)
-    return 0.5 * sum(
-        abs(
-            (reference_counts[figure] / reference_total)
-            - (comparison_counts[figure] / comparison_total if comparison_total > 0 else 0.0)
-        )
-        for figure in figures
-    )

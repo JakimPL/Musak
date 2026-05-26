@@ -9,17 +9,17 @@ packages, and tested under matching test paths.
 - Reuse the same generation evaluation metric code in training and the notebook.
 - Keep `musak_model/configs/analysis/n_grams.yml` as the single source of truth for n-gram and distribution-comparison
   parameters.
-- Preserve n-gram comparison, but make it align with the V1 dataset-relative distribution goals in `docs/metrics.md`.
+- Preserve n-gram comparison, but make it align with the dataset-relative distribution goals in `docs/metrics.md`.
 - Implement incrementally so each phase can be reviewed before the next one starts.
 
 ## Current State
 
 `musak_model/evaluation/generation.py` currently owns training-time generation sampling and metrics. It already logs
-many V0 reference-free metrics from `SegmentDiagnostics`, including decode/end/constraint rates, bar completion,
+many reference-free metrics from `SegmentDiagnostics`, including decode/end/constraint rates, bar completion,
 silence/activity, token fractions, tonality, density, playability, and hand coordination.
 
-The current V1 slice is limited. Training generation evaluation compares generated figure artifacts against processed
-dataset figure artifacts with:
+The current dataset-relative slice is limited. Training generation evaluation compares generated figure artifacts
+against processed dataset figure artifacts with:
 
 - figure profile property-rate errors: monophonic, chords-only, and in-scale rates;
 - figure total relative absolute error;
@@ -53,7 +53,7 @@ Responsibilities:
 - `sampling.py`: autoregressive sampling helpers, constraint reporting, and segment construction.
 - `suite_metrics.py`: suite-level aggregation and MLflow metric-name assembly.
 - `reference_free.py`: curated reference-free generation summaries shared by training and notebook code.
-- `figure_metrics.py`: V1 figure comparisons from existing figure count/profile artifacts.
+- `figure_metrics.py`: reference-distribution figure comparisons from existing figure count/profile artifacts.
 - `rhythm_metrics.py`: rhythm, duration, grid-alignment, and strong-beat distribution extraction/comparison.
 - `notebook_rows.py`: small formatting adapters that turn shared metric records into notebook table rows.
 
@@ -76,7 +76,7 @@ Add comparison settings to the existing analysis config, including:
 The implementation should keep existing figure `min_n` and `max_n` behavior intact. If naming evolves during
 implementation, keep the config shape explicit, Pydantic-validated, and documented by tests.
 
-## V1 Metrics
+## Dataset-Relative Metrics
 
 Implement these dataset-relative metrics as shared code:
 
@@ -121,7 +121,7 @@ Keep detailed diagnostics/debug tables available only in lower-level debug secti
 1. Docs and baseline inventory.
 2. Refactor generation evaluation into a package without behavior changes.
 3. Extend `analysis/n_grams.yml` and `NGramAnalysisConfig`.
-4. Add shared V1 figure metrics.
+4. Add shared reference-distribution figure metrics.
 5. Replace notebook raw diagnostics with reference-free shared rows.
 6. Add rhythm/grid/strong-beat reference distribution artifacts and metrics.
 7. Wire all shared metrics into training generation evaluation and notebook display.
@@ -138,4 +138,3 @@ Each phase must update `docs/generation-evaluation-metrics-progress.md` before s
   tokenized segments.
 - Add notebook row-helper tests proving the notebook uses shared generation evaluation code.
 - Run existing generation, figure-profile, notebook model-output, and n-gram tests after each behavioral phase.
-

@@ -11,10 +11,8 @@ from musak_model.n_grams.figure.samples.merge import merge_scale_counts
 from musak_model.n_grams.figure.samples.schema import FigureNGramCountsByScale
 from musak_model.n_grams.profile.builder import build_figure_profile
 from musak_model.n_grams.profile.loading import FigureProfileArtifacts
-from musak_model.n_grams.profile.metrics import (
-    figure_distribution_metrics,
-    figure_profile_comparison_metrics,
-)
+from musak_model.n_grams.profile.metrics.distribution import figure_distribution_metrics
+from musak_model.n_grams.profile.metrics.profile_comparison import figure_profile_comparison_metrics
 from musak_model.n_grams.profile.schema import FigureProfile, FigureProfileMetadata
 from musak_model.tokens.duration import DurationVocabulary
 
