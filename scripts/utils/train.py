@@ -282,7 +282,7 @@ def add_common_training_arguments(
         "--data-dir",
         type=Path,
         required=True,
-        help="Dataset root, including the dataset name, for example data/PDMX.",
+        help="Dataset root. MusicXML files are gathered recursively when processed artifacts are unavailable.",
     )
     parser.add_argument("--ingestion-config", type=Path, default=INGESTION_CONFIG_PATH, help="Ingestion YAML config.")
     parser.add_argument(
@@ -522,34 +522,40 @@ def _description(stage: TrainingStage) -> str:
     match stage:
         case TrainingStage.PRETRAINING:
             return (
-                "Train the Musak Stage 1 autoregressive model. Pass --data-dir data/PDMX; training reads "
-                "processed/PDMX when matching artifacts exist."
+                "Train the Musak Stage 1 autoregressive model from a MusicXML dataset root. "
+                "Training reuses matching processed artifacts when they exist."
             )
         case TrainingStage.FINETUNING:
             return (
                 "Fine-tune the Musak Stage 2 conditioned autoregressive model from a Stage 1 checkpoint. "
-                "Use the same explicit dataset directory policy as Stage 1."
+                "Training reuses matching processed artifacts for the supplied dataset root when they exist."
             )
 
 
 def _epilog(stage: TrainingStage) -> str:
     executable = _executable(stage)
-    finetuning_extra = ""
-    if stage == TrainingStage.FINETUNING:
-        finetuning_extra = " --pretrain-checkpoint checkpoints/pretraining/best.pt"
+    data_directory = _example_data_directory(stage)
     return (
         "Examples:\n"
-        f"  uv run python {executable} --data-dir data/PDMX{finetuning_extra}\n"
-        f"  uv run python {executable} --data-dir data/PDMX "
+        f"  uv run python {executable} --data-dir {data_directory}\n"
+        f"  uv run python {executable} --data-dir {data_directory} "
         "--tokenization-config musak_model/configs/tokens/tokenization.yml"
-        f"{finetuning_extra}\n\n"
+        "\n\n"
         "Artifact lookup:\n"
-        "  The dataset name comes from --data-dir, for example PDMX from data/PDMX.\n"
-        "  Encoded artifacts are reused from processed/<dataset>/encoded/<tokenizer-hash>/ when "
+        "  The dataset name comes from the final component of --data-dir.\n"
+        "  Encoded artifacts are reused from artifacts/processed/<dataset>/encoded/<tokenizer-hash>/ when "
         "tokenizer.json matches the active tokenization config.\n"
         "  If matching encoded artifacts are unavailable, parsed JSON artifacts are used when present.\n"
         "  If no usable processed artifacts exist, MusicXML files from --data-dir are parsed for training."
     )
+
+
+def _example_data_directory(stage: TrainingStage) -> str:
+    match stage:
+        case TrainingStage.PRETRAINING:
+            return "data/pretraining-dataset"
+        case TrainingStage.FINETUNING:
+            return "data/finetuning-dataset"
 
 
 def _executable(stage: TrainingStage) -> str:

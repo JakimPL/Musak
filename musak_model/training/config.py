@@ -4,7 +4,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from musak_model.paths import FINETUNING_CONFIG_PATH, PRETRAINING_CONFIG_PATH
+from musak_model.paths import DEFAULT_PRETRAINING_CHECKPOINT_DIR, FINETUNING_CONFIG_PATH, PRETRAINING_CONFIG_PATH
 from musak_model.tokens.schema import ScaleType
 from musak_shared.files import load_yaml_config
 from musak_shared.time_signature import validate_time_denominator
@@ -51,7 +51,7 @@ class FinetuningCheckpointConfig(CheckpointConfig):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     save_all_epochs: bool = True
-    pretraining_checkpoint: Path
+    pretraining_checkpoint: Path = DEFAULT_PRETRAINING_CHECKPOINT_DIR / "best.pt"
 
 
 class MlflowConfig(BaseModel):

@@ -260,11 +260,12 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         ),
         epilog=(
             "Examples:\n"
-            "  uv run python scripts/process_dataset.py --data-dir data/PDMX\n"
-            "  uv run python scripts/process_dataset.py --data-dir data/PDMX --stage parse --no-progress\n\n"
+            "  uv run python scripts/process_dataset.py --data-dir data/pretraining-dataset\n"
+            "  uv run python scripts/process_dataset.py --data-dir data/pretraining-dataset "
+            "--stage parse --no-progress\n\n"
             "Output:\n"
-            "  Artifacts are written below processed/<data-dir.name>/ by default.\n"
-            "  Pass the dataset root such as data/PDMX, not an internal folder such as data/PDMX/mxl."
+            "  Artifacts are written below artifacts/processed/<data-dir.name>/ by default.\n"
+            "  MusicXML files are gathered recursively from the dataset root."
         ),
         formatter_class=_ProcessDatasetHelpFormatter,
     )

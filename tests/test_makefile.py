@@ -39,15 +39,15 @@ def test_make_help_lists_main_targets() -> None:
 def test_make_process_uses_data_dir_and_processing_options() -> None:
     output = _make_dry_run(
         "process",
-        "DATA_DIR=data/PDMX",
+        "DATA_DIR=data/sample-dataset",
         "NUM_WORKERS=4",
         "PROCESS_MLFLOW_RUN_NAME=process-test",
         "PROCESS_MLFLOW_TRACKING_URI=file:///tmp/mlruns",
         "PROCESSING_CONFIG=musak_model/configs/data/processing.yml",
-        "PROCESS_DIFFICULTY_LABELS=data/PDMX/difficulty_labels.json",
+        "PROCESS_DIFFICULTY_LABELS=data/sample-difficulty.json",
         "PROCESS_WHOLE_FILE_SEGMENTS=1",
         "ANALYSIS_CONFIG=musak_model/configs/analysis/n_grams.yml",
-        "ANALYSIS_OUTPUT=analysis/pdmx-figures.csv",
+        "ANALYSIS_OUTPUT=artifacts/analysis/sample-figures.csv",
         "ANALYSIS_NO_PROGRESS=1",
     )
 
@@ -55,63 +55,63 @@ def test_make_process_uses_data_dir_and_processing_options() -> None:
     assert '--stage "process"' in output
     assert '--stage "parse"' not in output
     assert '--stage "tokenize"' not in output
-    assert '--data-dir "data/PDMX"' in output
+    assert '--data-dir "data/sample-dataset"' in output
     assert '--processing-config "musak_model/configs/data/processing.yml"' in output
     assert '--workers "4"' in output
-    assert '--difficulty-labels "data/PDMX/difficulty_labels.json"' in output
+    assert '--difficulty-labels "data/sample-difficulty.json"' in output
     assert "--whole-file-segments" in output
     assert '--mlflow-run-name "process-test"' in output
     assert '--mlflow-tracking-uri "file:///tmp/mlruns"' in output
     assert '--analysis-config "musak_model/configs/analysis/n_grams.yml"' in output
-    assert '--analysis-output "analysis/pdmx-figures.csv"' in output
+    assert '--analysis-output "artifacts/analysis/sample-figures.csv"' in output
     assert "--no-progress" in output
 
 
 def test_make_process_forwards_overwrite_flag() -> None:
-    output = _make_dry_run("process", "DATA_DIR=data/PDMX", "OVERWRITE=1")
+    output = _make_dry_run("process", "DATA_DIR=data/sample-dataset", "OVERWRITE=1")
 
     assert "--overwrite" in output
 
 
 def test_make_process_supports_process_specific_overwrite_flag() -> None:
-    output = _make_dry_run("process", "DATA_DIR=data/PDMX", "PROCESS_OVERWRITE=1")
+    output = _make_dry_run("process", "DATA_DIR=data/sample-dataset", "PROCESS_OVERWRITE=1")
 
     assert "--overwrite" in output
 
 
 def test_make_process_supports_overwite_typo_alias() -> None:
-    output = _make_dry_run("process", "DATA_DIR=data/PDMX", "OVERWITE=1")
+    output = _make_dry_run("process", "DATA_DIR=data/sample-dataset", "OVERWITE=1")
 
     assert "--overwrite" in output
 
 
 def test_make_process_can_disable_mlflow() -> None:
-    output = _make_dry_run("process", "DATA_DIR=data/PDMX", "PROCESS_DISABLE_MLFLOW=1")
+    output = _make_dry_run("process", "DATA_DIR=data/sample-dataset", "PROCESS_DISABLE_MLFLOW=1")
 
     assert "--disable-mlflow" in output
 
 
 def test_make_process_can_skip_figure_analysis() -> None:
-    output = _make_dry_run("process", "DATA_DIR=data/PDMX", "PROCESS_SKIP_FIGURE_ANALYSIS=1")
+    output = _make_dry_run("process", "DATA_DIR=data/sample-dataset", "PROCESS_SKIP_FIGURE_ANALYSIS=1")
 
     assert "--skip-figure-analysis" in output
 
 
 def test_make_process_supports_profile_flag() -> None:
-    output = _make_dry_run("process", "DATA_DIR=data/PDMX", "PROFILE=1")
+    output = _make_dry_run("process", "DATA_DIR=data/sample-dataset", "PROFILE=1")
 
     assert "--profile" in output
 
 
 def test_make_process_supports_process_specific_profile_flag() -> None:
-    output = _make_dry_run("process", "DATA_DIR=data/PDMX", "PROCESS_PROFILE=1")
+    output = _make_dry_run("process", "DATA_DIR=data/sample-dataset", "PROCESS_PROFILE=1")
 
     assert "--profile" in output
 
 
 def test_make_parse_and_tokenize_expose_separate_stages() -> None:
-    parse_output = _make_dry_run("parse", "DATA_DIR=data/PDMX")
-    tokenize_output = _make_dry_run("tokenize", "DATA_DIR=data/PDMX")
+    parse_output = _make_dry_run("parse", "DATA_DIR=data/sample-dataset")
+    tokenize_output = _make_dry_run("tokenize", "DATA_DIR=data/sample-dataset")
 
     assert '--stage "parse"' in parse_output
     assert '--stage "tokenize"' in tokenize_output
@@ -120,25 +120,25 @@ def test_make_parse_and_tokenize_expose_separate_stages() -> None:
 def test_make_analyze_n_grams_uses_dataset_and_analysis_variables() -> None:
     output = _make_dry_run(
         "analyze-n-grams",
-        "DATA_DIR=data/PDMX",
+        "DATA_DIR=data/sample-dataset",
         "ANALYSIS_CONFIG=musak_model/configs/analysis/n_grams.yml",
-        "ANALYSIS_OUTPUT=analysis/pdmx-figures.csv",
-        "ANALYSIS_ENCODED_DIR=processed/PDMX/encoded/abc",
+        "ANALYSIS_OUTPUT=artifacts/analysis/sample-figures.csv",
+        "ANALYSIS_ENCODED_DIR=artifacts/processed/sample-dataset/encoded/abc",
         "ANALYSIS_NO_PROGRESS=1",
     )
 
     assert "scripts/extract_figures.py" in output
-    assert '--data-dir "data/PDMX"' in output
+    assert '--data-dir "data/sample-dataset"' in output
     assert '--analysis-config "musak_model/configs/analysis/n_grams.yml"' in output
-    assert '--output "analysis/pdmx-figures.csv"' in output
-    assert '--encoded-dir "processed/PDMX/encoded/abc"' in output
+    assert '--output "artifacts/analysis/sample-figures.csv"' in output
+    assert '--encoded-dir "artifacts/processed/sample-dataset/encoded/abc"' in output
     assert "--no-progress" in output
 
 
 def test_make_train_pretrain_uses_descriptive_variables() -> None:
     output = _make_dry_run(
         "pretrain",
-        "PRETRAIN_DATA_DIR=data/PDMX",
+        "PRETRAIN_DATA_DIR=data/sample-dataset",
         "PRETRAIN_EPOCHS=25",
         "PRETRAIN_DEVICE=cuda",
         "PRETRAIN_NUM_WORKERS=2",
@@ -146,7 +146,7 @@ def test_make_train_pretrain_uses_descriptive_variables() -> None:
     )
 
     assert "scripts/pretrain.py" in output
-    assert '--data-dir "data/PDMX"' in output
+    assert '--data-dir "data/sample-dataset"' in output
     assert '--epochs "25"' in output
     assert '--device "cuda"' in output
     assert '--num-workers "2"' in output
@@ -156,33 +156,33 @@ def test_make_train_pretrain_uses_descriptive_variables() -> None:
 def test_make_train_runs_pretrain_then_finetune_with_distinct_datasets() -> None:
     output = _make_dry_run(
         "train",
-        "PRETRAIN_DATA_DIR=data/PDMX",
-        "FINETUNE_DATA_DIR=data/exercises",
-        "FINETUNE_DIFFICULTY_LABELS=data/exercises/difficulty_labels.json",
-        "PRETRAIN_CHECKPOINT=checkpoints/pretraining/best.pt",
+        "PRETRAIN_DATA_DIR=data/sample-dataset",
+        "FINETUNE_DATA_DIR=data/finetuning-dataset",
+        "FINETUNE_DIFFICULTY_LABELS=data/finetuning-difficulty.json",
+        "PRETRAIN_CHECKPOINT=custom/pretraining.pt",
     )
 
     assert output.index("scripts/pretrain.py") < output.index("scripts/finetune.py")
-    assert '--data-dir "data/PDMX"' in output
-    assert '--data-dir "data/exercises"' in output
-    assert '--difficulty-labels "data/exercises/difficulty_labels.json"' in output
+    assert '--data-dir "data/sample-dataset"' in output
+    assert '--data-dir "data/finetuning-dataset"' in output
+    assert '--difficulty-labels "data/finetuning-difficulty.json"' in output
     assert "--whole-file-segments" in output
-    assert '--pretrain-checkpoint "checkpoints/pretraining/best.pt"' in output
+    assert '--pretrain-checkpoint "custom/pretraining.pt"' in output
 
 
 def test_make_finetune_requires_difficulty_labels() -> None:
     with pytest.raises(subprocess.CalledProcessError):
         _make_dry_run(
             "finetune",
-            "FINETUNE_DATA_DIR=data/exercises",
+            "FINETUNE_DATA_DIR=data/finetuning-dataset",
         )
 
 
 def test_make_mlflow_starts_dashboard_with_configurable_address() -> None:
-    output = _make_dry_run("mlflow", "MLFLOW_DIR=mlruns", "MLFLOW_HOST=0.0.0.0", "MLFLOW_PORT=5050")
+    output = _make_dry_run("mlflow", "MLFLOW_DIR=artifacts/mlruns", "MLFLOW_HOST=0.0.0.0", "MLFLOW_PORT=5050")
 
     assert "uv run mlflow ui" in output
-    assert '--backend-store-uri "file:mlruns"' in output
+    assert '--backend-store-uri "file:artifacts/mlruns"' in output
     assert '--host "0.0.0.0"' in output
     assert '--port "5050"' in output
 

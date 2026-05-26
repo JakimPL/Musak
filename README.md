@@ -81,46 +81,45 @@ not used by the exercise pages yet.
 `make process` prepares a MusicXML dataset for training. It recursively gathers `.mxl`, `.xml`, and `.musicxml` files
 under `DATA_DIR`, parses compatible two-part piano scores, tokenizes training examples, computes dataset diagnostics,
 builds figure-profile artifacts, and logs processing metrics to MLflow. By default, reusable artifacts are written
-under `processed/<dataset-name>`. This is a dataset-level processing step; train/validation splits are created later
+under `artifacts/processed/<dataset-name>`. This is a dataset-level processing step; train/validation splits are created later
 during training. Interrupted figure analysis continues from compatible partial progress and can be restarted with
 `OVERWRITE=1`.
 
 Process a broad pretraining dataset:
 
 ```bash
-DATA_DIR=data/PDMX make process
+DATA_DIR=data/pretraining-dataset make process
 ```
 
 Process an exercise-style finetuning dataset with whole-file segments and difficulty labels:
 
 ```bash
-DATA_DIR=data/exercises \
+DATA_DIR=data/finetuning-dataset \
 PROCESS_WHOLE_FILE_SEGMENTS=1 \
-PROCESS_DIFFICULTY_LABELS=data/exercises/difficulty_labels.json \
+PROCESS_DIFFICULTY_LABELS=data/finetuning-difficulty.json \
 make process
 ```
 
 Train pretraining only:
 
 ```bash
-PRETRAIN_DATA_DIR=data/PDMX make pretrain
+PRETRAIN_DATA_DIR=data/pretraining-dataset make pretrain
 ```
 
 Train finetuning only from a pretraining checkpoint:
 
 ```bash
-FINETUNE_DATA_DIR=data/exercises \
-FINETUNE_DIFFICULTY_LABELS=data/exercises/difficulty_labels.json \
-PRETRAIN_CHECKPOINT=checkpoints/pretraining/best.pt \
+FINETUNE_DATA_DIR=data/finetuning-dataset \
+FINETUNE_DIFFICULTY_LABELS=data/finetuning-difficulty.json \
 make finetune
 ```
 
 Run both model stages:
 
 ```bash
-PRETRAIN_DATA_DIR=data/PDMX \
-FINETUNE_DATA_DIR=data/exercises \
-FINETUNE_DIFFICULTY_LABELS=data/exercises/difficulty_labels.json \
+PRETRAIN_DATA_DIR=data/pretraining-dataset \
+FINETUNE_DATA_DIR=data/finetuning-dataset \
+FINETUNE_DIFFICULTY_LABELS=data/finetuning-difficulty.json \
 make train
 ```
 

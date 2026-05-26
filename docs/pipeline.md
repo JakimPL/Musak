@@ -5,32 +5,32 @@ Musak web app yet.
 
 ## Dataset Rule
 
-Processing takes a dataset root and writes to `processed/<dataset-name>`:
+Processing takes a dataset root and writes to `artifacts/processed/<dataset-name>`:
 
 ```text
-data/PDMX -> processed/PDMX
-data/exercises -> processed/exercises
+data/pretraining-dataset -> artifacts/processed/pretraining-dataset
+data/finetuning-dataset -> artifacts/processed/finetuning-dataset
 ```
 
 Processing recursively gathers `.mxl`, `.xml`, and `.musicxml` files from the dataset root.
 
-Training takes the same dataset root and looks for matching artifacts under `processed/<dataset-name>`.
+Training takes the same dataset root and looks for matching artifacts under `artifacts/processed/<dataset-name>`.
 
 ## Typical End-To-End Run
 
 Process the broad pretraining dataset, process the exercise finetuning dataset, then train both stages:
 
 ```bash
-DATA_DIR=data/PDMX make process
+DATA_DIR=data/pretraining-dataset make process
 
-DATA_DIR=data/exercises \
+DATA_DIR=data/finetuning-dataset \
 PROCESS_WHOLE_FILE_SEGMENTS=1 \
-PROCESS_DIFFICULTY_LABELS=data/exercises/difficulty_labels.json \
+PROCESS_DIFFICULTY_LABELS=data/finetuning-difficulty.json \
 make process
 
-PRETRAIN_DATA_DIR=data/PDMX \
-FINETUNE_DATA_DIR=data/exercises \
-FINETUNE_DIFFICULTY_LABELS=data/exercises/difficulty_labels.json \
+PRETRAIN_DATA_DIR=data/pretraining-dataset \
+FINETUNE_DATA_DIR=data/finetuning-dataset \
+FINETUNE_DIFFICULTY_LABELS=data/finetuning-difficulty.json \
 DEVICE=cuda \
 make train
 ```
@@ -42,29 +42,29 @@ Use `make pretrain` or `make finetune` instead of `make train` when you want to 
 Run the complete processing pipeline:
 
 ```bash
-DATA_DIR=data/PDMX make process
+DATA_DIR=data/pretraining-dataset make process
 ```
 
 `make process` recursively gathers MusicXML files from `DATA_DIR`, parses compatible two-part piano scores, tokenizes
 training examples, computes dataset diagnostics, builds figure-profile artifacts, and logs processing metrics to
-MLflow. By default it writes artifacts below `processed/<dataset-name>`. No train/validation split exists at this
+MLflow. By default it writes artifacts below `artifacts/processed/<dataset-name>`. No train/validation split exists at this
 stage; training creates the split later from the processed dataset.
 
 Useful processing switches:
 
 ```bash
-DATA_DIR=data/PDMX make parse
-DATA_DIR=data/PDMX make tokenize
-DATA_DIR=data/PDMX PROCESS_OVERWRITE=1 make process
-DATA_DIR=data/PDMX PROCESS_SKIP_FIGURE_ANALYSIS=1 make process
-DATA_DIR=data/exercises PROCESS_WHOLE_FILE_SEGMENTS=1 PROCESS_DIFFICULTY_LABELS=data/exercises/difficulty_labels.json make process
+DATA_DIR=data/pretraining-dataset make parse
+DATA_DIR=data/pretraining-dataset make tokenize
+DATA_DIR=data/pretraining-dataset PROCESS_OVERWRITE=1 make process
+DATA_DIR=data/pretraining-dataset PROCESS_SKIP_FIGURE_ANALYSIS=1 make process
+DATA_DIR=data/finetuning-dataset PROCESS_WHOLE_FILE_SEGMENTS=1 PROCESS_DIFFICULTY_LABELS=data/finetuning-difficulty.json make process
 ```
 
 `make analyze-n-grams` remains available for standalone figure extraction, but it is not needed after a normal
 `make process` run:
 
 ```bash
-DATA_DIR=data/PDMX make analyze-n-grams
+DATA_DIR=data/pretraining-dataset make analyze-n-grams
 ```
 
 Figure extraction writes resumable batch progress below the encoded run while it is incomplete. Compatible partial
@@ -81,15 +81,14 @@ make mlflow
 Run pretraining only:
 
 ```bash
-PRETRAIN_DATA_DIR=data/PDMX PRETRAIN_EPOCHS=25 PRETRAIN_DEVICE=cuda make pretrain
+PRETRAIN_DATA_DIR=data/pretraining-dataset PRETRAIN_EPOCHS=25 PRETRAIN_DEVICE=cuda make pretrain
 ```
 
 Run finetuning only from a pretraining checkpoint:
 
 ```bash
-FINETUNE_DATA_DIR=data/exercises \
-FINETUNE_DIFFICULTY_LABELS=data/exercises/difficulty_labels.json \
-PRETRAIN_CHECKPOINT=checkpoints/pretraining/best.pt \
+FINETUNE_DATA_DIR=data/finetuning-dataset \
+FINETUNE_DIFFICULTY_LABELS=data/finetuning-difficulty.json \
 FINETUNE_EPOCHS=8 \
 FINETUNE_DEVICE=cuda \
 make finetune
@@ -98,9 +97,9 @@ make finetune
 Run both training stages:
 
 ```bash
-PRETRAIN_DATA_DIR=data/PDMX \
-FINETUNE_DATA_DIR=data/exercises \
-FINETUNE_DIFFICULTY_LABELS=data/exercises/difficulty_labels.json \
+PRETRAIN_DATA_DIR=data/pretraining-dataset \
+FINETUNE_DATA_DIR=data/finetuning-dataset \
+FINETUNE_DIFFICULTY_LABELS=data/finetuning-difficulty.json \
 EPOCHS=25 \
 DEVICE=cuda \
 make train

@@ -6,4 +6,4 @@ scale_matcher:
   maximum_unexplained_weight_fraction: 0.10
   maximum_explanation_pitch_class_count: 9
 difficulty_labels: null
-processed_root: processed
+processed_root: artifacts/processed

@@ -14,10 +14,9 @@ conditioning:
   use_validity_penalty: true
   validity_penalty_weight: 0.02
 checkpoints:
-  checkpoint_directory: checkpoints/finetuning
+  checkpoint_directory: artifacts/checkpoints/finetuning
   resume_checkpoint: null
   save_all_epochs: false
-  pretraining_checkpoint: checkpoints/pretraining/best.pt
 mlflow:
   enable_mlflow: true
   mlflow_experiment_name: musak-finetune

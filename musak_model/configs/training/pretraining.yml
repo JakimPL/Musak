@@ -14,7 +14,7 @@ conditioning:
   use_validity_penalty: true
   validity_penalty_weight: 0.10
 checkpoints:
-  checkpoint_directory: checkpoints/pretraining
+  checkpoint_directory: artifacts/checkpoints/pretraining
   resume_checkpoint: null
   save_all_epochs: true
 mlflow:
