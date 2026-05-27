@@ -9,9 +9,12 @@ import {
     Dot,
     Beam,
     StaveTie,
+    StaveConnector,
 } from 'https://esm.sh/vexflow@5.0.0';
 
 const STAVE_HEIGHT = 140;
+const GRAND_STAFF_HEIGHT = 220;
+const GRAND_STAFF_GAP = 80;
 const STAVE_PADDING = 40;
 const NOTE_WIDTH = 50;
 const MAX_NOTES_PER_MEASURE = 16;
@@ -124,7 +127,7 @@ function drawStave(staveData, context, x, y, width, showClef) {
     for (const voice of staveData.voices) {
         voiceResults.push(drawVoice(voice, stave, staveData, context));
     }
-    return { staveData, voiceResults };
+    return { stave, staveData, voiceResults };
 }
 
 function hasMeasureHeader(staveData) {
@@ -172,11 +175,12 @@ export function renderScore(scoreData, containerElement) {
     containerElement.innerHTML = '';
     const containerWidth = containerElement.clientWidth || DEFAULT_WIDTH;
     const rows = scoreData.rows;
+    const isGrandStaff = scoreData.layout === 'grand_staff';
 
     const hasMeasureHeaders = rows.some(row => row.some(stave => hasMeasureHeader(stave)));
     let naturalWidth = containerWidth;
     if (hasMeasureHeaders) {
-        const maxStaves = Math.max(...rows.map(r => r.length));
+        const maxStaves = Math.max(...rows.map(r => isGrandStaff ? Math.ceil(r.length / 2) : r.length));
         const maxNotes = scoreData.max_notes_per_measure ?? MAX_NOTES_PER_MEASURE;
         const normalMeasureWidth = STAVE_PADDING + maxNotes * NOTE_SPACING;
         const firstMeasureWidth = normalMeasureWidth + FIRST_STAVE_OVERHEAD;
@@ -184,27 +188,15 @@ export function renderScore(scoreData, containerElement) {
         naturalWidth = Math.max(containerWidth, required);
     }
 
-    const totalHeight = rows.length * STAVE_HEIGHT;
+    const totalHeight = rows.length * (isGrandStaff ? GRAND_STAFF_HEIGHT : STAVE_HEIGHT);
     const renderer = new Renderer(containerElement, Renderer.Backends.SVG);
     renderer.resize(naturalWidth, totalHeight);
     const context = renderer.getContext();
     rows.forEach((row, rowIndex) => {
-        const y = rowIndex * STAVE_HEIGHT + STAVE_Y_OFFSET;
-        let x = STAVE_X_OFFSET;
-        const rowResults = [];
-        row.forEach((staveData, colIndex) => {
-            let width;
-            if (!hasMeasureHeaders) {
-                width = (naturalWidth - 2 * STAVE_X_OFFSET) / row.length;
-            } else {
-                const normalWidth = (naturalWidth - 2 * STAVE_X_OFFSET - FIRST_STAVE_OVERHEAD) / row.length;
-                width = colIndex === 0 ? normalWidth + FIRST_STAVE_OVERHEAD : normalWidth;
-            }
-            rowResults.push(drawStave(staveData, context, x, y, width, colIndex === 0));
-            x += width;
-        });
-        for (let colIndex = 0; colIndex < rowResults.length - 1; colIndex += 1) {
-            drawTiesAcrossStaves(rowResults[colIndex], rowResults[colIndex + 1], context);
+        if (isGrandStaff) {
+            drawGrandStaffRow(row, rowIndex, context, naturalWidth, hasMeasureHeaders);
+        } else {
+            drawSeparateRow(row, rowIndex, context, naturalWidth, hasMeasureHeaders);
         }
     });
 
@@ -217,4 +209,66 @@ export function renderScore(scoreData, containerElement) {
             svg.setAttribute('height', Math.round(totalHeight * scale));
         }
     }
+}
+
+function drawSeparateRow(row, rowIndex, context, naturalWidth, hasMeasureHeaders) {
+    const y = rowIndex * STAVE_HEIGHT + STAVE_Y_OFFSET;
+    let x = STAVE_X_OFFSET;
+    const rowResults = [];
+    row.forEach((staveData, colIndex) => {
+        const width = staveWidth(naturalWidth, row.length, colIndex, hasMeasureHeaders);
+        rowResults.push(drawStave(staveData, context, x, y, width, colIndex === 0));
+        x += width;
+    });
+    for (let colIndex = 0; colIndex < rowResults.length - 1; colIndex += 1) {
+        drawTiesAcrossStaves(rowResults[colIndex], rowResults[colIndex + 1], context);
+    }
+}
+
+function drawGrandStaffRow(row, rowIndex, context, naturalWidth, hasMeasureHeaders) {
+    const y = rowIndex * GRAND_STAFF_HEIGHT + STAVE_Y_OFFSET;
+    let x = STAVE_X_OFFSET;
+    const measureCount = Math.ceil(row.length / 2);
+    const rightResults = [];
+    const leftResults = [];
+    for (let measureIndex = 0; measureIndex < measureCount; measureIndex += 1) {
+        const rightData = row[2 * measureIndex];
+        const leftData = row[2 * measureIndex + 1];
+        if (!rightData || !leftData) {
+            continue;
+        }
+        const width = staveWidth(naturalWidth, measureCount, measureIndex, hasMeasureHeaders);
+        const showClef = measureIndex === 0;
+        const rightResult = drawStave(rightData, context, x, y, width, showClef);
+        const leftResult = drawStave(leftData, context, x, y + GRAND_STAFF_GAP, width, showClef);
+        drawGrandStaffConnectors(rightResult.stave, leftResult.stave, context, { showBrace: measureIndex === 0 });
+        rightResults.push(rightResult);
+        leftResults.push(leftResult);
+        x += width;
+    }
+    for (let measureIndex = 0; measureIndex < rightResults.length - 1; measureIndex += 1) {
+        drawTiesAcrossStaves(rightResults[measureIndex], rightResults[measureIndex + 1], context);
+        drawTiesAcrossStaves(leftResults[measureIndex], leftResults[measureIndex + 1], context);
+    }
+}
+
+function staveWidth(naturalWidth, staveCount, colIndex, hasMeasureHeaders) {
+    if (!hasMeasureHeaders) {
+        return (naturalWidth - 2 * STAVE_X_OFFSET) / staveCount;
+    }
+    const normalWidth = (naturalWidth - 2 * STAVE_X_OFFSET - FIRST_STAVE_OVERHEAD) / staveCount;
+    return colIndex === 0 ? normalWidth + FIRST_STAVE_OVERHEAD : normalWidth;
+}
+
+function drawGrandStaffConnectors(rightStave, leftStave, context, { showBrace }) {
+    if (showBrace) {
+        new StaveConnector(rightStave, leftStave)
+            .setType(StaveConnector.type.BRACE)
+            .setContext(context)
+            .draw();
+    }
+    new StaveConnector(rightStave, leftStave)
+        .setType(StaveConnector.type.SINGLE_LEFT)
+        .setContext(context)
+        .draw();
 }

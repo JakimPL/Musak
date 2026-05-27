@@ -500,6 +500,7 @@ def _(
                 tempo=bpm.value,
                 measures_per_row=4,
                 max_bars=notation_bars.value,
+                layout="grand_staff",
             )
             bar_note = (
                 mo.callout(
@@ -512,7 +513,7 @@ def _(
                 if output.decoded_segment.bar_count > notation_bars.value
                 else mo.md("")
             )
-            iframe_height = f"{max(220, len(score_data.rows) * 140 + 24)}px"
+            iframe_height = f"{max(260, len(score_data.rows) * 220 + 24)}px"
             notation_output = mo.vstack([bar_note, mo.iframe(score_data_html(score_data), height=iframe_height)], gap=1)
         except ValueError as exception:
             notation_output = mo.callout(f"Notation rendering unavailable: {exception}", kind="warn")

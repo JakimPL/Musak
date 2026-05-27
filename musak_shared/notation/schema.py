@@ -10,6 +10,7 @@ from musak_shared.time_signature import (
 )
 
 Clef = Literal["treble", "bass", "alto", "tenor", "percussion"]
+NotationLayout = Literal["separate_hand_rows", "grand_staff"]
 VexflowAccidental = Literal["#", "##", "b", "bb", "n"] | None
 VexflowDuration = Literal[
     "w",
@@ -73,5 +74,6 @@ class ScoreData(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     rows: list[list[StaveData]]
+    layout: NotationLayout = "separate_hand_rows"
     tempo: Annotated[int, Field(gt=0)] | None = None
     max_notes_per_measure: int | None = None
