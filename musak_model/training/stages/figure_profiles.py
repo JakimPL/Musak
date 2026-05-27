@@ -7,7 +7,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from time import perf_counter
-from typing import Final, Protocol
+from typing import Protocol
 
 from musak_model.n_grams.config import NGramAnalysisConfig
 from musak_model.n_grams.profile.artifacts import FIGURE_ALL_DIR_NAME, FigureArtifactPaths
@@ -23,7 +23,8 @@ from musak_model.n_grams.profile.loading import (
     FigureProfileArtifacts,
     load_processed_figure_profile_artifacts,
 )
-from musak_model.n_grams.profile.metrics import figure_profile_comparison_metrics
+from musak_model.n_grams.profile.metrics.profile_comparison import figure_profile_comparison_metrics
+from musak_model.n_grams.profile.metrics.stats import mean, total_variation_distance
 from musak_model.n_grams.profile.schema import FigureProfile
 from musak_model.n_grams.profile.streaming.executor import process_missing_sample_batches
 from musak_model.n_grams.profile.streaming.export import export_figure_artifacts
@@ -39,7 +40,6 @@ from musak_model.tokens.vocabulary import TokenVocabulary
 from musak_model.training.ingestion.config import IngestionConfig
 from musak_model.training.ingestion.schema import EncodedExercise, IngestionSplit
 
-_SPLIT_FIGURE_ARTIFACT_VERSION: Final[int] = 1
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -216,6 +216,10 @@ def _split_artifacts(
             analysis_config_path=config_path,
             min_n=config.min_n,
             max_n=config.max_n,
+            rhythm_min_n=config.rhythm_min_n,
+            rhythm_max_n=config.rhythm_max_n,
+            grid_alignment_denominators=config.grid_alignment_denominators,
+            strong_beat_offsets=config.strong_beat_offsets,
             limit_per_group=None,
         )
 
@@ -258,10 +262,13 @@ def _split_cache_key(
     hasher.update(
         json.dumps(
             {
-                "version": _SPLIT_FIGURE_ARTIFACT_VERSION,
                 "tokenizer_hash": snapshot.tokenizer_hash,
                 "min_n": config.min_n,
                 "max_n": config.max_n,
+                "rhythm_min_n": config.rhythm_min_n,
+                "rhythm_max_n": config.rhythm_max_n,
+                "grid_alignment_denominators": config.grid_alignment_denominators,
+                "strong_beat_offsets": [str(offset) for offset in config.strong_beat_offsets],
                 "batch_size": config.batch_size,
             },
             sort_keys=True,
@@ -302,14 +309,14 @@ def _figure_distribution_metrics_from_csv(
         else:
             comparison_counts = Counter()
 
-        distances.append(_total_variation_distance(reference_group.counts, comparison_counts))
+        distances.append(total_variation_distance(reference_group.counts, comparison_counts))
 
     if not distances:
         return {f"{metric_prefix}/count/distribution_groups": 0.0}
 
     return {
         f"{metric_prefix}/count/distribution_groups": float(len(distances)),
-        f"{metric_prefix}/mean/identity_total_variation_distance": sum(distances) / len(distances),
+        f"{metric_prefix}/mean/identity_total_variation_distance": mean(distances),
     }
 
 
@@ -329,19 +336,3 @@ def _iter_count_groups(path: Path) -> Iterator[FigureCountGroup]:
 
         if current_key is not None:
             yield FigureCountGroup(key=current_key, counts=counts)
-
-
-def _total_variation_distance(reference_counts: Counter[str], comparison_counts: Counter[str]) -> float:
-    reference_total = sum(reference_counts.values())
-    if reference_total == 0:
-        return 0.0
-
-    comparison_total = sum(comparison_counts.values())
-    figures = set(reference_counts) | set(comparison_counts)
-    return 0.5 * sum(
-        abs(
-            (reference_counts[figure] / reference_total)
-            - (comparison_counts[figure] / comparison_total if comparison_total > 0 else 0.0)
-        )
-        for figure in figures
-    )

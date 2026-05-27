@@ -9,7 +9,9 @@ import torch.nn as nn
 from torch import Tensor
 
 from musak_model.data.schema import Segment, SegmentMetadata
+from musak_model.n_grams.config import NGramAnalysisConfig
 from musak_model.n_grams.figure.schema import FigureNGram
+from musak_model.n_grams.profile.rhythm.schema import RhythmCountKey
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import EndToken, Hand, HandToken, HoldToken, NoteToken, ScaleType
 from musak_model.tokens.vocabulary import TokenVocabulary
@@ -18,9 +20,13 @@ from notebooks.utils.model_output import (
     SamplingOptions,
     SamplingResult,
     empty_prompt,
-    figure_output_metric_rows,
+    figure_pattern_metric_rows,
+    figure_reference_alignment_metric_rows,
+    generation_summary_metric_rows,
     prompt_from_encoded_sample,
     prompt_from_text,
+    rhythm_grid_metric_rows,
+    rhythm_reference_alignment_metric_rows,
     sample_autoregressive,
     sampling_result_to_segment,
     segment_decode_error,
@@ -177,12 +183,15 @@ def test_sampling_result_to_segment_counts_partial_display_bar(
     assert segment_event_count(segment, duration_vocabulary=duration_vocabulary) == 1
 
 
-def test_figure_output_metric_rows_summarizes_generated_figures(
+def test_generation_summary_metric_rows_uses_shared_generation_metrics(
     duration_vocabulary: DurationVocabulary,
 ) -> None:
     quarter_id = duration_vocabulary.fraction_to_id(Fraction(1, 4))
     segment = Segment(
-        tokens=[HandToken(hand=Hand.RIGHT), NoteToken(degree=1, accidental=0, octave_offset=0, duration_id=quarter_id)],
+        tokens=[
+            HandToken(hand=Hand.RIGHT),
+            NoteToken(degree=1, accidental=0, octave_offset=0, duration_id=quarter_id),
+        ],
         metadata=SegmentMetadata(
             scale_root=0,
             scale_type=ScaleType.MAJOR,
@@ -195,19 +204,62 @@ def test_figure_output_metric_rows_summarizes_generated_figures(
         ),
     )
 
-    rows = figure_output_metric_rows(segment, duration_vocabulary=duration_vocabulary)
+    rows = generation_summary_metric_rows(segment, duration_vocabulary=duration_vocabulary)
 
-    assert {"metric": "generated figure groups", "value": 1} in rows
-    assert {"metric": "generated figure occurrences", "value": 1} in rows
-    assert {"metric": "generated unique figures", "value": 1} in rows
+    assert {"metric": "empty score", "value": False} in rows
+    assert {"metric": "one hand only", "value": True} in rows
+    assert {"metric": "in-scale note share", "value": "100.0%"} in rows
+    assert {"metric": "hand activity balance", "value": "0.000"} in rows
+    assert {"metric": "shortest note duration", "value": "1.00 beats"} in rows
 
 
-def test_figure_output_metric_rows_compares_with_reference_counts(
+def test_figure_pattern_metric_rows_summarizes_generated_figures(
     duration_vocabulary: DurationVocabulary,
 ) -> None:
     quarter_id = duration_vocabulary.fraction_to_id(Fraction(1, 4))
     segment = Segment(
-        tokens=[HandToken(hand=Hand.RIGHT), NoteToken(degree=1, accidental=0, octave_offset=0, duration_id=quarter_id)],
+        tokens=[
+            HandToken(hand=Hand.RIGHT),
+            NoteToken(degree=1, accidental=0, octave_offset=0, duration_id=quarter_id),
+            NoteToken(degree=2, accidental=0, octave_offset=0, duration_id=quarter_id),
+            HandToken(hand=Hand.LEFT),
+            NoteToken(degree=1, accidental=1, octave_offset=0, duration_id=quarter_id),
+        ],
+        metadata=SegmentMetadata(
+            scale_root=0,
+            scale_type=ScaleType.MAJOR,
+            time_numerator=4,
+            time_denominator=4,
+            bar_count=1,
+            window_start_bar=0,
+            source_file=Path("generated"),
+            difficulty_level=None,
+        ),
+    )
+
+    rows = figure_pattern_metric_rows(segment, duration_vocabulary=duration_vocabulary)
+
+    assert _row_value(rows, "single-onset figures") == 3
+    assert _row_description(rows, "single-onset figures") == "Total note or chord onsets counted across both hands."
+    assert _row_value(rows, "two-onset figures") == 1
+    assert _row_value(rows, "unique single-onset figures") == 2
+    assert _row_value(rows, "in-scale figure share") == "66.7%"
+    assert _row_value(rows, "right-hand figure share") == "66.7%"
+
+
+def test_figure_reference_alignment_metric_rows_compare_alignment_and_novelty(
+    duration_vocabulary: DurationVocabulary,
+) -> None:
+    quarter_id = duration_vocabulary.fraction_to_id(Fraction(1, 4))
+    segment = Segment(
+        tokens=[
+            HandToken(hand=Hand.RIGHT),
+            NoteToken(degree=1, accidental=0, octave_offset=0, duration_id=quarter_id),
+            NoteToken(degree=2, accidental=0, octave_offset=0, duration_id=quarter_id),
+            HandToken(hand=Hand.LEFT),
+            NoteToken(degree=1, accidental=1, octave_offset=0, duration_id=quarter_id),
+            NoteToken(degree=2, accidental=1, octave_offset=0, duration_id=quarter_id),
+        ],
         metadata=SegmentMetadata(
             scale_root=0,
             scale_type=ScaleType.MAJOR,
@@ -221,17 +273,128 @@ def test_figure_output_metric_rows_compares_with_reference_counts(
     )
     reference_counts = {
         ScaleType.MAJOR: {
-            Hand.RIGHT: {
-                1: Counter({FigureNGram(onsets=((((0, 0),), Fraction(1)),)): 1}),
-            }
+            Hand.RIGHT: {2: Counter({FigureNGram(onsets=((((0, 0),), Fraction(1)), (((1, 0),), Fraction(1)))): 4})},
+            Hand.LEFT: {2: Counter({FigureNGram(onsets=((((0, 0),), Fraction(1)), (((1, 0),), Fraction(1)))): 4})},
         }
     }
 
-    rows = figure_output_metric_rows(
+    rows = figure_reference_alignment_metric_rows(
         segment,
         duration_vocabulary=duration_vocabulary,
         reference_counts=reference_counts,
+        analysis_config=_analysis_config(),
     )
 
-    assert {"metric": "comparable groups", "value": 1} in rows
-    assert {"metric": "mean identity total variation distance", "value": "0.000"} in rows
+    assert _row_value(rows, "reference groups compared") == 2
+    assert _row_value(rows, "common figure mass") == "50.0%"
+    assert _row_value(rows, "novel figure mass") == "50.0%"
+    assert _row_description(rows, "rhythm-shape distance") == (
+        "How different the relative duration-pattern distribution is from the reference."
+    )
+
+
+def test_rhythm_grid_metric_rows_describe_grid_alignment(
+    duration_vocabulary: DurationVocabulary,
+) -> None:
+    eighth_id = duration_vocabulary.fraction_to_id(Fraction(1, 8))
+    segment = Segment(
+        tokens=[
+            HandToken(hand=Hand.RIGHT),
+            NoteToken(degree=1, accidental=0, octave_offset=0, duration_id=eighth_id),
+            NoteToken(degree=2, accidental=0, octave_offset=0, duration_id=eighth_id),
+        ],
+        metadata=SegmentMetadata(
+            scale_root=0,
+            scale_type=ScaleType.MAJOR,
+            time_numerator=4,
+            time_denominator=4,
+            bar_count=1,
+            window_start_bar=0,
+            source_file=Path("generated"),
+            difficulty_level=None,
+        ),
+    )
+
+    rows = rhythm_grid_metric_rows(
+        segment,
+        duration_vocabulary=duration_vocabulary,
+        analysis_config=_analysis_config(),
+    )
+
+    assert _row_value(rows, "rhythmic onsets") == 2
+    assert _row_value(rows, "onset grid fit (1/16)") == "100.0%"
+    assert _row_value(rows, "duration grid fit (1/16)") == "100.0%"
+    assert _row_value(rows, "strong-beat onset share") == "50.0%"
+
+
+def test_rhythm_reference_alignment_metric_rows_compare_reference_distributions(
+    duration_vocabulary: DurationVocabulary,
+) -> None:
+    quarter_id = duration_vocabulary.fraction_to_id(Fraction(1, 4))
+    segment = Segment(
+        tokens=[
+            HandToken(hand=Hand.RIGHT),
+            NoteToken(degree=1, accidental=0, octave_offset=0, duration_id=quarter_id),
+        ],
+        metadata=SegmentMetadata(
+            scale_root=0,
+            scale_type=ScaleType.MAJOR,
+            time_numerator=4,
+            time_denominator=4,
+            bar_count=1,
+            window_start_bar=0,
+            source_file=Path("generated"),
+            difficulty_level=None,
+        ),
+    )
+    reference_counts = Counter(
+        {
+            RhythmCountKey(
+                scale_type=ScaleType.MAJOR.value,
+                time_signature="4/4",
+                hand=Hand.RIGHT.value,
+                kind="duration_value",
+                parameter="",
+                value="1/4",
+            ): 1
+        }
+    )
+
+    rows = rhythm_reference_alignment_metric_rows(
+        segment,
+        duration_vocabulary=duration_vocabulary,
+        reference_counts=reference_counts,
+        analysis_config=_analysis_config(),
+    )
+
+    assert _row_value(rows, "duration-value distance") == "0.000"
+    assert _row_description(rows, "strong-beat share difference") == (
+        "Absolute difference between generated and reference strong-beat onset share."
+    )
+
+
+def _analysis_config() -> NGramAnalysisConfig:
+    return NGramAnalysisConfig(
+        min_n=2,
+        max_n=4,
+        limit_per_group=None,
+        workers=1,
+        batch_size=1,
+        figure_common_mass_threshold=0.8,
+        rhythm_min_n=2,
+        rhythm_max_n=4,
+        grid_alignment_denominators=(1, 2, 4, 8, 16),
+        strong_beat_offsets=(Fraction(0),),
+    )
+
+
+def _row_value(rows: list[dict[str, object]], metric: str) -> object:
+    return _row(rows, metric)["value"]
+
+
+def _row_description(rows: list[dict[str, object]], metric: str) -> object:
+    return _row(rows, metric)["description"]
+
+
+def _row(rows: list[dict[str, object]], metric: str) -> dict[str, object]:
+    return next(row for row in rows if row["metric"] == metric)

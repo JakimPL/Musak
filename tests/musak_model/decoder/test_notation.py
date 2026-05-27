@@ -71,6 +71,36 @@ def test_segment_to_score_data_outputs_two_hand_rows(
     assert score.rows[1][0].clef == "bass"
 
 
+def test_segment_to_score_data_outputs_grand_staff_pairs_when_requested(
+    duration_vocabulary: DurationVocabulary,
+) -> None:
+    quarter_id = duration_vocabulary.fraction_to_id(Fraction(1, 4))
+    segment = _segment(
+        [
+            HandToken(hand=Hand.RIGHT),
+            _note(quarter_id),
+            HandToken(hand=Hand.LEFT),
+            _note(quarter_id),
+            BarToken(),
+            HandToken(hand=Hand.RIGHT),
+            _note(quarter_id),
+            HandToken(hand=Hand.LEFT),
+            _note(quarter_id),
+        ],
+        bar_count=2,
+    )
+
+    score = segment_to_score_data(
+        segment,
+        duration_vocabulary=duration_vocabulary,
+        layout="grand_staff",
+    )
+
+    assert score.layout == "grand_staff"
+    assert len(score.rows) == 1
+    assert [stave.clef for stave in score.rows[0]] == ["treble", "bass", "treble", "bass"]
+
+
 def test_segment_to_score_data_sets_first_measure_key_and_time_signatures(
     duration_vocabulary: DurationVocabulary,
 ) -> None:

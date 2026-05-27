@@ -8,7 +8,6 @@ from musak_model.data.config import SegmentationConfig
 from musak_model.processing.config import TokenizationProcessingConfig
 from musak_model.processing.snapshot import TokenizerSnapshot
 
-TOKENIZATION_STATE_VERSION: Final[int] = 1
 TOKENIZATION_STATE_HEADER: Final[str] = "header"
 TOKENIZATION_SOURCE_COMPLETED: Final[str] = "source_completed"
 
@@ -78,7 +77,7 @@ def load_tokenization_resume_state(path: Path, *, state_key: str) -> Tokenizatio
             )
 
         if event["type"] == TOKENIZATION_STATE_HEADER:
-            state_key_matches = event.get("version") == TOKENIZATION_STATE_VERSION
+            state_key_matches = True
             continue
 
         if event["type"] == TOKENIZATION_SOURCE_COMPLETED:
@@ -101,7 +100,6 @@ def append_tokenization_state_header(path: Path, *, state_key: str) -> None:
         path,
         {
             "type": TOKENIZATION_STATE_HEADER,
-            "version": TOKENIZATION_STATE_VERSION,
             "state_key": state_key,
         },
     )

@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from collections import Counter
 from dataclasses import dataclass
-from fractions import Fraction
+from functools import cache
 from pathlib import Path
-from typing import Callable, Literal, Protocol, cast
+from typing import Callable, Final, Literal, Protocol, cast
 
 import torch
 from torch import Tensor
@@ -15,6 +15,7 @@ from musak_model.conditioning.time_signature import TimeSignatureVocabulary
 from musak_model.data.schema import Segment, SegmentMetadata
 from musak_model.decoder import segment_to_piano_roll_events
 from musak_model.evaluation import diagnose_segment
+from musak_model.evaluation.generation import ReferenceFreeGenerationMetric, reference_free_generation_metrics
 from musak_model.generation.constraints import (
     GenerationConstraintError,
     GenerationConstraints,
@@ -23,19 +24,25 @@ from musak_model.generation.constraints import (
 )
 from musak_model.model import HierarchicalAutoregressiveModel
 from musak_model.model.config import ModelConfig
+from musak_model.n_grams.config import NGramAnalysisConfig
 from musak_model.n_grams.figure.builder import scale_size_for_type
 from musak_model.n_grams.figure.counter import count_hand_figure_ngrams
 from musak_model.n_grams.figure.parser import extract_hand_onset_runs
-from musak_model.n_grams.figure.samples.merge import merge_scale_counts
 from musak_model.n_grams.figure.samples.schema import FigureNGramCountsByScale
 from musak_model.n_grams.figure.schema import FigureNGram
-from musak_model.n_grams.profile.io import read_figure_counts_csv
+from musak_model.n_grams.profile.io import read_figure_counts_csv_for_groups
+from musak_model.n_grams.profile.metrics.reference.distribution import figure_reference_alignment_metrics
+from musak_model.n_grams.profile.rhythm.extraction import count_segment_rhythm_metrics
+from musak_model.n_grams.profile.rhythm.io import read_rhythm_counts_csv
+from musak_model.n_grams.profile.rhythm.metrics import rhythm_reference_distribution_metrics
+from musak_model.n_grams.profile.rhythm.schema import RhythmCountCounter, RhythmCountKey, RhythmMetricKind
 from musak_model.paths import MODEL_CONFIG_DIR
 from musak_model.tokens.config import TokenizationConfig
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import (
     BarToken,
     EndToken,
+    Hand,
     HandToken,
     HoldToken,
     JoinWithPreviousToken,
@@ -49,6 +56,11 @@ from musak_model.tokens.text import tokens_from_text, tokens_to_text
 from musak_model.tokens.vocabulary import TokenVocabulary
 from musak_model.training.conditioning import scale_type_to_id, time_signature_to_id
 from musak_model.training.ingestion.schema import EncodedExercise
+
+_FIGURE_PATTERN_MIN_N: Final = 1
+_FIGURE_PATTERN_MAX_N: Final = 2
+_REFERENCE_METRIC_PREFIX: Final = "notebook/figure_reference"
+_RHYTHM_REFERENCE_METRIC_PREFIX: Final = "notebook/rhythm_reference"
 
 
 class AutoregressiveModel(Protocol):
@@ -424,85 +436,349 @@ def segment_diagnostic_rows(segment: Segment, *, duration_vocabulary: DurationVo
     ]
 
 
-def load_figure_reference_counts(path: Path) -> FigureNGramCountsByScale:
-    return read_figure_counts_csv(path)
-
-
-def figure_output_metric_rows(
+def generation_summary_metric_rows(
     segment: Segment,
     *,
     duration_vocabulary: DurationVocabulary,
-    reference_counts: FigureNGramCountsByScale | None = None,
 ) -> list[dict[str, object]]:
-    min_n, max_n = _figure_n_range(reference_counts)
-    generated_counts = _segment_figure_counts(
+    diagnostics = diagnose_segment(segment, duration_vocabulary=duration_vocabulary)
+    metrics = reference_free_generation_metrics(diagnostics)
+    return [{"metric": metric.label, "value": _format_reference_free_metric_value(metric)} for metric in metrics]
+
+
+def _format_reference_free_metric_value(metric: ReferenceFreeGenerationMetric) -> object:
+    match metric.kind:
+        case "boolean":
+            return metric.value
+        case "count":
+            return metric.value
+        case "fraction":
+            return f"{100 * float(metric.value):.1f}%"
+        case "number":
+            return f"{float(metric.value):.3f}"
+        case "beats":
+            return f"{float(metric.value):.2f} beats"
+
+
+def figure_pattern_metric_rows(
+    segment: Segment,
+    *,
+    duration_vocabulary: DurationVocabulary,
+) -> list[dict[str, object]]:
+    runs_by_hand = extract_hand_onset_runs(
+        segment.tokens,
+        duration_vocabulary=duration_vocabulary,
+        time_numerator=segment.time_numerator,
+        time_denominator=segment.time_denominator,
+    )
+    counts_by_hand = count_hand_figure_ngrams(
+        runs_by_hand,
+        min_n=_FIGURE_PATTERN_MIN_N,
+        max_n=_FIGURE_PATTERN_MAX_N,
+        scale_size=scale_size_for_type(segment.scale_type),
+    )
+    single_onset_counts = _combined_figure_counts(counts_by_hand, n=1)
+    two_onset_counts = _combined_figure_counts(counts_by_hand, n=2)
+    single_onset_total = sum(single_onset_counts.values())
+    two_onset_total = sum(two_onset_counts.values())
+    chord_total = sum(count for figure, count in single_onset_counts.items() if not figure.monophonic)
+    in_scale_total = sum(count for figure, count in single_onset_counts.items() if figure.in_scale)
+    right_total = sum(counts_by_hand[Hand.RIGHT][1].values())
+    left_total = sum(counts_by_hand[Hand.LEFT][1].values())
+    return [
+        _figure_metric_row(
+            metric="single-onset figures",
+            value=single_onset_total,
+            description="Total note or chord onsets counted across both hands.",
+        ),
+        _figure_metric_row(
+            metric="two-onset figures",
+            value=two_onset_total,
+            description="Total adjacent two-onset melodic or chord patterns within each hand.",
+        ),
+        _figure_metric_row(
+            metric="unique single-onset figures",
+            value=len(single_onset_counts),
+            description="Distinct single-onset shapes after transposing each shape to its own first pitch.",
+        ),
+        _figure_metric_row(
+            metric="unique two-onset figures",
+            value=len(two_onset_counts),
+            description="Distinct two-onset shapes after transposing each shape to its own first pitch.",
+        ),
+        _figure_metric_row(
+            metric="single-onset variety",
+            value=_format_optional_percent(len(single_onset_counts), single_onset_total),
+            description="Distinct single-onset shapes divided by all single-onset figures.",
+        ),
+        _figure_metric_row(
+            metric="chord figure share",
+            value=_format_optional_percent(chord_total, single_onset_total),
+            description="Single-onset figures containing more than one simultaneous note.",
+        ),
+        _figure_metric_row(
+            metric="in-scale figure share",
+            value=_format_optional_percent(in_scale_total, single_onset_total),
+            description="Single-onset figures whose notes have no accidentals relative to the selected scale.",
+        ),
+        _figure_metric_row(
+            metric="right-hand figure share",
+            value=_format_optional_percent(right_total, single_onset_total),
+            description="Single-onset figures that occur in the right hand.",
+        ),
+        _figure_metric_row(
+            metric="left-hand figure share",
+            value=_format_optional_percent(left_total, single_onset_total),
+            description="Single-onset figures that occur in the left hand.",
+        ),
+    ]
+
+
+@cache
+def load_figure_reference_counts(
+    path: Path,
+    *,
+    scale_type: ScaleType,
+    groups: frozenset[tuple[Hand, int]],
+) -> FigureNGramCountsByScale:
+    return read_figure_counts_csv_for_groups(path, scale_type=scale_type, groups=groups)
+
+
+def figure_reference_count_groups(
+    segment: Segment,
+    *,
+    duration_vocabulary: DurationVocabulary,
+    analysis_config: NGramAnalysisConfig | None = None,
+) -> frozenset[tuple[Hand, int]]:
+    resolved_config = analysis_config or NGramAnalysisConfig.load()
+    generated_counts = _segment_figure_counts_by_scale(
         segment,
         duration_vocabulary=duration_vocabulary,
-        min_n=min_n,
-        max_n=max_n,
+        min_n=resolved_config.min_n,
+        max_n=resolved_config.max_n,
     )
-    generated_groups = _nonempty_figure_groups(generated_counts)
-    generated_total = _total_figure_count(generated_counts)
-    generated_unique = _unique_figure_count(generated_counts)
-    rows: list[dict[str, object]] = [
-        {"metric": "n range", "value": f"{min_n}-{max_n}"},
-        {"metric": "generated figure groups", "value": generated_groups},
-        {"metric": "generated figure occurrences", "value": generated_total},
-        {"metric": "generated unique figures", "value": generated_unique},
-    ]
-    if reference_counts is None:
-        return rows
-
-    reference_groups = _nonempty_figure_groups(reference_counts)
-    reference_total = _total_figure_count(reference_counts)
-    reference_unique = _unique_figure_count(reference_counts)
-    comparable_distances = _identity_distances(reference_counts=reference_counts, generated_counts=generated_counts)
-    total_relative_errors = _total_relative_errors(reference_counts=reference_counts, generated_counts=generated_counts)
-    rows.extend(
-        [
-            {"metric": "reference figure groups", "value": reference_groups},
-            {"metric": "reference figure occurrences", "value": reference_total},
-            {"metric": "reference unique figures", "value": reference_unique},
-            {"metric": "comparable groups", "value": len(comparable_distances)},
-            {
-                "metric": "mean identity total variation distance",
-                "value": _format_optional_float(_mean(comparable_distances)),
-            },
-            {
-                "metric": "mean total relative abs error",
-                "value": _format_optional_float(_mean(total_relative_errors)),
-            },
-        ]
-    )
-    return rows
-
-
-def _format_percent(value: float) -> str:
-    return f"{100 * value:.1f}%"
-
-
-def _format_optional_float(value: float | None) -> str:
-    return "-" if value is None else f"{value:.3f}"
-
-
-def _figure_n_range(reference_counts: FigureNGramCountsByScale | None) -> tuple[int, int]:
-    if reference_counts is None:
-        return 1, 3
-
-    n_values = [
-        n
-        for counts_by_hand in reference_counts.values()
-        for counts_by_n in counts_by_hand.values()
+    return frozenset(
+        (hand, n)
+        for counts_by_hand in generated_counts.values()
+        for hand, counts_by_n in counts_by_hand.items()
         for n, figure_counts in counts_by_n.items()
         if figure_counts
+    )
+
+
+def figure_reference_alignment_metric_rows(
+    segment: Segment,
+    *,
+    duration_vocabulary: DurationVocabulary,
+    reference_counts: FigureNGramCountsByScale,
+    analysis_config: NGramAnalysisConfig | None = None,
+) -> list[dict[str, object]]:
+    resolved_config = analysis_config or NGramAnalysisConfig.load()
+    generated_counts = _segment_figure_counts_by_scale(
+        segment,
+        duration_vocabulary=duration_vocabulary,
+        min_n=resolved_config.min_n,
+        max_n=resolved_config.max_n,
+    )
+    compatible_reference_counts = _compatible_reference_counts(
+        reference_counts=reference_counts,
+        generated_counts=generated_counts,
+    )
+    metrics = figure_reference_alignment_metrics(
+        reference_counts=compatible_reference_counts,
+        comparison_counts=generated_counts,
+        metric_prefix=_REFERENCE_METRIC_PREFIX,
+        common_mass_threshold=resolved_config.figure_common_mass_threshold,
+    )
+    return [
+        _figure_metric_row(
+            metric="reference groups compared",
+            value=int(metrics[f"{_REFERENCE_METRIC_PREFIX}/count/distribution_groups"]),
+            description="Reference slices with figure data, grouped by scale type, hand, and figure length.",
+        ),
+        _figure_metric_row(
+            metric="figure identity distance",
+            value=_format_float(metrics.get(f"{_REFERENCE_METRIC_PREFIX}/mean/identity_total_variation_distance")),
+            description="How different the exact generated figure distribution is from the reference; 0 is closest.",
+        ),
+        _figure_metric_row(
+            metric="contour distance",
+            value=_format_float(metrics.get(f"{_REFERENCE_METRIC_PREFIX}/mean/contour_total_variation_distance")),
+            description="How different the up, down, and repeated pitch-contour distribution is from the reference.",
+        ),
+        _figure_metric_row(
+            metric="rhythm-shape distance",
+            value=_format_float(
+                metrics.get(f"{_REFERENCE_METRIC_PREFIX}/mean/duration_shape_total_variation_distance")
+            ),
+            description="How different the relative duration-pattern distribution is from the reference.",
+        ),
+        _figure_metric_row(
+            metric="property distance",
+            value=_format_float(metrics.get(f"{_REFERENCE_METRIC_PREFIX}/mean/property_total_variation_distance")),
+            description="How different monophonic, chord-only, and in-scale figure properties are from the reference.",
+        ),
+        _figure_metric_row(
+            metric="common figure mass",
+            value=_format_percent_metric(metrics.get(f"{_REFERENCE_METRIC_PREFIX}/mean/common_figure_mass")),
+            description="Share of generated figures that belong to the most common reference figures.",
+        ),
+        _figure_metric_row(
+            metric="rare figure mass",
+            value=_format_percent_metric(metrics.get(f"{_REFERENCE_METRIC_PREFIX}/mean/rare_figure_mass")),
+            description="Share of generated figures found in the reference, but outside its common-figure set.",
+        ),
+        _figure_metric_row(
+            metric="novel figure mass",
+            value=_format_percent_metric(metrics.get(f"{_REFERENCE_METRIC_PREFIX}/mean/novel_figure_mass")),
+            description="Share of generated figures that are absent from the matching reference slice.",
+        ),
     ]
-    if not n_values:
-        return 1, 3
-
-    return min(n_values), max(n_values)
 
 
-def _segment_figure_counts(
+@cache
+def load_rhythm_reference_counts(path: Path) -> RhythmCountCounter:
+    return read_rhythm_counts_csv(path)
+
+
+def rhythm_reference_counts_path(figure_counts_path: Path) -> Path:
+    return figure_counts_path.parent.parent / "rhythm" / "counts.csv"
+
+
+def rhythm_reference_alignment_metric_rows(
+    segment: Segment,
+    *,
+    duration_vocabulary: DurationVocabulary,
+    reference_counts: RhythmCountCounter,
+    analysis_config: NGramAnalysisConfig | None = None,
+) -> list[dict[str, object]]:
+    resolved_config = analysis_config or NGramAnalysisConfig.load()
+    generated_counts = _segment_rhythm_counts(
+        segment,
+        duration_vocabulary=duration_vocabulary,
+        analysis_config=resolved_config,
+    )
+    metrics = rhythm_reference_distribution_metrics(
+        reference_counts=_compatible_rhythm_reference_counts(
+            reference_counts=reference_counts,
+            generated_counts=generated_counts,
+        ),
+        comparison_counts=generated_counts,
+        metric_prefix=_RHYTHM_REFERENCE_METRIC_PREFIX,
+    )
+    return [
+        _figure_metric_row(
+            metric="rhythmic pattern distance",
+            value=_format_float(
+                metrics.get(f"{_RHYTHM_REFERENCE_METRIC_PREFIX}/mean/rhythm_ngram_total_variation_distance")
+            ),
+            description="How different onset-duration and inter-onset rhythm patterns are from the reference.",
+        ),
+        _figure_metric_row(
+            metric="duration-value distance",
+            value=_format_float(
+                metrics.get(f"{_RHYTHM_REFERENCE_METRIC_PREFIX}/mean/duration_value_total_variation_distance")
+            ),
+            description="How different the generated onset-duration distribution is from the reference.",
+        ),
+        _figure_metric_row(
+            metric="onset-grid distance",
+            value=_format_float(
+                metrics.get(f"{_RHYTHM_REFERENCE_METRIC_PREFIX}/mean/onset_grid_alignment_total_variation_distance")
+            ),
+            description="How different the generated onset grid-alignment distribution is from the reference.",
+        ),
+        _figure_metric_row(
+            metric="duration-grid distance",
+            value=_format_float(
+                metrics.get(f"{_RHYTHM_REFERENCE_METRIC_PREFIX}/mean/duration_grid_alignment_total_variation_distance")
+            ),
+            description="How different the generated duration grid-alignment distribution is from the reference.",
+        ),
+        _figure_metric_row(
+            metric="duration entropy difference",
+            value=_format_float(metrics.get(f"{_RHYTHM_REFERENCE_METRIC_PREFIX}/mean/duration_entropy_absolute_error")),
+            description="Absolute difference between generated and reference duration-distribution entropy.",
+        ),
+        _figure_metric_row(
+            metric="strong-beat share difference",
+            value=_format_float(
+                metrics.get(f"{_RHYTHM_REFERENCE_METRIC_PREFIX}/mean/strong_beat_onset_fraction_absolute_error")
+            ),
+            description="Absolute difference between generated and reference strong-beat onset share.",
+        ),
+    ]
+
+
+def rhythm_grid_metric_rows(
+    segment: Segment,
+    *,
+    duration_vocabulary: DurationVocabulary,
+    analysis_config: NGramAnalysisConfig | None = None,
+) -> list[dict[str, object]]:
+    resolved_config = analysis_config or NGramAnalysisConfig.load()
+    grid_denominator = max(resolved_config.grid_alignment_denominators)
+    rhythm_counts = _segment_rhythm_counts(
+        segment,
+        duration_vocabulary=duration_vocabulary,
+        analysis_config=resolved_config,
+    )
+    onset_grid_count = _rhythm_count(
+        rhythm_counts,
+        segment=segment,
+        kind="onset_grid_alignment",
+        parameter=str(grid_denominator),
+        value="aligned",
+    )
+    duration_grid_count = _rhythm_count(
+        rhythm_counts,
+        segment=segment,
+        kind="duration_grid_alignment",
+        parameter=str(grid_denominator),
+        value="aligned",
+    )
+    strong_beat_count = _rhythm_count(
+        rhythm_counts,
+        segment=segment,
+        kind="strong_beat_onset",
+        parameter="",
+        value="strong",
+    )
+    onset_total = _rhythm_kind_total(
+        rhythm_counts,
+        segment=segment,
+        kind="strong_beat_onset",
+        parameter="",
+    )
+    return [
+        _figure_metric_row(
+            metric="rhythmic onsets",
+            value=onset_total,
+            description="Total note or chord onsets used for rhythm-grid checks, counted per hand.",
+        ),
+        _figure_metric_row(
+            metric=f"onset grid fit (1/{grid_denominator})",
+            value=_format_optional_percent(onset_grid_count, onset_total),
+            description="Share of onsets that start exactly on the configured rhythmic grid.",
+        ),
+        _figure_metric_row(
+            metric=f"duration grid fit (1/{grid_denominator})",
+            value=_format_optional_percent(duration_grid_count, onset_total),
+            description="Share of onset durations that fit exactly on the configured rhythmic grid.",
+        ),
+        _figure_metric_row(
+            metric="strong-beat onset share",
+            value=_format_optional_percent(strong_beat_count, onset_total),
+            description="Share of onsets that begin on configured strong-beat offsets within the bar.",
+        ),
+    ]
+
+
+def _figure_metric_row(*, metric: str, value: object, description: str) -> dict[str, object]:
+    return {"metric": metric, "value": value, "description": description}
+
+
+def _segment_figure_counts_by_scale(
     segment: Segment,
     *,
     duration_vocabulary: DurationVocabulary,
@@ -521,102 +797,142 @@ def _segment_figure_counts(
         max_n=max_n,
         scale_size=scale_size_for_type(segment.scale_type),
     )
-    counts_by_scale: FigureNGramCountsByScale = {}
-    merge_scale_counts(counts_by_scale, scale_type=segment.scale_type, sample_counts=counts_by_hand)
-    return counts_by_scale
+    return {segment.scale_type: counts_by_hand}
 
 
-def _nonempty_figure_groups(counts_by_scale: FigureNGramCountsByScale) -> int:
-    return sum(
-        1
-        for counts_by_hand in counts_by_scale.values()
-        for counts_by_n in counts_by_hand.values()
-        for figure_counts in counts_by_n.values()
-        if figure_counts
-    )
-
-
-def _total_figure_count(counts_by_scale: FigureNGramCountsByScale) -> int:
-    return sum(
-        figure_count
-        for counts_by_hand in counts_by_scale.values()
-        for counts_by_n in counts_by_hand.values()
-        for figure_counts in counts_by_n.values()
-        for figure_count in figure_counts.values()
-    )
-
-
-def _unique_figure_count(counts_by_scale: FigureNGramCountsByScale) -> int:
-    return sum(
-        len(figure_counts)
-        for counts_by_hand in counts_by_scale.values()
-        for counts_by_n in counts_by_hand.values()
-        for figure_counts in counts_by_n.values()
-    )
-
-
-def _identity_distances(
+def _compatible_reference_counts(
     *,
     reference_counts: FigureNGramCountsByScale,
     generated_counts: FigureNGramCountsByScale,
-) -> list[float]:
-    distances: list[float] = []
-    for scale_type, reference_counts_by_hand in reference_counts.items():
-        for hand, reference_counts_by_n in reference_counts_by_hand.items():
-            for n, reference_figure_counts in reference_counts_by_n.items():
+) -> FigureNGramCountsByScale:
+    compatible_counts: FigureNGramCountsByScale = {}
+    for scale_type, generated_counts_by_hand in generated_counts.items():
+        reference_counts_by_hand = reference_counts.get(scale_type)
+        if reference_counts_by_hand is None:
+            continue
+
+        for hand, generated_counts_by_n in generated_counts_by_hand.items():
+            reference_counts_by_n = reference_counts_by_hand.get(hand)
+            if reference_counts_by_n is None:
+                continue
+
+            for n, generated_figure_counts in generated_counts_by_n.items():
+                if not generated_figure_counts:
+                    continue
+
+                reference_figure_counts = reference_counts_by_n.get(n)
                 if not reference_figure_counts:
                     continue
 
-                generated_figure_counts = generated_counts.get(scale_type, {}).get(hand, {}).get(n) or Counter()
-                distances.append(_total_variation_distance(reference_figure_counts, generated_figure_counts))
+                compatible_counts.setdefault(scale_type, {}).setdefault(hand, {})[n] = reference_figure_counts
 
-    return distances
+    return compatible_counts
 
 
-def _total_relative_errors(
+def _segment_rhythm_counts(
+    segment: Segment,
     *,
-    reference_counts: FigureNGramCountsByScale,
-    generated_counts: FigureNGramCountsByScale,
-) -> list[float]:
-    errors: list[float] = []
-    for scale_type, reference_counts_by_hand in reference_counts.items():
-        for hand, reference_counts_by_n in reference_counts_by_hand.items():
-            for n, reference_figure_counts in reference_counts_by_n.items():
-                reference_total = sum(reference_figure_counts.values())
-                if reference_total == 0:
-                    continue
-
-                generated_figure_counts = generated_counts.get(scale_type, {}).get(hand, {}).get(n)
-                generated_total = sum(generated_figure_counts.values()) if generated_figure_counts else 0
-                errors.append(abs(generated_total - reference_total) / reference_total)
-
-    return errors
-
-
-def _total_variation_distance(
-    reference_counts: Counter[FigureNGram],
-    generated_counts: Counter[FigureNGram],
-) -> float:
-    reference_total = sum(reference_counts.values())
-    if reference_total == 0:
-        return 0.0
-
-    generated_total = sum(generated_counts.values())
-    figures = set(reference_counts) | set(generated_counts)
-    return 0.5 * sum(
-        abs(
-            (reference_counts[figure] / reference_total)
-            - (generated_counts[figure] / generated_total if generated_total > 0 else 0.0)
-        )
-        for figure in figures
+    duration_vocabulary: DurationVocabulary,
+    analysis_config: NGramAnalysisConfig,
+) -> RhythmCountCounter:
+    return count_segment_rhythm_metrics(
+        segment,
+        duration_vocabulary=duration_vocabulary,
+        rhythm_min_n=analysis_config.rhythm_min_n,
+        rhythm_max_n=analysis_config.rhythm_max_n,
+        grid_alignment_denominators=analysis_config.grid_alignment_denominators,
+        strong_beat_offsets=analysis_config.strong_beat_offsets,
     )
 
 
-def _mean(values: list[float]) -> float | None:
-    if not values:
-        return None
+def _compatible_rhythm_reference_counts(
+    *,
+    reference_counts: RhythmCountCounter,
+    generated_counts: RhythmCountCounter,
+) -> RhythmCountCounter:
+    generated_groups = {
+        (key.scale_type, key.time_signature, key.hand, key.kind, key.parameter) for key in generated_counts
+    }
+    return Counter(
+        {
+            key: count
+            for key, count in reference_counts.items()
+            if (key.scale_type, key.time_signature, key.hand, key.kind, key.parameter) in generated_groups
+        }
+    )
 
-    return sum(values) / len(values)
+
+def _rhythm_count(
+    counts: RhythmCountCounter,
+    *,
+    segment: Segment,
+    kind: RhythmMetricKind,
+    parameter: str,
+    value: str,
+) -> int:
+    time_signature = f"{segment.time_numerator}/{segment.time_denominator}"
+    return sum(
+        counts[
+            RhythmCountKey(
+                scale_type=segment.scale_type.value,
+                time_signature=time_signature,
+                hand=hand.value,
+                kind=kind,
+                parameter=parameter,
+                value=value,
+            )
+        ]
+        for hand in Hand
+    )
+
+
+def _rhythm_kind_total(
+    counts: RhythmCountCounter,
+    *,
+    segment: Segment,
+    kind: RhythmMetricKind,
+    parameter: str,
+) -> int:
+    time_signature = f"{segment.time_numerator}/{segment.time_denominator}"
+    return sum(
+        count
+        for key, count in counts.items()
+        if key.scale_type == segment.scale_type.value
+        and key.time_signature == time_signature
+        and key.kind == kind
+        and key.parameter == parameter
+    )
+
+
+def _combined_figure_counts(
+    counts_by_hand: dict[Hand, dict[int, Counter[FigureNGram]]],
+    *,
+    n: int,
+) -> Counter[FigureNGram]:
+    combined: Counter[FigureNGram] = Counter()
+    for counts_by_n in counts_by_hand.values():
+        combined.update(counts_by_n[n])
+
+    return combined
+
+
+def _format_optional_percent(numerator: int, denominator: int) -> str:
+    if denominator == 0:
+        return "-"
+
+    return _format_percent(numerator / denominator)
+
+
+def _format_percent_metric(value: float | None) -> str:
+    return "-" if value is None else _format_percent(value)
+
+
+def _format_percent(value: float) -> str:
+    return f"{100 * value:.1f}%"
+
+
+def _format_float(value: float | None) -> str:
+    return "-" if value is None else f"{value:.3f}"
 
 
 def _display_bar_count(tokens: list[Token]) -> int:

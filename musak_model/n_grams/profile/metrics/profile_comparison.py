@@ -1,8 +1,6 @@
-from collections import Counter
 from typing import Literal
 
-from musak_model.n_grams.figure.samples.schema import FigureNGramCountsByScale
-from musak_model.n_grams.figure.schema import FigureNGram
+from musak_model.n_grams.profile.metrics.stats import mean
 from musak_model.n_grams.profile.schema import FigureProfile, FigureProfileGroup
 from musak_model.tokens.schema import Hand, ScaleType
 
@@ -45,57 +43,11 @@ def figure_profile_comparison_metrics(
     return {
         **metrics,
         f"{metric_prefix}/count/comparable_groups": float(len(reference_groups)),
-        f"{metric_prefix}/mean/total_relative_abs_error": _mean(total_relative_errors),
-        f"{metric_prefix}/mean/monophonic_rate_abs_error": _mean(property_rate_errors["monophonic"]),
-        f"{metric_prefix}/mean/chords_only_rate_abs_error": _mean(property_rate_errors["chords_only"]),
-        f"{metric_prefix}/mean/in_scale_rate_abs_error": _mean(property_rate_errors["in_scale"]),
+        f"{metric_prefix}/mean/total_relative_abs_error": mean(total_relative_errors),
+        f"{metric_prefix}/mean/monophonic_rate_abs_error": mean(property_rate_errors["monophonic"]),
+        f"{metric_prefix}/mean/chords_only_rate_abs_error": mean(property_rate_errors["chords_only"]),
+        f"{metric_prefix}/mean/in_scale_rate_abs_error": mean(property_rate_errors["in_scale"]),
     }
-
-
-def figure_distribution_metrics(
-    *,
-    reference_counts: FigureNGramCountsByScale,
-    comparison_counts: FigureNGramCountsByScale,
-    metric_prefix: str,
-) -> dict[str, float]:
-    distances: list[float] = []
-    for scale_type, reference_counts_by_hand in reference_counts.items():
-        for hand, reference_counts_by_n in reference_counts_by_hand.items():
-            for n, reference_figure_counts in reference_counts_by_n.items():
-                if not reference_figure_counts:
-                    continue
-
-                comparison_figure_counts: Counter[FigureNGram] = (
-                    comparison_counts.get(scale_type, {}).get(hand, {}).get(n, Counter())
-                )
-                distances.append(_total_variation_distance(reference_figure_counts, comparison_figure_counts))
-
-    if not distances:
-        return {f"{metric_prefix}/count/distribution_groups": 0.0}
-
-    return {
-        f"{metric_prefix}/count/distribution_groups": float(len(distances)),
-        f"{metric_prefix}/mean/identity_total_variation_distance": _mean(distances),
-    }
-
-
-def _total_variation_distance(
-    reference_counts: Counter[FigureNGram],
-    comparison_counts: Counter[FigureNGram],
-) -> float:
-    reference_total = sum(reference_counts.values())
-    if reference_total == 0:
-        return 0.0
-
-    comparison_total = sum(comparison_counts.values())
-    figures = set(reference_counts) | set(comparison_counts)
-    return 0.5 * sum(
-        abs(
-            (reference_counts[figure] / reference_total)
-            - (comparison_counts[figure] / comparison_total if comparison_total > 0 else 0.0)
-        )
-        for figure in figures
-    )
 
 
 def _figure_profile_group_key(group: FigureProfileGroup) -> tuple[ScaleType, Hand, int]:
@@ -118,7 +70,3 @@ def _group_rate(
             return group.in_scale / group.total
 
     raise ValueError(f"unknown figure profile group field: {field_name}")
-
-
-def _mean(values: list[float]) -> float:
-    return sum(values) / len(values)

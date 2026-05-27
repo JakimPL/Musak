@@ -86,6 +86,33 @@ def read_figure_counts_csv(path: Path) -> FigureNGramCountsByScale:
     return counts
 
 
+def read_figure_counts_csv_for_groups(
+    path: Path,
+    *,
+    scale_type: ScaleType,
+    groups: frozenset[tuple[Hand, int]],
+) -> FigureNGramCountsByScale:
+    counts: FigureNGramCountsByScale = {}
+    allowed_groups = {(hand.value, str(n)) for hand, n in groups}
+    with path.open("r", encoding="utf-8", newline="") as file:
+        reader = csv.DictReader(file)
+        for row in reader:
+            if row[SCALE_TYPE_COLUMN] != scale_type.value:
+                continue
+
+            group = (row[HAND_COLUMN], row[N_COLUMN])
+            if group not in allowed_groups:
+                continue
+
+            hand = Hand(row[HAND_COLUMN])
+            n = int(row[N_COLUMN])
+            count = int(row[COUNT_COLUMN])
+            figure = FigureNGram.model_validate_json(row[FIGURE_COLUMN])
+            counts.setdefault(scale_type, {}).setdefault(hand, {}).setdefault(n, Counter())[figure] += count
+
+    return counts
+
+
 def write_figure_profile(profile: FigureProfile, path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(profile.model_dump_json(indent=JSON_INDENT), encoding="utf-8")

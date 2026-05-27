@@ -10,6 +10,7 @@ from musak_model.n_grams.profile.io import (
     COUNT_CSV_COLUMNS,
     figure_count_records,
     read_figure_counts_csv,
+    read_figure_counts_csv_for_groups,
     read_figure_profile,
     read_figure_sample_counts_jsonl,
     write_figure_count_csv,
@@ -53,6 +54,43 @@ def test_figure_counts_csv_round_trips(tmp_path: Path) -> None:
     write_figure_counts_csv(counts, path)
 
     assert read_figure_counts_csv(path) == counts
+
+
+def test_filtered_figure_counts_csv_skips_unrelated_rows_before_parsing_json(tmp_path: Path) -> None:
+    figure = FigureNGram(onsets=((((0, 0),), Fraction(1)),))
+    path = tmp_path / "counts.csv"
+    write_figure_count_csv(
+        [
+            {
+                "scale_type": "major",
+                "hand": "right",
+                "n": 2,
+                "count": 3,
+                "figure": figure.model_dump_json(),
+            },
+            {
+                "scale_type": "harmonic_minor",
+                "hand": "right",
+                "n": 2,
+                "count": 1,
+                "figure": "not valid figure json",
+            },
+            {
+                "scale_type": "major",
+                "hand": "left",
+                "n": 3,
+                "count": 1,
+                "figure": "not valid figure json",
+            },
+        ],
+        path,
+    )
+
+    assert read_figure_counts_csv_for_groups(
+        path,
+        scale_type=ScaleType.MAJOR,
+        groups=frozenset({(Hand.RIGHT, 2)}),
+    ) == {ScaleType.MAJOR: {Hand.RIGHT: {2: Counter({figure: 3})}}}
 
 
 def test_figure_sample_counts_jsonl_round_trips(tmp_path: Path) -> None:

@@ -1,0 +1,262 @@
+from collections import Counter
+from collections.abc import Iterable, Iterator
+from typing import Final, NamedTuple, cast
+
+from sqlalchemy import Column, Integer, MetaData, String, Table, select
+from sqlalchemy.dialects.sqlite import Insert, insert
+from sqlalchemy.engine import Connection
+
+from musak_model.n_grams.profile.rhythm.schema import RhythmCountCounter, RhythmCountKey, RhythmMetricKind
+from musak_model.n_grams.profile.streaming.schema import FigureCountCounter, FigureCountKey
+
+_METADATA_KEY_COLUMN: Final[str] = "key"
+_METADATA_VALUE_COLUMN: Final[str] = "value"
+_COUNT_SCALE_TYPE_COLUMN: Final[str] = "scale_type"
+_COUNT_HAND_COLUMN: Final[str] = "hand"
+_COUNT_N_COLUMN: Final[str] = "n"
+_COUNT_FIGURE_COLUMN: Final[str] = "figure"
+_COUNT_COUNT_COLUMN: Final[str] = "count"
+_SAMPLE_INDEX_COLUMN: Final[str] = "sample_index"
+_SAMPLE_PAYLOAD_COLUMN: Final[str] = "payload"
+_RHYTHM_TIME_SIGNATURE_COLUMN: Final[str] = "time_signature"
+_RHYTHM_KIND_COLUMN: Final[str] = "kind"
+_RHYTHM_PARAMETER_COLUMN: Final[str] = "parameter"
+_RHYTHM_VALUE_COLUMN: Final[str] = "value"
+_BATCH_INDEX_COLUMN: Final[str] = "batch_index"
+_BATCH_SAMPLE_START_INDEX_COLUMN: Final[str] = "sample_start_index"
+_BATCH_SAMPLE_COUNT_COLUMN: Final[str] = "sample_count"
+
+_SQL_METADATA: Final = MetaData()
+
+_METADATA_TABLE: Final = Table(
+    "metadata",
+    _SQL_METADATA,
+    Column(_METADATA_KEY_COLUMN, String, primary_key=True),
+    Column(_METADATA_VALUE_COLUMN, String, nullable=False),
+)
+_COUNTS_TABLE: Final = Table(
+    "counts",
+    _SQL_METADATA,
+    Column(_COUNT_SCALE_TYPE_COLUMN, String, primary_key=True),
+    Column(_COUNT_HAND_COLUMN, String, primary_key=True),
+    Column(_COUNT_N_COLUMN, Integer, primary_key=True),
+    Column(_COUNT_FIGURE_COLUMN, String, primary_key=True),
+    Column(_COUNT_COUNT_COLUMN, Integer, nullable=False),
+)
+_SAMPLE_COUNTS_TABLE: Final = Table(
+    "sample_counts",
+    _SQL_METADATA,
+    Column(_SAMPLE_INDEX_COLUMN, Integer, primary_key=True),
+    Column(_SAMPLE_PAYLOAD_COLUMN, String, nullable=False),
+)
+_RHYTHM_COUNTS_TABLE: Final = Table(
+    "rhythm_counts",
+    _SQL_METADATA,
+    Column(_COUNT_SCALE_TYPE_COLUMN, String, primary_key=True),
+    Column(_RHYTHM_TIME_SIGNATURE_COLUMN, String, primary_key=True),
+    Column(_COUNT_HAND_COLUMN, String, primary_key=True),
+    Column(_RHYTHM_KIND_COLUMN, String, primary_key=True),
+    Column(_RHYTHM_PARAMETER_COLUMN, String, primary_key=True),
+    Column(_RHYTHM_VALUE_COLUMN, String, primary_key=True),
+    Column(_COUNT_COUNT_COLUMN, Integer, nullable=False),
+)
+_COMPLETED_BATCHES_TABLE: Final = Table(
+    "completed_batches",
+    _SQL_METADATA,
+    Column(_BATCH_INDEX_COLUMN, Integer, primary_key=True),
+    Column(_BATCH_SAMPLE_START_INDEX_COLUMN, Integer, nullable=False),
+    Column(_BATCH_SAMPLE_COUNT_COLUMN, Integer, nullable=False),
+)
+
+
+class FigureCountRow(NamedTuple):
+    scale_type: str
+    hand: str
+    figure_length: int
+    figure: str
+    occurrence_count: int
+
+
+class FigureWorkTables:
+    def __init__(self, connection: Connection) -> None:
+        self._connection = connection
+
+    def configure_connection(self) -> None:
+        self._connection.exec_driver_sql("PRAGMA journal_mode=WAL")
+        self._connection.exec_driver_sql("PRAGMA synchronous=NORMAL")
+
+    def initialize_schema(self) -> None:
+        _SQL_METADATA.create_all(self._connection)
+
+    def completed_batch_indexes(self) -> set[int]:
+        result = self._connection.execute(select(_COMPLETED_BATCHES_TABLE.c[_BATCH_INDEX_COLUMN]))
+        return {int(row[0]) for row in result.fetchall()}
+
+    def add_figure_counts(self, counts: FigureCountCounter) -> None:
+        records = [
+            {
+                _COUNT_SCALE_TYPE_COLUMN: key.scale_type,
+                _COUNT_HAND_COLUMN: key.hand,
+                _COUNT_N_COLUMN: key.figure_length,
+                _COUNT_FIGURE_COLUMN: key.figure,
+                _COUNT_COUNT_COLUMN: count,
+            }
+            for key, count in counts.items()
+        ]
+        if records:
+            self._connection.execute(_additive_count_upsert(_COUNTS_TABLE), records)
+
+    def upsert_sample_payloads(self, sample_payloads: Iterable[tuple[int, str]]) -> None:
+        records = [
+            {
+                _SAMPLE_INDEX_COLUMN: sample_index,
+                _SAMPLE_PAYLOAD_COLUMN: payload,
+            }
+            for sample_index, payload in sample_payloads
+        ]
+        if records:
+            self._connection.execute(
+                _replace_upsert(_SAMPLE_COUNTS_TABLE, update_columns=(_SAMPLE_PAYLOAD_COLUMN,)),
+                records,
+            )
+
+    def add_rhythm_counts(self, counts: RhythmCountCounter) -> None:
+        records = [
+            {
+                _COUNT_SCALE_TYPE_COLUMN: key.scale_type,
+                _RHYTHM_TIME_SIGNATURE_COLUMN: key.time_signature,
+                _COUNT_HAND_COLUMN: key.hand,
+                _RHYTHM_KIND_COLUMN: key.kind,
+                _RHYTHM_PARAMETER_COLUMN: key.parameter,
+                _RHYTHM_VALUE_COLUMN: key.value,
+                _COUNT_COUNT_COLUMN: count,
+            }
+            for key, count in counts.items()
+        ]
+        if records:
+            self._connection.execute(_additive_count_upsert(_RHYTHM_COUNTS_TABLE), records)
+
+    def upsert_completed_batch(
+        self,
+        *,
+        batch_index: int,
+        sample_start_index: int,
+        sample_count: int,
+    ) -> None:
+        self._connection.execute(
+            _replace_upsert(
+                _COMPLETED_BATCHES_TABLE,
+                update_columns=(_BATCH_SAMPLE_START_INDEX_COLUMN, _BATCH_SAMPLE_COUNT_COLUMN),
+            ),
+            {
+                _BATCH_INDEX_COLUMN: batch_index,
+                _BATCH_SAMPLE_START_INDEX_COLUMN: sample_start_index,
+                _BATCH_SAMPLE_COUNT_COLUMN: sample_count,
+            },
+        )
+
+    def metadata_value(self, key: str) -> str | None:
+        result = self._connection.execute(
+            select(_METADATA_TABLE.c[_METADATA_VALUE_COLUMN]).where(_METADATA_TABLE.c[_METADATA_KEY_COLUMN] == key)
+        )
+        row = result.fetchone()
+        return str(row[0]) if row is not None else None
+
+    def set_metadata(self, key: str, value: str) -> None:
+        self._connection.execute(
+            _replace_upsert(
+                _METADATA_TABLE,
+                update_columns=(_METADATA_VALUE_COLUMN,),
+            ),
+            {
+                _METADATA_KEY_COLUMN: key,
+                _METADATA_VALUE_COLUMN: value,
+            },
+        )
+
+    def iter_sample_payloads(self) -> Iterator[str]:
+        result = self._connection.execute(
+            select(_SAMPLE_COUNTS_TABLE.c[_SAMPLE_PAYLOAD_COLUMN]).order_by(
+                _SAMPLE_COUNTS_TABLE.c[_SAMPLE_INDEX_COLUMN]
+            )
+        )
+        for (payload,) in result:
+            yield str(payload)
+
+    def iter_figure_counts(self) -> Iterator[tuple[FigureCountKey, int]]:
+        result = self._connection.execute(select(_COUNTS_TABLE))
+        for scale_type, hand, figure_length, figure, count in result:
+            yield (
+                FigureCountKey(
+                    scale_type=str(scale_type),
+                    hand=str(hand),
+                    figure_length=int(figure_length),
+                    figure=str(figure),
+                ),
+                int(count),
+            )
+
+    def iter_limited_figure_rows(self, *, limit_per_group: int | None) -> Iterator[FigureCountRow]:
+        current_group: tuple[str, str, int] | None = None
+        current_group_count = 0
+        result = self._connection.execute(
+            select(_COUNTS_TABLE).order_by(
+                _COUNTS_TABLE.c[_COUNT_SCALE_TYPE_COLUMN],
+                _COUNTS_TABLE.c[_COUNT_HAND_COLUMN],
+                _COUNTS_TABLE.c[_COUNT_N_COLUMN],
+                _COUNTS_TABLE.c[_COUNT_COUNT_COLUMN].desc(),
+                _COUNTS_TABLE.c[_COUNT_FIGURE_COLUMN],
+            )
+        )
+        for scale_type, hand, figure_length, figure, count in result:
+            group = (str(scale_type), str(hand), int(figure_length))
+            if group != current_group:
+                current_group = group
+                current_group_count = 0
+
+            if limit_per_group is not None and current_group_count >= limit_per_group:
+                continue
+
+            current_group_count += 1
+            yield FigureCountRow(
+                scale_type=str(scale_type),
+                hand=str(hand),
+                figure_length=int(figure_length),
+                figure=str(figure),
+                occurrence_count=int(count),
+            )
+
+    def rhythm_counts(self) -> RhythmCountCounter:
+        counts: RhythmCountCounter = Counter()
+        result = self._connection.execute(select(_RHYTHM_COUNTS_TABLE))
+        for scale_type, time_signature, hand, kind, parameter, value, count in result:
+            counts[
+                RhythmCountKey(
+                    scale_type=str(scale_type),
+                    time_signature=str(time_signature),
+                    hand=str(hand),
+                    kind=cast(RhythmMetricKind, kind),
+                    parameter=str(parameter),
+                    value=str(value),
+                )
+            ] += int(count)
+
+        return counts
+
+
+def _additive_count_upsert(table: Table) -> Insert:
+    statement = insert(table)
+    return statement.on_conflict_do_update(
+        index_elements=list(table.primary_key.columns),
+        set_={
+            _COUNT_COUNT_COLUMN: table.c[_COUNT_COUNT_COLUMN] + statement.excluded[_COUNT_COUNT_COLUMN],
+        },
+    )
+
+
+def _replace_upsert(table: Table, *, update_columns: tuple[str, ...]) -> Insert:
+    statement = insert(table)
+    return statement.on_conflict_do_update(
+        index_elements=list(table.primary_key.columns),
+        set_={column: statement.excluded[column] for column in update_columns},
+    )

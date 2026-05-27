@@ -24,6 +24,8 @@
 4. Import shared helpers directly from the module that owns their implementation.
 5. Before adding a helper, search the repository for existing logic with `rg`.
 6. If new code duplicates existing logic, extract the shared rule first and make both call sites use it.
+7. Do not overload with a single module with too many different responsibilities.
+8. Prefer subpackages over flatten directory structure.
 
 ## Type Hints
 

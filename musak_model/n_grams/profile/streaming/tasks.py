@@ -1,4 +1,5 @@
 from collections.abc import Iterable, Iterator
+from fractions import Fraction
 from pathlib import Path
 
 from musak_model.n_grams.profile.streaming.schema import FigureBatchTask
@@ -12,6 +13,10 @@ def figure_batch_tasks(
     tokenization_config: TokenizationConfig,
     min_n: int,
     max_n: int,
+    rhythm_min_n: int,
+    rhythm_max_n: int,
+    grid_alignment_denominators: tuple[int, ...],
+    strong_beat_offsets: tuple[Fraction, ...],
     batch_size: int,
     completed_batches: set[int],
 ) -> Iterator[FigureBatchTask]:
@@ -33,6 +38,10 @@ def figure_batch_tasks(
                         tokenization_config=tokenization_config,
                         min_n=min_n,
                         max_n=max_n,
+                        rhythm_min_n=rhythm_min_n,
+                        rhythm_max_n=rhythm_max_n,
+                        grid_alignment_denominators=grid_alignment_denominators,
+                        strong_beat_offsets=strong_beat_offsets,
                     )
                 batch_index += 1
                 sample_start_index += len(encoded_lines)
@@ -46,6 +55,10 @@ def figure_batch_tasks(
                 tokenization_config=tokenization_config,
                 min_n=min_n,
                 max_n=max_n,
+                rhythm_min_n=rhythm_min_n,
+                rhythm_max_n=rhythm_max_n,
+                grid_alignment_denominators=grid_alignment_denominators,
+                strong_beat_offsets=strong_beat_offsets,
             )
 
 
@@ -55,6 +68,10 @@ def figure_sample_batch_tasks(
     tokenization_config: TokenizationConfig,
     min_n: int,
     max_n: int,
+    rhythm_min_n: int,
+    rhythm_max_n: int,
+    grid_alignment_denominators: tuple[int, ...],
+    strong_beat_offsets: tuple[Fraction, ...],
     batch_size: int,
     completed_batches: set[int],
 ) -> Iterator[FigureBatchTask]:
@@ -72,6 +89,10 @@ def figure_sample_batch_tasks(
                     tokenization_config=tokenization_config,
                     min_n=min_n,
                     max_n=max_n,
+                    rhythm_min_n=rhythm_min_n,
+                    rhythm_max_n=rhythm_max_n,
+                    grid_alignment_denominators=grid_alignment_denominators,
+                    strong_beat_offsets=strong_beat_offsets,
                 )
             batch_index += 1
             sample_start_index += len(encoded_lines)
@@ -85,4 +106,8 @@ def figure_sample_batch_tasks(
             tokenization_config=tokenization_config,
             min_n=min_n,
             max_n=max_n,
+            rhythm_min_n=rhythm_min_n,
+            rhythm_max_n=rhythm_max_n,
+            grid_alignment_denominators=grid_alignment_denominators,
+            strong_beat_offsets=strong_beat_offsets,
         )

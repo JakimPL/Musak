@@ -60,3 +60,7 @@ class TestScoreData:
     def test_accepts_none_tempo(self) -> None:
         score = ScoreData(rows=[], tempo=None)
         assert score.tempo is None
+
+    def test_rejects_invalid_layout(self) -> None:
+        with pytest.raises(ValidationError):
+            ScoreData(rows=[], layout="unknown")

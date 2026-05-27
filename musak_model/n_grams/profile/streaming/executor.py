@@ -68,6 +68,10 @@ def process_missing_batches(
         tokenization_config=tokenization_config,
         min_n=config.min_n,
         max_n=config.max_n,
+        rhythm_min_n=config.rhythm_min_n,
+        rhythm_max_n=config.rhythm_max_n,
+        grid_alignment_denominators=config.grid_alignment_denominators,
+        strong_beat_offsets=config.strong_beat_offsets,
         batch_size=config.batch_size,
         completed_batches=completed_batches,
     )
@@ -101,6 +105,10 @@ def process_missing_sample_batches(
         tokenization_config=tokenization_config,
         min_n=config.min_n,
         max_n=config.max_n,
+        rhythm_min_n=config.rhythm_min_n,
+        rhythm_max_n=config.rhythm_max_n,
+        grid_alignment_denominators=config.grid_alignment_denominators,
+        strong_beat_offsets=config.strong_beat_offsets,
         batch_size=config.batch_size,
         completed_batches=completed_batches,
     )

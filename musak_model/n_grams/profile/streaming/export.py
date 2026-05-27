@@ -1,11 +1,25 @@
 import csv
 import shutil
 from collections.abc import Iterator
+from fractions import Fraction
 from pathlib import Path
 
 from musak_model.n_grams.figure.signature import figure_signature_from_json, figure_signature_to_ngram
 from musak_model.n_grams.profile.artifacts import FigureArtifactPaths
-from musak_model.n_grams.profile.io import COUNT_CSV_COLUMNS
+from musak_model.n_grams.profile.io import (
+    COUNT_COLUMN,
+    COUNT_CSV_COLUMNS,
+    FIGURE_COLUMN,
+    HAND_COLUMN,
+    N_COLUMN,
+    SCALE_TYPE_COLUMN,
+)
+from musak_model.n_grams.profile.rhythm.io import build_rhythm_profile, write_rhythm_counts_csv, write_rhythm_profile
+from musak_model.n_grams.profile.rhythm.schema import (
+    RhythmCountCounter,
+    RhythmProfileMetadata,
+    rhythm_artifact_paths_for_figure_root,
+)
 from musak_model.n_grams.profile.schema import FigureProfile, FigureProfileGroup, FigureProfileMetadata
 from musak_model.n_grams.profile.streaming.schema import FigureCountKey, FigureStoreSummary
 from musak_model.n_grams.profile.streaming.store import FigureWorkStore
@@ -22,11 +36,29 @@ def export_figure_artifacts(
     analysis_config_path: Path,
     min_n: int,
     max_n: int,
+    rhythm_min_n: int,
+    rhythm_max_n: int,
+    grid_alignment_denominators: tuple[int, ...],
+    strong_beat_offsets: tuple[Fraction, ...],
     limit_per_group: int | None,
 ) -> FigureStoreSummary:
     profile = profile_from_store(store, min_n=min_n, max_n=max_n)
+    rhythm_counts = rhythm_counts_from_store(store)
+    rhythm_paths = rhythm_artifact_paths_for_figure_root(artifact_paths.root_directory)
+    rhythm_profile = build_rhythm_profile(
+        rhythm_counts,
+        metadata=RhythmProfileMetadata(
+            rhythm_min_n=rhythm_min_n,
+            rhythm_max_n=rhythm_max_n,
+            grid_alignment_denominators=grid_alignment_denominators,
+            strong_beat_offsets=strong_beat_offsets,
+            sample_count=store.encoded_sample_count(),
+        ),
+    )
     sample_profile_count = export_sample_counts(store, artifact_paths.by_sample_path)
     export_counts_csv(store, artifact_paths.counts_path, limit_per_group=None)
+    write_rhythm_counts_csv(rhythm_counts, rhythm_paths.counts_path)
+    write_rhythm_profile(rhythm_profile, rhythm_paths.profile_path)
     write_profile_atomically(profile, artifact_paths.profile_path)
     copy_file_atomically(analysis_config_path, artifact_paths.config_path)
     if output_path is not None:
@@ -39,6 +71,10 @@ def export_figure_artifacts(
     )
 
 
+def rhythm_counts_from_store(store: FigureWorkStore) -> RhythmCountCounter:
+    return store.tables.rhythm_counts()
+
+
 def profile_from_store(
     store: FigureWorkStore,
     *,
@@ -46,12 +82,12 @@ def profile_from_store(
     max_n: int,
 ) -> FigureProfile:
     groups: list[FigureProfileGroup] = []
-    for (scale_type, hand, figure_length), totals in sorted(figure_group_totals(_iter_store_counts(store)).items()):
+    for key, totals in sorted(figure_group_totals(_iter_store_counts(store)).items()):
         groups.append(
             FigureProfileGroup(
-                scale_type=ScaleType(scale_type),
-                hand=Hand(hand),
-                n=figure_length,
+                scale_type=ScaleType(key.scale_type),
+                hand=Hand(key.hand),
+                n=key.figure_length,
                 total=totals.total,
                 monophonic=totals.monophonic,
                 chords_only=totals.chords_only,
@@ -76,17 +112,14 @@ def export_counts_csv(
     with temp_path.open("w", encoding="utf-8", newline="") as file:
         writer = csv.DictWriter(file, fieldnames=COUNT_CSV_COLUMNS)
         writer.writeheader()
-        for scale_type, hand, figure_length, figure_json, count in _iter_limited_store_rows(
-            store,
-            limit_per_group=limit_per_group,
-        ):
+        for row in store.tables.iter_limited_figure_rows(limit_per_group=limit_per_group):
             writer.writerow(
                 {
-                    "scale_type": scale_type,
-                    "hand": hand,
-                    "n": figure_length,
-                    "count": count,
-                    "figure": figure_signature_to_ngram(figure_signature_from_json(figure_json)).model_dump_json(),
+                    SCALE_TYPE_COLUMN: row.scale_type,
+                    HAND_COLUMN: row.hand,
+                    N_COLUMN: row.figure_length,
+                    COUNT_COLUMN: row.occurrence_count,
+                    FIGURE_COLUMN: figure_signature_to_ngram(figure_signature_from_json(row.figure)).model_dump_json(),
                 }
             )
     temp_path.replace(path)
@@ -100,9 +133,8 @@ def export_sample_counts(
     temp_path = path.with_suffix(f"{path.suffix}.tmp")
     count = 0
     with temp_path.open("w", encoding="utf-8") as file:
-        cursor = store.connection.execute("SELECT payload FROM sample_counts ORDER BY sample_index")
-        for (payload,) in cursor:
-            file.write(str(payload))
+        for payload in store.tables.iter_sample_payloads():
+            file.write(payload)
             file.write("\n")
             count += 1
     temp_path.replace(path)
@@ -127,32 +159,4 @@ def copy_file_atomically(source_path: Path, target_path: Path) -> None:
 
 
 def _iter_store_counts(store: FigureWorkStore) -> Iterator[tuple[FigureCountKey, int]]:
-    cursor = store.connection.execute("SELECT scale_type, hand, n, figure, count FROM counts")
-    for scale_type, hand, figure_length, figure, count in cursor:
-        yield (str(scale_type), str(hand), int(figure_length), str(figure)), int(count)
-
-
-def _iter_limited_store_rows(
-    store: FigureWorkStore,
-    *,
-    limit_per_group: int | None,
-) -> Iterator[tuple[str, str, int, str, int]]:
-    query = """
-        SELECT scale_type, hand, n, figure, count
-        FROM counts
-        ORDER BY scale_type, hand, n, count DESC, figure
-    """
-    current_group: tuple[str, str, int] | None = None
-    current_group_count = 0
-    cursor = store.connection.execute(query)
-    for scale_type, hand, figure_length, figure, count in cursor:
-        group = (str(scale_type), str(hand), int(figure_length))
-        if group != current_group:
-            current_group = group
-            current_group_count = 0
-
-        if limit_per_group is not None and current_group_count >= limit_per_group:
-            continue
-
-        current_group_count += 1
-        yield str(scale_type), str(hand), int(figure_length), str(figure), int(count)
+    yield from store.tables.iter_figure_counts()

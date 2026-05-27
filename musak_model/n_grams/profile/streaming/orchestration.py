@@ -11,7 +11,7 @@ from musak_model.n_grams.profile.streaming.state import figure_state_key
 from musak_model.n_grams.profile.streaming.store import (
     FigureWorkStore,
     clear_figure_work,
-    complete_figure_artifacts_exist,
+    complete_reference_artifacts_exist,
     existing_figure_summary,
     figure_work_store_path,
 )
@@ -40,8 +40,8 @@ def extract_streaming_figure_artifacts(
         _LOGGER.info("Clearing existing figure artifacts before extraction: %s", artifact_paths.root_directory)
         clear_figure_work(artifact_paths)
 
-    if complete_figure_artifacts_exist(artifact_paths) and not overwrite:
-        _LOGGER.info("Reusing complete figure artifacts: %s", artifact_paths.root_directory)
+    if complete_reference_artifacts_exist(artifact_paths) and not overwrite:
+        _LOGGER.info("Reusing complete figure/rhythm artifacts: %s", artifact_paths.root_directory)
         return existing_figure_summary(artifact_paths)
 
     _LOGGER.info("Opening figure work store: %s", store_path)
@@ -64,6 +64,10 @@ def extract_streaming_figure_artifacts(
             analysis_config_path=analysis_config_path,
             min_n=config.min_n,
             max_n=config.max_n,
+            rhythm_min_n=config.rhythm_min_n,
+            rhythm_max_n=config.rhythm_max_n,
+            grid_alignment_denominators=config.grid_alignment_denominators,
+            strong_beat_offsets=config.strong_beat_offsets,
             limit_per_group=config.limit_per_group,
         )
         _LOGGER.info("Exported figure artifacts in %.1fs", perf_counter() - started_at)

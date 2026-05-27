@@ -4,7 +4,7 @@ from musak_model.n_grams.figure.builder import scale_size_for_type
 from musak_model.n_grams.figure.parser import extract_hand_onset_runs
 from musak_model.n_grams.figure.signature import figure_signature_to_json, iter_figure_signatures_from_run
 from musak_model.n_grams.profile.schema import FigureProfileGroup, FigureSampleCounts
-from musak_model.n_grams.profile.streaming.schema import FigureCountCounter
+from musak_model.n_grams.profile.streaming.schema import FigureCountCounter, FigureCountKey
 from musak_model.n_grams.profile.streaming.totals import figure_group_totals
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import Hand, ScaleType
@@ -37,7 +37,13 @@ def count_sample_figure_signatures(
                 max_n=max_n,
                 scale_size=scale_size,
             ):
-                counts[(sample.scale_type.value, hand.value, n, figure_signature_to_json(signature))] += 1
+                key = FigureCountKey(
+                    scale_type=sample.scale_type.value,
+                    hand=hand.value,
+                    figure_length=n,
+                    figure=figure_signature_to_json(signature),
+                )
+                counts[key] += 1
 
     return counts
 
@@ -48,12 +54,12 @@ def sample_profile_payload(
     counts: FigureCountCounter,
 ) -> str:
     groups: list[FigureProfileGroup] = []
-    for (group_scale_type, hand, n), totals in sorted(figure_group_totals(counts).items()):
+    for group_key, totals in sorted(figure_group_totals(counts).items()):
         groups.append(
             FigureProfileGroup(
-                scale_type=ScaleType(group_scale_type),
-                hand=Hand(hand),
-                n=n,
+                scale_type=ScaleType(group_key.scale_type),
+                hand=Hand(group_key.hand),
+                n=group_key.figure_length,
                 total=totals.total,
                 monophonic=totals.monophonic,
                 chords_only=totals.chords_only,
