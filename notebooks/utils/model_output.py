@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections import Counter
 from dataclasses import dataclass
 from fractions import Fraction
+from functools import cache
 from pathlib import Path
 from typing import Callable, Final, Literal, Protocol, cast
 
@@ -30,8 +31,8 @@ from musak_model.n_grams.figure.counter import count_hand_figure_ngrams
 from musak_model.n_grams.figure.parser import HandOnsetRun, PitchedOnset, extract_hand_onset_runs
 from musak_model.n_grams.figure.samples.schema import FigureNGramCountsByScale
 from musak_model.n_grams.figure.schema import FigureNGram
-from musak_model.n_grams.profile.io import read_figure_counts_csv
-from musak_model.n_grams.profile.metrics.reference.distribution import figure_reference_distribution_metrics
+from musak_model.n_grams.profile.io import read_figure_counts_csv_for_groups
+from musak_model.n_grams.profile.metrics.reference.distribution import figure_reference_alignment_metrics
 from musak_model.paths import MODEL_CONFIG_DIR
 from musak_model.tokens.config import TokenizationConfig
 from musak_model.tokens.duration import DurationVocabulary
@@ -529,8 +530,36 @@ def figure_pattern_metric_rows(
     ]
 
 
-def load_figure_reference_counts(path: Path) -> FigureNGramCountsByScale:
-    return read_figure_counts_csv(path)
+@cache
+def load_figure_reference_counts(
+    path: Path,
+    *,
+    scale_type: ScaleType,
+    groups: frozenset[tuple[Hand, int]],
+) -> FigureNGramCountsByScale:
+    return read_figure_counts_csv_for_groups(path, scale_type=scale_type, groups=groups)
+
+
+def figure_reference_count_groups(
+    segment: Segment,
+    *,
+    duration_vocabulary: DurationVocabulary,
+    analysis_config: NGramAnalysisConfig | None = None,
+) -> frozenset[tuple[Hand, int]]:
+    resolved_config = analysis_config or NGramAnalysisConfig.load()
+    generated_counts = _segment_figure_counts_by_scale(
+        segment,
+        duration_vocabulary=duration_vocabulary,
+        min_n=resolved_config.min_n,
+        max_n=resolved_config.max_n,
+    )
+    return frozenset(
+        (hand, n)
+        for counts_by_hand in generated_counts.values()
+        for hand, counts_by_n in counts_by_hand.items()
+        for n, figure_counts in counts_by_n.items()
+        if figure_counts
+    )
 
 
 def figure_reference_alignment_metric_rows(
@@ -544,10 +573,15 @@ def figure_reference_alignment_metric_rows(
     generated_counts = _segment_figure_counts_by_scale(
         segment,
         duration_vocabulary=duration_vocabulary,
-        reference_counts=reference_counts,
+        min_n=resolved_config.min_n,
+        max_n=resolved_config.max_n,
     )
-    metrics = figure_reference_distribution_metrics(
+    compatible_reference_counts = _compatible_reference_counts(
         reference_counts=reference_counts,
+        generated_counts=generated_counts,
+    )
+    metrics = figure_reference_alignment_metrics(
+        reference_counts=compatible_reference_counts,
         comparison_counts=generated_counts,
         metric_prefix=_REFERENCE_METRIC_PREFIX,
         common_mass_threshold=resolved_config.figure_common_mass_threshold,
@@ -646,9 +680,9 @@ def _segment_figure_counts_by_scale(
     segment: Segment,
     *,
     duration_vocabulary: DurationVocabulary,
-    reference_counts: FigureNGramCountsByScale,
+    min_n: int,
+    max_n: int,
 ) -> FigureNGramCountsByScale:
-    min_n, max_n = _reference_n_range(reference_counts)
     runs_by_hand = extract_hand_onset_runs(
         segment.tokens,
         duration_vocabulary=duration_vocabulary,
@@ -664,18 +698,33 @@ def _segment_figure_counts_by_scale(
     return {segment.scale_type: counts_by_hand}
 
 
-def _reference_n_range(reference_counts: FigureNGramCountsByScale) -> tuple[int, int]:
-    n_values = [
-        n
-        for counts_by_hand in reference_counts.values()
-        for counts_by_n in counts_by_hand.values()
-        for n, figure_counts in counts_by_n.items()
-        if figure_counts
-    ]
-    if not n_values:
-        return _FIGURE_PATTERN_MIN_N, _FIGURE_PATTERN_MAX_N
+def _compatible_reference_counts(
+    *,
+    reference_counts: FigureNGramCountsByScale,
+    generated_counts: FigureNGramCountsByScale,
+) -> FigureNGramCountsByScale:
+    compatible_counts: FigureNGramCountsByScale = {}
+    for scale_type, generated_counts_by_hand in generated_counts.items():
+        reference_counts_by_hand = reference_counts.get(scale_type)
+        if reference_counts_by_hand is None:
+            continue
 
-    return min(n_values), max(n_values)
+        for hand, generated_counts_by_n in generated_counts_by_hand.items():
+            reference_counts_by_n = reference_counts_by_hand.get(hand)
+            if reference_counts_by_n is None:
+                continue
+
+            for n, generated_figure_counts in generated_counts_by_n.items():
+                if not generated_figure_counts:
+                    continue
+
+                reference_figure_counts = reference_counts_by_n.get(n)
+                if not reference_figure_counts:
+                    continue
+
+                compatible_counts.setdefault(scale_type, {}).setdefault(hand, {})[n] = reference_figure_counts
+
+    return compatible_counts
 
 
 def _segment_pitched_onsets(

@@ -217,3 +217,5 @@ ready_for_review
 - Added an opt-in reference alignment table for exact figure distribution, contour, duration-shape, property distance,
   common figure mass, rare figure mass, and novel figure mass when a reference figure-count CSV is selected.
 - Added generated rhythm-grid rows for onset grid fit, duration grid fit, and strong-beat onset share.
+- Optimized reference alignment to filter reference CSV rows by generated scale, hand, and figure length before parsing
+  figures, and to compare against precomputed reference probability indexes by iterating generated figures only.

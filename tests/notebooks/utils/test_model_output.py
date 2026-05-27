@@ -253,8 +253,10 @@ def test_figure_reference_alignment_metric_rows_compare_alignment_and_novelty(
         tokens=[
             HandToken(hand=Hand.RIGHT),
             NoteToken(degree=1, accidental=0, octave_offset=0, duration_id=quarter_id),
+            NoteToken(degree=2, accidental=0, octave_offset=0, duration_id=quarter_id),
             HandToken(hand=Hand.LEFT),
             NoteToken(degree=1, accidental=1, octave_offset=0, duration_id=quarter_id),
+            NoteToken(degree=2, accidental=1, octave_offset=0, duration_id=quarter_id),
         ],
         metadata=SegmentMetadata(
             scale_root=0,
@@ -269,8 +271,8 @@ def test_figure_reference_alignment_metric_rows_compare_alignment_and_novelty(
     )
     reference_counts = {
         ScaleType.MAJOR: {
-            Hand.RIGHT: {1: Counter({FigureNGram(onsets=((((0, 0),), Fraction(1)),)): 4})},
-            Hand.LEFT: {1: Counter({FigureNGram(onsets=((((0, 0),), Fraction(1)),)): 4})},
+            Hand.RIGHT: {2: Counter({FigureNGram(onsets=((((0, 0),), Fraction(1)), (((1, 0),), Fraction(1)))): 4})},
+            Hand.LEFT: {2: Counter({FigureNGram(onsets=((((0, 0),), Fraction(1)), (((1, 0),), Fraction(1)))): 4})},
         }
     }
 

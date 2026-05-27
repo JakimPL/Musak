@@ -29,6 +29,7 @@ def _():
         empty_prompt,
         figure_pattern_metric_rows,
         figure_reference_alignment_metric_rows,
+        figure_reference_count_groups,
         generation_summary_metric_rows,
         hand_controls,
         load_figure_reference_counts,
@@ -64,6 +65,7 @@ def _():
         empty_prompt,
         figure_pattern_metric_rows,
         figure_reference_alignment_metric_rows,
+        figure_reference_count_groups,
         generation_summary_metric_rows,
         hand_controls,
         load_figure_reference_counts,
@@ -572,6 +574,7 @@ def _(
     output,
     figure_pattern_metric_rows,
     figure_reference_alignment_metric_rows,
+    figure_reference_count_groups,
     generation_summary_metric_rows,
     load_figure_reference_counts,
     reference_counts_browser,
@@ -619,7 +622,15 @@ def _(
                 reference_status = mo.callout(selection.message or "Reference counts CSV is unavailable.", kind="warn")
             else:
                 try:
-                    reference_counts = load_figure_reference_counts(selection.path)
+                    reference_groups = figure_reference_count_groups(
+                        output.decoded_segment,
+                        duration_vocabulary=output.duration_vocabulary,
+                    )
+                    reference_counts = load_figure_reference_counts(
+                        selection.path,
+                        scale_type=output.decoded_segment.scale_type,
+                        groups=reference_groups,
+                    )
                     reference_alignment_rows = figure_reference_alignment_metric_rows(
                         output.decoded_segment,
                         duration_vocabulary=output.duration_vocabulary,
