@@ -1,0 +1,35 @@
+qualities:
+  major:
+    intervals: [0, 4, 7]
+    enabled: true
+  minor:
+    intervals: [0, 3, 7]
+    enabled: true
+  diminished:
+    intervals: [0, 3, 6]
+    enabled: true
+  augmented:
+    intervals: [0, 4, 8]
+    enabled: true
+
+extensions:
+  triad:
+    members: 3
+    enabled: true
+  seventh:
+    members: 4
+    enabled: false
+  ninth:
+    members: 5
+    enabled: false
+  eleventh:
+    members: 6
+    enabled: false
+  flat_ninth:
+    members: 5
+    alterations: {4: -1}
+    enabled: false
+  sharp_eleventh:
+    members: 6
+    alterations: {5: 1}
+    enabled: false
