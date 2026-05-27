@@ -1,3 +1,4 @@
+from collections import Counter
 from dataclasses import dataclass
 from fractions import Fraction
 from pathlib import Path
@@ -52,6 +53,9 @@ class RhythmCountKey(NamedTuple):
     kind: RhythmMetricKind
     parameter: str
     value: str
+
+
+type RhythmCountCounter = Counter[RhythmCountKey]
 
 
 @dataclass(frozen=True)

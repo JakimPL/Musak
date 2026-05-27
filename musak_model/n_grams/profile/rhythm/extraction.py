@@ -1,15 +1,19 @@
+from __future__ import annotations
+
 import json
 from collections import Counter
 from fractions import Fraction
+from typing import TYPE_CHECKING
 
+from musak_model.data.schema import Segment
 from musak_model.n_grams.figure.parser import HandOnsetRun, PitchedOnset, extract_hand_onset_runs
-from musak_model.n_grams.profile.rhythm.schema import RhythmCountKey
+from musak_model.n_grams.profile.rhythm.schema import RhythmCountCounter, RhythmCountKey
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import Hand
 from musak_model.tokens.vocabulary import TokenVocabulary
-from musak_model.training.ingestion.schema import EncodedExercise
 
-type RhythmCountCounter = Counter[RhythmCountKey]
+if TYPE_CHECKING:
+    from musak_model.training.ingestion.schema import EncodedExercise
 
 
 def count_sample_rhythm_metrics(
@@ -22,28 +26,47 @@ def count_sample_rhythm_metrics(
     grid_alignment_denominators: tuple[int, ...],
     strong_beat_offsets: tuple[Fraction, ...],
 ) -> RhythmCountCounter:
-    tokens = token_vocabulary.decode(sample.token_ids)
-    runs_by_hand = extract_hand_onset_runs(
-        tokens,
+    segment = sample.to_segment(token_vocabulary=token_vocabulary)
+    return count_segment_rhythm_metrics(
+        segment,
         duration_vocabulary=duration_vocabulary,
-        time_numerator=sample.time_numerator,
-        time_denominator=sample.time_denominator,
+        rhythm_min_n=rhythm_min_n,
+        rhythm_max_n=rhythm_max_n,
+        grid_alignment_denominators=grid_alignment_denominators,
+        strong_beat_offsets=strong_beat_offsets,
     )
-    time_signature = f"{sample.time_numerator}/{sample.time_denominator}"
-    measure_duration = Fraction(sample.time_numerator, sample.time_denominator)
+
+
+def count_segment_rhythm_metrics(
+    segment: Segment,
+    *,
+    duration_vocabulary: DurationVocabulary,
+    rhythm_min_n: int,
+    rhythm_max_n: int,
+    grid_alignment_denominators: tuple[int, ...],
+    strong_beat_offsets: tuple[Fraction, ...],
+) -> RhythmCountCounter:
+    runs_by_hand = extract_hand_onset_runs(
+        segment.tokens,
+        duration_vocabulary=duration_vocabulary,
+        time_numerator=segment.time_numerator,
+        time_denominator=segment.time_denominator,
+    )
+    time_signature = f"{segment.time_numerator}/{segment.time_denominator}"
+    measure_duration = Fraction(segment.time_numerator, segment.time_denominator)
     counts: RhythmCountCounter = Counter()
     for hand, runs in runs_by_hand.items():
         _count_duration_values(
             counts,
             runs=runs,
-            scale_type=sample.scale_type.value,
+            scale_type=segment.scale_type.value,
             time_signature=time_signature,
             hand=hand,
         )
         _count_grid_alignment(
             counts,
             runs=runs,
-            scale_type=sample.scale_type.value,
+            scale_type=segment.scale_type.value,
             time_signature=time_signature,
             hand=hand,
             grid_alignment_denominators=grid_alignment_denominators,
@@ -51,7 +74,7 @@ def count_sample_rhythm_metrics(
         _count_strong_beat_onsets(
             counts,
             runs=runs,
-            scale_type=sample.scale_type.value,
+            scale_type=segment.scale_type.value,
             time_signature=time_signature,
             hand=hand,
             measure_duration=measure_duration,
@@ -60,7 +83,7 @@ def count_sample_rhythm_metrics(
         _count_rhythm_ngrams(
             counts,
             runs=runs,
-            scale_type=sample.scale_type.value,
+            scale_type=segment.scale_type.value,
             time_signature=time_signature,
             hand=hand,
             rhythm_min_n=rhythm_min_n,
@@ -106,26 +129,24 @@ def _count_grid_alignment(
         for onset in _iter_onsets(runs):
             onset_value = _alignment_value(onset.start, grid=grid)
             duration_value = _alignment_value(onset.duration, grid=grid)
-            counts[
-                RhythmCountKey(
-                    scale_type=scale_type,
-                    time_signature=time_signature,
-                    hand=hand.value,
-                    kind="onset_grid_alignment",
-                    parameter=parameter,
-                    value=onset_value,
-                )
-            ] += 1
-            counts[
-                RhythmCountKey(
-                    scale_type=scale_type,
-                    time_signature=time_signature,
-                    hand=hand.value,
-                    kind="duration_grid_alignment",
-                    parameter=parameter,
-                    value=duration_value,
-                )
-            ] += 1
+            onset_key = RhythmCountKey(
+                scale_type=scale_type,
+                time_signature=time_signature,
+                hand=hand.value,
+                kind="onset_grid_alignment",
+                parameter=parameter,
+                value=onset_value,
+            )
+            counts[onset_key] += 1
+            duration_key = RhythmCountKey(
+                scale_type=scale_type,
+                time_signature=time_signature,
+                hand=hand.value,
+                kind="duration_grid_alignment",
+                parameter=parameter,
+                value=duration_value,
+            )
+            counts[duration_key] += 1
 
 
 def _count_strong_beat_onsets(
@@ -142,16 +163,15 @@ def _count_strong_beat_onsets(
     for onset in _iter_onsets(runs):
         beat_offset = onset.start % measure_duration
         value = "strong" if beat_offset in strong_offsets else "weak"
-        counts[
-            RhythmCountKey(
-                scale_type=scale_type,
-                time_signature=time_signature,
-                hand=hand.value,
-                kind="strong_beat_onset",
-                parameter="",
-                value=value,
-            )
-        ] += 1
+        key = RhythmCountKey(
+            scale_type=scale_type,
+            time_signature=time_signature,
+            hand=hand.value,
+            kind="strong_beat_onset",
+            parameter="",
+            value=value,
+        )
+        counts[key] += 1
 
 
 def _count_rhythm_ngrams(
@@ -172,16 +192,15 @@ def _count_rhythm_ngrams(
 
             for start_index in range(0, len(onsets) - n + 1):
                 window = onsets[start_index : start_index + n]
-                counts[
-                    RhythmCountKey(
-                        scale_type=scale_type,
-                        time_signature=time_signature,
-                        hand=hand.value,
-                        kind="rhythm_ngram",
-                        parameter=str(n),
-                        value=_rhythm_ngram_value(window),
-                    )
-                ] += 1
+                key = RhythmCountKey(
+                    scale_type=scale_type,
+                    time_signature=time_signature,
+                    hand=hand.value,
+                    kind="rhythm_ngram",
+                    parameter=str(n),
+                    value=_rhythm_ngram_value(window),
+                )
+                counts[key] += 1
 
 
 def _iter_onsets(runs: tuple[HandOnsetRun, ...]) -> tuple[PitchedOnset, ...]:

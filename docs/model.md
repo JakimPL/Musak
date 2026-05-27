@@ -40,6 +40,9 @@ artifacts/processed/<dataset-name>/
       all/
         counts.csv
         profile.json
+      rhythm/
+        counts.csv
+        profile.json
       by_sample.jsonl
 ```
 
@@ -65,9 +68,10 @@ figure artifacts exist, but a partially written figure artifact set is invalid. 
 resumable batch progress under `figure/`; compatible progress resumes automatically and `OVERWRITE=1` restarts it.
 
 `all/profile.json` stores aggregate count-weighted property totals grouped by scale type, hand, and n-gram length.
-`by_sample.jsonl` stores one sample-level summary per encoded JSONL row, indexed by contiguous `sample_index` values
-starting at zero. Downstream code can infer the encoded run directory from the processed root, dataset root, and
-tokenization config, then load the figure artifacts from that run.
+`rhythm/` stores optional rhythm, duration, grid-alignment, and strong-beat reference distributions grouped by scale
+type, time signature, hand, metric kind, and parameter. `by_sample.jsonl` stores one sample-level summary per encoded
+JSONL row, indexed by contiguous `sample_index` values starting at zero. Downstream code can infer the encoded run
+directory from the processed root, dataset root, and tokenization config, then load the figure artifacts from that run.
 
 The model output explorer uses figure artifacts only for inspection. It can compare the currently generated output
 against a selected `figure/all/counts.csv`, but figure profiles are not generation constraints and do not affect

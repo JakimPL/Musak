@@ -3,14 +3,19 @@ from fractions import Fraction
 from pathlib import Path
 
 from musak_model.data.schema import SegmentMetadata
-from musak_model.n_grams.profile.rhythm.extraction import RhythmCountCounter, count_sample_rhythm_metrics
+from musak_model.n_grams.profile.rhythm.extraction import count_sample_rhythm_metrics
 from musak_model.n_grams.profile.rhythm.io import (
     build_rhythm_profile,
     read_rhythm_counts_csv,
     write_rhythm_counts_csv,
 )
 from musak_model.n_grams.profile.rhythm.metrics import rhythm_reference_distribution_metrics
-from musak_model.n_grams.profile.rhythm.schema import RhythmCountKey, RhythmMetricKind, RhythmProfileMetadata
+from musak_model.n_grams.profile.rhythm.schema import (
+    RhythmCountCounter,
+    RhythmCountKey,
+    RhythmMetricKind,
+    RhythmProfileMetadata,
+)
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import Hand, HandToken, NoteToken, ScaleType
 from musak_model.tokens.vocabulary import TokenVocabulary

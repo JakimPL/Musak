@@ -14,6 +14,13 @@ from musak_model.n_grams.figure.schema import FigureNGram
 from musak_model.n_grams.profile.artifacts import figure_artifact_paths
 from musak_model.n_grams.profile.builder import build_figure_profile, build_figure_sample_counts
 from musak_model.n_grams.profile.loading import FigureProfileArtifacts
+from musak_model.n_grams.profile.rhythm.io import build_rhythm_profile
+from musak_model.n_grams.profile.rhythm.loading import RhythmProfileArtifacts
+from musak_model.n_grams.profile.rhythm.schema import (
+    RhythmCountKey,
+    RhythmProfileMetadata,
+    rhythm_artifact_paths_for_figure_root,
+)
 from musak_model.n_grams.profile.schema import FigureProfileMetadata
 from musak_model.tokens.config import TokenizationConfig
 from musak_model.tokens.duration import DurationVocabulary
@@ -223,12 +230,45 @@ def test_generation_suite_identity_distribution_distance_detects_different_figur
     assert metrics["generation/figure/mean/identity_total_variation_distance"] == 1.0
 
 
+def test_generation_suite_compares_generated_rhythm_to_loaded_profile(tmp_path: Path) -> None:
+    duration_vocabulary = DurationVocabulary(TokenizationConfig(shortest_duration=16, allowed_tuplets=(3,), max_dots=1))
+    token_vocabulary = TokenVocabulary(duration_vocabulary)
+    quarter_id = duration_vocabulary.fraction_to_id(Fraction(1, 4))
+    scripted_ids = token_vocabulary.encode(
+        [
+            HandToken(hand=Hand.RIGHT),
+            NoteToken(degree=1, accidental=0, octave_offset=0, duration_id=quarter_id),
+            EndToken(),
+        ]
+    )
+    evaluator = GenerationSuiteEvaluator(
+        config=_generation_config(soft_sample_count=1, hard_sample_count=0),
+        conditioning=_conditioning_config(),
+        model_config=_model_config(token_vocabulary.vocabulary_size),
+        token_vocabulary=token_vocabulary,
+        duration_vocabulary=duration_vocabulary,
+        include_bar_count_control=False,
+        figure_profile_artifacts=_figure_profile_artifacts(tmp_path, include_rhythm=True),
+    )
+
+    metrics = evaluator.evaluate(
+        ScriptedModel(scripted_ids, vocabulary_size=token_vocabulary.vocabulary_size),
+        device=torch.device("cpu"),
+    )
+
+    assert metrics["generation/rhythm/count/profile_samples"] == 1.0
+    assert metrics["generation/rhythm/count/profile_groups"] == 1.0
+    assert metrics["generation/rhythm/count/generated_profile_samples"] == 1.0
+    assert metrics["generation/rhythm/count/duration_value_distribution_groups"] == 1.0
+    assert metrics["generation/rhythm/mean/duration_value_total_variation_distance"] == 0.0
+
+
 def test_generation_config_validates_minimum_duration_denominator() -> None:
     with pytest.raises(ValueError, match="power of two"):
         _generation_config(minimum_duration_denominator=12)
 
 
-def _figure_profile_artifacts(tmp_path: Path) -> FigureProfileArtifacts:
+def _figure_profile_artifacts(tmp_path: Path, *, include_rhythm: bool = False) -> FigureProfileArtifacts:
     figure = FigureNGram(onsets=((((0, 0),), Fraction(1)),))
     profile = build_figure_profile(
         {
@@ -260,6 +300,36 @@ def _figure_profile_artifacts(tmp_path: Path) -> FigureProfileArtifacts:
             }
         },
         sample_counts=(sample_counts,),
+        rhythm=_rhythm_profile_artifacts(tmp_path) if include_rhythm else None,
+    )
+
+
+def _rhythm_profile_artifacts(tmp_path: Path) -> RhythmProfileArtifacts:
+    counts = Counter(
+        {
+            RhythmCountKey(
+                scale_type=ScaleType.MAJOR.value,
+                time_signature="4/4",
+                hand=Hand.RIGHT.value,
+                kind="duration_value",
+                parameter="",
+                value="1/4",
+            ): 1
+        }
+    )
+    return RhythmProfileArtifacts(
+        paths=rhythm_artifact_paths_for_figure_root(figure_artifact_paths(tmp_path / "encoded").root_directory),
+        profile=build_rhythm_profile(
+            counts,
+            metadata=RhythmProfileMetadata(
+                rhythm_min_n=2,
+                rhythm_max_n=4,
+                grid_alignment_denominators=(1, 2, 4, 8, 16),
+                strong_beat_offsets=(Fraction(0),),
+                sample_count=1,
+            ),
+        ),
+        counts=counts,
     )
 
 

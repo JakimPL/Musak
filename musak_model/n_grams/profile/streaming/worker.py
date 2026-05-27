@@ -1,6 +1,7 @@
 from collections import Counter
 
-from musak_model.n_grams.profile.rhythm.extraction import RhythmCountCounter, count_sample_rhythm_metrics
+from musak_model.n_grams.profile.rhythm.extraction import count_sample_rhythm_metrics
+from musak_model.n_grams.profile.rhythm.schema import RhythmCountCounter
 from musak_model.n_grams.profile.streaming.counting import count_sample_figure_signatures, sample_profile_payload
 from musak_model.n_grams.profile.streaming.schema import FigureBatchResult, FigureBatchTask, FigureCountCounter
 from musak_model.tokens.duration import DurationVocabulary

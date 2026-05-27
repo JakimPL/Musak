@@ -33,10 +33,13 @@ def _():
         generation_summary_metric_rows,
         hand_controls,
         load_figure_reference_counts,
+        load_rhythm_reference_counts,
         load_trained_model,
         piano_roll_player_panel,
         prompt_from_text,
         rhythm_grid_metric_rows,
+        rhythm_reference_alignment_metric_rows,
+        rhythm_reference_counts_path,
         sample_autoregressive,
         sampling_result_to_segment,
         segment_decode_error,
@@ -69,11 +72,14 @@ def _():
         generation_summary_metric_rows,
         hand_controls,
         load_figure_reference_counts,
+        load_rhythm_reference_counts,
         load_trained_model,
         mo,
         piano_roll_player_panel,
         prompt_from_text,
         rhythm_grid_metric_rows,
+        rhythm_reference_alignment_metric_rows,
+        rhythm_reference_counts_path,
         sample_autoregressive,
         sampling_result_to_segment,
         score_data_html,
@@ -578,8 +584,11 @@ def _(
     figure_reference_count_groups,
     generation_summary_metric_rows,
     load_figure_reference_counts,
+    load_rhythm_reference_counts,
     reference_counts_browser,
     rhythm_grid_metric_rows,
+    rhythm_reference_alignment_metric_rows,
+    rhythm_reference_counts_path,
     segment_diagnostic_rows,
     segment_event_count,
     selected_file,
@@ -637,6 +646,15 @@ def _(
                         duration_vocabulary=output.duration_vocabulary,
                         reference_counts=reference_counts,
                     )
+                    rhythm_counts_path = rhythm_reference_counts_path(selection.path)
+                    if rhythm_counts_path.exists():
+                        reference_alignment_rows.extend(
+                            rhythm_reference_alignment_metric_rows(
+                                output.decoded_segment,
+                                duration_vocabulary=output.duration_vocabulary,
+                                reference_counts=load_rhythm_reference_counts(rhythm_counts_path),
+                            )
+                        )
                 except ValueError as exception:
                     reference_status = mo.callout(f"Reference counts CSV could not be loaded: {exception}", kind="warn")
                 else:

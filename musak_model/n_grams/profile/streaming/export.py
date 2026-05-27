@@ -14,9 +14,9 @@ from musak_model.n_grams.profile.io import (
     N_COLUMN,
     SCALE_TYPE_COLUMN,
 )
-from musak_model.n_grams.profile.rhythm.extraction import RhythmCountCounter
 from musak_model.n_grams.profile.rhythm.io import build_rhythm_profile, write_rhythm_counts_csv, write_rhythm_profile
 from musak_model.n_grams.profile.rhythm.schema import (
+    RhythmCountCounter,
     RhythmProfileMetadata,
     rhythm_artifact_paths_for_figure_root,
 )

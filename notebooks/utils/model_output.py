@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from collections import Counter
 from dataclasses import dataclass
-from fractions import Fraction
 from functools import cache
 from pathlib import Path
 from typing import Callable, Final, Literal, Protocol, cast
@@ -28,11 +27,15 @@ from musak_model.model.config import ModelConfig
 from musak_model.n_grams.config import NGramAnalysisConfig
 from musak_model.n_grams.figure.builder import scale_size_for_type
 from musak_model.n_grams.figure.counter import count_hand_figure_ngrams
-from musak_model.n_grams.figure.parser import HandOnsetRun, PitchedOnset, extract_hand_onset_runs
+from musak_model.n_grams.figure.parser import extract_hand_onset_runs
 from musak_model.n_grams.figure.samples.schema import FigureNGramCountsByScale
 from musak_model.n_grams.figure.schema import FigureNGram
 from musak_model.n_grams.profile.io import read_figure_counts_csv_for_groups
 from musak_model.n_grams.profile.metrics.reference.distribution import figure_reference_alignment_metrics
+from musak_model.n_grams.profile.rhythm.extraction import count_segment_rhythm_metrics
+from musak_model.n_grams.profile.rhythm.io import read_rhythm_counts_csv
+from musak_model.n_grams.profile.rhythm.metrics import rhythm_reference_distribution_metrics
+from musak_model.n_grams.profile.rhythm.schema import RhythmCountCounter, RhythmCountKey, RhythmMetricKind
 from musak_model.paths import MODEL_CONFIG_DIR
 from musak_model.tokens.config import TokenizationConfig
 from musak_model.tokens.duration import DurationVocabulary
@@ -57,6 +60,7 @@ from musak_model.training.ingestion.schema import EncodedExercise
 _FIGURE_PATTERN_MIN_N: Final = 1
 _FIGURE_PATTERN_MAX_N: Final = 2
 _REFERENCE_METRIC_PREFIX: Final = "notebook/figure_reference"
+_RHYTHM_REFERENCE_METRIC_PREFIX: Final = "notebook/rhythm_reference"
 
 
 class AutoregressiveModel(Protocol):
@@ -632,6 +636,80 @@ def figure_reference_alignment_metric_rows(
     ]
 
 
+@cache
+def load_rhythm_reference_counts(path: Path) -> RhythmCountCounter:
+    return read_rhythm_counts_csv(path)
+
+
+def rhythm_reference_counts_path(figure_counts_path: Path) -> Path:
+    return figure_counts_path.parent.parent / "rhythm" / "counts.csv"
+
+
+def rhythm_reference_alignment_metric_rows(
+    segment: Segment,
+    *,
+    duration_vocabulary: DurationVocabulary,
+    reference_counts: RhythmCountCounter,
+    analysis_config: NGramAnalysisConfig | None = None,
+) -> list[dict[str, object]]:
+    resolved_config = analysis_config or NGramAnalysisConfig.load()
+    generated_counts = _segment_rhythm_counts(
+        segment,
+        duration_vocabulary=duration_vocabulary,
+        analysis_config=resolved_config,
+    )
+    metrics = rhythm_reference_distribution_metrics(
+        reference_counts=_compatible_rhythm_reference_counts(
+            reference_counts=reference_counts,
+            generated_counts=generated_counts,
+        ),
+        comparison_counts=generated_counts,
+        metric_prefix=_RHYTHM_REFERENCE_METRIC_PREFIX,
+    )
+    return [
+        _figure_metric_row(
+            metric="rhythmic pattern distance",
+            value=_format_float(
+                metrics.get(f"{_RHYTHM_REFERENCE_METRIC_PREFIX}/mean/rhythm_ngram_total_variation_distance")
+            ),
+            description="How different onset-duration and inter-onset rhythm patterns are from the reference.",
+        ),
+        _figure_metric_row(
+            metric="duration-value distance",
+            value=_format_float(
+                metrics.get(f"{_RHYTHM_REFERENCE_METRIC_PREFIX}/mean/duration_value_total_variation_distance")
+            ),
+            description="How different the generated onset-duration distribution is from the reference.",
+        ),
+        _figure_metric_row(
+            metric="onset-grid distance",
+            value=_format_float(
+                metrics.get(f"{_RHYTHM_REFERENCE_METRIC_PREFIX}/mean/onset_grid_alignment_total_variation_distance")
+            ),
+            description="How different the generated onset grid-alignment distribution is from the reference.",
+        ),
+        _figure_metric_row(
+            metric="duration-grid distance",
+            value=_format_float(
+                metrics.get(f"{_RHYTHM_REFERENCE_METRIC_PREFIX}/mean/duration_grid_alignment_total_variation_distance")
+            ),
+            description="How different the generated duration grid-alignment distribution is from the reference.",
+        ),
+        _figure_metric_row(
+            metric="duration entropy difference",
+            value=_format_float(metrics.get(f"{_RHYTHM_REFERENCE_METRIC_PREFIX}/mean/duration_entropy_absolute_error")),
+            description="Absolute difference between generated and reference duration-distribution entropy.",
+        ),
+        _figure_metric_row(
+            metric="strong-beat share difference",
+            value=_format_float(
+                metrics.get(f"{_RHYTHM_REFERENCE_METRIC_PREFIX}/mean/strong_beat_onset_fraction_absolute_error")
+            ),
+            description="Absolute difference between generated and reference strong-beat onset share.",
+        ),
+    ]
+
+
 def rhythm_grid_metric_rows(
     segment: Segment,
     *,
@@ -640,33 +718,57 @@ def rhythm_grid_metric_rows(
 ) -> list[dict[str, object]]:
     resolved_config = analysis_config or NGramAnalysisConfig.load()
     grid_denominator = max(resolved_config.grid_alignment_denominators)
-    onsets = _segment_pitched_onsets(segment, duration_vocabulary=duration_vocabulary)
-    onset_grid_count = sum(1 for onset in onsets if _is_aligned_to_grid(onset.start, denominator=grid_denominator))
-    duration_grid_count = sum(
-        1 for onset in onsets if _is_aligned_to_grid(onset.duration, denominator=grid_denominator)
+    rhythm_counts = _segment_rhythm_counts(
+        segment,
+        duration_vocabulary=duration_vocabulary,
+        analysis_config=resolved_config,
     )
-    strong_beat_count = sum(
-        1 for onset in onsets if _bar_offset(onset.start, segment=segment) in resolved_config.strong_beat_offsets
+    onset_grid_count = _rhythm_count(
+        rhythm_counts,
+        segment=segment,
+        kind="onset_grid_alignment",
+        parameter=str(grid_denominator),
+        value="aligned",
+    )
+    duration_grid_count = _rhythm_count(
+        rhythm_counts,
+        segment=segment,
+        kind="duration_grid_alignment",
+        parameter=str(grid_denominator),
+        value="aligned",
+    )
+    strong_beat_count = _rhythm_count(
+        rhythm_counts,
+        segment=segment,
+        kind="strong_beat_onset",
+        parameter="",
+        value="strong",
+    )
+    onset_total = _rhythm_kind_total(
+        rhythm_counts,
+        segment=segment,
+        kind="strong_beat_onset",
+        parameter="",
     )
     return [
         _figure_metric_row(
             metric="rhythmic onsets",
-            value=len(onsets),
+            value=onset_total,
             description="Total note or chord onsets used for rhythm-grid checks, counted per hand.",
         ),
         _figure_metric_row(
             metric=f"onset grid fit (1/{grid_denominator})",
-            value=_format_optional_percent(onset_grid_count, len(onsets)),
+            value=_format_optional_percent(onset_grid_count, onset_total),
             description="Share of onsets that start exactly on the configured rhythmic grid.",
         ),
         _figure_metric_row(
             metric=f"duration grid fit (1/{grid_denominator})",
-            value=_format_optional_percent(duration_grid_count, len(onsets)),
+            value=_format_optional_percent(duration_grid_count, onset_total),
             description="Share of onset durations that fit exactly on the configured rhythmic grid.",
         ),
         _figure_metric_row(
             metric="strong-beat onset share",
-            value=_format_optional_percent(strong_beat_count, len(onsets)),
+            value=_format_optional_percent(strong_beat_count, onset_total),
             description="Share of onsets that begin on configured strong-beat offsets within the bar.",
         ),
     ]
@@ -727,34 +829,79 @@ def _compatible_reference_counts(
     return compatible_counts
 
 
-def _segment_pitched_onsets(
+def _segment_rhythm_counts(
     segment: Segment,
     *,
     duration_vocabulary: DurationVocabulary,
-) -> tuple[PitchedOnset, ...]:
-    runs_by_hand = extract_hand_onset_runs(
-        segment.tokens,
+    analysis_config: NGramAnalysisConfig,
+) -> RhythmCountCounter:
+    return count_segment_rhythm_metrics(
+        segment,
         duration_vocabulary=duration_vocabulary,
-        time_numerator=segment.time_numerator,
-        time_denominator=segment.time_denominator,
+        rhythm_min_n=analysis_config.rhythm_min_n,
+        rhythm_max_n=analysis_config.rhythm_max_n,
+        grid_alignment_denominators=analysis_config.grid_alignment_denominators,
+        strong_beat_offsets=analysis_config.strong_beat_offsets,
     )
-    return tuple(onset for run in _hand_onset_runs(runs_by_hand) for onset in run.onsets)
 
 
-def _hand_onset_runs(runs_by_hand: dict[Hand, tuple[HandOnsetRun, ...]]) -> tuple[HandOnsetRun, ...]:
-    return tuple(run for hand in Hand for run in runs_by_hand[hand])
+def _compatible_rhythm_reference_counts(
+    *,
+    reference_counts: RhythmCountCounter,
+    generated_counts: RhythmCountCounter,
+) -> RhythmCountCounter:
+    generated_groups = {
+        (key.scale_type, key.time_signature, key.hand, key.kind, key.parameter) for key in generated_counts
+    }
+    return Counter(
+        {
+            key: count
+            for key, count in reference_counts.items()
+            if (key.scale_type, key.time_signature, key.hand, key.kind, key.parameter) in generated_groups
+        }
+    )
 
 
-def _is_aligned_to_grid(value: Fraction, *, denominator: int) -> bool:
-    return value % Fraction(1, denominator) == 0
+def _rhythm_count(
+    counts: RhythmCountCounter,
+    *,
+    segment: Segment,
+    kind: RhythmMetricKind,
+    parameter: str,
+    value: str,
+) -> int:
+    time_signature = f"{segment.time_numerator}/{segment.time_denominator}"
+    return sum(
+        counts[
+            RhythmCountKey(
+                scale_type=segment.scale_type.value,
+                time_signature=time_signature,
+                hand=hand.value,
+                kind=kind,
+                parameter=parameter,
+                value=value,
+            )
+        ]
+        for hand in Hand
+    )
 
 
-def _bar_offset(value: Fraction, *, segment: Segment) -> Fraction:
-    measure_duration = Fraction(segment.time_numerator, segment.time_denominator)
-    if measure_duration == 0:
-        return Fraction(0)
-
-    return value % measure_duration
+def _rhythm_kind_total(
+    counts: RhythmCountCounter,
+    *,
+    segment: Segment,
+    kind: RhythmMetricKind,
+    parameter: str,
+) -> int:
+    time_signature = f"{segment.time_numerator}/{segment.time_denominator}"
+    return sum(
+        count
+        for key, count in counts.items()
+        if key.scale_type == segment.scale_type.value
+        and key.time_signature == time_signature
+        and key.kind == kind
+        and key.parameter == parameter
+    )
 
 
 def _combined_figure_counts(

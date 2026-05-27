@@ -4,7 +4,6 @@ from collections.abc import Iterable, Iterator
 from pathlib import Path
 from typing import cast
 
-from musak_model.n_grams.profile.rhythm.extraction import RhythmCountCounter
 from musak_model.n_grams.profile.rhythm.schema import (
     RHYTHM_COUNT_COLUMN,
     RHYTHM_COUNT_CSV_COLUMNS,
@@ -14,6 +13,7 @@ from musak_model.n_grams.profile.rhythm.schema import (
     RHYTHM_SCALE_TYPE_COLUMN,
     RHYTHM_TIME_SIGNATURE_COLUMN,
     RHYTHM_VALUE_COLUMN,
+    RhythmCountCounter,
     RhythmCountKey,
     RhythmGroupKey,
     RhythmMetricKind,

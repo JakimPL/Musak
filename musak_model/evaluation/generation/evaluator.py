@@ -18,6 +18,7 @@ from musak_model.evaluation.generation.protocols import (
     GenerationEvaluationOptions,
     GenerationModel,
 )
+from musak_model.evaluation.generation.rhythm.metrics import rhythm_profile_metrics
 from musak_model.evaluation.generation.sampling import (
     bar_positions,
     constraint_report,
@@ -36,6 +37,7 @@ from musak_model.generation.constraints import (
     mask_disallowed_logits,
 )
 from musak_model.model.config import ModelConfig
+from musak_model.n_grams.config import NGramAnalysisConfig
 from musak_model.n_grams.profile.loading import FigureProfileArtifacts
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import BarToken, EndToken, Token
@@ -156,6 +158,13 @@ class GenerationSuiteEvaluator:
                 self._figure_profile_artifacts,
                 samples=samples,
                 config=self._config,
+                duration_vocabulary=self._duration_vocabulary,
+            ),
+            **rhythm_profile_metrics(
+                self._figure_profile_artifacts,
+                samples=samples,
+                config=self._config,
+                analysis_config=NGramAnalysisConfig.load(),
                 duration_vocabulary=self._duration_vocabulary,
             ),
         }

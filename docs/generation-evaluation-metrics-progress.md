@@ -12,12 +12,12 @@ any phase, re-read `docs/guidelines.md` and keep the phase scoped to the roadmap
 | 3. Extend shared n-gram analysis config | complete | `analysis/n_grams.yml` and `NGramAnalysisConfig` own reference comparison parameters. |
 | 4. Add shared reference-distribution figure metrics | accepted | Common/rare/novel, property, contour, and duration-shape metrics implemented. |
 | 5. Add reference-free notebook metrics | accepted | Notebook uses shared reference-free generation rows instead of raw diagnostics. |
-| 6. Add rhythm/grid/strong-beat reference metrics | ready_for_review | New reference distribution artifacts and comparison metrics implemented. |
-| 7. Wire training and notebook integration | planned | Training generation evaluation and notebook use the same shared metric code. |
+| 6. Add rhythm/grid/strong-beat reference metrics | accepted | New reference distribution artifacts and comparison metrics implemented. |
+| 7. Wire training and notebook integration | ready_for_review | Training generation evaluation and notebook use the same shared metric code. |
 
 ## Current Gate
 
-Phase 6 is `ready_for_review`. Do not start Phase 7 until Phase 6 is accepted.
+Phase 7 is `ready_for_review`.
 
 ## Phase 1 Log
 
@@ -175,8 +175,7 @@ accepted
 
 ## Next Step
 
-Phase 7: wire shared reference metrics into training generation evaluation and notebook display after Phase 6 is
-accepted.
+All planned generation evaluation metric phases are implemented. Review Phase 7 wiring before closing the plan.
 
 ## Phase 5 Log
 
@@ -245,7 +244,7 @@ accepted
 
 ### Status
 
-ready_for_review
+accepted
 
 ### Changed Files
 
@@ -293,3 +292,47 @@ ready_for_review
   settings change.
 - Kept Phase 7 wiring out of scope; training generation evaluation and notebook display still need to consume these
   shared rhythm artifacts and metrics.
+
+## Phase 7 Log
+
+### Status
+
+ready_for_review
+
+### Changed Files
+
+- `docs/generation-evaluation-metrics-progress.md`
+- `musak_model/evaluation/generation/evaluator.py`
+- `musak_model/evaluation/generation/rhythm/__init__.py`
+- `musak_model/evaluation/generation/rhythm/metrics.py`
+- `musak_model/n_grams/profile/loading.py`
+- `musak_model/n_grams/profile/rhythm/extraction.py`
+- `musak_model/n_grams/profile/rhythm/loading.py`
+- `notebooks/model_output_explorer.py`
+- `notebooks/utils/__init__.py`
+- `notebooks/utils/model_output.py`
+- `tests/musak_model/evaluation/test_generation.py`
+- `tests/notebooks/utils/test_model_output.py`
+
+### Tests Run
+
+- `uv run python -m py_compile musak_model/n_grams/profile/rhythm/extraction.py musak_model/n_grams/profile/loading.py musak_model/evaluation/generation/evaluator.py musak_model/evaluation/generation/rhythm/metrics.py notebooks/utils/model_output.py notebooks/utils/__init__.py notebooks/model_output_explorer.py tests/musak_model/evaluation/test_generation.py tests/notebooks/utils/test_model_output.py`
+- `uv run pytest tests/musak_model/evaluation/test_generation.py tests/notebooks/utils/test_model_output.py tests/musak_model/n_grams/profile/test_loading.py tests/musak_model/n_grams/profile/rhythm/test_metrics.py`
+- `uv run pytest tests/musak_model/evaluation/test_generation.py tests/notebooks/utils/test_model_output.py tests/notebooks/test_model_output_explorer.py tests/musak_model/n_grams/profile tests/musak_model/training/stages/test_figure_profiles.py tests/scripts/test_extract_figures.py`
+- `uv run mypy musak_model/evaluation/generation musak_model/n_grams/profile/loading.py musak_model/n_grams/profile/rhythm notebooks/utils/model_output.py tests/musak_model/evaluation/test_generation.py tests/notebooks/utils/test_model_output.py`
+- `uv run pylint musak_model/evaluation/generation/rhythm/metrics.py musak_model/n_grams/profile/rhythm/extraction.py musak_model/n_grams/profile/loading.py notebooks/utils/model_output.py`
+- `uv run pytest tests/musak_model/n_grams/profile/test_loading.py tests/musak_model/evaluation/test_generation.py`
+- `uv run mypy musak_model/n_grams/profile/loading.py musak_model/n_grams/profile/rhythm/loading.py musak_model/evaluation/generation/rhythm/metrics.py tests/musak_model/evaluation/test_generation.py`
+- `uv run pylint musak_model/n_grams/profile/loading.py musak_model/n_grams/profile/rhythm/loading.py musak_model/evaluation/generation/rhythm/metrics.py`
+
+### Review Notes
+
+- Re-read `docs/guidelines.md` and `docs/model.md` before making code changes.
+- Added optional rhythm artifact loading beside the existing figure artifact bundle, with rhythm-specific artifact
+  loading owned by the `profile.rhythm` subpackage.
+- Added shared generated-rhythm comparison metrics under `musak_model.evaluation.generation.rhythm`.
+- Training generation evaluation now logs `generation/rhythm/...` reference-distribution metrics when rhythm reference
+  artifacts are available.
+- Notebook rhythm-grid rows now use shared rhythm extraction instead of local onset-grid calculations.
+- Notebook reference alignment now appends rhythm reference rows when the selected figure counts artifact has a sibling
+  `figure/rhythm/counts.csv`; figure-only reference counts still show figure-only rows.

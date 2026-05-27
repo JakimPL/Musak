@@ -11,6 +11,7 @@ from torch import Tensor
 from musak_model.data.schema import Segment, SegmentMetadata
 from musak_model.n_grams.config import NGramAnalysisConfig
 from musak_model.n_grams.figure.schema import FigureNGram
+from musak_model.n_grams.profile.rhythm.schema import RhythmCountKey
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import EndToken, Hand, HandToken, HoldToken, NoteToken, ScaleType
 from musak_model.tokens.vocabulary import TokenVocabulary
@@ -25,6 +26,7 @@ from notebooks.utils.model_output import (
     prompt_from_encoded_sample,
     prompt_from_text,
     rhythm_grid_metric_rows,
+    rhythm_reference_alignment_metric_rows,
     sample_autoregressive,
     sampling_result_to_segment,
     segment_decode_error,
@@ -323,6 +325,52 @@ def test_rhythm_grid_metric_rows_describe_grid_alignment(
     assert _row_value(rows, "onset grid fit (1/16)") == "100.0%"
     assert _row_value(rows, "duration grid fit (1/16)") == "100.0%"
     assert _row_value(rows, "strong-beat onset share") == "50.0%"
+
+
+def test_rhythm_reference_alignment_metric_rows_compare_reference_distributions(
+    duration_vocabulary: DurationVocabulary,
+) -> None:
+    quarter_id = duration_vocabulary.fraction_to_id(Fraction(1, 4))
+    segment = Segment(
+        tokens=[
+            HandToken(hand=Hand.RIGHT),
+            NoteToken(degree=1, accidental=0, octave_offset=0, duration_id=quarter_id),
+        ],
+        metadata=SegmentMetadata(
+            scale_root=0,
+            scale_type=ScaleType.MAJOR,
+            time_numerator=4,
+            time_denominator=4,
+            bar_count=1,
+            window_start_bar=0,
+            source_file=Path("generated"),
+            difficulty_level=None,
+        ),
+    )
+    reference_counts = Counter(
+        {
+            RhythmCountKey(
+                scale_type=ScaleType.MAJOR.value,
+                time_signature="4/4",
+                hand=Hand.RIGHT.value,
+                kind="duration_value",
+                parameter="",
+                value="1/4",
+            ): 1
+        }
+    )
+
+    rows = rhythm_reference_alignment_metric_rows(
+        segment,
+        duration_vocabulary=duration_vocabulary,
+        reference_counts=reference_counts,
+        analysis_config=_analysis_config(),
+    )
+
+    assert _row_value(rows, "duration-value distance") == "0.000"
+    assert _row_description(rows, "strong-beat share difference") == (
+        "Absolute difference between generated and reference strong-beat onset share."
+    )
 
 
 def _analysis_config() -> NGramAnalysisConfig:

@@ -2,8 +2,7 @@ import math
 from collections import Counter
 
 from musak_model.n_grams.profile.metrics.stats import mean, total_variation_distance
-from musak_model.n_grams.profile.rhythm.extraction import RhythmCountCounter
-from musak_model.n_grams.profile.rhythm.schema import RhythmGroupKey
+from musak_model.n_grams.profile.rhythm.schema import RhythmCountCounter, RhythmGroupKey
 
 
 def rhythm_reference_distribution_metrics(

@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from fractions import Fraction
 from typing import NamedTuple
 
-from musak_model.n_grams.profile.rhythm.extraction import RhythmCountCounter
+from musak_model.n_grams.profile.rhythm.schema import RhythmCountCounter
 from musak_model.tokens.config import TokenizationConfig
 
 type FigureCountCounter = Counter[FigureCountKey]

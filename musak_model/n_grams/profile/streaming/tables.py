@@ -3,8 +3,7 @@ from collections import Counter
 from collections.abc import Iterable, Iterator
 from typing import NamedTuple, cast
 
-from musak_model.n_grams.profile.rhythm.extraction import RhythmCountCounter
-from musak_model.n_grams.profile.rhythm.schema import RhythmCountKey, RhythmMetricKind
+from musak_model.n_grams.profile.rhythm.schema import RhythmCountCounter, RhythmCountKey, RhythmMetricKind
 from musak_model.n_grams.profile.streaming.schema import FigureCountCounter, FigureCountKey
 
 

@@ -8,6 +8,7 @@ from musak_model.n_grams.profile.io import (
     read_figure_profile,
     read_figure_sample_counts_jsonl,
 )
+from musak_model.n_grams.profile.rhythm.loading import RhythmProfileArtifacts, load_rhythm_profile_artifacts
 from musak_model.n_grams.profile.schema import FigureProfile, FigureSampleCounts
 from musak_model.processing.paths import ProcessedDatasetPaths
 from musak_model.processing.snapshot import build_tokenizer_snapshot
@@ -22,6 +23,7 @@ class FigureProfileArtifacts:
     profile: FigureProfile
     counts_by_scale: FigureNGramCountsByScale
     sample_counts: tuple[FigureSampleCounts, ...]
+    rhythm: RhythmProfileArtifacts | None
 
 
 def load_figure_profile_artifacts(
@@ -43,12 +45,14 @@ def load_figure_profile_artifacts(
     profile = read_figure_profile(paths.profile_path)
     counts_by_scale = read_figure_counts_csv(paths.counts_path)
     sample_counts = tuple(read_figure_sample_counts_jsonl(paths.by_sample_path))
+    rhythm_artifacts = load_rhythm_profile_artifacts(paths)
     _validate_artifact_consistency(profile=profile, sample_counts=sample_counts, paths=paths)
     return FigureProfileArtifacts(
         paths=paths,
         profile=profile,
         counts_by_scale=counts_by_scale,
         sample_counts=sample_counts,
+        rhythm=rhythm_artifacts,
     )
 
 
