@@ -123,11 +123,7 @@ def _(
         multiple=False,
         label="Tokenization config",
     )
-<<<<<<< HEAD
     reference_counts_browser = mo.ui.file_browser(
-=======
-    figure_counts_browser = mo.ui.file_browser(
->>>>>>> b154b11 (Synchronized: VexFlow staffs)
         initial_path=DEFAULT_TRAINING_FIGURE_DIR if DEFAULT_TRAINING_FIGURE_DIR.exists() else ".",
         filetypes=[".csv"],
         selection_mode="file",

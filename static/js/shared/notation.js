@@ -58,33 +58,22 @@ function accidentalFromKey(key) {
     return null;
 }
 
-function buildVoiceResult(voiceData, stave, staveData) {
+function drawVoice(voiceData, stave, staveData, context) {
     const vfNotes = voiceData.notes.map(noteData => buildStaveNote(noteData, staveData.clef));
-    vfNotes.forEach(note => note.setStave(stave));
     const numBeats = staveData.time_signature ? staveData.time_signature[0] : DEFAULT_NUM_BEATS;
     const beatValue = staveData.time_signature ? staveData.time_signature[1] : DEFAULT_BEAT_VALUE;
     const voice = new Voice({ num_beats: numBeats, beat_value: beatValue }).setStrict(false);
     voice.addTickables(vfNotes);
-    return { voiceData, voice, stave, staveData, vfNotes };
-}
-
-function formatVoiceResults(voiceResults, formatWidth) {
-    if (!voiceResults.length) {
-        return;
-    }
-    const voices = voiceResults.map(result => result.voice);
-    const formatter = new Formatter();
-    voiceResults.forEach(result => formatter.joinVoices([result.voice]));
-    formatter.format(voices, formatWidth);
-}
-
-function drawVoiceResult(voiceResult, context) {
-    const { voiceData, voice, stave, vfNotes } = voiceResult;
+    const formatWidth = hasMeasureHeader(staveData)
+        ? stave.getNoteEndX() - stave.getNoteStartX()
+        : Math.min(stave.getWidth() - STAVE_PADDING, vfNotes.length * NOTE_WIDTH);
+    new Formatter().joinVoices([voice]).format([voice], formatWidth);
     const nonRestNotes = vfNotes.filter((_, i) => !voiceData.notes[i].duration.endsWith('r'));
     const beams = Beam.generateBeams(nonRestNotes);
     voice.draw(context, stave);
     beams.forEach(beam => beam.setContext(context).draw());
     drawTies(voiceData, vfNotes, context);
+    return { voiceData, vfNotes };
 }
 
 function drawTies(voiceData, vfNotes, context) {
@@ -109,7 +98,7 @@ function drawTies(voiceData, vfNotes, context) {
     }
 }
 
-function buildStaveResult(staveData, context, x, y, width, showClef) {
+function drawStave(staveData, context, x, y, width, showClef) {
     const stave = new Stave(x, y, width);
     stave.setBegBarType(Barline.type.SINGLE);
     stave.setEndBarType(Barline.type.SINGLE);
@@ -134,41 +123,11 @@ function buildStaveResult(staveData, context, x, y, width, showClef) {
     stave.setContext(context).draw();
     drawExplicitBarline(context, stave, x);
     drawExplicitBarline(context, stave, x + width);
-<<<<<<< HEAD
     const voiceResults = [];
     for (const voice of staveData.voices) {
         voiceResults.push(drawVoice(voice, stave, staveData, context));
     }
     return { stave, staveData, voiceResults };
-=======
-    const voiceResults = staveData.voices.map(voiceData => buildVoiceResult(voiceData, stave, staveData));
-    return { staveData, voiceResults };
->>>>>>> b154b11 (Synchronized: VexFlow staffs)
-}
-
-function formatStaveResult(staveResult) {
-    const formatWidth = staveFormatWidth(staveResult, staveResult.voiceResults);
-    formatVoiceResults(staveResult.voiceResults, formatWidth);
-}
-
-function staveFormatWidth(staveResult, voiceResults) {
-    const { staveData } = staveResult;
-    const stave = voiceResults[0]?.stave;
-    if (!stave) {
-        return 0;
-    }
-    if (hasMeasureHeader(staveData)) {
-        return stave.getNoteEndX() - stave.getNoteStartX();
-    }
-
-    const maxNotes = Math.max(...voiceResults.map(result => result.vfNotes.length), 0);
-    return Math.min(stave.getWidth() - STAVE_PADDING, maxNotes * NOTE_WIDTH);
-}
-
-function drawStaveResult(staveResult, context) {
-    for (const voiceResult of staveResult.voiceResults) {
-        drawVoiceResult(voiceResult, context);
-    }
 }
 
 function hasMeasureHeader(staveData) {
@@ -207,44 +166,6 @@ function drawTiesAcrossStaves(leftResult, rightResult, context) {
     }
 }
 
-function synchronizedRowBlocks(rows) {
-    const blocks = [];
-    for (let rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
-        const row = rows[rowIndex];
-        const nextRow = rows[rowIndex + 1];
-        if (nextRow && isGrandStaffPair(row, nextRow)) {
-            blocks.push([rowIndex, rowIndex + 1]);
-            rowIndex += 1;
-        } else {
-            blocks.push([rowIndex]);
-        }
-    }
-    return blocks;
-}
-
-function isGrandStaffPair(topRow, bottomRow) {
-    return (
-        topRow.length === bottomRow.length
-        && topRow.some(staveData => staveData.clef === 'treble')
-        && bottomRow.some(staveData => staveData.clef === 'bass')
-    );
-}
-
-function formatSynchronizedColumns(rowResultsByIndex, rowBlock) {
-    const columnCount = Math.max(...rowBlock.map(rowIndex => rowResultsByIndex[rowIndex].length));
-    for (let colIndex = 0; colIndex < columnCount; colIndex += 1) {
-        const columnStaves = rowBlock
-            .map(rowIndex => rowResultsByIndex[rowIndex][colIndex])
-            .filter(Boolean);
-        const columnVoices = columnStaves.flatMap(staveResult => staveResult.voiceResults);
-        if (!columnVoices.length) {
-            continue;
-        }
-        const formatWidth = staveFormatWidth(columnStaves[0], columnVoices);
-        formatVoiceResults(columnVoices, formatWidth);
-    }
-}
-
 /**
  * Renders a ScoreData object as an SVG into containerElement.
  * @param {Object} scoreData - { rows: Array<Array<StaveData>>, tempo: number|null }
@@ -271,39 +192,11 @@ export function renderScore(scoreData, containerElement) {
     const renderer = new Renderer(containerElement, Renderer.Backends.SVG);
     renderer.resize(naturalWidth, totalHeight);
     const context = renderer.getContext();
-<<<<<<< HEAD
     rows.forEach((row, rowIndex) => {
         if (isGrandStaff) {
             drawGrandStaffRow(row, rowIndex, context, naturalWidth, hasMeasureHeaders);
         } else {
             drawSeparateRow(row, rowIndex, context, naturalWidth, hasMeasureHeaders);
-=======
-    const rowResultsByIndex = rows.map((row, rowIndex) => {
-        const y = rowIndex * STAVE_HEIGHT + STAVE_Y_OFFSET;
-        let x = STAVE_X_OFFSET;
-        return row.map((staveData, colIndex) => {
-            const width = staveWidth(row.length, colIndex, naturalWidth, hasMeasureHeaders);
-            const staveResult = buildStaveResult(staveData, context, x, y, width, colIndex === 0);
-            x += width;
-            return staveResult;
-        });
-    });
-
-    for (const rowBlock of synchronizedRowBlocks(rows)) {
-        if (rowBlock.length > 1) {
-            formatSynchronizedColumns(rowResultsByIndex, rowBlock);
-        } else {
-            for (const staveResult of rowResultsByIndex[rowBlock[0]]) {
-                formatStaveResult(staveResult);
-            }
-        }
-    }
-
-    rowResultsByIndex.forEach(rowResults => {
-        rowResults.forEach(staveResult => drawStaveResult(staveResult, context));
-        for (let colIndex = 0; colIndex < rowResults.length - 1; colIndex += 1) {
-            drawTiesAcrossStaves(rowResults[colIndex], rowResults[colIndex + 1], context);
->>>>>>> b154b11 (Synchronized: VexFlow staffs)
         }
     });
 
@@ -318,7 +211,6 @@ export function renderScore(scoreData, containerElement) {
     }
 }
 
-<<<<<<< HEAD
 function drawSeparateRow(row, rowIndex, context, naturalWidth, hasMeasureHeaders) {
     const y = rowIndex * STAVE_HEIGHT + STAVE_Y_OFFSET;
     let x = STAVE_X_OFFSET;
@@ -380,13 +272,3 @@ function drawGrandStaffConnectors(rightStave, leftStave, context, { showBrace })
         .setContext(context)
         .draw();
 }
-=======
-function staveWidth(rowLength, colIndex, naturalWidth, hasMeasureHeaders) {
-    if (!hasMeasureHeaders) {
-        return (naturalWidth - 2 * STAVE_X_OFFSET) / rowLength;
-    }
-
-    const normalWidth = (naturalWidth - 2 * STAVE_X_OFFSET - FIRST_STAVE_OVERHEAD) / rowLength;
-    return colIndex === 0 ? normalWidth + FIRST_STAVE_OVERHEAD : normalWidth;
-}
->>>>>>> b154b11 (Synchronized: VexFlow staffs)
