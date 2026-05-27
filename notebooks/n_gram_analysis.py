@@ -9,7 +9,6 @@ app = marimo.App(width="wide", app_title="N-Gram Analysis")
 @app.cell
 def _():
     from fractions import Fraction
-    from pathlib import Path
     from typing import Final
 
     import altair as alt
@@ -17,7 +16,7 @@ def _():
     import pandas as pd
 
     from musak_model.n_grams.profile.io import COUNT_COLUMN, HAND_COLUMN, N_COLUMN, SCALE_TYPE_COLUMN
-    from musak_model.paths import DEFAULT_ANALYSIS_DIR
+    from musak_model.paths import DEFAULT_ANALYSIS_DIR, DEFAULT_TRAINING_FIGURE_DIR
     from musak_shared.notation.html import score_data_html
     from notebooks.utils import (
         FIGURE_LABEL_COLUMN,
@@ -25,7 +24,6 @@ def _():
         FIGURE_PROPERTY_COLUMN,
         FIGURE_PROPERTY_VALUE_COLUMN,
         FIGURE_TEXT_COLUMN,
-        analysis_result_files,
         figure_display_unit,
         figure_filter_frame,
         figure_group_summary,
@@ -33,6 +31,7 @@ def _():
         figure_property_distribution,
         parse_figure_ngram,
         read_figure_count_frame,
+        selected_file,
         selected_table_row,
         table_records,
         top_figure_frame,
@@ -43,6 +42,7 @@ def _():
     return (
         COUNT_COLUMN,
         DEFAULT_ANALYSIS_DIR,
+        DEFAULT_TRAINING_FIGURE_DIR,
         FIGURE_LABEL_COLUMN,
         FIGURE_PERCENT_COLUMN,
         FIGURE_PROPERTY_COLUMN,
@@ -52,10 +52,8 @@ def _():
         HAND_COLUMN,
         N_COLUMN,
         n_all_option,
-        Path,
         SCALE_TYPE_COLUMN,
         alt,
-        analysis_result_files,
         figure_display_unit,
         figure_filter_frame,
         figure_group_summary,
@@ -66,6 +64,7 @@ def _():
         pd,
         read_figure_count_frame,
         score_data_html,
+        selected_file,
         selected_table_row,
         table_records,
         top_figure_frame,
@@ -83,23 +82,36 @@ def _(mo):
 
 
 @app.cell
-def _(DEFAULT_ANALYSIS_DIR, analysis_result_files, mo):
-    result_files = analysis_result_files(DEFAULT_ANALYSIS_DIR)
-    result_options = {path.name: str(path) for path in result_files}
-    result_selector = mo.ui.dropdown(
-        options=result_options,
-        value=next(iter(result_options), None),
-        label="Analysis result",
-        searchable=True,
+def _(DEFAULT_ANALYSIS_DIR, DEFAULT_TRAINING_FIGURE_DIR, mo):
+    initial_path = (
+        DEFAULT_TRAINING_FIGURE_DIR
+        if DEFAULT_TRAINING_FIGURE_DIR.exists()
+        else DEFAULT_ANALYSIS_DIR if DEFAULT_ANALYSIS_DIR.exists() else "."
     )
-    result_selector if result_options else mo.callout("No analysis CSV files found.", kind="warn")
-    return (result_selector,)
+    vocabulary_browser = mo.ui.file_browser(
+        initial_path=initial_path,
+        filetypes=[".csv"],
+        selection_mode="file",
+        multiple=False,
+        label="Figure vocabulary counts CSV",
+    )
+    vocabulary_browser
+    return (vocabulary_browser,)
 
 
 @app.cell
-def _(Path, result_selector):
-    result_path = Path(result_selector.value) if result_selector.value is not None else None
-    return (result_path,)
+def _(selected_file, vocabulary_browser):
+    result_selection = (
+        selected_file(
+            vocabulary_browser,
+            supported_suffixes=frozenset({".csv"}),
+            description="figure vocabulary counts CSV",
+        )
+        if vocabulary_browser.value
+        else None
+    )
+    result_path = result_selection.path if result_selection is not None else None
+    return result_path, result_selection
 
 
 @app.cell
@@ -116,7 +128,7 @@ def _(mo):
 
 
 @app.cell
-def _(mo, pd, read_figure_count_frame, result_path):
+def _(mo, pd, read_figure_count_frame, result_path, result_selection):
     frame = None
     load_error = ""
     if result_path is not None:
@@ -125,8 +137,10 @@ def _(mo, pd, read_figure_count_frame, result_path):
         except (FileNotFoundError, ValueError, pd.errors.ParserError) as exception:
             load_error = f"{type(exception).__name__}: {exception}"
 
-    if result_path is None:
-        load_output = mo.callout("Select an analysis result CSV.", kind="warn")
+    if result_selection is not None and result_selection.path is None:
+        load_output = mo.callout(result_selection.message or "Figure vocabulary CSV is unavailable.", kind="warn")
+    elif result_path is None:
+        load_output = mo.callout("Select a figure vocabulary counts CSV.", kind="warn")
     elif load_error:
         load_output = mo.callout(load_error, kind="danger")
     else:
