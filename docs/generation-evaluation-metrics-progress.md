@@ -308,9 +308,13 @@ ready_for_review
 - `musak_model/n_grams/profile/loading.py`
 - `musak_model/n_grams/profile/rhythm/extraction.py`
 - `musak_model/n_grams/profile/rhythm/loading.py`
+- `musak_model/n_grams/profile/streaming/store.py`
+- `musak_model/n_grams/profile/streaming/tables.py`
 - `notebooks/model_output_explorer.py`
 - `notebooks/utils/__init__.py`
 - `notebooks/utils/model_output.py`
+- `pyproject.toml`
+- `uv.lock`
 - `tests/musak_model/evaluation/test_generation.py`
 - `tests/notebooks/utils/test_model_output.py`
 
@@ -324,6 +328,12 @@ ready_for_review
 - `uv run pytest tests/musak_model/n_grams/profile/test_loading.py tests/musak_model/evaluation/test_generation.py`
 - `uv run mypy musak_model/n_grams/profile/loading.py musak_model/n_grams/profile/rhythm/loading.py musak_model/evaluation/generation/rhythm/metrics.py tests/musak_model/evaluation/test_generation.py`
 - `uv run pylint musak_model/n_grams/profile/loading.py musak_model/n_grams/profile/rhythm/loading.py musak_model/evaluation/generation/rhythm/metrics.py`
+- `uv run python -m py_compile musak_model/n_grams/profile/streaming/tables.py musak_model/n_grams/profile/streaming/store.py musak_model/n_grams/profile/streaming/export.py`
+- `uv run pytest tests/musak_model/n_grams/profile/test_extraction.py tests/musak_model/training/stages/test_figure_profiles.py tests/scripts/test_extract_figures.py`
+- `uv run mypy musak_model/n_grams/profile/streaming`
+- `uv run pylint musak_model/n_grams/profile/streaming/tables.py musak_model/n_grams/profile/streaming/store.py`
+- `uv lock`
+- `git diff --check`
 
 ### Review Notes
 
@@ -336,3 +346,4 @@ ready_for_review
 - Notebook rhythm-grid rows now use shared rhythm extraction instead of local onset-grid calculations.
 - Notebook reference alignment now appends rhythm reference rows when the selected figure counts artifact has a sibling
   `figure/rhythm/counts.csv`; figure-only reference counts still show figure-only rows.
+- Replaced hand-written streaming work-store SQL statements with SQLAlchemy Core table definitions and SQLite upserts.

@@ -1,6 +1,8 @@
-import sqlite3
 from pathlib import Path
 from typing import Final, Self
+
+from sqlalchemy import create_engine
+from sqlalchemy.engine import Connection, Engine
 
 from musak_model.n_grams.profile.artifacts import FigureArtifactPaths
 from musak_model.n_grams.profile.io import read_figure_profile
@@ -24,15 +26,18 @@ class FigureWorkStore:
         self.path = path
         self._state_key = state_key
         self._resume = resume
-        self._connection: sqlite3.Connection | None = None
+        self._engine: Engine | None = None
+        self._connection: Connection | None = None
         self._tables: FigureWorkTables | None = None
 
     def __enter__(self) -> Self:
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self._connection = sqlite3.connect(self.path)
+        self._engine = create_engine(f"sqlite:///{self.path.resolve().as_posix()}")
+        self._connection = self._engine.connect()
         self._tables = FigureWorkTables(self._connection)
         self.tables.configure_connection()
         self.tables.initialize_schema()
+        self.connection.commit()
         self._validate_or_initialize_state()
         return self
 
@@ -44,9 +49,11 @@ class FigureWorkStore:
     ) -> None:
         if self._connection is not None:
             self._connection.close()
+        if self._engine is not None:
+            self._engine.dispose()
 
     @property
-    def connection(self) -> sqlite3.Connection:
+    def connection(self) -> Connection:
         if self._connection is None:
             raise RuntimeError("figure work store is not open")
 
@@ -63,7 +70,8 @@ class FigureWorkStore:
         return self.tables.completed_batch_indexes()
 
     def commit_batch(self, result: FigureBatchResult) -> None:
-        with self.connection:
+        self.connection.commit()
+        with self.connection.begin():
             self.tables.add_figure_counts(result.counts)
             self.tables.upsert_sample_payloads(result.sample_payloads)
             self.tables.add_rhythm_counts(result.rhythm_counts)
@@ -84,7 +92,8 @@ class FigureWorkStore:
     def _validate_or_initialize_state(self) -> None:
         existing_state_key = self._metadata_value(_METADATA_STATE_KEY)
         if existing_state_key is None:
-            with self.connection:
+            self.connection.commit()
+            with self.connection.begin():
                 self._set_metadata(_METADATA_STATE_KEY, self._state_key)
                 self._set_metadata(_METADATA_ENCODED_SAMPLE_COUNT, "0")
             return
