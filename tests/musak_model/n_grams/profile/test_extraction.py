@@ -6,6 +6,8 @@ from musak_model.n_grams.config import NGramAnalysisConfig
 from musak_model.n_grams.profile.artifacts import figure_artifact_paths
 from musak_model.n_grams.profile.extraction import extract_figure_artifacts
 from musak_model.n_grams.profile.io import read_figure_profile, read_figure_sample_counts_jsonl
+from musak_model.n_grams.profile.rhythm.io import read_rhythm_counts_csv, read_rhythm_profile
+from musak_model.n_grams.profile.rhythm.schema import rhythm_artifact_paths_for_figure_root
 from musak_model.n_grams.profile.schema import FigureSampleCounts
 from musak_model.n_grams.profile.streaming.schema import FigureBatchTask
 from musak_model.n_grams.profile.streaming.state import figure_state_key
@@ -40,9 +42,14 @@ def test_extract_figure_artifacts_writes_by_sample_jsonl(
         show_progress=False,
     )
     sample_counts = read_figure_sample_counts_jsonl(result.artifact_paths.by_sample_path)
+    rhythm_paths = rhythm_artifact_paths_for_figure_root(result.artifact_paths.root_directory)
 
     assert result.sample_profile_count == 2
     assert result.artifact_paths.by_sample_path.is_file()
+    assert rhythm_paths.counts_path.is_file()
+    assert rhythm_paths.profile_path.is_file()
+    assert read_rhythm_profile(rhythm_paths.profile_path).metadata.sample_count == 2
+    assert read_rhythm_counts_csv(rhythm_paths.counts_path)
     assert [sample_count.sample_index for sample_count in sample_counts] == [0, 1]
     assert sample_counts[0].scale_type == ScaleType.MAJOR
     assert sample_counts[1].scale_type == ScaleType.HARMONIC_MINOR
@@ -84,6 +91,10 @@ def test_extract_figure_artifacts_resumes_partial_work_store(
                     tokenization_config=tokenization_config,
                     min_n=config.min_n,
                     max_n=config.max_n,
+                    rhythm_min_n=config.rhythm_min_n,
+                    rhythm_max_n=config.rhythm_max_n,
+                    grid_alignment_denominators=config.grid_alignment_denominators,
+                    strong_beat_offsets=config.strong_beat_offsets,
                 )
             )
         )

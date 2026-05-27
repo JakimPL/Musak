@@ -11,13 +11,13 @@ any phase, re-read `docs/guidelines.md` and keep the phase scoped to the roadmap
 | 2. Refactor generation evaluation package | complete | Existing behavior preserved; generation package split by concern. |
 | 3. Extend shared n-gram analysis config | complete | `analysis/n_grams.yml` and `NGramAnalysisConfig` own reference comparison parameters. |
 | 4. Add shared reference-distribution figure metrics | accepted | Common/rare/novel, property, contour, and duration-shape metrics implemented. |
-| 5. Add reference-free notebook metrics | ready_for_review | Notebook uses shared reference-free generation rows instead of raw diagnostics. |
-| 6. Add rhythm/grid/strong-beat reference metrics | planned | New reference distribution artifacts and comparison metrics implemented. |
+| 5. Add reference-free notebook metrics | accepted | Notebook uses shared reference-free generation rows instead of raw diagnostics. |
+| 6. Add rhythm/grid/strong-beat reference metrics | ready_for_review | New reference distribution artifacts and comparison metrics implemented. |
 | 7. Wire training and notebook integration | planned | Training generation evaluation and notebook use the same shared metric code. |
 
 ## Current Gate
 
-Phase 5 is `ready_for_review`. Do not start Phase 6 until Phase 5 is accepted.
+Phase 6 is `ready_for_review`. Do not start Phase 7 until Phase 6 is accepted.
 
 ## Phase 1 Log
 
@@ -175,23 +175,34 @@ accepted
 
 ## Next Step
 
-Phase 6: add rhythm/grid/strong-beat reference distribution artifacts and metrics after Phase 5 is accepted.
+Phase 7: wire shared reference metrics into training generation evaluation and notebook display after Phase 6 is
+accepted.
 
 ## Phase 5 Log
 
 ### Status
 
-ready_for_review
+accepted
 
 ### Changed Files
 
 - `docs/generation-evaluation-metrics-progress.md`
 - `musak_model/evaluation/generation/__init__.py`
 - `musak_model/evaluation/generation/reference_free.py`
+- `musak_model/n_grams/profile/io.py`
+- `musak_model/n_grams/profile/metrics/reference/distribution.py`
+- `musak_model/decoder/notation.py`
+- `musak_shared/notation/schema.py`
 - `notebooks/model_output_explorer.py`
 - `notebooks/utils/__init__.py`
 - `notebooks/utils/model_output.py`
+- `static/js/shared/notation.js`
 - `tests/musak_model/evaluation/generation/test_reference_free.py`
+- `tests/musak_model/n_grams/profile/metrics/reference/test_distribution.py`
+- `tests/musak_model/n_grams/profile/test_io.py`
+- `tests/musak_model/decoder/test_notation.py`
+- `tests/musak_shared/notation/test_html.py`
+- `tests/musak_shared/notation/test_schema.py`
 - `tests/notebooks/utils/test_model_output.py`
 
 ### Tests Run
@@ -202,6 +213,12 @@ ready_for_review
 - `uv run mypy notebooks/utils/model_output.py tests/notebooks/utils/test_model_output.py`
 - `uv run python -m py_compile musak_model/evaluation/generation/reference_free.py musak_model/evaluation/generation/__init__.py notebooks/utils/model_output.py notebooks/utils/__init__.py notebooks/model_output_explorer.py tests/musak_model/evaluation/generation/test_reference_free.py tests/notebooks/utils/test_model_output.py`
 - `uv run python -m py_compile notebooks/model_output_explorer.py notebooks/utils/model_output.py notebooks/utils/__init__.py tests/notebooks/utils/test_model_output.py`
+- `uv run pytest tests/musak_model/n_grams/profile/metrics/reference/test_distribution.py tests/musak_model/n_grams/profile/test_io.py tests/notebooks/utils/test_model_output.py tests/notebooks/test_model_output_explorer.py`
+- `uv run mypy musak_model/n_grams/profile/metrics/reference musak_model/n_grams/profile/io.py notebooks/utils/model_output.py tests/musak_model/n_grams/profile/metrics/reference/test_distribution.py tests/musak_model/n_grams/profile/test_io.py tests/notebooks/utils/test_model_output.py`
+- `uv run pytest tests/musak_model/decoder/test_notation.py tests/musak_shared/notation/test_schema.py tests/musak_shared/notation/test_html.py tests/notebooks/test_model_output_explorer.py`
+- `uv run mypy musak_shared/notation musak_model/decoder/notation.py`
+- `uv run python -m py_compile musak_shared/notation/schema.py musak_shared/notation/html.py musak_model/decoder/notation.py notebooks/model_output_explorer.py tests/musak_model/decoder/test_notation.py tests/musak_shared/notation/test_schema.py tests/musak_shared/notation/test_html.py`
+- `node --check static/js/shared/notation.js`
 - `git diff --check`
 
 ### Review Notes
@@ -219,3 +236,60 @@ ready_for_review
 - Added generated rhythm-grid rows for onset grid fit, duration grid fit, and strong-beat onset share.
 - Optimized reference alignment to filter reference CSV rows by generated scale, hand, and figure length before parsing
   figures, and to compare against precomputed reference probability indexes by iterating generated figures only.
+- Updated model output notation to use a piano grand-staff layout in the notebook while preserving the existing
+  separate-hand-row renderer layout as the default for other callers.
+- Grand-staff rendering draws a brace only at the start of each system row and keeps measure-to-measure connectors
+  between paired staves.
+
+## Phase 6 Log
+
+### Status
+
+ready_for_review
+
+### Changed Files
+
+- `docs/generation-evaluation-metrics-progress.md`
+- `musak_model/n_grams/profile/rhythm/__init__.py`
+- `musak_model/n_grams/profile/rhythm/extraction.py`
+- `musak_model/n_grams/profile/rhythm/io.py`
+- `musak_model/n_grams/profile/rhythm/metrics.py`
+- `musak_model/n_grams/profile/rhythm/schema.py`
+- `musak_model/n_grams/profile/streaming/executor.py`
+- `musak_model/n_grams/profile/streaming/export.py`
+- `musak_model/n_grams/profile/streaming/orchestration.py`
+- `musak_model/n_grams/profile/streaming/schema.py`
+- `musak_model/n_grams/profile/streaming/state.py`
+- `musak_model/n_grams/profile/streaming/store.py`
+- `musak_model/n_grams/profile/streaming/tasks.py`
+- `musak_model/n_grams/profile/streaming/worker.py`
+- `musak_model/training/stages/figure_profiles.py`
+- `tests/musak_model/n_grams/profile/test_extraction.py`
+- `tests/musak_model/n_grams/profile/rhythm/test_metrics.py`
+
+### Tests Run
+
+- `uv run python -m py_compile musak_model/n_grams/profile/rhythm/schema.py musak_model/n_grams/profile/rhythm/extraction.py musak_model/n_grams/profile/rhythm/io.py musak_model/n_grams/profile/rhythm/metrics.py musak_model/n_grams/profile/streaming/schema.py musak_model/n_grams/profile/streaming/tasks.py musak_model/n_grams/profile/streaming/worker.py musak_model/n_grams/profile/streaming/store.py musak_model/n_grams/profile/streaming/export.py musak_model/n_grams/profile/streaming/orchestration.py musak_model/training/stages/figure_profiles.py tests/musak_model/n_grams/profile/test_extraction.py`
+- `uv run pytest tests/musak_model/n_grams/profile/rhythm/test_metrics.py tests/musak_model/n_grams/profile/test_extraction.py`
+- `uv run mypy musak_model/n_grams/profile/rhythm musak_model/n_grams/profile/streaming musak_model/training/stages/figure_profiles.py tests/musak_model/n_grams/profile/rhythm/test_metrics.py tests/musak_model/n_grams/profile/test_extraction.py`
+- `uv run pytest tests/musak_model/n_grams/profile tests/musak_model/training/stages/test_figure_profiles.py tests/scripts/test_extract_figures.py`
+- `git diff --check`
+
+### Review Notes
+
+- Re-read `docs/guidelines.md` and `docs/model.md` before making code changes.
+- Added streaming rhythm reference artifacts under `figure/rhythm/` beside the existing figure profile artifacts.
+- Kept rhythm extraction, schema, IO, and comparison in a dedicated `profile.rhythm` subpackage instead of flat
+  profile-level modules.
+- Counted rhythm reference data in the existing extraction worker pass to avoid a separate brute-force dataset scan.
+- Added reference slices by scale type, time signature, hand, metric kind, and parameter:
+  - rhythmic n-grams from onset duration plus inter-onset interval patterns;
+  - duration-value distributions;
+  - onset and duration grid-alignment distributions for configured denominators;
+  - strong-versus-weak beat onset distributions for configured strong-beat offsets.
+- Added reusable rhythm distribution metrics for total variation distance, duration entropy absolute error, and
+  strong-beat onset fraction absolute error.
+- Included rhythm comparison configuration in streaming state/cache keys so stale partial work is rejected when rhythm
+  settings change.
+- Kept Phase 7 wiring out of scope; training generation evaluation and notebook display still need to consume these
+  shared rhythm artifacts and metrics.

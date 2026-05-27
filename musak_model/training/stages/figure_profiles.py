@@ -7,7 +7,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from time import perf_counter
-from typing import Final, Protocol
+from typing import Protocol
 
 from musak_model.n_grams.config import NGramAnalysisConfig
 from musak_model.n_grams.profile.artifacts import FIGURE_ALL_DIR_NAME, FigureArtifactPaths
@@ -40,7 +40,6 @@ from musak_model.tokens.vocabulary import TokenVocabulary
 from musak_model.training.ingestion.config import IngestionConfig
 from musak_model.training.ingestion.schema import EncodedExercise, IngestionSplit
 
-_SPLIT_FIGURE_ARTIFACT_VERSION: Final[int] = 1
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -217,6 +216,10 @@ def _split_artifacts(
             analysis_config_path=config_path,
             min_n=config.min_n,
             max_n=config.max_n,
+            rhythm_min_n=config.rhythm_min_n,
+            rhythm_max_n=config.rhythm_max_n,
+            grid_alignment_denominators=config.grid_alignment_denominators,
+            strong_beat_offsets=config.strong_beat_offsets,
             limit_per_group=None,
         )
 
@@ -259,10 +262,13 @@ def _split_cache_key(
     hasher.update(
         json.dumps(
             {
-                "version": _SPLIT_FIGURE_ARTIFACT_VERSION,
                 "tokenizer_hash": snapshot.tokenizer_hash,
                 "min_n": config.min_n,
                 "max_n": config.max_n,
+                "rhythm_min_n": config.rhythm_min_n,
+                "rhythm_max_n": config.rhythm_max_n,
+                "grid_alignment_denominators": config.grid_alignment_denominators,
+                "strong_beat_offsets": [str(offset) for offset in config.strong_beat_offsets],
                 "batch_size": config.batch_size,
             },
             sort_keys=True,

@@ -43,7 +43,10 @@ musak_model/evaluation/generation/
   suite_metrics.py
   reference_free.py
   figure_metrics.py
-  rhythm_metrics.py
+  rhythm/
+    extraction.py
+    metrics.py
+    schema.py
 ```
 
 Responsibilities:
@@ -53,7 +56,7 @@ Responsibilities:
 - `suite_metrics.py`: suite-level aggregation and MLflow metric-name assembly.
 - `reference_free.py`: curated reference-free generation summaries shared by training and notebook code.
 - `figure_metrics.py`: reference-distribution figure comparisons from existing figure count/profile artifacts.
-- `rhythm_metrics.py`: rhythm, duration, grid-alignment, and strong-beat distribution extraction/comparison.
+- `rhythm/`: rhythm, duration, grid-alignment, and strong-beat distribution extraction/comparison, split by concern.
 
 Notebook-specific formatting adapters belong under `notebooks/utils`; `musak_model` should remain notebook-agnostic.
 
