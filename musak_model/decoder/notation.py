@@ -20,7 +20,7 @@ from musak_model.tokens.schema import (
     ScaleType,
     StartToken,
 )
-from musak_shared.elements import MIDI_MAX_PITCH, key_fifths_from_pitch_class
+from musak_shared.elements import MIDI_MAX_PITCH, PITCHES_PER_OCTAVE, key_fifths_from_pitch_class
 from musak_shared.notation.schema import (
     EIGHTH,
     HALF,
@@ -263,7 +263,7 @@ def key_signature_name(*, scale_root: int, scale_type: ScaleType) -> str:
 
 
 def key_fifths_for_scale(*, scale_root: int, scale_type: ScaleType) -> int:
-    parent_major_root = (scale_root + _PARENT_MAJOR_OFFSET_BY_SCALE_TYPE[scale_type]) % 12
+    parent_major_root = (scale_root + _PARENT_MAJOR_OFFSET_BY_SCALE_TYPE[scale_type]) % PITCHES_PER_OCTAVE
     return key_fifths_from_pitch_class(parent_major_root)
 
 
@@ -283,7 +283,7 @@ def note_token_to_vexflow_spelling(
 ) -> VexflowSpelling:
     root_letter = _letter_for_pitch_class_in_key_signature(scale_root, key_fifths=key_fifths)
     letter = _LETTER_NAMES[(_LETTER_INDEX_BY_NAME[root_letter] + token.degree - 1) % len(_LETTER_NAMES)]
-    spelling_accidental = _accidental_for_letter_pitch_class(letter, midi_pitch % 12)
+    spelling_accidental = _accidental_for_letter_pitch_class(letter, midi_pitch % PITCHES_PER_OCTAVE)
     key_signature_accidental = _key_signature_accidentals_by_letter(key_fifths).get(letter)
     accidental = _visible_accidental(
         spelling_accidental=spelling_accidental,
@@ -299,7 +299,7 @@ def _letter_for_pitch_class_in_key_signature(pitch_class: int, *, key_fifths: in
     for letter in _LETTER_NAMES:
         letter_pitch_class = (
             _NATURAL_PITCH_CLASS_BY_LETTER[letter] + _accidental_offset(key_signature_accidentals.get(letter))
-        ) % 12
+        ) % PITCHES_PER_OCTAVE
         if letter_pitch_class == pitch_class:
             return letter
 
@@ -317,7 +317,7 @@ def _key_signature_accidentals_by_letter(key_fifths: int) -> dict[str, VexflowAc
 
 
 def _accidental_for_letter_pitch_class(letter: str, pitch_class: int) -> VexflowAccidental:
-    distance = (pitch_class - _NATURAL_PITCH_CLASS_BY_LETTER[letter]) % 12
+    distance = (pitch_class - _NATURAL_PITCH_CLASS_BY_LETTER[letter]) % PITCHES_PER_OCTAVE
     match distance:
         case 0:
             return None
@@ -354,7 +354,7 @@ def _vexflow_octave(
     spelling_accidental: VexflowAccidental,
 ) -> int:
     spelled_pitch_class = _NATURAL_PITCH_CLASS_BY_LETTER[letter] + _accidental_offset(spelling_accidental)
-    return (midi_pitch - spelled_pitch_class) // 12 - 1
+    return (midi_pitch - spelled_pitch_class) // PITCHES_PER_OCTAVE - 1
 
 
 def _accidental_offset(accidental: VexflowAccidental) -> int:

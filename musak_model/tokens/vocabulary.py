@@ -3,6 +3,7 @@ from typing import Final
 from musak_model.tokens.config import TokenizationConfig
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import (
+    DEGREE_COUNT,
     MAX_ACCIDENTAL,
     MAX_DEGREE,
     MAX_OCTAVE_OFFSET,
@@ -27,7 +28,6 @@ _START_TOKEN: Final[StartToken] = StartToken()
 _END_TOKEN: Final[EndToken] = EndToken()
 _JOIN_WITH_PREVIOUS_TOKEN: Final[JoinWithPreviousToken] = JoinWithPreviousToken()
 
-_DEGREE_COUNT: Final[int] = MAX_DEGREE - MIN_DEGREE + 1
 _ACCIDENTAL_COUNT: Final[int] = MAX_ACCIDENTAL - MIN_ACCIDENTAL + 1
 _OCTAVE_OFFSET_COUNT: Final[int] = MAX_OCTAVE_OFFSET - MIN_OCTAVE_OFFSET + 1
 
@@ -36,7 +36,7 @@ class TokenVocabulary:
     def __init__(self, duration_vocabulary: DurationVocabulary) -> None:
         self._duration_vocabulary = duration_vocabulary
         self._duration_count = duration_vocabulary.vocabulary_size()
-        self._note_count = _DEGREE_COUNT * _ACCIDENTAL_COUNT * _OCTAVE_OFFSET_COUNT * self._duration_count
+        self._note_count = DEGREE_COUNT * _ACCIDENTAL_COUNT * _OCTAVE_OFFSET_COUNT * self._duration_count
         self._rest_count = self._duration_count
         self._hold_count = self._duration_count
         self._bar_token_id = self._note_count + self._rest_count + self._hold_count
@@ -155,7 +155,7 @@ class TokenVocabulary:
         accidental_index = token.accidental - MIN_ACCIDENTAL
         octave_offset_index = token.octave_offset - MIN_OCTAVE_OFFSET
 
-        if not 0 <= degree_index < _DEGREE_COUNT:
+        if not 0 <= degree_index < DEGREE_COUNT:
             raise ValueError(f"degree must be in [{MIN_DEGREE}, {MAX_DEGREE}]")
 
         if not 0 <= accidental_index < _ACCIDENTAL_COUNT:

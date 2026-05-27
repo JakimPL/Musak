@@ -1,5 +1,11 @@
 """Key-relative chord representation for synthetic generation."""
 
+from musak_model.synthetic.harmony.decoding import (
+    ChordDecoder,
+    ChordDecoderConfig,
+    ChordWindow,
+    ViterbiChordDecoder,
+)
 from musak_model.synthetic.harmony.expansion import (
     ChordTone,
     UnspellableChordError,
@@ -20,12 +26,16 @@ from musak_model.synthetic.harmony.vocabulary import (
 __all__ = [
     "DEFAULT_CHORD_EXTENSION",
     "Chord",
+    "ChordDecoder",
+    "ChordDecoderConfig",
     "ChordExtension",
     "ChordQuality",
     "ChordTone",
     "ChordVocabularyConfig",
+    "ChordWindow",
     "ExtensionDefinition",
     "QualityDefinition",
     "UnspellableChordError",
+    "ViterbiChordDecoder",
     "expand_chord_to_tones",
 ]

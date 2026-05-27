@@ -96,3 +96,10 @@ def test_expand_chord_to_tones_raises_on_double_accidental(vocabulary: ChordVoca
 
     with pytest.raises(UnspellableChordError):
         expand_chord_to_tones(chord, scale_type=ScaleType.MELODIC_MINOR, vocabulary=vocabulary)
+
+
+def test_expand_chord_to_tones_raises_when_root_exceeds_scale_size(vocabulary: ChordVocabularyConfig) -> None:
+    chord = Chord(root_degree=8, root_accidental=0, quality=ChordQuality.MAJOR)
+
+    with pytest.raises(ValueError, match="exceeds"):
+        expand_chord_to_tones(chord, scale_type=ScaleType.MAJOR, vocabulary=vocabulary)

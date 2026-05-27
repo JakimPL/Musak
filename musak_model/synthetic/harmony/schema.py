@@ -3,7 +3,7 @@ from typing import Final
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from musak_model.tokens.schema import MAX_ACCIDENTAL, MAX_DEGREE, MIN_ACCIDENTAL, MIN_DEGREE
+from musak_model.tokens.schema import MAX_ACCIDENTAL, MIN_ACCIDENTAL, MIN_DEGREE
 
 
 class ChordQuality(StrEnum):
@@ -28,7 +28,7 @@ DEFAULT_CHORD_EXTENSION: Final[ChordExtension] = ChordExtension.TRIAD
 class Chord(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    root_degree: int = Field(ge=MIN_DEGREE, le=MAX_DEGREE)
+    root_degree: int = Field(ge=MIN_DEGREE)
     root_accidental: int = Field(ge=MIN_ACCIDENTAL, le=MAX_ACCIDENTAL)
     quality: ChordQuality
     extension: ChordExtension = DEFAULT_CHORD_EXTENSION

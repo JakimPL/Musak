@@ -4,8 +4,8 @@ from typing import Final
 from musak_model.synthetic.harmony.schema import Chord
 from musak_model.synthetic.harmony.vocabulary import ChordVocabularyConfig
 from musak_model.tokens.schema import MAX_ACCIDENTAL, MIN_ACCIDENTAL, SCALE_INTERVALS, ScaleType
+from musak_shared.elements import PITCHES_PER_OCTAVE
 
-_SEMITONES_PER_OCTAVE: Final[int] = 12
 _GENERIC_THIRD_STEP: Final[int] = 2
 
 
@@ -27,6 +27,11 @@ def expand_chord_to_tones(
 ) -> tuple[ChordTone, ...]:
     intervals = SCALE_INTERVALS[scale_type]
     scale_size = len(intervals)
+    if chord.root_degree > scale_size:
+        raise ValueError(
+            f"chord root degree {chord.root_degree} exceeds the {scale_size}-degree {scale_type.value} scale"
+        )
+
     quality_definition = vocabulary.quality_definition(chord.quality)
     extension_definition = vocabulary.extension_definition(chord.extension)
     triad_interval_count = len(quality_definition.intervals)
@@ -56,8 +61,8 @@ def expand_chord_to_tones(
 
 
 def _signed_pitch_class_residue(value: int) -> int:
-    residue = value % _SEMITONES_PER_OCTAVE
-    if residue > _SEMITONES_PER_OCTAVE // 2:
-        return residue - _SEMITONES_PER_OCTAVE
+    residue = value % PITCHES_PER_OCTAVE
+    if residue > PITCHES_PER_OCTAVE // 2:
+        return residue - PITCHES_PER_OCTAVE
 
     return residue
