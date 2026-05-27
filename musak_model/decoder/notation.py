@@ -30,6 +30,7 @@ from musak_shared.notation.schema import (
     THIRTY_SECOND,
     WHOLE,
     Clef,
+    NotationLayout,
     NoteData,
     ScoreData,
     StaveData,
@@ -140,6 +141,7 @@ def segment_to_score_data(
     tempo: int | None = None,
     measures_per_row: int | None = None,
     max_bars: int | None = None,
+    layout: NotationLayout = "separate_hand_rows",
 ) -> ScoreData:
     events = tuple(segment_to_notation_events(segment, duration_vocabulary=duration_vocabulary))
     measure_duration = Fraction(segment.time_numerator, segment.time_denominator)
@@ -157,10 +159,11 @@ def segment_to_score_data(
                 last_measure=last_measure,
                 key_signature=key_signature,
                 time_signature=(segment.time_numerator, segment.time_denominator),
+                layout=layout,
             )
         )
 
-    return ScoreData(rows=rows, tempo=tempo, max_notes_per_measure=_max_notes_per_measure(rows))
+    return ScoreData(rows=rows, layout=layout, tempo=tempo, max_notes_per_measure=_max_notes_per_measure(rows))
 
 
 def segment_to_notation_events(
@@ -415,6 +418,7 @@ def _score_rows_for_measure_range(
     last_measure: int,
     key_signature: str,
     time_signature: tuple[int, int],
+    layout: NotationLayout,
 ) -> list[list[StaveData]]:
     rows: list[list[StaveData]] = []
     right_staves = _staves_for_hand(
@@ -437,8 +441,18 @@ def _score_rows_for_measure_range(
         key_signature=key_signature,
         time_signature=time_signature,
     )
-    rows.append(right_staves)
-    rows.append(left_staves)
+    match layout:
+        case "separate_hand_rows":
+            rows.append(right_staves)
+            rows.append(left_staves)
+        case "grand_staff":
+            rows.append(
+                [
+                    stave
+                    for right_stave, left_stave in zip(right_staves, left_staves, strict=True)
+                    for stave in (right_stave, left_stave)
+                ]
+            )
 
     return rows
 
