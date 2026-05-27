@@ -31,7 +31,7 @@ from musak_model.n_grams.profile.streaming.export import export_figure_artifacts
 from musak_model.n_grams.profile.streaming.store import (
     FigureWorkStore,
     complete_figure_artifacts_exist,
-    figure_work_store_path,
+    figure_reference_database_path,
 )
 from musak_model.paths import DEFAULT_TRAINING_FIGURE_DIR, N_GRAM_ANALYSIS_CONFIG_PATH
 from musak_model.processing.snapshot import build_tokenizer_snapshot
@@ -199,7 +199,7 @@ def _split_artifacts(
         paths.root_directory,
     )
     started_at = perf_counter()
-    store_path = figure_work_store_path(paths)
+    store_path = figure_reference_database_path(paths)
     with FigureWorkStore(store_path, state_key=f"{state_key}:{split_name}", resume=True) as store:
         process_missing_sample_batches(
             store,

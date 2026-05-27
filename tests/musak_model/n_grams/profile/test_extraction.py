@@ -1,3 +1,4 @@
+from collections import Counter
 from fractions import Fraction
 from pathlib import Path
 
@@ -5,13 +6,18 @@ from musak_model.data.schema import SegmentMetadata
 from musak_model.n_grams.config import NGramAnalysisConfig
 from musak_model.n_grams.profile.artifacts import figure_artifact_paths
 from musak_model.n_grams.profile.extraction import extract_figure_artifacts
-from musak_model.n_grams.profile.io import read_figure_profile, read_figure_sample_counts_jsonl
+from musak_model.n_grams.profile.io import (
+    read_figure_counts_csv,
+    read_figure_profile,
+    read_figure_sample_counts_jsonl,
+)
+from musak_model.n_grams.profile.reference import FigureReferenceStore
 from musak_model.n_grams.profile.rhythm.io import read_rhythm_counts_csv, read_rhythm_profile
 from musak_model.n_grams.profile.rhythm.schema import rhythm_artifact_paths_for_figure_root
 from musak_model.n_grams.profile.schema import FigureSampleCounts
 from musak_model.n_grams.profile.streaming.schema import FigureBatchTask
 from musak_model.n_grams.profile.streaming.state import figure_state_key
-from musak_model.n_grams.profile.streaming.store import FigureWorkStore, figure_work_store_path
+from musak_model.n_grams.profile.streaming.store import FigureWorkStore, figure_reference_database_path
 from musak_model.n_grams.profile.streaming.worker import process_figure_batch_task
 from musak_model.processing.io import append_jsonl, write_json_model
 from musak_model.processing.snapshot import build_tokenizer_snapshot
@@ -78,7 +84,7 @@ def test_extract_figure_artifacts_resumes_partial_work_store(
     )
     first_line = (encoded_directory / "data-00000.jsonl").read_text(encoding="utf-8").splitlines()[0]
     with FigureWorkStore(
-        figure_work_store_path(paths),
+        figure_reference_database_path(paths),
         state_key=figure_state_key(config=config, snapshot=snapshot),
         resume=False,
     ) as store:
@@ -107,7 +113,7 @@ def test_extract_figure_artifacts_resumes_partial_work_store(
     )
 
     assert result.sample_profile_count == 2
-    assert not figure_work_store_path(paths).exists()
+    assert figure_reference_database_path(paths).is_file()
     assert len(read_figure_sample_counts_jsonl(paths.by_sample_path)) == 2
 
 
@@ -131,7 +137,7 @@ def test_extract_figure_artifacts_rejects_stale_partial_work(
         token_vocabulary=token_vocabulary,
     )
     with FigureWorkStore(
-        figure_work_store_path(paths),
+        figure_reference_database_path(paths),
         state_key=figure_state_key(config=config, snapshot=snapshot),
         resume=False,
     ):
@@ -176,6 +182,89 @@ def test_extract_figure_artifacts_parallel_writes_expected_profiles(
     assert result.encoded_sample_count == 2
     assert result.sample_profile_count == 2
     assert read_figure_profile(result.artifact_paths.profile_path).metadata.sample_count == 2
+
+
+def test_extract_figure_artifacts_populates_reference_database(
+    tmp_path: Path,
+    tokenization_config: TokenizationConfig,
+    duration_vocabulary: DurationVocabulary,
+    token_vocabulary: TokenVocabulary,
+) -> None:
+    encoded_directory, analysis_config_path = _write_encoded_figure_inputs(
+        tmp_path,
+        tokenization_config=tokenization_config,
+        duration_vocabulary=duration_vocabulary,
+        token_vocabulary=token_vocabulary,
+    )
+
+    result = extract_figure_artifacts(
+        encoded_directory=encoded_directory,
+        analysis_config_path=analysis_config_path,
+        output_path=None,
+        show_progress=False,
+    )
+
+    database_path = figure_reference_database_path(result.artifact_paths)
+    with FigureReferenceStore(database_path) as reference:
+        assert reference.anchor_counts(scale_type=ScaleType.MAJOR, hand=Hand.RIGHT) == Counter({(1, 0, 0): 1})
+        assert reference.base_duration_counts(scale_type=ScaleType.MAJOR, hand=Hand.RIGHT, figure_length=2) == Counter(
+            {"1/4": 1}
+        )
+        matched = reference.figure_counts(scale_type=ScaleType.MAJOR, hand=Hand.RIGHT, figure_length=2, anchor_degree=1)
+        unmatched = reference.figure_counts(
+            scale_type=ScaleType.MAJOR, hand=Hand.RIGHT, figure_length=2, anchor_degree=5
+        )
+        assert sum(matched.values()) == 1
+        assert sum(unmatched.values()) == 0
+
+
+def test_counts_csv_aggregates_same_figure_across_anchors(
+    tmp_path: Path,
+    tokenization_config: TokenizationConfig,
+    duration_vocabulary: DurationVocabulary,
+    token_vocabulary: TokenVocabulary,
+) -> None:
+    encoded_directory = tmp_path / "processed" / "PDMX" / "encoded" / "anchors"
+    analysis_config_path = tmp_path / "n_grams.yml"
+    analysis_config_path.write_text(
+        "\n".join(["min_n: 2", "max_n: 2", "limit_per_group: null", "workers: 1", "batch_size: 1"]),
+        encoding="utf-8",
+    )
+    snapshot = build_tokenizer_snapshot(
+        tokenization_config,
+        duration_vocabulary=duration_vocabulary,
+        token_vocabulary=token_vocabulary,
+    )
+    write_json_model(snapshot, encoded_directory / "tokenizer.json", overwrite=True)
+    quarter_id = duration_vocabulary.require_duration_id(Fraction(1, 4))
+    append_jsonl(
+        _sample(
+            token_vocabulary.encode(
+                [
+                    HandToken(hand=Hand.RIGHT),
+                    _note(1, duration_id=quarter_id),
+                    _note(2, duration_id=quarter_id),
+                    _note(3, duration_id=quarter_id),
+                ]
+            ),
+            scale_type=ScaleType.MAJOR,
+        ),
+        encoded_directory / "data-00000.jsonl",
+    )
+
+    result = extract_figure_artifacts(
+        encoded_directory=encoded_directory,
+        analysis_config_path=analysis_config_path,
+        output_path=None,
+        show_progress=False,
+    )
+
+    counts = read_figure_counts_csv(result.artifact_paths.counts_path)
+    ascending_step_figures = counts[ScaleType.MAJOR][Hand.RIGHT][2]
+    assert len(ascending_step_figures) == 1
+    ((figure, count),) = ascending_step_figures.items()
+    assert str(figure) == "0(1) +1(1)"
+    assert count == 2
 
 
 def _write_encoded_figure_inputs(

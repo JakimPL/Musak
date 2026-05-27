@@ -452,9 +452,12 @@ stay byte-compatible as projections.
   `figures.sqlite3`), stop deleting it in `clear_figure_work`, keep resume/state-key logic. `export_counts_csv` /
   `profile_from_store` aggregate (`GROUP BY scale_type, hand, n, figure`) so `counts.csv` / `profile.json` are
   unchanged. Add a thin read API (`FigureReferenceStore`) exposing marginal/conditional queries for the generator.
-- **Unify counting**: delete the orphaned `n_grams/figure/samples/{counter,batches,merge,single}.py` (test-only,
-  superseded by `streaming/`); keep `samples/schema.py` (its `FigureNGramCountsByScale` is used by `profile/io.py` and
-  `synthetic/figures.py`). Both `analyze-n-grams` and `pretrain` already share `count_sample_figure_signatures`.
+- **Unify counting**: `analyze-n-grams` and `pretrain` already share the single `count_sample_figure_signatures`
+  worker, so both now write the enriched schema with no further work. Deleting the parallel
+  `n_grams/figure/samples/{counter,batches,merge,single}.py` is **deferred** to a separate change: `merge_scale_counts`
+  (from `samples/merge.py`) is a live dependency of `evaluation/generation/figure_metrics.py`, so migrating that
+  consumer onto the streaming path is its own evaluation-focused task. `samples/schema.py` stays regardless (its
+  `FigureNGramCountsByScale` is used by `profile/io.py` and `synthetic/figures.py`).
 
 **Verify**: existing `test_io.py` round-trips pass; new tests assert the enriched key round-trips and the CSV projection
 equals the pre-change CSV; `make analyze-n-grams` leaves `counts.csv`/`profile.json` unchanged while the `.db` gains

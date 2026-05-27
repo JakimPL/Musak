@@ -10,7 +10,7 @@ from musak_model.n_grams.profile.rhythm.schema import rhythm_artifact_paths_for_
 from musak_model.n_grams.profile.streaming.schema import FigureBatchResult, FigureStoreSummary
 from musak_model.n_grams.profile.streaming.tables import FigureWorkTables
 
-_WORK_DATABASE_NAME: Final[str] = "work.sqlite3"
+_REFERENCE_DATABASE_NAME: Final[str] = "figures.sqlite3"
 _METADATA_STATE_KEY: Final[str] = "state_key"
 _METADATA_ENCODED_SAMPLE_COUNT: Final[str] = "encoded_sample_count"
 
@@ -110,8 +110,8 @@ class FigureWorkStore:
         self.tables.set_metadata(key, value)
 
 
-def figure_work_store_path(artifact_paths: FigureArtifactPaths) -> Path:
-    return artifact_paths.root_directory / _WORK_DATABASE_NAME
+def figure_reference_database_path(artifact_paths: FigureArtifactPaths) -> Path:
+    return artifact_paths.root_directory / _REFERENCE_DATABASE_NAME
 
 
 def clear_figure_work(artifact_paths: FigureArtifactPaths) -> None:
@@ -123,7 +123,7 @@ def clear_figure_work(artifact_paths: FigureArtifactPaths) -> None:
         artifact_paths.by_sample_path,
         rhythm_paths.counts_path,
         rhythm_paths.profile_path,
-        figure_work_store_path(artifact_paths),
+        figure_reference_database_path(artifact_paths),
     ):
         path.unlink(missing_ok=True)
 
@@ -143,7 +143,12 @@ def complete_figure_artifacts_exist(artifact_paths: FigureArtifactPaths) -> bool
 def complete_reference_artifacts_exist(artifact_paths: FigureArtifactPaths) -> bool:
     rhythm_paths = rhythm_artifact_paths_for_figure_root(artifact_paths.root_directory)
     return complete_figure_artifacts_exist(artifact_paths) and all(
-        path.exists() for path in (rhythm_paths.counts_path, rhythm_paths.profile_path)
+        path.exists()
+        for path in (
+            rhythm_paths.counts_path,
+            rhythm_paths.profile_path,
+            figure_reference_database_path(artifact_paths),
+        )
     )
 
 

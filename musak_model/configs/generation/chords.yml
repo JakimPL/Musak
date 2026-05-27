@@ -1,21 +1,16 @@
 qualities:
   major:
     intervals: [0, 4, 7]
-    enabled: true
   minor:
     intervals: [0, 3, 7]
-    enabled: true
   diminished:
     intervals: [0, 3, 6]
-    enabled: true
   augmented:
     intervals: [0, 4, 8]
-    enabled: true
 
 extensions:
   triad:
     members: 3
-    enabled: true
   seventh:
     members: 4
     enabled: false

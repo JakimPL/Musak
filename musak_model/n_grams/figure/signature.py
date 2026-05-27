@@ -23,13 +23,24 @@ class RawFigureOnset:
     gap_to_next: Fraction | None
 
 
-def iter_figure_signatures_from_run(
+@dataclass(frozen=True)
+class FigureOccurrence:
+    figure_length: int
+    signature: FigureSignature
+    anchor_degree: int
+    anchor_accidental: int
+    anchor_octave: int
+    base_duration: Fraction
+    start: Fraction
+
+
+def iter_figure_occurrences_from_run(
     run: HandOnsetRun,
     *,
     min_n: int,
     max_n: int,
     scale_size: int,
-) -> Iterator[tuple[int, FigureSignature]]:
+) -> Iterator[FigureOccurrence]:
     if min_n <= 0:
         raise ValueError("min_n must be positive")
 
@@ -43,11 +54,23 @@ def iter_figure_signatures_from_run(
             continue
 
         for window_length in range(min_n, largest_window_length + 1):
-            yield window_length, build_figure_signature_from_raw_window(
+            yield _build_figure_occurrence_from_raw_window(
                 raw_onsets,
                 start_index=start_index,
                 window_length=window_length,
+                scale_size=scale_size,
             )
+
+
+def iter_figure_signatures_from_run(
+    run: HandOnsetRun,
+    *,
+    min_n: int,
+    max_n: int,
+    scale_size: int,
+) -> Iterator[tuple[int, FigureSignature]]:
+    for occurrence in iter_figure_occurrences_from_run(run, min_n=min_n, max_n=max_n, scale_size=scale_size):
+        yield occurrence.figure_length, occurrence.signature
 
 
 def build_figure_signature_from_raw_window(
@@ -72,6 +95,32 @@ def build_figure_signature_from_raw_window(
             duration_signature,
         )
         for onset, duration_signature in zip(window, normalized_durations, strict=True)
+    )
+
+
+def _build_figure_occurrence_from_raw_window(
+    raw_onsets: tuple[RawFigureOnset, ...],
+    *,
+    start_index: int,
+    window_length: int,
+    scale_size: int,
+) -> FigureOccurrence:
+    window = raw_onsets[start_index : start_index + window_length]
+    signature = build_figure_signature_from_raw_window(
+        raw_onsets,
+        start_index=start_index,
+        window_length=window_length,
+    )
+    anchor_position, anchor_accidental = window[0].degrees[0]
+    durations = tuple(_window_onset_duration(window, onset_index=index) for index in range(window_length))
+    return FigureOccurrence(
+        figure_length=window_length,
+        signature=signature,
+        anchor_degree=anchor_position % scale_size + 1,
+        anchor_accidental=anchor_accidental,
+        anchor_octave=anchor_position // scale_size,
+        base_duration=min(durations),
+        start=window[0].start,
     )
 
 

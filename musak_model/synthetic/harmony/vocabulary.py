@@ -10,13 +10,14 @@ from musak_model.synthetic.harmony.schema import ChordExtension, ChordQuality
 from musak_shared.files import load_yaml_config
 
 TRIAD_INTERVAL_COUNT: Final[int] = 3
+DEFAULT_CHORD_DEFINITION_ENABLED: Final[bool] = True
 
 
 class QualityDefinition(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     intervals: tuple[int, ...]
-    enabled: bool
+    enabled: bool = DEFAULT_CHORD_DEFINITION_ENABLED
 
     @field_validator("intervals")
     @classmethod
@@ -35,7 +36,7 @@ class ExtensionDefinition(BaseModel):
 
     members: int = Field(ge=TRIAD_INTERVAL_COUNT)
     alterations: dict[int, int] = {}
-    enabled: bool
+    enabled: bool = DEFAULT_CHORD_DEFINITION_ENABLED
 
     @field_validator("alterations")
     @classmethod

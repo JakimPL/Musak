@@ -2,7 +2,7 @@ from collections import Counter
 from collections.abc import Iterable, Iterator
 from typing import Final, NamedTuple, cast
 
-from sqlalchemy import Column, Integer, MetaData, String, Table, select
+from sqlalchemy import Column, Integer, MetaData, String, Table, func, select
 from sqlalchemy.dialects.sqlite import Insert, insert
 from sqlalchemy.engine import Connection
 
@@ -15,6 +15,12 @@ _COUNT_SCALE_TYPE_COLUMN: Final[str] = "scale_type"
 _COUNT_HAND_COLUMN: Final[str] = "hand"
 _COUNT_N_COLUMN: Final[str] = "n"
 _COUNT_FIGURE_COLUMN: Final[str] = "figure"
+_COUNT_ANCHOR_DEGREE_COLUMN: Final[str] = "anchor_degree"
+_COUNT_ANCHOR_ACCIDENTAL_COLUMN: Final[str] = "anchor_accidental"
+_COUNT_ANCHOR_OCTAVE_COLUMN: Final[str] = "anchor_octave"
+_COUNT_BASE_DURATION_COLUMN: Final[str] = "base_duration"
+_COUNT_BAR_RELATIVE_ONSET_COLUMN: Final[str] = "bar_relative_onset"
+_COUNT_TIME_SIGNATURE_COLUMN: Final[str] = "time_signature"
 _COUNT_COUNT_COLUMN: Final[str] = "count"
 _SAMPLE_INDEX_COLUMN: Final[str] = "sample_index"
 _SAMPLE_PAYLOAD_COLUMN: Final[str] = "payload"
@@ -41,6 +47,12 @@ _COUNTS_TABLE: Final = Table(
     Column(_COUNT_HAND_COLUMN, String, primary_key=True),
     Column(_COUNT_N_COLUMN, Integer, primary_key=True),
     Column(_COUNT_FIGURE_COLUMN, String, primary_key=True),
+    Column(_COUNT_ANCHOR_DEGREE_COLUMN, Integer, primary_key=True),
+    Column(_COUNT_ANCHOR_ACCIDENTAL_COLUMN, Integer, primary_key=True),
+    Column(_COUNT_ANCHOR_OCTAVE_COLUMN, Integer, primary_key=True),
+    Column(_COUNT_BASE_DURATION_COLUMN, String, primary_key=True),
+    Column(_COUNT_BAR_RELATIVE_ONSET_COLUMN, String, primary_key=True),
+    Column(_COUNT_TIME_SIGNATURE_COLUMN, String, primary_key=True),
     Column(_COUNT_COUNT_COLUMN, Integer, nullable=False),
 )
 _SAMPLE_COUNTS_TABLE: Final = Table(
@@ -99,6 +111,12 @@ class FigureWorkTables:
                 _COUNT_HAND_COLUMN: key.hand,
                 _COUNT_N_COLUMN: key.figure_length,
                 _COUNT_FIGURE_COLUMN: key.figure,
+                _COUNT_ANCHOR_DEGREE_COLUMN: key.anchor_degree,
+                _COUNT_ANCHOR_ACCIDENTAL_COLUMN: key.anchor_accidental,
+                _COUNT_ANCHOR_OCTAVE_COLUMN: key.anchor_octave,
+                _COUNT_BASE_DURATION_COLUMN: key.base_duration,
+                _COUNT_BAR_RELATIVE_ONSET_COLUMN: key.bar_relative_onset,
+                _COUNT_TIME_SIGNATURE_COLUMN: key.time_signature,
                 _COUNT_COUNT_COLUMN: count,
             }
             for key, count in counts.items()
@@ -185,26 +203,46 @@ class FigureWorkTables:
 
     def iter_figure_counts(self) -> Iterator[tuple[FigureCountKey, int]]:
         result = self._connection.execute(select(_COUNTS_TABLE))
-        for scale_type, hand, figure_length, figure, count in result:
+        for row in result.mappings():
             yield (
                 FigureCountKey(
-                    scale_type=str(scale_type),
-                    hand=str(hand),
-                    figure_length=int(figure_length),
-                    figure=str(figure),
+                    scale_type=str(row[_COUNT_SCALE_TYPE_COLUMN]),
+                    hand=str(row[_COUNT_HAND_COLUMN]),
+                    figure_length=int(row[_COUNT_N_COLUMN]),
+                    figure=str(row[_COUNT_FIGURE_COLUMN]),
+                    anchor_degree=int(row[_COUNT_ANCHOR_DEGREE_COLUMN]),
+                    anchor_accidental=int(row[_COUNT_ANCHOR_ACCIDENTAL_COLUMN]),
+                    anchor_octave=int(row[_COUNT_ANCHOR_OCTAVE_COLUMN]),
+                    base_duration=str(row[_COUNT_BASE_DURATION_COLUMN]),
+                    bar_relative_onset=str(row[_COUNT_BAR_RELATIVE_ONSET_COLUMN]),
+                    time_signature=str(row[_COUNT_TIME_SIGNATURE_COLUMN]),
                 ),
-                int(count),
+                int(row[_COUNT_COUNT_COLUMN]),
             )
 
     def iter_limited_figure_rows(self, *, limit_per_group: int | None) -> Iterator[FigureCountRow]:
         current_group: tuple[str, str, int] | None = None
         current_group_count = 0
+        aggregated_count = func.sum(_COUNTS_TABLE.c[_COUNT_COUNT_COLUMN]).label(_COUNT_COUNT_COLUMN)
         result = self._connection.execute(
-            select(_COUNTS_TABLE).order_by(
+            select(
                 _COUNTS_TABLE.c[_COUNT_SCALE_TYPE_COLUMN],
                 _COUNTS_TABLE.c[_COUNT_HAND_COLUMN],
                 _COUNTS_TABLE.c[_COUNT_N_COLUMN],
-                _COUNTS_TABLE.c[_COUNT_COUNT_COLUMN].desc(),
+                _COUNTS_TABLE.c[_COUNT_FIGURE_COLUMN],
+                aggregated_count,
+            )
+            .group_by(
+                _COUNTS_TABLE.c[_COUNT_SCALE_TYPE_COLUMN],
+                _COUNTS_TABLE.c[_COUNT_HAND_COLUMN],
+                _COUNTS_TABLE.c[_COUNT_N_COLUMN],
+                _COUNTS_TABLE.c[_COUNT_FIGURE_COLUMN],
+            )
+            .order_by(
+                _COUNTS_TABLE.c[_COUNT_SCALE_TYPE_COLUMN],
+                _COUNTS_TABLE.c[_COUNT_HAND_COLUMN],
+                _COUNTS_TABLE.c[_COUNT_N_COLUMN],
+                aggregated_count.desc(),
                 _COUNTS_TABLE.c[_COUNT_FIGURE_COLUMN],
             )
         )
@@ -240,6 +278,79 @@ class FigureWorkTables:
                     value=str(value),
                 )
             ] += int(count)
+
+        return counts
+
+    def conditional_figure_counts(
+        self,
+        *,
+        scale_type: str,
+        hand: str,
+        figure_length: int,
+        anchor_degree: int | None = None,
+        bar_relative_onset: str | None = None,
+    ) -> Counter[str]:
+        aggregated_count = func.sum(_COUNTS_TABLE.c[_COUNT_COUNT_COLUMN]).label(_COUNT_COUNT_COLUMN)
+        conditions = [
+            _COUNTS_TABLE.c[_COUNT_SCALE_TYPE_COLUMN] == scale_type,
+            _COUNTS_TABLE.c[_COUNT_HAND_COLUMN] == hand,
+            _COUNTS_TABLE.c[_COUNT_N_COLUMN] == figure_length,
+        ]
+        if anchor_degree is not None:
+            conditions.append(_COUNTS_TABLE.c[_COUNT_ANCHOR_DEGREE_COLUMN] == anchor_degree)
+        if bar_relative_onset is not None:
+            conditions.append(_COUNTS_TABLE.c[_COUNT_BAR_RELATIVE_ONSET_COLUMN] == bar_relative_onset)
+
+        statement = (
+            select(_COUNTS_TABLE.c[_COUNT_FIGURE_COLUMN], aggregated_count)
+            .where(*conditions)
+            .group_by(_COUNTS_TABLE.c[_COUNT_FIGURE_COLUMN])
+        )
+        counts: Counter[str] = Counter()
+        for figure, count in self._connection.execute(statement):
+            counts[str(figure)] += int(count)
+
+        return counts
+
+    def base_duration_counts(self, *, scale_type: str, hand: str, figure_length: int) -> Counter[str]:
+        aggregated_count = func.sum(_COUNTS_TABLE.c[_COUNT_COUNT_COLUMN]).label(_COUNT_COUNT_COLUMN)
+        statement = (
+            select(_COUNTS_TABLE.c[_COUNT_BASE_DURATION_COLUMN], aggregated_count)
+            .where(
+                _COUNTS_TABLE.c[_COUNT_SCALE_TYPE_COLUMN] == scale_type,
+                _COUNTS_TABLE.c[_COUNT_HAND_COLUMN] == hand,
+                _COUNTS_TABLE.c[_COUNT_N_COLUMN] == figure_length,
+            )
+            .group_by(_COUNTS_TABLE.c[_COUNT_BASE_DURATION_COLUMN])
+        )
+        counts: Counter[str] = Counter()
+        for base_duration, count in self._connection.execute(statement):
+            counts[str(base_duration)] += int(count)
+
+        return counts
+
+    def anchor_counts(self, *, scale_type: str, hand: str) -> Counter[tuple[int, int, int]]:
+        aggregated_count = func.sum(_COUNTS_TABLE.c[_COUNT_COUNT_COLUMN]).label(_COUNT_COUNT_COLUMN)
+        statement = (
+            select(
+                _COUNTS_TABLE.c[_COUNT_ANCHOR_DEGREE_COLUMN],
+                _COUNTS_TABLE.c[_COUNT_ANCHOR_ACCIDENTAL_COLUMN],
+                _COUNTS_TABLE.c[_COUNT_ANCHOR_OCTAVE_COLUMN],
+                aggregated_count,
+            )
+            .where(
+                _COUNTS_TABLE.c[_COUNT_SCALE_TYPE_COLUMN] == scale_type,
+                _COUNTS_TABLE.c[_COUNT_HAND_COLUMN] == hand,
+            )
+            .group_by(
+                _COUNTS_TABLE.c[_COUNT_ANCHOR_DEGREE_COLUMN],
+                _COUNTS_TABLE.c[_COUNT_ANCHOR_ACCIDENTAL_COLUMN],
+                _COUNTS_TABLE.c[_COUNT_ANCHOR_OCTAVE_COLUMN],
+            )
+        )
+        counts: Counter[tuple[int, int, int]] = Counter()
+        for anchor_degree, anchor_accidental, anchor_octave, count in self._connection.execute(statement):
+            counts[(int(anchor_degree), int(anchor_accidental), int(anchor_octave))] += int(count)
 
         return counts
 

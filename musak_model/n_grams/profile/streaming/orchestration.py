@@ -13,7 +13,7 @@ from musak_model.n_grams.profile.streaming.store import (
     clear_figure_work,
     complete_reference_artifacts_exist,
     existing_figure_summary,
-    figure_work_store_path,
+    figure_reference_database_path,
 )
 from musak_model.processing.paths import ENCODED_JSONL_NAME
 from musak_model.processing.snapshot import TokenizerSnapshot
@@ -34,7 +34,7 @@ def extract_streaming_figure_artifacts(
     overwrite: bool,
     resume: bool,
 ) -> FigureStoreSummary:
-    store_path = figure_work_store_path(artifact_paths)
+    store_path = figure_reference_database_path(artifact_paths)
     state_key = figure_state_key(config=config, snapshot=snapshot)
     if overwrite:
         _LOGGER.info("Clearing existing figure artifacts before extraction: %s", artifact_paths.root_directory)
@@ -72,6 +72,5 @@ def extract_streaming_figure_artifacts(
         )
         _LOGGER.info("Exported figure artifacts in %.1fs", perf_counter() - started_at)
 
-    store_path.unlink(missing_ok=True)
-    _LOGGER.info("Removed completed figure work store: %s", store_path)
+    _LOGGER.info("Retained durable figure reference database: %s", store_path)
     return summary

@@ -14,6 +14,12 @@ class FigureCountKey(NamedTuple):
     hand: str
     figure_length: int
     figure: str
+    anchor_degree: int
+    anchor_accidental: int
+    anchor_octave: int
+    base_duration: str
+    bar_relative_onset: str
+    time_signature: str
 
 
 class FigureGroupKey(NamedTuple):
