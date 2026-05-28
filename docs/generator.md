@@ -104,20 +104,16 @@ the training corpus.
 
 ### 2.4 The reference database
 
-The figure store in the repository originally aggregated counts of *relative* `FigureNGram`s keyed by
-`(scale_type, hand, n)`. That representation makes the TV-distance metric work but does not carry the conditional
-information the generator needs: $p(\text{figure} \mid d_r)$ for harmonic conditioning, $p(\text{figure} \mid
-\text{metrical position})$ for placement, the empirical base-duration distribution for reconstructing real time from
-figures' normalised rhythms, and the dependency on time signature for placement. The figure store has therefore been
-promoted from an intermediate aggregated CSV to a durable SQLite database whose primary key is enriched with the
-absolute anchor (degree, accidental, octave), the base duration that normalisation divides out, the bar-relative onset,
-and the time signature.
-
-The relative `FigureNGram` remains the canonical key for the TV-distance metric, and `figure/all/counts.csv` is
-preserved as a `GROUP BY` projection over the enriched table, so the existing comparison machinery continues to operate
-on the same marginal it always did. A small read API (`FigureReferenceStore`) exposes the conditional marginals the
-generator actually queries. The principle is "store rich, drop on demand": the rich fact table is the source of truth,
-and any aggregated view the generator needs is a query against it.
+A relative `FigureNGram` keyed by $(\text{scale\_type}, \text{hand}, n)$ is enough to make the TV-distance
+metric work, but the generator needs more than its marginal. The figure distribution conditional on a chord
+root drives harmonic conditioning; the figure distribution conditional on metrical position drives
+placement; an empirical base-duration distribution is what reconstructs real time from figures' normalised
+rhythms; and the dependence on time signature is what keeps placement statistics from being averaged over
+incompatible meters. The reference store therefore records, alongside each relative figure, the absolute
+anchor it was extracted at (degree, accidental, octave), the base duration that normalisation divided out,
+the bar-relative onset, and the time signature, so that any of those conditional marginals is one query
+away. The relative figure itself remains the canonical key for the TV-distance metric — the marginal that
+comparison machinery has always operated on is unchanged.
 
 A small but important refinement: figures' relative contour is largely meter-invariant, so the contour vocabulary is
 pooled across time signatures (more data per figure, lower TV-distance variance), while *where* a figure tends to start
@@ -159,23 +155,31 @@ $$r_{k+1} \;=\; (1 - \theta)\,r_k \;+\; \varepsilon_k, \qquad \varepsilon_k \sim
 with $\theta \in (0, 1]$ the mean-reversion rate and $\sigma$ the per-step innovation. The stationary variance
 $\sigma^2 / (2\theta - \theta^2)$ and lag-1 autocorrelation $1 - \theta$ are direct functions of $(\theta, \sigma)$ and
 are exactly the two moments fitted from the corpus: empirical register spread per hand and lag-1 onset-pitch
-autocorrelation. Mean reversion earns its place in the model: a plain Gaussian random walk would drift out of the
-playable register over a long exercise, whereas an OU residual stays anchored on the home register without an
-artificial bound.
+autocorrelation. Mean reversion earns its place in the model in a specific way. A plain Gaussian random walk
+wanders without bound and drifts out of the playable register over a long exercise; the OU residual instead
+pulls back toward zero at every step, at a rate set by $\theta$. The pull is a *constant attractor* — the
+same at every $k$, with no end-of-segment effect — so the marginal distribution of $r_k$ stays centred on
+zero throughout the trajectory rather than only meeting it at the endpoints. Combined with the arch's
+mean-zero basis coefficients, the full curve $\mu_i + P_i^{\text{arch}}(k) + r_k$ then has marginal mean
+$\mu_i$ at every step, and the trajectory is *anchored* on the home register rather than incidentally
+returning to it.
 
 The trajectory delivered to the substitution step is the lattice-quantised sum
 
 $$P_i(k) \;=\; \mathrm{round}\bigl(\mu_i \,+\, P_i^{\text{arch}}(k) \,+\, r_k\bigr),$$
 
-an integer diatonic position per onset step. In implementation the arch is one matrix product against a precomputed DCT
-basis and the residual one call to `scipy.signal.lfilter` over a single `numpy.random.Generator.normal` draw, so the
-whole sampler is vectorised in NumPy.
+an integer diatonic position per onset step.
 
 ## 4. The accent field
 
-The accent field is a marked point process on the bar-aligned grid: every grid cell is either an onset or it is not,
-and each onset carries an accent weight. The weight is the quantity that propagates downstream into figure choice,
-biasing strongly accented cells toward longer or denser figures and weakly accented cells toward passing notes.
+The accent field is a marked point process on the bar-aligned grid: every grid cell is either an onset or
+it is not, and each onset carries an accent weight. The per-cell probability $p_i(t)$ does two jobs at once,
+and that double role is the design point. As the parameter of a Bernoulli draw it decides whether the cell
+becomes an onset at all — $p_i \to 1$ leaves no rests, $p_i \to 0$ leaves only rests — so the field is what
+controls overall filling. The same number is also the accent value the surviving onsets carry forward: a
+high-weight onset is by construction near a strong metrical position or inside a busy region of the
+envelope, so a single scalar per cell tells the substitution step both that the cell is more likely to
+sound and that, when it does, it carries phrasing weight worth conditioning on.
 
 Following the log-Gaussian Cox process picture, the log-intensity at grid cell $t$ decomposes into a meter-locked term
 and a smooth random envelope,
@@ -190,9 +194,9 @@ numerically stable sigmoid (`scipy.special.expit`):
 $$p_i(t) \;=\; \mathrm{expit}\!\bigl(\beta_0 \,+\, \beta_1 \cdot \mathrm{ind}(t)^{\gamma} \,+\, g_i(t)\bigr),$$
 
 with $\beta_0$ a global density baseline (low values give sparse onsets), $\beta_1$ the strength with which metrically
-strong positions are preferred, and $\gamma$ a shape exponent on the indispensability. The onset itself is a Bernoulli
-draw with parameter $p_i(t)$, and the cell's accent weight is taken to be $p_i(t)$ — strongest on downbeats modulated
-by the envelope, weakest off-beat in sparse regions.
+strong positions are preferred, and $\gamma$ a shape exponent on the indispensability. The Bernoulli draw at parameter
+$p_i(t)$ decides the onset; per the double-role above, the cell's accent weight is that same $p_i(t)$ —
+strongest on downbeats modulated by the envelope, weakest off-beat in sparse regions.
 
 Metrical indispensability is computed by a single rule that works uniformly across simple and compound meters: for a
 bar discretised into $M$ grid cells, $\mathrm{ind}(k) = \gcd(k, M) / M$ for $k \in \{0, \dots, M-1\}$. In 4/4 with a
@@ -231,13 +235,42 @@ harmonic-rhythm resolution — one chord per whole note, half note, or quarter n
 power-of-two note value consistent with the rest of the duration system; the windowing is bar-aligned so chords never
 span barlines even in odd meters such as 3/4 or 6/8.
 
-The same chord representation underwrites two distinct operations in the generator. The first is sampling, as just
-described. The second is decoding: a Viterbi over the same generic-third tone-set templates is run on each training
-segment's piano-roll content, producing a chord track that drives the empirical transition estimation and the
-chord-conditioned figure distribution $p(\text{figure} \mid \text{chord}, \text{beat strength})$. Because the decoder
-and the sampler share the chord representation, the parameters of one are directly readable as the parameters of the
-other; the harmonic-fit score used at substitution time (§6) reads from exactly the same conditional that decoding has
-written.
+Concretely, the chord grid is laid down from the downbeat of each bar at the configured resolution and
+truncated at the next barline. Half-note resolution in 3/4 therefore yields a half-bar chord followed by a
+quarter-bar tail chord per bar; in 5/4 it yields two half-bar chords and a quarter-bar tail; in 6/8 a
+dotted-quarter resolution gives two equal chord windows, while a half-note resolution gives a half-bar
+chord plus a quarter-bar tail. Musically more natural subdivisions for odd meters — 2:2:1 for 5/4, the
+3+3 / 3+2+2 / 2+2+3 groupings for compound or asymmetric meters — are deferred beyond v1; the
+bar-aligned-with-truncation rule is the single deterministic policy until the data supports the choice.
+
+### 5.1 Decoding the chord track from the corpus
+
+Beyond sampling at generation time, the same chord representation is also *recovered* from the training
+corpus, so that the transition matrix and the chord-conditioned figure distribution $p(\text{figure} \mid C)$
+that §6's harmonic-fit score reads from are fitted to real harmonic motion rather than to a uniform prior.
+The training corpus contains notes and rests but no harmonic labels, and the symbols decoded onto each
+segment must be exactly the symbols the sampler will later emit — decoder and sampler share the same state
+space, so the parameters of one read straight into the other without translation.
+
+The decoding procedure has three components. First, *sounding windows*: each segment is partitioned into
+the bar-aligned chord grid defined just above, and within each window every sounding pitch class
+accumulates a mass equal to the total duration it overlaps the window. The window thereby becomes a small
+categorical distribution over pitch classes, weighted by how long each class actually sounded. Second,
+*candidates*: the chord vocabulary of §2.3 is expanded into every spellable chord symbol — every
+combination of root degree, root accidental, quality and extension — each precomputed as its pitch-class
+set; a chord whose construction would require an accidental outside $\{-1, 0, +1\}$ is dropped at this
+stage rather than scored. Third, an *emission score* that rewards a candidate by the mass of its pitch
+classes that the window contains and penalises it by the mass that lands outside: a soft scoring that lets
+passing and neighbor tones knock the score down by exactly their own mass times a non-chord-tone penalty
+rather than disqualifying a candidate outright — the same softness the sampler exhibits at substitution
+time, and for the same reason. Standard Viterbi over those windows, with the same self-transition
+stickiness the sampler uses as its prior, returns the most-likely chord per window.
+
+Once each training segment is decoded, the empirical transition matrix is the count of adjacent decoded
+chord symbols pooled across the corpus, and the figure-by-chord conditional is the co-occurrence count of
+each figure with the chord active at its first onset, normalised per chord. The harmonic-fit score in §6
+reads from this same conditional — because decoder and sampler share their symbols, the two ends of the
+loop are aligned by construction rather than by separate bookkeeping.
 
 ## 6. Figure substitution as an I-projection
 
@@ -245,25 +278,29 @@ The three global processes meet the empirical figure vocabulary in one substitut
 substitution chooses a figure $f$ given the local global state — register-curve value $P_i(k)$, accent weight
 $\lambda_i(k)$, current chord $C(t)$ — from the conditional
 
-$$p\bigl(f \mid \text{group},\, P_i,\, \lambda,\, C\bigr) \;\propto\; \underbrace{p_{\text{emp}}\bigl(f \mid \text{group}\bigr)}_{\text{empirical figure prior}} \,\cdot\, \exp\!\Bigl(\lambda_{\text{curve}} \, S(f, P_i) \,+\, \lambda_{\text{harm}} \, H(f, C, \text{beat strength})\Bigr),$$
+$$p\bigl(f \mid \text{group},\, P_i,\, \lambda,\, C\bigr) \;\propto\; \underbrace{p_{\text{emp}}\bigl(f \mid \text{group}\bigr)}_{\text{empirical figure prior}} \,\cdot\, \exp\!\Bigl(\lambda_{\text{curve}} \, S(f, P_i) \,+\, \lambda_{\text{harm}} \, H(f, C, m) \,+\, \lambda_{\text{accent}} \, A\bigl(f, \lambda_i(k)\bigr)\Bigr),$$
 
 where $p_{\text{emp}}(f \mid \text{group})$ is the empirical figure distribution at the group
 $(\text{scale}, \text{hand}, n)$, $S(f, P_i)$ is a slope-fit score comparing the figure's net contour
-($\sum$ relative steps across the figure's onsets) to the local slope of the register curve, and $H(f, C, \cdot)$ a
-harmonic-fit score comparing the figure's concrete pitches (after anchoring to $P_i$) to the chord tones of $C$ at a
-weight that depends on metrical strength — chord tones rewarded on strong beats, non-chord tones permitted and indeed
-favoured on weak beats *between* chord tones.
+($\sum$ relative steps across the figure's onsets) to the local slope of the register curve, $H(f, C, m)$
+is a harmonic-fit score comparing the figure's concrete pitches (after anchoring to $P_i$) to the chord
+tones of $C$ at a weight that depends on the figure's metrical position $m$ in the bar — chord tones
+rewarded on strong beats, non-chord tones permitted and indeed favoured on weak beats *between* chord
+tones — and $A(f, \lambda_i(k))$ is an accent-fit score comparing the figure's internal accent shape
+(longer notes and chord-tone onsets aligned with the figure's strong points) to the LGCP envelope value
+$\lambda_i(k)$ at the current cell, with the envelope reading from §4.
 
 The construction is an exponential-family tilt of the empirical distribution, and that is the point. Geometrically the
-tilted distribution is the **I-projection** of $p_{\text{emp}}$ onto the constraint manifold defined by the curve and
-harmonic targets — the distribution closest in Kullback–Leibler divergence to the reference that still respects the
-local conditioning. Operationally, the two coefficients $\lambda_{\text{curve}}$ and $\lambda_{\text{harm}}$ are
-independent stability ↔ fidelity dials: setting either to zero recovers the reference marginal exactly along that
-direction; increasing it sharpens the control at the cost of moving away from the reference. This is the precise sense
-in which the design is *data-based yet stable, close to reference*: both the marginal preservation in the limit and the
-controllability away from it are properties of the same exponential family.
+tilted distribution is the **I-projection** of $p_{\text{emp}}$ onto the constraint manifold defined by the curve,
+harmonic and accent targets — the distribution closest in Kullback–Leibler divergence to the reference that still
+respects the local conditioning. Operationally, each coefficient $\lambda_{\text{curve}}$, $\lambda_{\text{harm}}$
+and $\lambda_{\text{accent}}$ is an independent stability ↔ fidelity dial: setting any of them to zero recovers the
+reference marginal exactly along that direction; increasing it sharpens the control at the cost of moving away
+from the reference. This is the precise sense in which the design is *data-based yet stable, close to reference*:
+both the marginal preservation in the limit and the controllability away from it are properties of the same
+exponential family.
 
-A second tilt already exists in the repository and is kept strictly orthogonal to the conditioning tilts. The
+A further tilt already exists in the repository and is kept strictly orthogonal to the conditioning tilts. The
 `commonness_bias` parameter $\beta$ in `synthetic/figures.py` flattens or sharpens the empirical figure frequencies
 themselves via
 
@@ -271,8 +308,8 @@ $$p_{\text{emp}}(f) \;\propto\; c(f)^{\beta},$$
 
 where $c(f)$ is the figure's training count: small $\beta$ produces a flatter distribution favouring rare figures,
 large $\beta$ concentrates mass on the most common ones. It is a "commonality" style knob, conceptually distinct from
-the conditioning tilts. Mixing it with the two $\lambda$'s is straightforward — the exponents simply add along their
-respective directions — and the two are exposed as separate inputs so that the style API stays interpretable.
+the conditioning tilts. Mixing it with the $\lambda$ tilts is straightforward — the exponents simply add along their
+respective directions — and the knobs are exposed as separate inputs so that the style API stays interpretable.
 
 ## 7. Hand interaction
 
@@ -333,12 +370,12 @@ transition matrix is the empirical transition count between adjacent Viterbi-dec
 corpus, learned once during the chord-segmentation pass; the chord-conditioned figure distribution that drives the
 harmonic-fit score is accumulated in the same pass.
 
-The two substitution tilts $\lambda_{\text{curve}}$ and $\lambda_{\text{harm}}$ are not moment-matched in the same way;
-they are calibrated against the project's existing reference metric. The generator is run at several values of each,
-the resulting figure distribution is scored by `figure_distribution_metrics` — the mean total-variation distance per
-group against the reference — and the largest tilt is chosen that keeps the TV distance below a target threshold (a
-sensible initial choice is $0.1$). The same metric thus serves as both the design's stated objective and the empirical
-calibration knob: the closed loop the design opens at §1 is closed here.
+The substitution tilts $\lambda_{\text{curve}}$, $\lambda_{\text{harm}}$ and $\lambda_{\text{accent}}$ are
+not moment-matched in the same way; they are calibrated against the project's existing reference metric. The
+generator is run at several values of each, the resulting figure distribution is scored by `figure_distribution_metrics`
+— the mean total-variation distance per group against the reference — and the largest tilt is chosen that keeps the
+TV distance below a target threshold (a sensible initial choice is $0.1$). The same metric thus serves as both the
+design's stated objective and the empirical calibration knob: the closed loop the design opens at §1 is closed here.
 
 A companion validation metric specific to harmony — the harmonic-consonance rate at coincident onsets — is planned so
 that the harmonic tilt is checked against ground truth, not just against the unconditioned figure marginal.
