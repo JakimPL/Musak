@@ -1936,6 +1936,7 @@ model = [
     { name = "music21" },
     { name = "numpy" },
     { name = "pandas" },
+    { name = "scipy" },
     { name = "torch" },
 ]
 
@@ -1967,6 +1968,7 @@ model = [
     { name = "music21", specifier = ">=10.1.0" },
     { name = "numpy", specifier = ">=2.4.6" },
     { name = "pandas", specifier = ">=2.3.3" },
+    { name = "scipy", specifier = ">=1.17.1" },
     { name = "torch", specifier = ">=2.12.0" },
 ]
 

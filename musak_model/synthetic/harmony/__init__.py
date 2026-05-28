@@ -1,5 +1,3 @@
-"""Key-relative chord representation for synthetic generation."""
-
 from musak_model.synthetic.harmony.decoding import (
     ChordDecoder,
     ChordDecoderConfig,

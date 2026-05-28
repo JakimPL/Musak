@@ -15,6 +15,8 @@
 11. Be cautious about optional parameters. All variables upon the logic relies on cannot be optional, including configuration instances.
 12. Restrict yourself from using default values for non-optional, excluding these that are not meant to be frequently changed (e.g. seed). If you do use defaults, declare a Final top-level constant for that.
 13. Be explicit about type expectations. Avoid dynamic `getattr` or `hasattr`.
+14. Prefer existing, efficient library implementations over reinventing them. Reach for `numpy`, `scipy`, `scikit-learn`, etc. for numerical primitives (e.g. `scipy.special.expit` over a hand-rolled sigmoid, `scipy.signal.lfilter` over a Python AR(1) loop, `np.gcd` over a Python comprehension).
+15. Vectorise with NumPy whenever the computation operates over a sequence.
 
 ## Shared Ownership
 

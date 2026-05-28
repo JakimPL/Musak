@@ -14,8 +14,6 @@ type AnchorKey = tuple[int, int, int]
 
 
 class FigureReferenceStore:
-    """Read-only access to the durable figure reference database produced by figure extraction."""
-
     def __init__(self, path: Path) -> None:
         self.path = path
         self._engine: Engine | None = None

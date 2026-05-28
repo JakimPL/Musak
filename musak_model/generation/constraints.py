@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from fractions import Fraction
-from typing import Collection, Final, Sequence
+from typing import Collection, Sequence
 
 import torch
 from torch import Tensor
@@ -25,9 +25,7 @@ from musak_model.tokens.schema import (
     Token,
 )
 from musak_model.tokens.vocabulary import TokenVocabulary
-from musak_shared.elements import is_dotted_duration
-
-MAX_NOTES_PER_HAND: Final[int] = 5
+from musak_shared.elements import MAX_NOTES_PER_HAND, is_dotted_duration
 
 
 class GenerationConstraintError(ValueError):

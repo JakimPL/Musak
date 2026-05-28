@@ -1,5 +1,3 @@
-"""Synthetic exercise generation helpers."""
-
 from musak_model.synthetic.figures import (
     FigureVocabulary,
     FigureVocabularyEntry,

@@ -1,0 +1,6 @@
+baseline_logit: -0.5
+metric_gain: 2.0
+metric_exponent: 1.0
+envelope_basis_count: 3
+envelope_amplitude: 0.5
+envelope_decay: 1.0
