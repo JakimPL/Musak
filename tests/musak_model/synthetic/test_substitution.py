@@ -1,0 +1,270 @@
+from collections import Counter
+from fractions import Fraction
+from pathlib import Path
+
+from numpy.random import default_rng
+
+from musak_model.data.schema import Segment
+from musak_model.generation.constraints import (
+    GenerationConstraints,
+    GenerationConstraintState,
+)
+from musak_model.n_grams.figure.schema import FigureNGram
+from musak_model.synthetic.figures import FigureVocabulary
+from musak_model.synthetic.harmony.schema import Chord, ChordQuality
+from musak_model.synthetic.harmony.vocabulary import ChordVocabularyConfig
+from musak_model.synthetic.processes.chord_track import ChordTrackSampler, uniform_transition_model
+from musak_model.synthetic.processes.pitch import RegisterCurveConfig, RegisterCurveSampler
+from musak_model.synthetic.substitution import (
+    SegmentGenerator,
+    SubstitutionConfig,
+    anchor_figure_to_tokens,
+    chord_pitch_class_set,
+    figure_net_contour,
+    harm_fit,
+    is_monorhythmic,
+    monorhythmic_entries,
+    sample_substituted_figure,
+    slope_fit,
+)
+from musak_model.tokens.duration import DurationVocabulary
+from musak_model.tokens.schema import Hand, NoteToken, ScaleType
+
+
+def _figure(positions: list[int], *, durations: list[Fraction] | None = None) -> FigureNGram:
+    actual_durations = durations or [Fraction(1)] * len(positions)
+    onsets = tuple((((position, 0),), duration) for position, duration in zip(positions, actual_durations, strict=True))
+    return FigureNGram(onsets=onsets)
+
+
+def _major_vocabulary(figures_by_n_per_hand: dict[Hand, dict[int, list[FigureNGram]]]) -> FigureVocabulary:
+    counts = {
+        ScaleType.MAJOR: {
+            hand: {figure_length: Counter({figure: 1 for figure in figures}) for figure_length, figures in by_n.items()}
+            for hand, by_n in figures_by_n_per_hand.items()
+        }
+    }
+    return FigureVocabulary.from_counts(counts)
+
+
+def test_is_monorhythmic_detects_equal_normalized_durations() -> None:
+    assert is_monorhythmic(_figure([0, 1]))
+    assert not is_monorhythmic(_figure([0, 1], durations=[Fraction(1), Fraction(2)]))
+
+
+def test_figure_net_contour_uses_last_onset_min_position() -> None:
+    assert figure_net_contour(_figure([0, 2])) == 2
+    assert figure_net_contour(_figure([0, -1, 0])) == 0
+    assert figure_net_contour(_figure([0, 2, 4])) == 4
+
+
+def test_slope_fit_rewards_matching_net_contour() -> None:
+    figure = _figure([0, 2])
+
+    assert slope_fit(figure=figure, target_slope=2) == 0.0
+    assert slope_fit(figure=figure, target_slope=0) == -2.0
+    assert slope_fit(figure=figure, target_slope=4) == -2.0
+
+
+def test_harm_fit_counts_chord_tone_fraction() -> None:
+    chord_pcs = frozenset({0, 4, 7})
+
+    all_chord_tones = _figure([0, 2])
+    none_chord_tones = _figure([1, 5])
+    mixed = _figure([0, 1])
+
+    assert harm_fit(figure=all_chord_tones, anchor=0, scale_type=ScaleType.MAJOR, chord_pitch_classes=chord_pcs) == 1.0
+    assert harm_fit(figure=none_chord_tones, anchor=0, scale_type=ScaleType.MAJOR, chord_pitch_classes=chord_pcs) == 0.0
+    assert harm_fit(figure=mixed, anchor=0, scale_type=ScaleType.MAJOR, chord_pitch_classes=chord_pcs) == 0.5
+
+
+def test_chord_pitch_class_set_matches_expansion() -> None:
+    vocabulary = ChordVocabularyConfig.load()
+    tonic = Chord(root_degree=1, root_accidental=0, quality=ChordQuality.MAJOR)
+
+    assert chord_pitch_class_set(tonic, scale_type=ScaleType.MAJOR, vocabulary=vocabulary) == frozenset({0, 4, 7})
+
+
+def test_anchor_figure_to_tokens_emits_absolute_degrees_and_durations(
+    duration_vocabulary: DurationVocabulary,
+) -> None:
+    figure = _figure([0, 2])
+
+    tokens = anchor_figure_to_tokens(
+        figure=figure,
+        anchor=0,
+        base_duration=Fraction(1, 2),
+        scale_type=ScaleType.MAJOR,
+        duration_vocabulary=duration_vocabulary,
+    )
+
+    assert [type(token).__name__ for token in tokens] == ["NoteToken", "NoteToken"]
+    first, second = tokens[0], tokens[1]
+    assert isinstance(first, NoteToken) and isinstance(second, NoteToken)
+    assert (first.degree, first.octave_offset) == (1, 0)
+    assert (second.degree, second.octave_offset) == (3, 0)
+    assert duration_vocabulary.id_to_fraction(first.duration_id) == Fraction(1, 2)
+
+
+def test_sample_substituted_figure_is_deterministic_for_a_given_seed() -> None:
+    entries = monorhythmic_entries(
+        _major_vocabulary({Hand.RIGHT: {2: [_figure([0, 2]), _figure([0, -1])]}}),
+        scale_type=ScaleType.MAJOR,
+        hand=Hand.RIGHT,
+        figure_length=2,
+    )
+    config = SubstitutionConfig(lambda_curve=1.0, lambda_harm=1.0, commonness_bias=1.0, max_resample_retries=4)
+
+    first = sample_substituted_figure(
+        entries=entries,
+        anchor=0,
+        target_slope=2,
+        scale_type=ScaleType.MAJOR,
+        chord_pitch_classes=frozenset({0, 4, 7}),
+        config=config,
+        rng=default_rng(11),
+    )
+    second = sample_substituted_figure(
+        entries=entries,
+        anchor=0,
+        target_slope=2,
+        scale_type=ScaleType.MAJOR,
+        chord_pitch_classes=frozenset({0, 4, 7}),
+        config=config,
+        rng=default_rng(11),
+    )
+
+    assert first == second
+
+
+def test_high_lambda_curve_selects_the_slope_matching_figure() -> None:
+    ascending = _figure([0, 2])
+    descending = _figure([0, -2])
+    entries = monorhythmic_entries(
+        _major_vocabulary({Hand.RIGHT: {2: [ascending, descending]}}),
+        scale_type=ScaleType.MAJOR,
+        hand=Hand.RIGHT,
+        figure_length=2,
+    )
+    config = SubstitutionConfig(lambda_curve=50.0, lambda_harm=0.0, commonness_bias=0.0, max_resample_retries=4)
+
+    chosen = sample_substituted_figure(
+        entries=entries,
+        anchor=0,
+        target_slope=2,
+        scale_type=ScaleType.MAJOR,
+        chord_pitch_classes=frozenset({0, 4, 7}),
+        config=config,
+        rng=default_rng(0),
+    )
+
+    assert chosen.figure == ascending
+
+
+def test_segment_generator_produces_constraint_valid_segment(
+    duration_vocabulary: DurationVocabulary,
+) -> None:
+    vocabulary = _major_vocabulary(
+        {
+            Hand.RIGHT: {2: [_figure([0, 2])]},
+            Hand.LEFT: {2: [_figure([0, 2])]},
+        }
+    )
+    chord_track_sampler = ChordTrackSampler(
+        model=uniform_transition_model((Chord(root_degree=1, root_accidental=0, quality=ChordQuality.MAJOR),))
+    )
+    register_curve_sampler = RegisterCurveSampler(
+        config=RegisterCurveConfig(
+            arch_basis_count=3,
+            arch_amplitude=0.0,
+            arch_decay=1.0,
+            ou_theta=0.5,
+            ou_sigma=0.0,
+        )
+    )
+    generator = SegmentGenerator(
+        substitution_config=SubstitutionConfig(
+            lambda_curve=0.0, lambda_harm=0.0, commonness_bias=1.0, max_resample_retries=4
+        ),
+        register_curve_sampler=register_curve_sampler,
+        chord_track_sampler=chord_track_sampler,
+        chord_vocabulary=ChordVocabularyConfig.load(),
+        figure_vocabulary=vocabulary,
+        duration_vocabulary=duration_vocabulary,
+        figure_lengths=(2,),
+    )
+    constraints = GenerationConstraints(time_numerator=4, time_denominator=4, bar_count=2)
+
+    segment = generator.generate(
+        bar_count=2,
+        time_numerator=4,
+        time_denominator=4,
+        scale_root=0,
+        scale_type=ScaleType.MAJOR,
+        constraints=constraints,
+        rng=default_rng(7),
+        source_file=Path("synthetic.mxl"),
+    )
+
+    assert isinstance(segment, Segment)
+    state = GenerationConstraintState(constraints=constraints)
+    for token in segment.tokens:
+        state = state.apply(token, duration_vocabulary=duration_vocabulary)
+    assert state.ended
+    assert state.bar_index == 2
+
+
+def test_segment_generator_is_deterministic_for_a_given_seed(
+    duration_vocabulary: DurationVocabulary,
+) -> None:
+    vocabulary = _major_vocabulary(
+        {
+            Hand.RIGHT: {2: [_figure([0, 2]), _figure([0, -1])]},
+            Hand.LEFT: {2: [_figure([0, 2])]},
+        }
+    )
+    generator = SegmentGenerator(
+        substitution_config=SubstitutionConfig(
+            lambda_curve=0.0, lambda_harm=0.0, commonness_bias=1.0, max_resample_retries=4
+        ),
+        register_curve_sampler=RegisterCurveSampler(
+            config=RegisterCurveConfig(
+                arch_basis_count=3,
+                arch_amplitude=2.0,
+                arch_decay=1.0,
+                ou_theta=0.3,
+                ou_sigma=0.5,
+            )
+        ),
+        chord_track_sampler=ChordTrackSampler(
+            model=uniform_transition_model((Chord(root_degree=1, root_accidental=0, quality=ChordQuality.MAJOR),))
+        ),
+        chord_vocabulary=ChordVocabularyConfig.load(),
+        figure_vocabulary=vocabulary,
+        duration_vocabulary=duration_vocabulary,
+        figure_lengths=(2,),
+    )
+    constraints = GenerationConstraints(time_numerator=4, time_denominator=4, bar_count=3)
+
+    first = generator.generate(
+        bar_count=3,
+        time_numerator=4,
+        time_denominator=4,
+        scale_root=0,
+        scale_type=ScaleType.MAJOR,
+        constraints=constraints,
+        rng=default_rng(123),
+        source_file=Path("synthetic.mxl"),
+    )
+    second = generator.generate(
+        bar_count=3,
+        time_numerator=4,
+        time_denominator=4,
+        scale_root=0,
+        scale_type=ScaleType.MAJOR,
+        constraints=constraints,
+        rng=default_rng(123),
+        source_file=Path("synthetic.mxl"),
+    )
+
+    assert first.tokens == second.tokens

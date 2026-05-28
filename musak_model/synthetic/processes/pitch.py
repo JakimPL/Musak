@@ -9,10 +9,9 @@ from numpy.typing import NDArray
 from pydantic import BaseModel, ConfigDict, Field
 from scipy.signal import lfilter
 
-from musak_model.n_grams.figure.builder import scale_size_for_type
 from musak_model.paths import REGISTER_CURVE_CONFIG_PATH
 from musak_model.synthetic.processes._basis import band_limited_random
-from musak_model.tokens.schema import HAND_HOME_OCTAVES, Hand, ScaleType
+from musak_model.tokens.schema import Hand, ScaleType
 from musak_shared.files import load_yaml_config
 
 
@@ -45,11 +44,10 @@ class RegisterCurveSampler:
         if length <= 0:
             raise ValueError("length must be positive")
 
-        scale_size = scale_size_for_type(scale_type)
-        home_position = HAND_HOME_OCTAVES[hand] * scale_size
+        _ = scale_type, hand
         arch = self._arch_trajectory(length=length, rng=rng)
         residual = self._residual_trajectory(length=length, rng=rng)
-        return tuple(np.rint(home_position + arch + residual).astype(int).tolist())
+        return tuple(np.rint(arch + residual).astype(int).tolist())
 
     def _arch_trajectory(
         self,

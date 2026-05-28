@@ -1,10 +1,9 @@
-from __future__ import annotations
-
 from enum import StrEnum
-from typing import TYPE_CHECKING, Final, Literal
+from typing import Final, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.symbols import (
     BAR_SYMBOL,
     DURATION_CLOSE_SYMBOL,
@@ -23,9 +22,6 @@ from musak_model.tokens.symbols import (
     TEXT_SHARP_SYMBOL,
 )
 from musak_shared.ratios import format_ratio
-
-if TYPE_CHECKING:
-    from musak_model.tokens.duration import DurationVocabulary
 
 
 class ScaleType(StrEnum):

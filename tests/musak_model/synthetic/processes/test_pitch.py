@@ -5,7 +5,7 @@ from numpy.random import default_rng
 from pydantic import ValidationError
 
 from musak_model.synthetic.processes.pitch import RegisterCurveConfig, RegisterCurveSampler
-from musak_model.tokens.schema import HAND_HOME_OCTAVES, Hand, ScaleType
+from musak_model.tokens.schema import Hand, ScaleType
 
 
 def _config(
@@ -48,29 +48,16 @@ def test_zero_amplitude_and_sigma_yield_constant_home_register() -> None:
 
     trajectory = sampler.sample(length=8, scale_type=ScaleType.MAJOR, hand=Hand.RIGHT, rng=default_rng(0))
 
-    expected = HAND_HOME_OCTAVES[Hand.RIGHT] * 7
-    assert trajectory == (expected,) * 8
+    assert trajectory == (0,) * 8
 
 
-def test_hand_home_register_differs_between_hands() -> None:
-    sampler = RegisterCurveSampler(config=_config(arch_amplitude=0.0, ou_sigma=0.0))
-
-    right = sampler.sample(length=4, scale_type=ScaleType.MAJOR, hand=Hand.RIGHT, rng=default_rng(1))
-    left = sampler.sample(length=4, scale_type=ScaleType.MAJOR, hand=Hand.LEFT, rng=default_rng(1))
-
-    assert right[0] == HAND_HOME_OCTAVES[Hand.RIGHT] * 7
-    assert left[0] == HAND_HOME_OCTAVES[Hand.LEFT] * 7
-    assert right != left
-
-
-def test_ou_only_trajectory_is_anchored_near_home_register_on_average() -> None:
+def test_ou_only_trajectory_is_anchored_near_zero_on_average() -> None:
     sampler = RegisterCurveSampler(config=_config(arch_amplitude=0.0, ou_theta=0.5, ou_sigma=1.0))
     rng = default_rng(7)
 
-    home = HAND_HOME_OCTAVES[Hand.RIGHT] * 7
     means = [fmean(sampler.sample(length=64, scale_type=ScaleType.MAJOR, hand=Hand.RIGHT, rng=rng)) for _ in range(40)]
 
-    assert abs(fmean(means) - home) < 1.0
+    assert abs(fmean(means)) < 1.0
 
 
 def test_sample_rejects_non_positive_length() -> None:
