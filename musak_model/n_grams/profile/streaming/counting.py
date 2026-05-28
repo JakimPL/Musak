@@ -1,14 +1,13 @@
 from collections import Counter
 from fractions import Fraction
 
-from musak_model.n_grams.figure.builder import scale_size_for_type
 from musak_model.n_grams.figure.parser import extract_hand_onset_runs
 from musak_model.n_grams.figure.signature import figure_signature_to_json, iter_figure_occurrences_from_run
 from musak_model.n_grams.profile.schema import FigureProfileGroup, FigureSampleCounts
 from musak_model.n_grams.profile.streaming.schema import FigureCountCounter, FigureCountKey
 from musak_model.n_grams.profile.streaming.totals import figure_group_totals
 from musak_model.tokens.duration import DurationVocabulary
-from musak_model.tokens.schema import Hand, ScaleType
+from musak_model.tokens.schema import Hand, ScaleType, scale_size_for_type
 from musak_model.tokens.vocabulary import TokenVocabulary
 from musak_model.training.ingestion.schema import EncodedExercise
 from musak_shared.ratios import format_ratio

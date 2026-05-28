@@ -1,9 +1,9 @@
 from fractions import Fraction
 
-from musak_model.n_grams.figure.builder import scale_size_for_type
 from musak_model.n_grams.figure.schema import FigureNGram
 from musak_model.tokens.duration import DurationVocabulary
-from musak_model.tokens.schema import JoinWithPreviousToken, NoteToken, ScaleType, Token
+from musak_model.tokens.pitch import diatonic_position_to_degree_and_octave
+from musak_model.tokens.schema import JoinWithPreviousToken, NoteToken, ScaleType, Token, scale_size_for_type
 
 
 def anchor_figure_to_tokens(
@@ -21,8 +21,9 @@ def anchor_figure_to_tokens(
         duration_id = duration_vocabulary.require_duration_id(absolute_duration)
         for note_index, (relative_position, accidental) in enumerate(degrees):
             absolute_position = anchor + relative_position
-            absolute_degree = absolute_position % scale_size + 1
-            octave_offset = absolute_position // scale_size
+            absolute_degree, octave_offset = diatonic_position_to_degree_and_octave(
+                absolute_position, scale_size=scale_size
+            )
             tokens.append(
                 NoteToken(
                     degree=absolute_degree,

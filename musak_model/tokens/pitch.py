@@ -17,3 +17,17 @@ def note_token_to_midi_pitch(
     pitch_class = (scale_root + interval_class) % PITCHES_PER_OCTAVE
     octave = HAND_HOME_OCTAVES[hand] + token.octave_offset
     return (octave + MIDI_OCTAVE_OFFSET) * PITCHES_PER_OCTAVE + pitch_class
+
+
+def note_diatonic_position(token: NoteToken, *, scale_size: int) -> int:
+    if scale_size <= 0:
+        raise ValueError("scale_size must be positive")
+
+    return token.octave_offset * scale_size + (token.degree - 1)
+
+
+def diatonic_position_to_degree_and_octave(position: int, *, scale_size: int) -> tuple[int, int]:
+    if scale_size <= 0:
+        raise ValueError("scale_size must be positive")
+
+    return position % scale_size + 1, position // scale_size

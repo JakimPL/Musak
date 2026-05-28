@@ -28,6 +28,19 @@
 6. If new code duplicates existing logic, extract the shared rule first and make both call sites use it.
 7. Do not overload with a single module with too many different responsibilities.
 8. Prefer subpackages over flatten directory structure.
+9. **Conversion-function placement.** Functions that convert between representations are placed by what they
+   reference, in the order below. Before adding a new conversion, consult `docs/conversions.md` and reuse the
+   existing primitive; do not re-inline the arithmetic.
+   1. **Universal music primitives** — operations that are model-implementation-agnostic and do not depend on any
+      sibling package — live in `musak_shared` (`elements.py`, `names.py`, `ratios.py`).
+   2. **Token-coordinate primitives** that involve only token-level concepts (`ScaleType`, `Hand`, `NoteToken`, and
+      the integer coordinates `degree`, `accidental`, `octave_offset`, `scale_size`, diatonic position) live in
+      `musak_model/tokens/` — primarily `pitch.py` for arithmetic and `schema.py` for type-adjacent helpers.
+   3. **Composite conversions** between two named domain entities (e.g. `FigureNGram` ↔ tokens, `Chord` ↔ tone set,
+      `Segment` ↔ piano-roll events, `NoteToken` ↔ VexFlow spelling) live in the **most downstream module that
+      already owns one of the two entities** — the one that does not introduce a new cross-package arrow. A
+      composite conversion is never placed in a module that would have to import upstream to reach the other
+      entity.
 
 ## Type Hints
 

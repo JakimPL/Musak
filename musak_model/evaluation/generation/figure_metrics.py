@@ -4,7 +4,6 @@ from time import perf_counter
 
 from musak_model.evaluation.generation.protocols import GenerationEvaluationOptions
 from musak_model.evaluation.generation.schema import GenerationSample
-from musak_model.n_grams.figure.builder import scale_size_for_type
 from musak_model.n_grams.figure.counter import FigureNGramCountsByHand, count_hand_figure_ngrams
 from musak_model.n_grams.figure.parser import extract_hand_onset_runs
 from musak_model.n_grams.figure.samples.merge import merge_scale_counts
@@ -15,6 +14,7 @@ from musak_model.n_grams.profile.metrics.distribution import figure_distribution
 from musak_model.n_grams.profile.metrics.profile_comparison import figure_profile_comparison_metrics
 from musak_model.n_grams.profile.schema import FigureProfile, FigureProfileMetadata
 from musak_model.tokens.duration import DurationVocabulary
+from musak_model.tokens.schema import scale_size_for_type
 
 _LOGGER = logging.getLogger(__name__)
 

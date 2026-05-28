@@ -6,11 +6,9 @@ from pydantic import BaseModel, ConfigDict
 
 from musak_model.conditioning.structural.schema import StructuralControlFeatures
 from musak_model.data.schema import Segment
-from musak_model.n_grams.figure.builder import scale_size_for_type
-from musak_model.n_grams.figure.pitch import note_diatonic_position
 from musak_model.tokens.duration import DurationVocabulary
-from musak_model.tokens.pitch import note_token_to_midi_pitch
-from musak_model.tokens.schema import Hand, HandToken, JoinWithPreviousToken, NoteToken
+from musak_model.tokens.pitch import note_diatonic_position, note_token_to_midi_pitch
+from musak_model.tokens.schema import Hand, HandToken, JoinWithPreviousToken, NoteToken, scale_size_for_type
 from musak_shared.elements import is_dotted_duration
 
 
@@ -107,14 +105,24 @@ class _FeatureState(BaseModel):
             bar_count=None,
         )
 
-    def add_static_position(self, position: int, *, hand: Hand) -> _FeatureState:
+    def add_static_position(
+        self,
+        position: int,
+        *,
+        hand: Hand,
+    ) -> _FeatureState:
         match hand:
             case Hand.RIGHT:
                 return self.model_copy(update={"right_static_positions": (*self.right_static_positions, position)})
             case Hand.LEFT:
                 return self.model_copy(update={"left_static_positions": (*self.left_static_positions, position)})
 
-    def add_chord_note(self, midi_pitch: int, *, hand: Hand) -> _FeatureState:
+    def add_chord_note(
+        self,
+        midi_pitch: int,
+        *,
+        hand: Hand,
+    ) -> _FeatureState:
         match hand:
             case Hand.RIGHT:
                 count = self.right_current_onset_count + 1
@@ -151,7 +159,12 @@ class _FeatureState(BaseModel):
                     }
                 )
 
-    def add_new_onset(self, midi_pitch: int, *, hand: Hand) -> _FeatureState:
+    def add_new_onset(
+        self,
+        midi_pitch: int,
+        *,
+        hand: Hand,
+    ) -> _FeatureState:
         match hand:
             case Hand.RIGHT:
                 return self.model_copy(

@@ -11,6 +11,7 @@ from musak_model.generation.constraints import (
 )
 from musak_model.n_grams.figure.schema import FigureNGram
 from musak_model.synthetic.figures import FigureVocabulary
+from musak_model.synthetic.harmony.expansion import chord_pitch_class_set
 from musak_model.synthetic.harmony.schema import Chord, ChordQuality
 from musak_model.synthetic.harmony.vocabulary import ChordVocabularyConfig
 from musak_model.synthetic.processes.chord_track import ChordTrackSampler, uniform_transition_model
@@ -19,7 +20,6 @@ from musak_model.synthetic.substitution import (
     SegmentGenerator,
     SubstitutionConfig,
     anchor_figure_to_tokens,
-    chord_pitch_class_set,
     figure_net_contour,
     harm_fit,
     is_monorhythmic,

@@ -2,17 +2,13 @@ from collections.abc import Sequence
 from fractions import Fraction
 
 from musak_model.n_grams.figure.parser import HandOnsetRun, PitchedOnset
-from musak_model.n_grams.figure.pitch import note_diatonic_position
 from musak_model.n_grams.figure.schema import FigureDegree, FigureNGram, FigureOnset
 from musak_model.n_grams.figure.signature import (
     figure_signature_to_ngram,
     iter_figure_signatures_from_run,
 )
-from musak_model.tokens.schema import SCALE_INTERVALS, NoteToken, ScaleType
-
-
-def scale_size_for_type(scale_type: ScaleType) -> int:
-    return len(SCALE_INTERVALS[scale_type])
+from musak_model.tokens.pitch import note_diatonic_position
+from musak_model.tokens.schema import NoteToken
 
 
 def build_figure_ngram(

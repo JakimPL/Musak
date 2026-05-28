@@ -3,6 +3,7 @@ from typing import Final
 
 from musak_model.synthetic.harmony.schema import Chord
 from musak_model.synthetic.harmony.vocabulary import ChordVocabularyConfig
+from musak_model.tokens.pitch import degree_pitch_class
 from musak_model.tokens.schema import MAX_ACCIDENTAL, MIN_ACCIDENTAL, SCALE_INTERVALS, ScaleType
 from musak_shared.elements import PITCHES_PER_OCTAVE
 
@@ -58,6 +59,16 @@ def expand_chord_to_tones(
         tones.append(ChordTone(degree=generic_index + 1, accidental=accidental))
 
     return tuple(tones)
+
+
+def chord_pitch_class_set(
+    chord: Chord,
+    *,
+    scale_type: ScaleType,
+    vocabulary: ChordVocabularyConfig,
+) -> frozenset[int]:
+    tones = expand_chord_to_tones(chord, scale_type=scale_type, vocabulary=vocabulary)
+    return frozenset(degree_pitch_class(tone.degree, tone.accidental, scale_type=scale_type) for tone in tones)
 
 
 def _signed_pitch_class_residue(value: int) -> int:

@@ -1,7 +1,7 @@
-from musak_model.n_grams.figure.builder import scale_size_for_type
 from musak_model.n_grams.figure.counter import FigureNGramCountsByHand, count_hand_figure_ngrams
 from musak_model.n_grams.figure.parser import extract_hand_onset_runs
 from musak_model.tokens.duration import DurationVocabulary
+from musak_model.tokens.schema import scale_size_for_type
 from musak_model.tokens.vocabulary import TokenVocabulary
 from musak_model.training.ingestion.schema import EncodedExercise
 

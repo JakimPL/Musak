@@ -7,10 +7,8 @@ from typing import Collection, Sequence
 import torch
 from torch import Tensor
 
-from musak_model.n_grams.figure.builder import scale_size_for_type
-from musak_model.n_grams.figure.pitch import note_diatonic_position
 from musak_model.tokens.duration import DurationVocabulary
-from musak_model.tokens.pitch import note_token_to_midi_pitch
+from musak_model.tokens.pitch import note_diatonic_position, note_token_to_midi_pitch
 from musak_model.tokens.schema import (
     BarToken,
     EndToken,
@@ -23,6 +21,7 @@ from musak_model.tokens.schema import (
     ScaleType,
     StartToken,
     Token,
+    scale_size_for_type,
 )
 from musak_model.tokens.vocabulary import TokenVocabulary
 from musak_shared.elements import MAX_NOTES_PER_HAND, is_dotted_duration

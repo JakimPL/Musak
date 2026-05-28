@@ -5,8 +5,8 @@ from fractions import Fraction
 from typing import Final
 
 from musak_model.n_grams.figure.parser import HandOnsetRun
-from musak_model.n_grams.figure.pitch import note_diatonic_position
 from musak_model.n_grams.figure.schema import FigureDegree, FigureNGram
+from musak_model.tokens.pitch import diatonic_position_to_degree_and_octave, note_diatonic_position
 
 type FigureDurationSignature = tuple[int, int]
 type FigureOnsetSignature = tuple[tuple[FigureDegree, ...], FigureDurationSignature]
@@ -112,13 +112,14 @@ def _build_figure_occurrence_from_raw_window(
         window_length=window_length,
     )
     anchor_position, anchor_accidental = window[0].degrees[0]
+    anchor_degree, anchor_octave = diatonic_position_to_degree_and_octave(anchor_position, scale_size=scale_size)
     durations = tuple(_window_onset_duration(window, onset_index=index) for index in range(window_length))
     return FigureOccurrence(
         figure_length=window_length,
         signature=signature,
-        anchor_degree=anchor_position % scale_size + 1,
+        anchor_degree=anchor_degree,
         anchor_accidental=anchor_accidental,
-        anchor_octave=anchor_position // scale_size,
+        anchor_octave=anchor_octave,
         base_duration=min(durations),
         start=window[0].start,
     )

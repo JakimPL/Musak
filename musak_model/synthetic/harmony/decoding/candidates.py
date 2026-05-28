@@ -1,12 +1,11 @@
 from collections.abc import Iterator
 from dataclasses import dataclass
 
-from musak_model.n_grams.figure.builder import scale_size_for_type
 from musak_model.synthetic.harmony.expansion import UnspellableChordError, expand_chord_to_tones
 from musak_model.synthetic.harmony.schema import Chord
 from musak_model.synthetic.harmony.vocabulary import ChordVocabularyConfig
 from musak_model.tokens.pitch import degree_pitch_class
-from musak_model.tokens.schema import MIN_DEGREE, ScaleType
+from musak_model.tokens.schema import MIN_DEGREE, ScaleType, scale_size_for_type
 
 
 @dataclass(frozen=True)

@@ -37,6 +37,10 @@ SCALE_INTERVALS: Final[dict[ScaleType, tuple[int, ...]]] = {
 }
 
 
+def scale_size_for_type(scale_type: ScaleType) -> int:
+    return len(SCALE_INTERVALS[scale_type])
+
+
 class Hand(StrEnum):
     RIGHT = "right"
     LEFT = "left"

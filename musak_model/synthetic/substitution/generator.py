@@ -11,6 +11,7 @@ from musak_model.generation.constraints import (
     GenerationConstraintState,
 )
 from musak_model.synthetic.figures import FigureVocabulary
+from musak_model.synthetic.harmony.expansion import chord_pitch_class_set
 from musak_model.synthetic.harmony.vocabulary import ChordVocabularyConfig
 from musak_model.synthetic.processes.chord_track import ChordTrackSampler
 from musak_model.synthetic.processes.pitch import RegisterCurveSampler
@@ -20,7 +21,6 @@ from musak_model.synthetic.substitution.sampling import (
     monorhythmic_entries,
     sample_substituted_figure,
 )
-from musak_model.synthetic.substitution.scoring import chord_pitch_class_set
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import BarToken, EndToken, Hand, HandToken, ScaleType, Token
 
@@ -55,12 +55,21 @@ class SegmentGenerator:
 
         bar_duration = Fraction(time_numerator, time_denominator)
         right_curve = self.register_curve_sampler.sample(
-            length=bar_count, scale_type=scale_type, hand=Hand.RIGHT, rng=rng
+            length=bar_count,
+            scale_type=scale_type,
+            hand=Hand.RIGHT,
+            rng=rng,
         )
         left_curve = self.register_curve_sampler.sample(
-            length=bar_count, scale_type=scale_type, hand=Hand.LEFT, rng=rng
+            length=bar_count,
+            scale_type=scale_type,
+            hand=Hand.LEFT,
+            rng=rng,
         )
-        chord_track = self.chord_track_sampler.sample(length=bar_count, rng=rng)
+        chord_track = self.chord_track_sampler.sample(
+            length=bar_count,
+            rng=rng,
+        )
 
         state = GenerationConstraintState(constraints=constraints)
         tokens: list[Token] = []

@@ -25,7 +25,6 @@ from musak_model.generation.constraints import (
 from musak_model.model import HierarchicalAutoregressiveModel
 from musak_model.model.config import ModelConfig
 from musak_model.n_grams.config import NGramAnalysisConfig
-from musak_model.n_grams.figure.builder import scale_size_for_type
 from musak_model.n_grams.figure.counter import count_hand_figure_ngrams
 from musak_model.n_grams.figure.parser import extract_hand_onset_runs
 from musak_model.n_grams.figure.samples.schema import FigureNGramCountsByScale
@@ -51,6 +50,7 @@ from musak_model.tokens.schema import (
     ScaleType,
     StartToken,
     Token,
+    scale_size_for_type,
 )
 from musak_model.tokens.text import tokens_from_text, tokens_to_text
 from musak_model.tokens.vocabulary import TokenVocabulary

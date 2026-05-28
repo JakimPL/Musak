@@ -1,22 +1,8 @@
 from fractions import Fraction
 
-from musak_model.n_grams.figure.builder import scale_size_for_type
 from musak_model.n_grams.figure.schema import FigureNGram
-from musak_model.synthetic.harmony.expansion import expand_chord_to_tones
-from musak_model.synthetic.harmony.schema import Chord
-from musak_model.synthetic.harmony.vocabulary import ChordVocabularyConfig
-from musak_model.tokens.pitch import degree_pitch_class
-from musak_model.tokens.schema import ScaleType
-
-
-def chord_pitch_class_set(
-    chord: Chord,
-    *,
-    scale_type: ScaleType,
-    vocabulary: ChordVocabularyConfig,
-) -> frozenset[int]:
-    tones = expand_chord_to_tones(chord, scale_type=scale_type, vocabulary=vocabulary)
-    return frozenset(degree_pitch_class(tone.degree, tone.accidental, scale_type=scale_type) for tone in tones)
+from musak_model.tokens.pitch import degree_pitch_class, diatonic_position_to_degree_and_octave
+from musak_model.tokens.schema import ScaleType, scale_size_for_type
 
 
 def is_monorhythmic(figure: FigureNGram) -> bool:
@@ -44,7 +30,9 @@ def harm_fit(
     for degrees, _ in figure.onsets:
         for relative_position, accidental in degrees:
             absolute_position = anchor + relative_position
-            absolute_degree = absolute_position % scale_size + 1
+            absolute_degree, _octave_offset = diatonic_position_to_degree_and_octave(
+                absolute_position, scale_size=scale_size
+            )
             note_pitch_class = degree_pitch_class(absolute_degree, accidental, scale_type=scale_type)
             if note_pitch_class in chord_pitch_classes:
                 chord_tone_count += 1

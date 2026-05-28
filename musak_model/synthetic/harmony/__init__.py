@@ -7,6 +7,7 @@ from musak_model.synthetic.harmony.decoding import (
 from musak_model.synthetic.harmony.expansion import (
     ChordTone,
     UnspellableChordError,
+    chord_pitch_class_set,
     expand_chord_to_tones,
 )
 from musak_model.synthetic.harmony.schema import (
@@ -35,5 +36,6 @@ __all__ = [
     "QualityDefinition",
     "UnspellableChordError",
     "ViterbiChordDecoder",
+    "chord_pitch_class_set",
     "expand_chord_to_tones",
 ]
