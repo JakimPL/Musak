@@ -9,7 +9,7 @@ MIDI_MAX_PITCH: Final[int] = 127
 MIDDLE_C: Final[int] = 60
 
 MAX_NOTES_PER_HAND: Final[int] = 5
-MAX_ONSET_SPAN_SEMITONES: Final[int] = 24
+MAX_ONSET_SPAN_SEMITONES: Final[int] = 12
 
 PITCHES_PER_OCTAVE: Final[int] = 12
 MIDI_OCTAVE_OFFSET: Final[int] = 1
