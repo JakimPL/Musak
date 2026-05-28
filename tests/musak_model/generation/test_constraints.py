@@ -316,7 +316,11 @@ class TestAllowedNextTokenIds:
 
         allowed = allowed_next_token_ids(
             prefix,
-            constraints=_constraints(maximum_static_hand_span_degrees=5),
+            constraints=_constraints(
+                maximum_static_hand_span_degrees=5,
+                scale_root=0,
+                scale_type=ScaleType.MAJOR,
+            ),
             token_vocabulary=token_vocabulary,
             duration_vocabulary=duration_vocabulary,
         )

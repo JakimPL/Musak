@@ -48,7 +48,6 @@ class Hand(StrEnum):
 
 MIN_DEGREE: Final[int] = 1
 MAX_DEGREE: Final[int] = 7
-DEGREE_COUNT: Final[int] = MAX_DEGREE - MIN_DEGREE + 1
 
 MIN_ACCIDENTAL: Final[int] = -1
 MAX_ACCIDENTAL: Final[int] = 1

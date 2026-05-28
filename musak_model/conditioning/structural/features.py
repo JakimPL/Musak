@@ -6,8 +6,10 @@ from pydantic import BaseModel, ConfigDict
 
 from musak_model.conditioning.structural.schema import StructuralControlFeatures
 from musak_model.data.schema import Segment
+from musak_model.n_grams.figure.builder import scale_size_for_type
+from musak_model.n_grams.figure.pitch import note_diatonic_position
 from musak_model.tokens.duration import DurationVocabulary
-from musak_model.tokens.pitch import note_token_to_midi_pitch, note_token_to_static_hand_position
+from musak_model.tokens.pitch import note_token_to_midi_pitch
 from musak_model.tokens.schema import Hand, HandToken, JoinWithPreviousToken, NoteToken
 from musak_shared.elements import is_dotted_duration
 
@@ -83,7 +85,8 @@ class _FeatureState(BaseModel):
                 "has_dotted_notes": self.has_dotted_notes or is_dotted_duration(duration),
             }
         )
-        state = state.add_static_position(note_token_to_static_hand_position(token), hand=hand)
+        static_position = note_diatonic_position(token, scale_size=scale_size_for_type(segment.scale_type))
+        state = state.add_static_position(static_position, hand=hand)
         if joins_previous_onset:
             return state.add_chord_note(midi_pitch, hand=hand)
 

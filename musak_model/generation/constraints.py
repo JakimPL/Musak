@@ -7,8 +7,10 @@ from typing import Collection, Final, Sequence
 import torch
 from torch import Tensor
 
+from musak_model.n_grams.figure.builder import scale_size_for_type
+from musak_model.n_grams.figure.pitch import note_diatonic_position
 from musak_model.tokens.duration import DurationVocabulary
-from musak_model.tokens.pitch import note_token_to_midi_pitch, note_token_to_static_hand_position
+from musak_model.tokens.pitch import note_token_to_midi_pitch
 from musak_model.tokens.schema import (
     BarToken,
     EndToken,
@@ -181,7 +183,7 @@ class GenerationConstraintState:
         midi_pitch = self._note_midi_pitch(token)
         exceeds_pitch_gap = self.exceeds_pitch_gap(midi_pitch)
         exceeds_onset_span = self.exceeds_onset_span(join_target, midi_pitch)
-        static_position = note_token_to_static_hand_position(token)
+        static_position = self._note_static_position(token)
         if duration > remaining and not can_join:
             raise GenerationConstraintError("note duration exceeds remaining active-hand measure time")
 
@@ -191,7 +193,7 @@ class GenerationConstraintState:
         if exceeds_onset_span:
             raise GenerationConstraintError("note exceeds maximum same-hand onset span")
 
-        if self.exceeds_static_hand_span(static_position):
+        if static_position is not None and self.exceeds_static_hand_span(static_position):
             raise GenerationConstraintError("note exceeds maximum static hand span")
 
         cursor = self.cursor(self.active_hand)
@@ -211,7 +213,8 @@ class GenerationConstraintState:
 
         state = self.with_cursor(self.active_hand, cursor_after)
         state = state.with_last_attack_end(self.active_hand, cursor_after)
-        state = state.with_static_position(self.active_hand, static_position)
+        if static_position is not None:
+            state = state.with_static_position(self.active_hand, static_position)
         state = state.with_last_onset(
             self.active_hand,
             OnsetState(
@@ -338,6 +341,15 @@ class GenerationConstraintState:
             scale_type=self.constraints.scale_type,
             hand=self.active_hand,
         )
+
+    def _note_static_position(self, token: NoteToken) -> int | None:
+        if self.constraints.maximum_static_hand_span_degrees is None:
+            return None
+
+        if self.constraints.scale_type is None:
+            raise GenerationConstraintError("requires scale_type constraint for static hand span")
+
+        return note_diatonic_position(token, scale_size=scale_size_for_type(self.constraints.scale_type))
 
     def exceeds_pitch_gap(self, midi_pitch: int | None) -> bool:
         maximum = self.constraints.maximum_pitch_gap_semitones
