@@ -41,13 +41,13 @@ class AccentCell:
 class AccentFieldSampler:
     config: AccentFieldConfig
 
-    def sample(
+    def sample_weights(
         self,
         *,
         bar_count: int,
         grid_count_per_bar: int,
         rng: Generator,
-    ) -> tuple[AccentCell, ...]:
+    ) -> tuple[float, ...]:
         if bar_count <= 0:
             raise ValueError("bar_count must be positive")
 
@@ -71,10 +71,21 @@ class AccentFieldSampler:
             metric_gain=self.config.metric_gain,
             metric_exponent=self.config.metric_exponent,
         )
-        probabilities = expit(logits)
-        onsets = rng.random(size=total_cells) < probabilities
+        probabilities: NDArray[np.float64] = expit(logits)
+        return tuple(float(weight) for weight in probabilities)
 
-        cell_indices = np.arange(total_cells)
+    def sample(
+        self,
+        *,
+        bar_count: int,
+        grid_count_per_bar: int,
+        rng: Generator,
+    ) -> tuple[AccentCell, ...]:
+        weights = self.sample_weights(bar_count=bar_count, grid_count_per_bar=grid_count_per_bar, rng=rng)
+        weights_array = np.asarray(weights, dtype=np.float64)
+        onsets = rng.random(size=weights_array.size) < weights_array
+
+        cell_indices = np.arange(weights_array.size)
         bar_indices = cell_indices // grid_count_per_bar
         positions = cell_indices % grid_count_per_bar
         return tuple(
@@ -84,7 +95,7 @@ class AccentFieldSampler:
                 onset=bool(onset),
                 weight=float(weight),
             )
-            for bar_index, position, onset, weight in zip(bar_indices, positions, onsets, probabilities, strict=True)
+            for bar_index, position, onset, weight in zip(bar_indices, positions, onsets, weights, strict=True)
         )
 
 

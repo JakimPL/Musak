@@ -32,6 +32,9 @@ def sounding_windows(
     while window_start < total_duration:
         next_bar_boundary = (window_start // measure_duration + 1) * measure_duration
         window_end = min(window_start + window_value, next_bar_boundary, total_duration)
+        if window_end <= window_start:
+            break
+
         weights: dict[int, Fraction] = {}
         for event_start, event_end, event_pitch_class in events:
             overlap = min(event_end, window_end) - max(event_start, window_start)

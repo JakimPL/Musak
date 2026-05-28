@@ -31,6 +31,7 @@ def vocabulary() -> ChordVocabularyConfig:
 
 
 _WHOLE_NOTE_RESOLUTION = 1
+_HALF_NOTE_RESOLUTION = 2
 _QUARTER_NOTE_RESOLUTION = 4
 
 
@@ -59,7 +60,13 @@ def _melody(notes: list[NoteSpec], *, duration_id: int) -> list[Token]:
     ]
 
 
-def _segment(bars: list[list[Token]], *, scale_type: ScaleType) -> Segment:
+def _segment(
+    bars: list[list[Token]],
+    *,
+    scale_type: ScaleType,
+    time_numerator: int = 4,
+    time_denominator: int = 4,
+) -> Segment:
     tokens: list[Token] = [HandToken(hand=Hand.RIGHT)]
     for bar_tokens in bars:
         tokens.extend(bar_tokens)
@@ -70,8 +77,8 @@ def _segment(bars: list[list[Token]], *, scale_type: ScaleType) -> Segment:
         metadata=SegmentMetadata(
             scale_root=0,
             scale_type=scale_type,
-            time_numerator=4,
-            time_denominator=4,
+            time_numerator=time_numerator,
+            time_denominator=time_denominator,
             bar_count=len(bars),
             window_start_bar=0,
             source_file=Path("sample.mxl"),
@@ -179,3 +186,26 @@ def test_beat_resolution_produces_one_window_per_beat(
 
     assert len(track) == 4
     assert [window.start for window in track] == [Fraction(0), Fraction(1, 4), Fraction(1, 2), Fraction(3, 4)]
+
+
+def test_odd_meter_truncates_chord_windows_at_barlines(
+    duration_vocabulary: DurationVocabulary,
+    vocabulary: ChordVocabularyConfig,
+) -> None:
+    quarter = duration_vocabulary.require_duration_id(Fraction(1, 4))
+    segment = _segment(
+        [_melody([(1, 0, 0), (3, 0, 0), (5, 0, 0)], duration_id=quarter)],
+        scale_type=ScaleType.MAJOR,
+        time_numerator=3,
+        time_denominator=4,
+    )
+
+    track = _decoder(_HALF_NOTE_RESOLUTION).decode(
+        segment, duration_vocabulary=duration_vocabulary, vocabulary=vocabulary
+    )
+
+    assert [(window.start, window.end) for window in track] == [
+        (Fraction(0), Fraction(1, 2)),
+        (Fraction(1, 2), Fraction(3, 4)),
+    ]
+    assert all(window.end > window.start for window in track)

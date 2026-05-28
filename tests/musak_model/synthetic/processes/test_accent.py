@@ -98,6 +98,35 @@ def test_sample_rejects_non_positive_dimensions() -> None:
         sampler.sample(bar_count=2, grid_count_per_bar=0, rng=default_rng(0))
 
 
+def test_sample_weights_returns_only_weights_in_unit_interval() -> None:
+    sampler = AccentFieldSampler(config=AccentFieldConfig.load())
+
+    weights = sampler.sample_weights(bar_count=4, grid_count_per_bar=16, rng=default_rng(0))
+
+    assert len(weights) == 64
+    assert all(isinstance(weight, float) for weight in weights)
+    assert all(0.0 <= weight <= 1.0 for weight in weights)
+
+
+def test_sample_weights_matches_sample_cell_weights() -> None:
+    sampler = AccentFieldSampler(config=AccentFieldConfig.load())
+
+    weights = sampler.sample_weights(bar_count=2, grid_count_per_bar=8, rng=default_rng(13))
+    cells = sampler.sample(bar_count=2, grid_count_per_bar=8, rng=default_rng(13))
+
+    assert weights == tuple(cell.weight for cell in cells)
+
+
+def test_sample_weights_rejects_non_positive_dimensions() -> None:
+    sampler = AccentFieldSampler(config=_config())
+
+    with pytest.raises(ValueError, match="bar_count"):
+        sampler.sample_weights(bar_count=0, grid_count_per_bar=4, rng=default_rng(0))
+
+    with pytest.raises(ValueError, match="grid_count_per_bar"):
+        sampler.sample_weights(bar_count=2, grid_count_per_bar=0, rng=default_rng(0))
+
+
 def test_config_rejects_negative_metric_gain() -> None:
     with pytest.raises(ValidationError):
         _config(metric_gain=-0.1)
