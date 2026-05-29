@@ -281,16 +281,14 @@ class SegmentGenerator:
                     state=state, tokens=tokens, hand=hand, duration=onset_time - cursor
                 )
 
-            anchor = int(curve[fired_cell_index])
-            next_cell_index = min(fired_cell_index + 1, len(curve) - 1)
             placement = self._place_one_figure(
                 state=state,
                 hand=hand,
                 entries_by_group=entries_by_group,
                 scale_type=scale_type,
                 chord_pitch_classes=chord_pitch_classes,
-                anchor=anchor,
-                target_slope=int(curve[next_cell_index]) - anchor,
+                curve=curve,
+                fired_cell_index=fired_cell_index,
                 envelope_value=accent[fired_cell_index].weight,
                 remaining=bar_end - state.cursor(hand),
                 rng=rng,
@@ -337,14 +335,17 @@ class SegmentGenerator:
         entries_by_group: FigureEntriesByGroup,
         scale_type: ScaleType,
         chord_pitch_classes: frozenset[int],
-        anchor: int,
-        target_slope: int,
+        curve: tuple[int, ...],
+        fired_cell_index: int,
         envelope_value: float,
         remaining: Fraction,
         rng: Generator,
     ) -> tuple[GenerationConstraintState, list[Token]] | None:
+        anchor = int(curve[fired_cell_index])
         for _ in range(self.substitution_config.max_resample_retries):
             figure_length = int(rng.choice(self.figure_lengths))
+            span_cell_index = min(fired_cell_index + figure_length - 1, len(curve) - 1)
+            target_slope = int(curve[span_cell_index]) - anchor
             entries = entries_by_group.get((hand, figure_length), ())
             candidate_bases = self.base_duration_distribution.candidates(
                 scale_type=scale_type, hand=hand, figure_length=figure_length

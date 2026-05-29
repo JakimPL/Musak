@@ -53,7 +53,16 @@ def tilted_log_probabilities(
         count=len(entries),
     )
     accent_scores = np.fromiter(
-        (accent_fit(figure=entry.figure, envelope_value=envelope_value) for entry in entries),
+        (
+            accent_fit(
+                figure=entry.figure,
+                anchor=anchor,
+                scale_type=scale_type,
+                chord_pitch_classes=chord_pitch_classes,
+                envelope_value=envelope_value,
+            )
+            for entry in entries
+        ),
         dtype=np.float64,
         count=len(entries),
     )

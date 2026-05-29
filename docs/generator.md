@@ -287,7 +287,8 @@ $$p\bigl(f \mid \text{group},\, P_i,\, \lambda,\, C\bigr) \;\propto\; \underbrac
 
 where $p_{\text{emp}}(f \mid \text{group})$ is the empirical figure distribution at the group
 $(\text{scale}, \text{hand}, n)$, $S(f, P_i)$ is a slope-fit score comparing the figure's net contour
-($\sum$ relative steps across the figure's onsets) to the local slope of the register curve, $H(f, C, m)$
+— the net diatonic displacement of its lowest voice from first onset to last — to the register curve's
+change over the figure's span (one grid cell per onset), $H(f, C, m)$
 is a harmonic-fit score comparing the figure's concrete pitches (after anchoring to $P_i$) to the chord
 tones of $C$ at a weight that depends on the figure's metrical position $m$ in the bar — chord tones
 rewarded on strong beats, non-chord tones permitted and indeed favoured on weak beats *between* chord

@@ -1,14 +1,10 @@
 from collections import Counter
 from fractions import Fraction
 from pathlib import Path
-from random import Random
-
-import pytest
 
 from musak_model.n_grams.figure.schema import FigureNGram
 from musak_model.n_grams.profile.io import write_figure_counts
 from musak_model.synthetic.figures import (
-    FigureVocabulary,
     load_figure_split_vocabulary,
     load_figure_vocabulary,
     resolve_figure_counts_path,
@@ -79,29 +75,6 @@ def test_figure_vocabulary_reports_count_weighted_length_distribution(tmp_path: 
     vocabulary = load_figure_vocabulary(_write_counts(tmp_path / "counts.parquet"))
 
     assert vocabulary.length_distribution() == {2: 0.6, 3: 0.4}
-
-
-def test_figure_vocabulary_samples_with_commonness_bias() -> None:
-    common = FigureNGram(onsets=((((0, 0),), Fraction(1)),))
-    rare = FigureNGram(onsets=((((1, 0),), Fraction(1)),))
-    vocabulary = FigureVocabulary.from_counts(
-        {
-            ScaleType.MAJOR: {
-                Hand.RIGHT: {
-                    1: Counter({common: 100, rare: 1}),
-                }
-            }
-        }
-    )
-
-    sample = vocabulary.sample(rng=Random(0), commonness_bias=1.0)
-
-    assert sample.figure == common
-
-
-def test_figure_vocabulary_rejects_empty_sampling() -> None:
-    with pytest.raises(ValueError, match="empty"):
-        FigureVocabulary(entries=()).sample(rng=Random(0))
 
 
 def _write_counts(path: Path) -> Path:

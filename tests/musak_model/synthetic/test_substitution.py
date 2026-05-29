@@ -150,9 +150,9 @@ def test_harm_fit_counts_chord_tone_fraction() -> None:
 def test_accent_fit_scales_with_envelope_value() -> None:
     figure = _figure([0, 2])
 
-    assert accent_fit(figure=figure, envelope_value=0.0) == 0.0
-    half = accent_fit(figure=figure, envelope_value=0.5)
-    full = accent_fit(figure=figure, envelope_value=1.0)
+    assert _rhythm_accent_fit(figure, envelope_value=0.0) == 0.0
+    half = _rhythm_accent_fit(figure, envelope_value=0.5)
+    full = _rhythm_accent_fit(figure, envelope_value=1.0)
     assert full == 2 * half
 
 
@@ -161,18 +161,48 @@ def test_accent_fit_prefers_front_loaded_over_uniform() -> None:
     front_loaded = _figure([0, 1], durations=[Fraction(2), Fraction(1)])
     back_loaded = _figure([0, 1], durations=[Fraction(1), Fraction(2)])
 
-    envelope_value = 1.0
-    uniform_score = accent_fit(figure=uniform, envelope_value=envelope_value)
-    front_score = accent_fit(figure=front_loaded, envelope_value=envelope_value)
-    back_score = accent_fit(figure=back_loaded, envelope_value=envelope_value)
+    uniform_score = _rhythm_accent_fit(uniform, envelope_value=1.0)
+    front_score = _rhythm_accent_fit(front_loaded, envelope_value=1.0)
+    back_score = _rhythm_accent_fit(back_loaded, envelope_value=1.0)
 
     assert front_score > uniform_score > back_score
 
 
 def test_accent_fit_handles_single_onset_figure() -> None:
-    single = _figure([0])
+    assert _rhythm_accent_fit(_figure([0]), envelope_value=0.7) == 0.7
 
-    assert accent_fit(figure=single, envelope_value=0.7) == 0.7
+
+def test_accent_fit_rewards_chord_tone_on_strong_onset() -> None:
+    chord_pcs = frozenset({0, 4, 7})
+    chord_tone_on_strong = _figure([0, 1])
+    chord_tone_on_weak = _figure([1, 0])
+
+    strong_score = accent_fit(
+        figure=chord_tone_on_strong,
+        anchor=0,
+        scale_type=ScaleType.MAJOR,
+        chord_pitch_classes=chord_pcs,
+        envelope_value=1.0,
+    )
+    weak_score = accent_fit(
+        figure=chord_tone_on_weak,
+        anchor=0,
+        scale_type=ScaleType.MAJOR,
+        chord_pitch_classes=chord_pcs,
+        envelope_value=1.0,
+    )
+
+    assert strong_score > weak_score
+
+
+def _rhythm_accent_fit(figure: FigureNGram, *, envelope_value: float) -> float:
+    return accent_fit(
+        figure=figure,
+        anchor=0,
+        scale_type=ScaleType.MAJOR,
+        chord_pitch_classes=frozenset(),
+        envelope_value=envelope_value,
+    )
 
 
 def test_chord_pitch_class_set_matches_expansion() -> None:

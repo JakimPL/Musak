@@ -1,10 +1,7 @@
 from __future__ import annotations
 
-from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from random import Random
-from typing import Final
 
 from musak_model.n_grams.figure.samples.schema import FigureNGramCountsByScale
 from musak_model.n_grams.figure.schema import FigureNGram
@@ -12,8 +9,6 @@ from musak_model.n_grams.profile.artifacts import FIGURE_ALL_DIR_NAME, FIGURE_CO
 from musak_model.n_grams.profile.io import read_figure_counts
 from musak_model.paths import DEFAULT_TRAINING_FIGURE_DIR
 from musak_model.tokens.schema import Hand, ScaleType
-
-_DEFAULT_COMMONNESS_BIAS: Final[float] = 1.0
 
 
 @dataclass(frozen=True)
@@ -104,21 +99,6 @@ class FigureVocabulary:
 
         return {n: count / total_count for n, count in sorted(totals.items())}
 
-    def sample(
-        self,
-        *,
-        rng: Random,
-        commonness_bias: float = _DEFAULT_COMMONNESS_BIAS,
-    ) -> FigureVocabularyEntry:
-        if commonness_bias < 0:
-            raise ValueError("commonness_bias must be non-negative")
-
-        if not self.entries:
-            raise ValueError("cannot sample from an empty figure vocabulary")
-
-        weights = tuple(_entry_weight(entry, commonness_bias=commonness_bias) for entry in self.entries)
-        return _weighted_choice(self.entries, weights=weights, rng=rng)
-
 
 def load_figure_vocabulary(path: Path) -> FigureVocabulary:
     return FigureVocabulary.from_counts(read_figure_counts(resolve_figure_counts_path(path)))
@@ -170,33 +150,3 @@ def _entry_matches(
         and (chords_only is None or entry.figure.chords_only == chords_only)
         and (in_scale is None or entry.figure.in_scale == in_scale)
     )
-
-
-def _entry_weight(entry: FigureVocabularyEntry, *, commonness_bias: float) -> float:
-    if commonness_bias == 0:
-        return 1.0
-
-    return float(pow(float(entry.count), commonness_bias))
-
-
-def _weighted_choice(
-    entries: tuple[FigureVocabularyEntry, ...],
-    *,
-    weights: Iterable[float],
-    rng: Random,
-) -> FigureVocabularyEntry:
-    cumulative_weights: list[float] = []
-    total_weight = 0.0
-    for weight in weights:
-        total_weight += weight
-        cumulative_weights.append(total_weight)
-
-    if total_weight <= 0:
-        raise ValueError("cannot sample from figure vocabulary with no positive weights")
-
-    threshold = rng.random() * total_weight
-    for index, cumulative_weight in enumerate(cumulative_weights):
-        if threshold < cumulative_weight:
-            return entries[index]
-
-    return entries[-1]

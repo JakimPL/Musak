@@ -30,6 +30,7 @@ class CalibrationConfig(BaseModel):
     lambda_curve: tuple[float, ...]
     lambda_harm: tuple[float, ...]
     lambda_accent: tuple[float, ...]
+    target_total_variation_distance: float = Field(default=0.1, ge=0.0, le=1.0)
 
     @model_validator(mode="after")
     def _validate(self) -> CalibrationConfig:
