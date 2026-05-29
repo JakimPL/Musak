@@ -44,7 +44,11 @@ def musical_metrics(
     return metrics
 
 
-def _onset_pitches_by_hand(segment: Segment, *, duration_vocabulary: DurationVocabulary) -> dict[Hand, OnsetPitches]:
+def _onset_pitches_by_hand(
+    segment: Segment,
+    *,
+    duration_vocabulary: DurationVocabulary,
+) -> dict[Hand, OnsetPitches]:
     runs_by_hand = extract_hand_onset_runs(
         segment.tokens,
         duration_vocabulary=duration_vocabulary,
