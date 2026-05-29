@@ -179,10 +179,11 @@ def test_processing_tracker_logs_figure_artifacts_in_same_run(
     all_dir = figure_dir / "all"
     config_path = figure_dir / "config.yml"
     counts_path = all_dir / "counts.csv"
+    base_durations_path = all_dir / "base_durations.csv"
     profile_path = all_dir / "profile.json"
     by_sample_path = figure_dir / "by_sample.jsonl"
     extra_output_path = tmp_path / "analysis" / "figures.csv"
-    for path in (config_path, counts_path, profile_path, by_sample_path, extra_output_path):
+    for path in (config_path, counts_path, base_durations_path, profile_path, by_sample_path, extra_output_path):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("", encoding="utf-8")
     figure_result = FigureExtractionResult(
@@ -192,6 +193,7 @@ def test_processing_tracker_logs_figure_artifacts_in_same_run(
             all_directory=all_dir,
             profile_path=profile_path,
             counts_path=counts_path,
+            base_durations_path=base_durations_path,
             by_sample_path=by_sample_path,
         ),
         encoded_sample_count=12,

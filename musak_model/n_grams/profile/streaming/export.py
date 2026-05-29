@@ -1,9 +1,8 @@
 import csv
-import shutil
 from collections.abc import Iterator
-from fractions import Fraction
 from pathlib import Path
 
+from musak_model.n_grams.config import NGramAnalysisConfig
 from musak_model.n_grams.figure.signature import figure_signature_from_json, figure_signature_to_ngram
 from musak_model.n_grams.profile.artifacts import FigureArtifactPaths
 from musak_model.n_grams.profile.io import (
@@ -28,6 +27,7 @@ from musak_model.n_grams.profile.streaming.store import FigureWorkStore
 from musak_model.n_grams.profile.streaming.totals import figure_group_totals
 from musak_model.processing.io import JSON_INDENT
 from musak_model.tokens.schema import Hand, ScaleType
+from musak_shared.files import write_yaml_config
 
 
 def export_figure_artifacts(
@@ -35,25 +35,19 @@ def export_figure_artifacts(
     *,
     artifact_paths: FigureArtifactPaths,
     output_path: Path | None,
-    analysis_config_path: Path,
-    min_n: int,
-    max_n: int,
-    rhythm_min_n: int,
-    rhythm_max_n: int,
-    grid_alignment_denominators: tuple[int, ...],
-    strong_beat_offsets: tuple[Fraction, ...],
+    config: NGramAnalysisConfig,
     limit_per_group: int | None,
 ) -> FigureStoreSummary:
-    profile = profile_from_store(store, min_n=min_n, max_n=max_n)
+    profile = profile_from_store(store, min_n=config.min_n, max_n=config.max_n)
     rhythm_counts = rhythm_counts_from_store(store)
     rhythm_paths = rhythm_artifact_paths_for_figure_root(artifact_paths.root_directory)
     rhythm_profile = build_rhythm_profile(
         rhythm_counts,
         metadata=RhythmProfileMetadata(
-            rhythm_min_n=rhythm_min_n,
-            rhythm_max_n=rhythm_max_n,
-            grid_alignment_denominators=grid_alignment_denominators,
-            strong_beat_offsets=strong_beat_offsets,
+            rhythm_min_n=config.rhythm_min_n,
+            rhythm_max_n=config.rhythm_max_n,
+            grid_alignment_denominators=config.grid_alignment_denominators,
+            strong_beat_offsets=config.strong_beat_offsets,
             sample_count=store.encoded_sample_count(),
         ),
     )
@@ -63,7 +57,7 @@ def export_figure_artifacts(
     write_rhythm_counts_csv(rhythm_counts, rhythm_paths.counts_path)
     write_rhythm_profile(rhythm_profile, rhythm_paths.profile_path)
     write_profile_atomically(profile, artifact_paths.profile_path)
-    copy_file_atomically(analysis_config_path, artifact_paths.config_path)
+    write_yaml_config(config.model_dump(mode="json"), artifact_paths.config_path)
     if output_path is not None:
         export_counts_csv(store, output_path, limit_per_group=limit_per_group)
 
@@ -171,16 +165,6 @@ def write_profile_atomically(profile: FigureProfile, path: Path) -> None:
     temp_path = path.with_suffix(f"{path.suffix}.tmp")
     temp_path.write_text(profile.model_dump_json(indent=JSON_INDENT), encoding="utf-8")
     temp_path.replace(path)
-
-
-def copy_file_atomically(source_path: Path, target_path: Path) -> None:
-    target_path.parent.mkdir(parents=True, exist_ok=True)
-    if source_path.resolve() == target_path.resolve():
-        return
-
-    temp_path = target_path.with_suffix(f"{target_path.suffix}.tmp")
-    shutil.copyfile(source_path, temp_path)
-    temp_path.replace(target_path)
 
 
 def _iter_store_counts(store: FigureWorkStore) -> Iterator[tuple[FigureCountKey, int]]:

@@ -25,7 +25,6 @@ def build_split_artifacts(
     split_name: str,
     split_directory: Path,
     config: NGramAnalysisConfig,
-    config_path: Path,
     tokenization_config: TokenizationConfig,
     state_key: str,
     show_progress: bool,
@@ -61,13 +60,7 @@ def build_split_artifacts(
             store,
             artifact_paths=paths,
             output_path=None,
-            analysis_config_path=config_path,
-            min_n=config.min_n,
-            max_n=config.max_n,
-            rhythm_min_n=config.rhythm_min_n,
-            rhythm_max_n=config.rhythm_max_n,
-            grid_alignment_denominators=config.grid_alignment_denominators,
-            strong_beat_offsets=config.strong_beat_offsets,
+            config=config,
             limit_per_group=None,
         )
 

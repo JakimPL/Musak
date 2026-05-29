@@ -41,7 +41,6 @@ def extract_figure_artifacts(
         config=config,
         snapshot=snapshot,
         output_path=output_path,
-        analysis_config_path=analysis_config_path,
         show_progress=show_progress,
         overwrite=overwrite,
         resume=resume,

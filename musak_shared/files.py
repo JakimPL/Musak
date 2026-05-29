@@ -24,6 +24,13 @@ def load_yaml_config(path: Path) -> dict[str, Any]:
     return parsed
 
 
+def write_yaml_config(data: dict[str, Any], path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path = path.with_suffix(f"{path.suffix}.tmp")
+    temp_path.write_text(yaml.safe_dump(data, sort_keys=True), encoding="utf-8")
+    temp_path.replace(path)
+
+
 def line_count(path: Path) -> int:
     if not path.exists():
         return 0

@@ -29,7 +29,6 @@ def extract_streaming_figure_artifacts(
     config: NGramAnalysisConfig,
     snapshot: TokenizerSnapshot,
     output_path: Path | None,
-    analysis_config_path: Path,
     show_progress: bool,
     overwrite: bool,
     resume: bool,
@@ -61,13 +60,7 @@ def extract_streaming_figure_artifacts(
             store,
             artifact_paths=artifact_paths,
             output_path=output_path,
-            analysis_config_path=analysis_config_path,
-            min_n=config.min_n,
-            max_n=config.max_n,
-            rhythm_min_n=config.rhythm_min_n,
-            rhythm_max_n=config.rhythm_max_n,
-            grid_alignment_denominators=config.grid_alignment_denominators,
-            strong_beat_offsets=config.strong_beat_offsets,
+            config=config,
             limit_per_group=config.limit_per_group,
         )
         _LOGGER.info("Exported figure artifacts in %.1fs", perf_counter() - started_at)
