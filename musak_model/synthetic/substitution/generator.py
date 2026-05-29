@@ -13,6 +13,7 @@ from musak_model.generation.constraints import (
 from musak_model.synthetic.figures import FigureVocabulary
 from musak_model.synthetic.harmony.expansion import chord_pitch_class_set
 from musak_model.synthetic.harmony.vocabulary import ChordVocabularyConfig
+from musak_model.synthetic.processes.accent import AccentFieldSampler
 from musak_model.synthetic.processes.chord_track import ChordTrackSampler
 from musak_model.synthetic.processes.pitch import RegisterCurveSampler
 from musak_model.synthetic.substitution.config import SubstitutionConfig
@@ -29,6 +30,7 @@ from musak_model.tokens.schema import BarToken, EndToken, Hand, HandToken, Scale
 class SegmentGenerator:
     substitution_config: SubstitutionConfig
     register_curve_sampler: RegisterCurveSampler
+    accent_field_sampler: AccentFieldSampler
     chord_track_sampler: ChordTrackSampler
     chord_vocabulary: ChordVocabularyConfig
     figure_vocabulary: FigureVocabulary
@@ -66,6 +68,16 @@ class SegmentGenerator:
             hand=Hand.LEFT,
             rng=rng,
         )
+        right_envelope = self.accent_field_sampler.sample_weights(
+            bar_count=bar_count,
+            grid_count_per_bar=1,
+            rng=rng,
+        )
+        left_envelope = self.accent_field_sampler.sample_weights(
+            bar_count=bar_count,
+            grid_count_per_bar=1,
+            rng=rng,
+        )
         chord_track = self.chord_track_sampler.sample(
             length=bar_count,
             rng=rng,
@@ -79,7 +91,10 @@ class SegmentGenerator:
                 scale_type=scale_type,
                 vocabulary=self.chord_vocabulary,
             )
-            for hand, curve in ((Hand.RIGHT, right_curve), (Hand.LEFT, left_curve)):
+            for hand, curve, envelope in (
+                (Hand.RIGHT, right_curve, right_envelope),
+                (Hand.LEFT, left_curve, left_envelope),
+            ):
                 anchor = int(curve[bar_index])
                 next_anchor = int(curve[bar_index + 1]) if bar_index + 1 < bar_count else anchor
                 state, tokens = self._append(state, tokens, HandToken(hand=hand))
@@ -92,6 +107,7 @@ class SegmentGenerator:
                     chord_pitch_classes=chord_pcs,
                     anchor=anchor,
                     target_slope=next_anchor - anchor,
+                    envelope_value=envelope[bar_index],
                     rng=rng,
                 )
             state, tokens = self._append(state, tokens, BarToken())
@@ -122,6 +138,7 @@ class SegmentGenerator:
         chord_pitch_classes: frozenset[int],
         anchor: int,
         target_slope: int,
+        envelope_value: float,
         rng: Generator,
     ) -> tuple[GenerationConstraintState, list[Token]]:
         for _ in range(self.substitution_config.max_resample_retries):
@@ -145,7 +162,7 @@ class SegmentGenerator:
                 target_slope=target_slope,
                 scale_type=scale_type,
                 chord_pitch_classes=chord_pitch_classes,
-                envelope_value=0.0,
+                envelope_value=envelope_value,
                 config=self.substitution_config,
                 rng=rng,
             )

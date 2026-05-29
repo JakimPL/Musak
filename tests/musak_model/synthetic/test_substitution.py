@@ -14,6 +14,7 @@ from musak_model.synthetic.figures import FigureVocabulary
 from musak_model.synthetic.harmony.expansion import chord_pitch_class_set
 from musak_model.synthetic.harmony.schema import Chord, ChordQuality
 from musak_model.synthetic.harmony.vocabulary import ChordVocabularyConfig
+from musak_model.synthetic.processes.accent import AccentFieldConfig, AccentFieldSampler
 from musak_model.synthetic.processes.chord_track import ChordTrackSampler, uniform_transition_model
 from musak_model.synthetic.processes.pitch import RegisterCurveConfig, RegisterCurveSampler
 from musak_model.synthetic.substitution import (
@@ -46,6 +47,19 @@ def _major_vocabulary(figures_by_n_per_hand: dict[Hand, dict[int, list[FigureNGr
         }
     }
     return FigureVocabulary.from_counts(counts)
+
+
+def _flat_accent_field_sampler() -> AccentFieldSampler:
+    return AccentFieldSampler(
+        config=AccentFieldConfig(
+            baseline_logit=0.0,
+            metric_gain=0.0,
+            metric_exponent=1.0,
+            envelope_basis_count=3,
+            envelope_amplitude=0.0,
+            envelope_decay=1.0,
+        )
+    )
 
 
 def test_is_monorhythmic_detects_equal_normalized_durations() -> None:
@@ -246,6 +260,7 @@ def test_segment_generator_produces_constraint_valid_segment(
             lambda_curve=0.0, lambda_harm=0.0, lambda_accent=0.0, commonness_bias=1.0, max_resample_retries=4
         ),
         register_curve_sampler=register_curve_sampler,
+        accent_field_sampler=_flat_accent_field_sampler(),
         chord_track_sampler=chord_track_sampler,
         chord_vocabulary=ChordVocabularyConfig.load(),
         figure_vocabulary=vocabulary,
@@ -295,6 +310,7 @@ def test_segment_generator_is_deterministic_for_a_given_seed(
                 ou_sigma=0.5,
             )
         ),
+        accent_field_sampler=_flat_accent_field_sampler(),
         chord_track_sampler=ChordTrackSampler(
             model=uniform_transition_model((Chord(root_degree=1, root_accidental=0, quality=ChordQuality.MAJOR),))
         ),
