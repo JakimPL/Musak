@@ -34,7 +34,13 @@ from musak_model.n_grams.profile.metrics.reference.distribution import figure_re
 from musak_model.n_grams.profile.rhythm.extraction import count_segment_rhythm_metrics
 from musak_model.n_grams.profile.rhythm.io import read_rhythm_counts
 from musak_model.n_grams.profile.rhythm.metrics import rhythm_reference_distribution_metrics
-from musak_model.n_grams.profile.rhythm.schema import RhythmCountCounter, RhythmCountKey, RhythmMetricKind
+from musak_model.n_grams.profile.rhythm.schema import (
+    RHYTHM_COUNTS_NAME,
+    RHYTHM_DIR_NAME,
+    RhythmCountCounter,
+    RhythmCountKey,
+    RhythmMetricKind,
+)
 from musak_model.paths import MODEL_CONFIG_DIR
 from musak_model.tokens.config import TokenizationConfig
 from musak_model.tokens.duration import DurationVocabulary
@@ -642,7 +648,7 @@ def load_rhythm_reference_counts(path: Path) -> RhythmCountCounter:
 
 
 def rhythm_reference_counts_path(figure_counts_path: Path) -> Path:
-    return figure_counts_path.parent.parent / "rhythm" / "counts.csv"
+    return figure_counts_path.parent.parent / RHYTHM_DIR_NAME / RHYTHM_COUNTS_NAME
 
 
 def rhythm_reference_alignment_metric_rows(

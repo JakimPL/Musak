@@ -388,7 +388,7 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "--analysis-output",
         type=Path,
         default=None,
-        help="Optional extra figure n-gram CSV output path.",
+        help="Optional extra figure n-gram table output path (parquet or csv by suffix).",
     )
     parser.add_argument(
         "--skip-figure-analysis",

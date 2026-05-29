@@ -1,9 +1,9 @@
-import csv
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Final
 
 from musak_model.synthetic.calibration.schema import SweepResult
+from musak_shared.files import write_csv_rows
 
 _COLUMNS: Final = (
     "lambda_curve",
@@ -15,17 +15,19 @@ _COLUMNS: Final = (
 
 
 def write_sweep_results(results: Sequence[SweepResult], path: Path) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8", newline="") as file:
-        writer = csv.writer(file, delimiter="\t")
-        writer.writerow(_COLUMNS)
-        for result in results:
-            writer.writerow(
-                [
-                    result.lambda_curve,
-                    result.lambda_harm,
-                    result.lambda_accent,
-                    result.distribution_groups,
-                    "" if result.mean_total_variation_distance is None else result.mean_total_variation_distance,
-                ]
-            )
+    write_csv_rows(
+        path,
+        columns=_COLUMNS,
+        rows=(
+            {
+                "lambda_curve": result.lambda_curve,
+                "lambda_harm": result.lambda_harm,
+                "lambda_accent": result.lambda_accent,
+                "distribution_groups": result.distribution_groups,
+                "mean_total_variation_distance": (
+                    "" if result.mean_total_variation_distance is None else result.mean_total_variation_distance
+                ),
+            }
+            for result in results
+        ),
+    )

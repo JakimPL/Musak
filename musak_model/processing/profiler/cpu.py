@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import cProfile
-import csv
 import pstats
 from pathlib import Path
 from typing import Final
+
+from musak_shared.files import write_csv_rows
 
 _CPU_PROFILE_STATS_NAME: Final[str] = "cpu_profile.pstats"
 _CPU_PROFILE_TABLE_NAME: Final[str] = "cpu_profile_top.txt"
@@ -41,21 +42,19 @@ def _write_function_stats(stats: pstats.StatsProfile, path: Path) -> None:
         key=lambda row: row["cumulative_seconds"],
         reverse=True,
     )
-    with path.open("w", encoding="utf-8", newline="") as file:
-        writer = csv.DictWriter(
-            file,
-            fieldnames=[
-                "function",
-                "file",
-                "line",
-                "calls",
-                "total_seconds",
-                "cumulative_seconds",
-                "per_call_seconds",
-            ],
-        )
-        writer.writeheader()
-        writer.writerows(rows)
+    write_csv_rows(
+        path,
+        columns=(
+            "function",
+            "file",
+            "line",
+            "calls",
+            "total_seconds",
+            "cumulative_seconds",
+            "per_call_seconds",
+        ),
+        rows=rows,
+    )
 
 
 def _function_row(

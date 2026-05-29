@@ -36,7 +36,7 @@ constraints. Avoid a single aggregate quality score until the separate distribut
 - Contour distribution and normalized duration-shape distribution.
 
 Current implemented figure comparisons cover aggregate property-rate errors and direct figure identity distribution
-distance against canonical `figure/all/counts.csv` artifacts. Training generation evaluation logs these when figure
+distance against canonical `figure/all/counts.parquet` artifacts. Training generation evaluation logs these when figure
 artifacts are available, and the model output explorer shows generated-output figure metrics for notebook inspection.
 
 ### Rhythm and Meter

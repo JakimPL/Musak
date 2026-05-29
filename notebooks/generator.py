@@ -57,14 +57,14 @@ def _(DEFAULT_PROCESSED_ROOT, mo):
         initial_path=DEFAULT_PROCESSED_ROOT if DEFAULT_PROCESSED_ROOT.exists() else ".",
         selection_mode="directory",
         multiple=False,
-        label="Figure artifact directory (containing counts.csv and base_durations.csv)",
+        label="Figure artifact directory (containing counts.parquet and base_durations.parquet)",
     )
     setup_output = mo.vstack(
         [
             mo.md("## Setup"),
             mo.md(
                 "Browse into a dataset's figure artifacts and select the directory holding "
-                "`counts.csv` and `base_durations.csv` (e.g. `<encoded>/figure/all`)."
+                "`counts.parquet` and `base_durations.parquet` (e.g. `<encoded>/figure/all`)."
             ),
             figure_directory_browser,
         ],

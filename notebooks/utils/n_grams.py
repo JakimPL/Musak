@@ -4,7 +4,7 @@ from fractions import Fraction
 from pathlib import Path
 from typing import Final
 
-import pandas as pd
+import polars as pl
 
 from musak_model.n_grams.figure.schema import FigureNGram
 from musak_model.n_grams.profile.io import (
@@ -29,6 +29,7 @@ from musak_shared.notation.schema import (
     VexflowDuration,
     VoiceData,
 )
+from musak_shared.tables import read_table
 
 FIGURE_PERCENT_COLUMN: Final[str] = "percent"
 FIGURE_TOTAL_COLUMN: Final[str] = "total_count"
@@ -82,84 +83,93 @@ def analysis_result_files(analysis_dir: Path = DEFAULT_ANALYSIS_DIR) -> list[Pat
     if not analysis_dir.exists():
         return []
 
-    return sorted(path for path in analysis_dir.glob("*.csv") if path.is_file())
+    return sorted(path for path in analysis_dir.glob("*.parquet") if path.is_file())
 
 
-def read_figure_count_frame(path: Path) -> pd.DataFrame:
-    frame = pd.read_csv(path)
+def read_figure_count_frame(path: Path) -> pl.DataFrame:
+    frame = read_table(path)
     _require_figure_count_columns(frame)
-    frame[N_COLUMN] = pd.to_numeric(frame[N_COLUMN], errors="raise").astype(int)
-    frame[COUNT_COLUMN] = pd.to_numeric(frame[COUNT_COLUMN], errors="raise").astype(int)
-    return frame
+    return frame.with_columns(
+        pl.col(N_COLUMN).cast(pl.Int64),
+        pl.col(COUNT_COLUMN).cast(pl.Int64),
+    )
 
 
-def figure_group_summary(frame: pd.DataFrame) -> pd.DataFrame:
-    if frame.empty:
-        return pd.DataFrame(
-            columns=[SCALE_TYPE_COLUMN, HAND_COLUMN, N_COLUMN, FIGURE_TOTAL_COLUMN, FIGURE_UNIQUE_COLUMN]
+def figure_group_summary(frame: pl.DataFrame) -> pl.DataFrame:
+    if frame.is_empty():
+        return pl.DataFrame(
+            schema={
+                SCALE_TYPE_COLUMN: pl.String(),
+                HAND_COLUMN: pl.String(),
+                N_COLUMN: pl.Int64(),
+                FIGURE_TOTAL_COLUMN: pl.Int64(),
+                FIGURE_UNIQUE_COLUMN: pl.UInt32(),
+            }
         )
 
     return (
-        frame.groupby([SCALE_TYPE_COLUMN, HAND_COLUMN, N_COLUMN], dropna=False)
+        frame.group_by([SCALE_TYPE_COLUMN, HAND_COLUMN, N_COLUMN])
         .agg(
-            **{
-                FIGURE_TOTAL_COLUMN: (COUNT_COLUMN, "sum"),
-                FIGURE_UNIQUE_COLUMN: (FIGURE_COLUMN, "count"),
-            }
+            pl.col(COUNT_COLUMN).sum().alias(FIGURE_TOTAL_COLUMN),
+            pl.col(FIGURE_COLUMN).len().alias(FIGURE_UNIQUE_COLUMN),
         )
-        .reset_index()
-        .sort_values([SCALE_TYPE_COLUMN, HAND_COLUMN, N_COLUMN])
+        .sort([SCALE_TYPE_COLUMN, HAND_COLUMN, N_COLUMN])
     )
 
 
 def top_figure_frame(
-    frame: pd.DataFrame,
+    frame: pl.DataFrame,
     *,
     scale_type: str | None,
     hand: str | None,
     n: int | None,
     top_n: int,
-) -> pd.DataFrame:
+) -> pl.DataFrame:
     filtered = figure_filter_frame(frame, scale_type=scale_type, hand=hand, n=n)
     return filtered.head(top_n)
 
 
 def figure_filter_frame(
-    frame: pd.DataFrame,
+    frame: pl.DataFrame,
     *,
     scale_type: str | None,
     hand: str | None,
     n: int | None,
-) -> pd.DataFrame:
+) -> pl.DataFrame:
     filtered = frame
     if scale_type is not None:
-        filtered = filtered[filtered[SCALE_TYPE_COLUMN] == scale_type]
+        filtered = filtered.filter(pl.col(SCALE_TYPE_COLUMN) == scale_type)
     if hand is not None:
-        filtered = filtered[filtered[HAND_COLUMN] == hand]
+        filtered = filtered.filter(pl.col(HAND_COLUMN) == hand)
     if n is not None:
-        filtered = filtered[filtered[N_COLUMN] == n]
+        filtered = filtered.filter(pl.col(N_COLUMN) == n)
 
-    if filtered.empty:
-        return filtered.copy()
+    if filtered.is_empty():
+        return filtered
 
     total = int(filtered[COUNT_COLUMN].sum())
-    result = filtered.sort_values(COUNT_COLUMN, ascending=False).copy()
-    result[FIGURE_PERCENT_COLUMN] = result[COUNT_COLUMN] / max(total, 1)
-    result[FIGURE_LABEL_COLUMN] = [f"#{index + 1}" for index in range(len(result))]
+    result = filtered.sort(COUNT_COLUMN, descending=True, maintain_order=True)
+    result = result.with_columns((pl.col(COUNT_COLUMN) / max(total, 1)).alias(FIGURE_PERCENT_COLUMN))
+    result = result.with_columns(pl.Series(FIGURE_LABEL_COLUMN, [f"#{index + 1}" for index in range(result.height)]))
     return _add_figure_annotations(result)
 
 
-def figure_property_distribution(frame: pd.DataFrame) -> pd.DataFrame:
-    columns = [FIGURE_PROPERTY_COLUMN, FIGURE_PROPERTY_VALUE_COLUMN, COUNT_COLUMN, FIGURE_PERCENT_COLUMN]
-    if frame.empty:
-        return pd.DataFrame(columns=columns)
+def figure_property_distribution(frame: pl.DataFrame) -> pl.DataFrame:
+    schema = {
+        FIGURE_PROPERTY_COLUMN: pl.String(),
+        FIGURE_PROPERTY_VALUE_COLUMN: pl.Boolean(),
+        COUNT_COLUMN: pl.Int64(),
+        FIGURE_PERCENT_COLUMN: pl.Float64(),
+    }
+    if frame.is_empty():
+        return pl.DataFrame(schema=schema)
 
     annotated = _add_figure_annotations(frame)
     total = int(annotated[COUNT_COLUMN].sum())
     rows: list[dict[str, object]] = []
     for property_column in _FIGURE_PROPERTY_COLUMNS:
         for value in (True, False):
-            count = int(annotated.loc[annotated[property_column] == value, COUNT_COLUMN].sum())
+            count = int(annotated.filter(pl.col(property_column) == value)[COUNT_COLUMN].sum())
             rows.append(
                 {
                     FIGURE_PROPERTY_COLUMN: property_column,
@@ -169,24 +179,24 @@ def figure_property_distribution(frame: pd.DataFrame) -> pd.DataFrame:
                 }
             )
 
-    return pd.DataFrame(rows, columns=columns)
+    return pl.DataFrame(rows, schema=schema, orient="row")
 
 
 def parse_figure_ngram(value: str) -> FigureNGram:
     return FigureNGram.model_validate_json(value)
 
 
-def _add_figure_annotations(frame: pd.DataFrame) -> pd.DataFrame:
+def _add_figure_annotations(frame: pl.DataFrame) -> pl.DataFrame:
     if all(column in frame.columns for column in (FIGURE_TEXT_COLUMN, *_FIGURE_PROPERTY_COLUMNS)):
-        return frame.copy()
+        return frame
 
-    result = frame.copy()
-    figures = [parse_figure_ngram(str(value)) for value in result[FIGURE_COLUMN]]
-    result[FIGURE_TEXT_COLUMN] = [str(figure) for figure in figures]
-    result[FIGURE_MONOPHONIC_COLUMN] = [figure.monophonic for figure in figures]
-    result[FIGURE_CHORDS_ONLY_COLUMN] = [figure.chords_only for figure in figures]
-    result[FIGURE_IN_SCALE_COLUMN] = [figure.in_scale for figure in figures]
-    return result
+    figures = [parse_figure_ngram(value) for value in frame[FIGURE_COLUMN].to_list()]
+    return frame.with_columns(
+        pl.Series(FIGURE_TEXT_COLUMN, [str(figure) for figure in figures]),
+        pl.Series(FIGURE_MONOPHONIC_COLUMN, [figure.monophonic for figure in figures]),
+        pl.Series(FIGURE_CHORDS_ONLY_COLUMN, [figure.chords_only for figure in figures]),
+        pl.Series(FIGURE_IN_SCALE_COLUMN, [figure.in_scale for figure in figures]),
+    )
 
 
 def figure_ngram_to_score_data(
@@ -236,7 +246,7 @@ def figure_display_unit(
     raise ValueError("figure durations cannot be represented with available VexFlow note values")
 
 
-def _require_figure_count_columns(frame: pd.DataFrame) -> None:
+def _require_figure_count_columns(frame: pl.DataFrame) -> None:
     missing = _FIGURE_COUNT_COLUMNS.difference(frame.columns)
     if missing:
         missing_text = ", ".join(sorted(missing))

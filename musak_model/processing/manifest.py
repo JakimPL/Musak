@@ -8,6 +8,7 @@ from musak_model.data.config import SegmentationMode
 from musak_model.data.schema import ParsedScore, Segment
 from musak_model.evaluation.diagnostics import SegmentDiagnostics
 from musak_model.processing.ids import segment_id
+from musak_shared.files import write_csv_rows
 from musak_shared.ratios import format_ratio
 
 if TYPE_CHECKING:
@@ -396,11 +397,7 @@ def _write_manifest_csv(
     *,
     fieldnames: tuple[str, ...],
 ) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", newline="", encoding="utf-8") as file:
-        writer = csv.DictWriter(file, fieldnames=fieldnames)
-        writer.writeheader()
-        writer.writerows(rows)
+    write_csv_rows(path, columns=fieldnames, rows=rows)
 
 
 def _iter_manifest_csv(path: Path) -> Iterator[dict[str, str]]:

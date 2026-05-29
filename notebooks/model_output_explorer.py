@@ -125,10 +125,10 @@ def _(
     )
     reference_counts_browser = mo.ui.file_browser(
         initial_path=DEFAULT_TRAINING_FIGURE_DIR if DEFAULT_TRAINING_FIGURE_DIR.exists() else ".",
-        filetypes=[".csv"],
+        filetypes=[".parquet"],
         selection_mode="file",
         multiple=False,
-        label="Reference figure counts CSV",
+        label="Reference figure counts (counts.parquet)",
     )
     device = mo.ui.dropdown(options=["cpu", "cuda"], value="cpu", label="Device")
     setup_output = mo.vstack(
@@ -626,10 +626,12 @@ def _(
             selection = selected_file(
                 reference_counts_browser,
                 supported_suffixes=frozenset({".csv"}),
-                description="reference figure counts CSV",
+                description="reference figure counts table",
             )
             if selection.path is None:
-                reference_status = mo.callout(selection.message or "Reference counts CSV is unavailable.", kind="warn")
+                reference_status = mo.callout(
+                    selection.message or "Reference counts table is unavailable.", kind="warn"
+                )
             else:
                 try:
                     reference_groups = figure_reference_count_groups(
@@ -656,7 +658,9 @@ def _(
                             )
                         )
                 except ValueError as exception:
-                    reference_status = mo.callout(f"Reference counts CSV could not be loaded: {exception}", kind="warn")
+                    reference_status = mo.callout(
+                        f"Reference counts table could not be loaded: {exception}", kind="warn"
+                    )
                 else:
                     reference_status = mo.callout(f"Comparing against `{selection.path.name}`.", kind="success")
         detailed_diagnostic_rows = (

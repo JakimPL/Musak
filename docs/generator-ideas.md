@@ -63,7 +63,7 @@ time_signature
 chord_context       # decoded chord + beat-strength at the figure (see Section 4)
 ```
 
-`figure/all/counts.csv` and the existing `FigureProfile` then become **materialized views** — a
+`figure/all/counts.parquet` and the existing `FigureProfile` then become **materialized views** — a
 `groupby(scale_type, hand, n).count()` projection over the fact table. "We can always drop information" becomes
 literally *marginalize over the columns you are not conditioning on*. Parquet handles tens of millions of occurrence
 rows comfortably, and aggregation stays cheap. This decouples *what we gather* from *what we count*.
@@ -450,7 +450,7 @@ stay byte-compatible as projections.
   new fields from `HandOnsetRun` / `PitchedOnset` / `SegmentMetadata`.
 - **Promote SQLite to durable** (`store.py`, `export.py`, `artifacts.py`): rename the durable DB (e.g.
   `figures.sqlite3`), stop deleting it in `clear_figure_work`, keep resume/state-key logic. `export_counts_csv` /
-  `profile_from_store` aggregate (`GROUP BY scale_type, hand, n, figure`) so `counts.csv` / `profile.json` are
+  `profile_from_store` aggregate (`GROUP BY scale_type, hand, n, figure`) so `counts.parquet` / `profile.json` are
   unchanged. Add a thin read API (`FigureReferenceStore`) exposing marginal/conditional queries for the generator.
 - **Unify counting**: `analyze-n-grams` and `pretrain` already share the single `count_sample_figure_signatures`
   worker, so both now write the enriched schema with no further work. Deleting the parallel
@@ -460,7 +460,7 @@ stay byte-compatible as projections.
   `FigureNGramCountsByScale` is used by `profile/io.py` and `synthetic/figures.py`).
 
 **Verify**: existing `test_io.py` round-trips pass; new tests assert the enriched key round-trips and the CSV projection
-equals the pre-change CSV; `make analyze-n-grams` leaves `counts.csv`/`profile.json` unchanged while the `.db` gains
+equals the pre-change CSV; `make analyze-n-grams` leaves `counts.parquet`/`profile.json` unchanged while the `.db` gains
 columns; a tiny `make pretrain` leaves figure metrics unchanged. Move deleted modules' tests in the same change.
 
 ### Phase 3 — Chord decoding from data

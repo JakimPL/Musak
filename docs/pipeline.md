@@ -122,5 +122,5 @@ Use the model output explorer notebook to sample from a checkpoint and inspect g
 make notebook-model-output-explorer
 ```
 
-The explorer can load a reference `figure/all/counts.csv` and display generated figure metrics below the score, player,
+The explorer can load a reference `figure/all/counts.parquet` and display generated figure metrics below the score, player,
 and piano roll. These metrics are for comparison only.

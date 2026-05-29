@@ -13,7 +13,6 @@ def _():
 
     import altair as alt
     import marimo as mo
-    import pandas as pd
 
     from musak_model.n_grams.profile.io import COUNT_COLUMN, HAND_COLUMN, N_COLUMN, SCALE_TYPE_COLUMN
     from musak_model.paths import DEFAULT_ANALYSIS_DIR, DEFAULT_TRAINING_FIGURE_DIR
@@ -61,7 +60,6 @@ def _():
         figure_property_distribution,
         mo,
         parse_figure_ngram,
-        pd,
         read_figure_count_frame,
         score_data_html,
         selected_file,
@@ -90,10 +88,10 @@ def _(DEFAULT_ANALYSIS_DIR, DEFAULT_TRAINING_FIGURE_DIR, mo):
     )
     vocabulary_browser = mo.ui.file_browser(
         initial_path=initial_path,
-        filetypes=[".csv"],
+        filetypes=[".parquet"],
         selection_mode="file",
         multiple=False,
-        label="Figure vocabulary counts CSV",
+        label="Figure counts table (counts.parquet)",
     )
     vocabulary_browser
     return (vocabulary_browser,)
@@ -104,8 +102,8 @@ def _(selected_file, vocabulary_browser):
     result_selection = (
         selected_file(
             vocabulary_browser,
-            supported_suffixes=frozenset({".csv"}),
-            description="figure vocabulary counts CSV",
+            supported_suffixes=frozenset({".parquet"}),
+            description="figure counts table",
         )
         if vocabulary_browser.value
         else None
@@ -128,19 +126,19 @@ def _(mo):
 
 
 @app.cell
-def _(mo, pd, read_figure_count_frame, result_path, result_selection):
+def _(mo, read_figure_count_frame, result_path, result_selection):
     frame = None
     load_error = ""
     if result_path is not None:
         try:
             frame = read_figure_count_frame(result_path)
-        except (FileNotFoundError, ValueError, pd.errors.ParserError) as exception:
+        except (FileNotFoundError, ValueError) as exception:
             load_error = f"{type(exception).__name__}: {exception}"
 
     if result_selection is not None and result_selection.path is None:
-        load_output = mo.callout(result_selection.message or "Figure vocabulary CSV is unavailable.", kind="warn")
+        load_output = mo.callout(result_selection.message or "Figure counts table is unavailable.", kind="warn")
     elif result_path is None:
-        load_output = mo.callout("Select a figure vocabulary counts CSV.", kind="warn")
+        load_output = mo.callout("Select a figure counts table.", kind="warn")
     elif load_error:
         load_output = mo.callout(load_error, kind="danger")
     else:
@@ -152,15 +150,15 @@ def _(mo, pd, read_figure_count_frame, result_path, result_selection):
 
 @app.cell
 def _(HAND_COLUMN, N_COLUMN, SCALE_TYPE_COLUMN, frame, mo, n_all_option):
-    if frame is None or frame.empty:
+    if frame is None or frame.is_empty():
         scale_selector = mo.ui.dropdown(options={}, label="Scale")
         hand_selector = mo.ui.dropdown(options={}, label="Hand")
         n_selector = mo.ui.dropdown(options={}, label="n")
         filter_output = mo.md("")
     else:
-        scale_values = sorted(str(value) for value in frame[SCALE_TYPE_COLUMN].dropna().unique())
-        hand_values = sorted(str(value) for value in frame[HAND_COLUMN].dropna().unique())
-        n_values = sorted(int(value) for value in frame[N_COLUMN].dropna().unique())
+        scale_values = sorted(str(value) for value in frame[SCALE_TYPE_COLUMN].drop_nulls().unique().to_list())
+        hand_values = sorted(str(value) for value in frame[HAND_COLUMN].drop_nulls().unique().to_list())
+        n_values = sorted(int(value) for value in frame[N_COLUMN].drop_nulls().unique().to_list())
         scale_selector = mo.ui.dropdown(options=scale_values, value=scale_values[0], label="Scale")
         hand_selector = mo.ui.dropdown(options=hand_values, value=hand_values[0], label="Hand")
         n_options = [n_all_option, *(str(value) for value in n_values)]
@@ -183,7 +181,7 @@ def _(n_all_option, n_selector):
 
 @app.cell
 def _(COUNT_COLUMN, HAND_COLUMN, N_COLUMN, SCALE_TYPE_COLUMN, alt, figure_group_summary, frame, mo):
-    if frame is None or frame.empty:
+    if frame is None or frame.is_empty():
         summary_output = mo.md("")
     else:
         summary = figure_group_summary(frame)
@@ -235,7 +233,7 @@ def _(
     top_figure_frame,
     top_n,
 ):
-    if frame is None or frame.empty:
+    if frame is None or frame.is_empty():
         filtered_frame = None
         top_frame = None
         top_output = mo.md("")
@@ -290,7 +288,7 @@ def _(
             )
             .properties(width=680, height=max(180, 24 * len(top_frame)), title="Most common figures")
         )
-        table_frame = filtered_frame.drop(columns=["figure"])
+        table_frame = filtered_frame.drop("figure")
         top_table = mo.ui.table(table_frame, selection="single", page_size=min(max(len(table_frame), 1), 20))
         top_output = mo.vstack(
             [
@@ -325,7 +323,7 @@ def _(
     else:
         try:
             figure_index = int(str(row[FIGURE_LABEL_COLUMN]).removeprefix("#")) - 1
-            figure = parse_figure_ngram(str(filtered_frame.iloc[figure_index]["figure"]))
+            figure = parse_figure_ngram(str(filtered_frame["figure"][figure_index]))
             unit = Fraction(str(preferred_unit.value))
             resolved_unit = figure_display_unit(figure, preferred_unit=unit)
             score_data = figure_ngram_to_score_data(figure, preferred_unit=unit)

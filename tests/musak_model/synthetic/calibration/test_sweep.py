@@ -146,18 +146,18 @@ def test_calibration_config_rejects_empty_lambda_grid() -> None:
         _config(lambda_curve=())
 
 
-def test_write_sweep_results_writes_sortable_tsv(tmp_path: Path, duration_vocabulary: DurationVocabulary) -> None:
+def test_write_sweep_results_writes_sortable_csv(tmp_path: Path, duration_vocabulary: DurationVocabulary) -> None:
     results = run_sweep(
         generator=_generator(duration_vocabulary),
         reference_counts=_reference_counts(),
         config=_config(),
     )
-    output_path = tmp_path / "sweep.tsv"
+    output_path = tmp_path / "sweep.csv"
 
     write_sweep_results(results, output_path)
 
     with output_path.open("r", encoding="utf-8", newline="") as file:
-        rows = list(csv.reader(file, delimiter="\t"))
+        rows = list(csv.reader(file))
     assert rows[0] == [
         "lambda_curve",
         "lambda_harm",

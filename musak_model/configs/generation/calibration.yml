@@ -1,5 +1,5 @@
 figure_root: artifacts/figure-splits
-output_path: artifacts/analysis/calibration/lambda_sweep.tsv
+output_path: artifacts/analysis/calibration/lambda_sweep.csv
 scale_type: major
 scale_root: 0
 time_numerator: 4

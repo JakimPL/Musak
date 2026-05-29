@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-import csv
 from pathlib import Path
 from typing import Any, Final
 
 import torch
+
+from musak_shared.files import write_csv_rows
 
 _MICROSECONDS_PER_SECOND: Final[float] = 1_000_000.0
 _TORCH_PROFILE_FUNCTIONS_NAME: Final[str] = "torch_profiler_functions.csv"
@@ -46,22 +47,20 @@ def _write_torch_functions_report(events: Any, path: Path) -> None:
         key=lambda row: (row["self_cuda_seconds"], row["self_cpu_seconds"]),
         reverse=True,
     )
-    with path.open("w", encoding="utf-8", newline="") as file:
-        writer = csv.DictWriter(
-            file,
-            fieldnames=[
-                "operation",
-                "calls",
-                "total_seconds",
-                "self_seconds",
-                "self_cpu_seconds",
-                "cpu_total_seconds",
-                "self_cuda_seconds",
-                "cuda_total_seconds",
-            ],
-        )
-        writer.writeheader()
-        writer.writerows(rows)
+    write_csv_rows(
+        path,
+        columns=(
+            "operation",
+            "calls",
+            "total_seconds",
+            "self_seconds",
+            "self_cpu_seconds",
+            "cpu_total_seconds",
+            "self_cuda_seconds",
+            "cuda_total_seconds",
+        ),
+        rows=rows,
+    )
 
 
 def _torch_function_row(event: Any) -> dict[str, str | int | float]:

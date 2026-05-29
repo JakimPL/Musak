@@ -51,7 +51,7 @@ def main() -> None:
     _LOGGER.info("Tokenizer snapshot: %s", tokenizer_snapshot_path)
     _LOGGER.info("Canonical count output: %s", output_path)
     _LOGGER.info("Canonical profile output: %s", artifact_paths.profile_path)
-    _LOGGER.info("Extra CSV output: %s", args.output or "none")
+    _LOGGER.info("Extra table output: %s", args.output or "none")
     _LOGGER.info("n range: %s..%s", config.min_n, config.max_n)
     _LOGGER.info("Limit per group: %s", config.limit_per_group)
     _LOGGER.info("Workers: %s", config.workers)
@@ -169,7 +169,7 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--output",
         type=Path,
-        help="Extra CSV output path. Canonical counts are always written under <encoded-directory>/figure/all/counts.csv.",
+        help="Extra figure-count table output path (parquet or csv by suffix). Canonical counts are always written under <encoded-directory>/figure/all/counts.parquet.",
     )
     parser.add_argument(
         "--log-level",

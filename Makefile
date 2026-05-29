@@ -96,7 +96,7 @@ help:
 	@printf '%s\n' '  PROCESS_TOKENIZATION_BATCH_SIZE overrides tokenization source files per worker task.'
 	@printf '%s\n' '  PROCESS_SKIP_FIGURE_ANALYSIS=1 skips figure analysis during process/tokenize.'
 	@printf '%s\n' '  ANALYSIS_CONFIG       Optional figure n-gram analysis YAML override.'
-	@printf '%s\n' '  ANALYSIS_OUTPUT       Optional extra figure n-gram CSV output path.'
+	@printf '%s\n' '  ANALYSIS_OUTPUT       Optional extra figure n-gram table output path (parquet or csv by suffix).'
 	@printf '%s\n' '  ANALYSIS_ENCODED_DIRECTORY  Optional encoded run directory override when multiple tokenizer runs exist.'
 	@printf '%s\n' '  ANALYSIS_NO_PROGRESS=1 disables figure n-gram progress bars.'
 	@printf '%s\n' '  ANALYSIS_OVERWRITE=1 restarts figure analysis. Defaults to OVERWRITE when set.'
