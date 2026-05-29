@@ -15,6 +15,12 @@ $\mu_i$ was never a gap — `octave_offset` is home-relative and $\mu_i$ is appl
 conversion; see `docs/generator.md` §3.) A quick-wins pass then closed gaps 5, 6, 12 and 13, and a
 structural pass closed gaps 2 (sync coupling) and 9 (sub-bar harmonic rhythm) (all below).
 
+**Still open:** #4 (harmonic conditioning by metrical position), #7 (figure-length distribution), #8
+(texture mode / chord figures), #10 (per-hand, per-scale register parameters), and #11 (the decode→generate
+fitting loop) — plus the greedy-fill note at the end. Of these, #11 is the dominant lever on *musical
+coherence*: the chord track is still a uniform-random Markov walk over all triads (no functional harmony),
+and every process parameter is hand-set rather than fit to the corpus. #4 and #8 are the next most audible.
+
 ---
 
 ## 1. Activity gating is bar-resolution, not grid-cell-resolution — CLOSED
@@ -23,12 +29,12 @@ structural pass closed gaps 2 (sync coupling) and 9 (sub-bar harmonic rhythm) (a
 independently an onset or a rest, and the hand-coupling gate acts per cell, so a hand can fall silent for
 part of a bar.
 
-**Resolution.** `SegmentGenerator.generate` now takes `grid_count_per_bar` and samples the accent field
-(`AccentFieldSampler.sample`, with onset marks) and the hand-coupling gates at `cell_count =
-bar_count * grid_count_per_bar`. A cell fires iff its accent is an onset *and* the per-cell coupling gate
-is active for the hand; the cursor walks each bar, resting unfired stretches and starting a figure at each
-fired cell, so a hand can fall silent mid-bar. Figure durations are unchanged — a figure may still span
-many cells; the grid only fixes onset times.
+**Resolution.** `SegmentGenerator.generate` now takes `grid_count_per_bar` and samples per-cell accent
+weights (`AccentFieldSampler.sample_weights`), coupled onset masks, and hand-coupling gates at `cell_count =
+bar_count * grid_count_per_bar`. A cell fires iff its onset mask *and* the per-cell coupling gate are active
+for the hand; the cursor walks each bar, resting unfired stretches and starting a figure at each fired cell,
+so a hand can fall silent mid-bar. Figure durations are unchanged — a figure may still span many cells; the
+grid only fixes onset times. (The onset draw itself was later moved into the hand-coupling layer; see #2.)
 
 ## 2. Sync coupling is not implemented — CLOSED
 
@@ -120,7 +126,7 @@ it depends on the base duration chosen after scoring.
 distribution being matched.
 
 **Code today.** `_place_one_figure` picks `figure_length = int(rng.choice(self.figure_lengths))`
-(`generator.py:347`) — uniform over `[min_n, max_n]`. `FigureVocabulary.length_distribution()` exists but is
+(`generator.py:387`) — uniform over `[min_n, max_n]`. `FigureVocabulary.length_distribution()` exists but is
 never used on the generation path.
 
 **To close the gap.** Sample the length from `length_distribution()` (optionally per scale/hand), or fold
@@ -134,7 +140,7 @@ for the metric — confirm against `figure_distribution_metrics` whether uniform
 `JoinWithPreviousToken`). The functional-bass / block-chord texture is an *optional* mode, not the default.
 
 **Code today.** `monorhythmic_entries` / `is_monorhythmic` (`substitution/sampling.py`, `scoring.py`) exist
-but are not called by the generator; `_figure_entries_by_group` (`generator.py:219`) admits *all* figures in
+but are not called by the generator; `_figure_entries_by_group` (`generator.py:259`) admits *all* figures in
 each `(hand, n)` group, including `chords_only` and polyrhythmic ones.
 
 **To close the gap.** Make the texture explicit rather than incidental: either (a) keep all figures by
