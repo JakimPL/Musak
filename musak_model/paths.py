@@ -12,6 +12,7 @@ CHORD_VOCABULARY_CONFIG_PATH: Final[Path] = CONFIGS_DIR / "generation" / "chords
 CHORD_DECODING_CONFIG_PATH: Final[Path] = CONFIGS_DIR / "generation" / "chord_decoding.yml"
 REGISTER_CURVE_CONFIG_PATH: Final[Path] = CONFIGS_DIR / "generation" / "register_curve.yml"
 ACCENT_FIELD_CONFIG_PATH: Final[Path] = CONFIGS_DIR / "generation" / "accent_field.yml"
+HAND_COUPLING_CONFIG_PATH: Final[Path] = CONFIGS_DIR / "generation" / "hand_coupling.yml"
 INGESTION_CONFIG_PATH: Final[Path] = CONFIGS_DIR / "training" / "ingestion.yml"
 PROCESSING_CONFIG_PATH: Final[Path] = CONFIGS_DIR / "data" / "processing.yml"
 SEGMENTATION_CONFIG_PATH: Final[Path] = CONFIGS_DIR / "data" / "segmentation.yml"

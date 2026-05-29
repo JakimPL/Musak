@@ -16,6 +16,7 @@ from musak_model.synthetic.harmony.schema import Chord, ChordQuality
 from musak_model.synthetic.harmony.vocabulary import ChordVocabularyConfig
 from musak_model.synthetic.processes.accent import AccentFieldConfig, AccentFieldSampler
 from musak_model.synthetic.processes.chord_track import ChordTrackSampler, uniform_transition_model
+from musak_model.synthetic.processes.hand_coupling import HandCouplingConfig, HandCouplingSampler
 from musak_model.synthetic.processes.pitch import RegisterCurveConfig, RegisterCurveSampler
 from musak_model.synthetic.substitution import (
     SegmentGenerator,
@@ -30,7 +31,7 @@ from musak_model.synthetic.substitution import (
     slope_fit,
 )
 from musak_model.tokens.duration import DurationVocabulary
-from musak_model.tokens.schema import Hand, NoteToken, ScaleType
+from musak_model.tokens.schema import BarToken, Hand, HandToken, NoteToken, RestToken, ScaleType, Token
 
 
 def _figure(positions: list[int], *, durations: list[Fraction] | None = None) -> FigureNGram:
@@ -60,6 +61,26 @@ def _flat_accent_field_sampler() -> AccentFieldSampler:
             envelope_decay=1.0,
         )
     )
+
+
+def _always_active_hand_coupling_sampler() -> HandCouplingSampler:
+    return HandCouplingSampler(
+        config=HandCouplingConfig(co_activity_strength=0.5, activity_right=1.0, activity_left=1.0)
+    )
+
+
+def _tokens_under_hand(tokens: list[Token], hand: Hand) -> list[Token]:
+    collected: list[Token] = []
+    current_hand: Hand | None = None
+    for token in tokens:
+        if isinstance(token, HandToken):
+            current_hand = token.hand
+        elif isinstance(token, BarToken):
+            current_hand = None
+        elif current_hand == hand:
+            collected.append(token)
+
+    return collected
 
 
 def test_is_monorhythmic_detects_equal_normalized_durations() -> None:
@@ -261,6 +282,7 @@ def test_segment_generator_produces_constraint_valid_segment(
         ),
         register_curve_sampler=register_curve_sampler,
         accent_field_sampler=_flat_accent_field_sampler(),
+        hand_coupling_sampler=_always_active_hand_coupling_sampler(),
         chord_track_sampler=chord_track_sampler,
         chord_vocabulary=ChordVocabularyConfig.load(),
         figure_vocabulary=vocabulary,
@@ -281,6 +303,62 @@ def test_segment_generator_produces_constraint_valid_segment(
     )
 
     assert isinstance(segment, Segment)
+    state = GenerationConstraintState(constraints=constraints)
+    for token in segment.tokens:
+        state = state.apply(token, duration_vocabulary=duration_vocabulary)
+    assert state.ended
+    assert state.bar_index == 2
+
+
+def test_silenced_hand_emits_rest_filled_bars(
+    duration_vocabulary: DurationVocabulary,
+) -> None:
+    vocabulary = _major_vocabulary(
+        {
+            Hand.RIGHT: {2: [_figure([0, 2])]},
+            Hand.LEFT: {2: [_figure([0, 2])]},
+        }
+    )
+    generator = SegmentGenerator(
+        substitution_config=SubstitutionConfig(
+            lambda_curve=0.0, lambda_harm=0.0, lambda_accent=0.0, commonness_bias=1.0, max_resample_retries=4
+        ),
+        register_curve_sampler=RegisterCurveSampler(
+            config=RegisterCurveConfig(
+                arch_basis_count=3, arch_amplitude=0.0, arch_decay=1.0, ou_theta=0.5, ou_sigma=0.0
+            )
+        ),
+        accent_field_sampler=_flat_accent_field_sampler(),
+        hand_coupling_sampler=HandCouplingSampler(
+            config=HandCouplingConfig(co_activity_strength=0.5, activity_right=1.0, activity_left=0.0)
+        ),
+        chord_track_sampler=ChordTrackSampler(
+            model=uniform_transition_model((Chord(root_degree=1, root_accidental=0, quality=ChordQuality.MAJOR),))
+        ),
+        chord_vocabulary=ChordVocabularyConfig.load(),
+        figure_vocabulary=vocabulary,
+        duration_vocabulary=duration_vocabulary,
+        figure_lengths=(2,),
+    )
+    constraints = GenerationConstraints(time_numerator=4, time_denominator=4, bar_count=2)
+
+    segment = generator.generate(
+        bar_count=2,
+        time_numerator=4,
+        time_denominator=4,
+        scale_root=0,
+        scale_type=ScaleType.MAJOR,
+        constraints=constraints,
+        rng=default_rng(0),
+        source_file=Path("synthetic.mxl"),
+    )
+
+    whole_rest_id = duration_vocabulary.require_duration_id(Fraction(1))
+    left_hand_tokens = _tokens_under_hand(segment.tokens, Hand.LEFT)
+    right_hand_tokens = _tokens_under_hand(segment.tokens, Hand.RIGHT)
+    assert left_hand_tokens and all(token == RestToken(duration_id=whole_rest_id) for token in left_hand_tokens)
+    assert all(isinstance(token, NoteToken) for token in right_hand_tokens)
+
     state = GenerationConstraintState(constraints=constraints)
     for token in segment.tokens:
         state = state.apply(token, duration_vocabulary=duration_vocabulary)
@@ -311,6 +389,7 @@ def test_segment_generator_is_deterministic_for_a_given_seed(
             )
         ),
         accent_field_sampler=_flat_accent_field_sampler(),
+        hand_coupling_sampler=_always_active_hand_coupling_sampler(),
         chord_track_sampler=ChordTrackSampler(
             model=uniform_transition_model((Chord(root_degree=1, root_accidental=0, quality=ChordQuality.MAJOR),))
         ),

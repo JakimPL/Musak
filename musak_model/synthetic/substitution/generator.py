@@ -15,6 +15,7 @@ from musak_model.synthetic.harmony.expansion import chord_pitch_class_set
 from musak_model.synthetic.harmony.vocabulary import ChordVocabularyConfig
 from musak_model.synthetic.processes.accent import AccentFieldSampler
 from musak_model.synthetic.processes.chord_track import ChordTrackSampler
+from musak_model.synthetic.processes.hand_coupling import HandCouplingSampler
 from musak_model.synthetic.processes.pitch import RegisterCurveSampler
 from musak_model.synthetic.substitution.config import SubstitutionConfig
 from musak_model.synthetic.substitution.emission import anchor_figure_to_tokens
@@ -23,7 +24,7 @@ from musak_model.synthetic.substitution.sampling import (
     sample_substituted_figure,
 )
 from musak_model.tokens.duration import DurationVocabulary
-from musak_model.tokens.schema import BarToken, EndToken, Hand, HandToken, ScaleType, Token
+from musak_model.tokens.schema import BarToken, EndToken, Hand, HandToken, RestToken, ScaleType, Token
 
 
 @dataclass(frozen=True)
@@ -31,6 +32,7 @@ class SegmentGenerator:
     substitution_config: SubstitutionConfig
     register_curve_sampler: RegisterCurveSampler
     accent_field_sampler: AccentFieldSampler
+    hand_coupling_sampler: HandCouplingSampler
     chord_track_sampler: ChordTrackSampler
     chord_vocabulary: ChordVocabularyConfig
     figure_vocabulary: FigureVocabulary
@@ -78,6 +80,10 @@ class SegmentGenerator:
             grid_count_per_bar=1,
             rng=rng,
         )
+        gates = self.hand_coupling_sampler.sample_gates(
+            cell_count=bar_count,
+            rng=rng,
+        )
         chord_track = self.chord_track_sampler.sample(
             length=bar_count,
             rng=rng,
@@ -98,18 +104,26 @@ class SegmentGenerator:
                 anchor = int(curve[bar_index])
                 next_anchor = int(curve[bar_index + 1]) if bar_index + 1 < bar_count else anchor
                 state, tokens = self._append(state, tokens, HandToken(hand=hand))
-                state, tokens = self._emit_hand_bar(
-                    state=state,
-                    tokens=tokens,
-                    hand=hand,
-                    bar_duration=bar_duration,
-                    scale_type=scale_type,
-                    chord_pitch_classes=chord_pcs,
-                    anchor=anchor,
-                    target_slope=next_anchor - anchor,
-                    envelope_value=envelope[bar_index],
-                    rng=rng,
-                )
+                if gates[bar_index][hand]:
+                    state, tokens = self._emit_hand_bar(
+                        state=state,
+                        tokens=tokens,
+                        hand=hand,
+                        bar_duration=bar_duration,
+                        scale_type=scale_type,
+                        chord_pitch_classes=chord_pcs,
+                        anchor=anchor,
+                        target_slope=next_anchor - anchor,
+                        envelope_value=envelope[bar_index],
+                        rng=rng,
+                    )
+                else:
+                    state, tokens = self._emit_hand_rest(
+                        state=state,
+                        tokens=tokens,
+                        hand=hand,
+                        bar_duration=bar_duration,
+                    )
             state, tokens = self._append(state, tokens, BarToken())
 
         state, tokens = self._append(state, tokens, EndToken())
@@ -189,6 +203,38 @@ class SegmentGenerator:
             f"could not place a figure in the {hand.value} hand within "
             f"{self.substitution_config.max_resample_retries} retries"
         )
+
+    def _emit_hand_rest(
+        self,
+        *,
+        state: GenerationConstraintState,
+        tokens: list[Token],
+        hand: Hand,
+        bar_duration: Fraction,
+    ) -> tuple[GenerationConstraintState, list[Token]]:
+        rest_tokens = self._silent_bar_tokens(bar_duration)
+        if rest_tokens is None:
+            raise GenerationConstraintError(
+                f"could not represent a silent {hand.value} hand bar of duration {bar_duration}"
+            )
+
+        for token in rest_tokens:
+            state, tokens = self._append(state, tokens, token)
+
+        return state, tokens
+
+    def _silent_bar_tokens(self, bar_duration: Fraction) -> list[Token] | None:
+        whole_bar_id = self.duration_vocabulary.duration_id_or_none(bar_duration)
+        if whole_bar_id is not None:
+            return [RestToken(duration_id=whole_bar_id)]
+
+        for figure_length in self.figure_lengths:
+            base_duration = bar_duration / figure_length
+            base_id = self.duration_vocabulary.duration_id_or_none(base_duration)
+            if base_id is not None:
+                return [RestToken(duration_id=base_id) for _ in range(figure_length)]
+
+        return None
 
     def _append(
         self,

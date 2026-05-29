@@ -7,6 +7,7 @@ from musak_model.n_grams.config import NGramAnalysisConfig
 from musak_model.n_grams.profile.artifacts import figure_artifact_paths
 from musak_model.n_grams.profile.extraction import extract_figure_artifacts
 from musak_model.n_grams.profile.io import (
+    read_base_duration_counts_csv,
     read_figure_counts_csv,
     read_figure_profile,
     read_figure_sample_counts_jsonl,
@@ -216,6 +217,32 @@ def test_extract_figure_artifacts_populates_reference_database(
         )
         assert sum(matched.values()) == 1
         assert sum(unmatched.values()) == 0
+
+
+def test_extract_figure_artifacts_writes_base_durations_csv(
+    tmp_path: Path,
+    tokenization_config: TokenizationConfig,
+    duration_vocabulary: DurationVocabulary,
+    token_vocabulary: TokenVocabulary,
+) -> None:
+    encoded_directory, analysis_config_path = _write_encoded_figure_inputs(
+        tmp_path,
+        tokenization_config=tokenization_config,
+        duration_vocabulary=duration_vocabulary,
+        token_vocabulary=token_vocabulary,
+    )
+
+    result = extract_figure_artifacts(
+        encoded_directory=encoded_directory,
+        analysis_config_path=analysis_config_path,
+        output_path=None,
+        show_progress=False,
+    )
+
+    assert result.artifact_paths.base_durations_path.is_file()
+    counts_by_group = read_base_duration_counts_csv(result.artifact_paths.base_durations_path)
+    assert counts_by_group[(ScaleType.MAJOR, Hand.RIGHT, 2)] == Counter({Fraction(1, 4): 1})
+    assert counts_by_group[(ScaleType.HARMONIC_MINOR, Hand.LEFT, 2)] == Counter({Fraction(1, 4): 1})
 
 
 def test_counts_csv_aggregates_same_figure_across_anchors(

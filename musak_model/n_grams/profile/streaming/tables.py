@@ -89,6 +89,14 @@ class FigureCountRow(NamedTuple):
     occurrence_count: int
 
 
+class BaseDurationRow(NamedTuple):
+    scale_type: str
+    hand: str
+    figure_length: int
+    base_duration: str
+    occurrence_count: int
+
+
 class FigureWorkTables:
     def __init__(self, connection: Connection) -> None:
         self._connection = connection
@@ -328,6 +336,38 @@ class FigureWorkTables:
             counts[str(base_duration)] += int(count)
 
         return counts
+
+    def iter_base_duration_rows(self) -> Iterator[BaseDurationRow]:
+        aggregated_count = func.sum(_COUNTS_TABLE.c[_COUNT_COUNT_COLUMN]).label(_COUNT_COUNT_COLUMN)
+        result = self._connection.execute(
+            select(
+                _COUNTS_TABLE.c[_COUNT_SCALE_TYPE_COLUMN],
+                _COUNTS_TABLE.c[_COUNT_HAND_COLUMN],
+                _COUNTS_TABLE.c[_COUNT_N_COLUMN],
+                _COUNTS_TABLE.c[_COUNT_BASE_DURATION_COLUMN],
+                aggregated_count,
+            )
+            .group_by(
+                _COUNTS_TABLE.c[_COUNT_SCALE_TYPE_COLUMN],
+                _COUNTS_TABLE.c[_COUNT_HAND_COLUMN],
+                _COUNTS_TABLE.c[_COUNT_N_COLUMN],
+                _COUNTS_TABLE.c[_COUNT_BASE_DURATION_COLUMN],
+            )
+            .order_by(
+                _COUNTS_TABLE.c[_COUNT_SCALE_TYPE_COLUMN],
+                _COUNTS_TABLE.c[_COUNT_HAND_COLUMN],
+                _COUNTS_TABLE.c[_COUNT_N_COLUMN],
+                _COUNTS_TABLE.c[_COUNT_BASE_DURATION_COLUMN],
+            )
+        )
+        for scale_type, hand, figure_length, base_duration, count in result:
+            yield BaseDurationRow(
+                scale_type=str(scale_type),
+                hand=str(hand),
+                figure_length=int(figure_length),
+                base_duration=str(base_duration),
+                occurrence_count=int(count),
+            )
 
     def anchor_counts(self, *, scale_type: str, hand: str) -> Counter[tuple[int, int, int]]:
         aggregated_count = func.sum(_COUNTS_TABLE.c[_COUNT_COUNT_COLUMN]).label(_COUNT_COUNT_COLUMN)

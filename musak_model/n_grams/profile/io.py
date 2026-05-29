@@ -1,6 +1,7 @@
 import csv
 from collections import Counter
 from collections.abc import Sequence
+from fractions import Fraction
 from pathlib import Path
 from typing import Final
 
@@ -9,12 +10,14 @@ from musak_model.n_grams.figure.schema import FigureNGram
 from musak_model.n_grams.profile.schema import FigureProfile, FigureSampleCounts
 from musak_model.processing.io import JSON_INDENT
 from musak_model.tokens.schema import Hand, ScaleType
+from musak_shared.ratios import parse_ratio
 
 SCALE_TYPE_COLUMN: Final[str] = "scale_type"
 HAND_COLUMN: Final[str] = "hand"
 N_COLUMN: Final[str] = "n"
 COUNT_COLUMN: Final[str] = "count"
 FIGURE_COLUMN: Final[str] = "figure"
+BASE_DURATION_COLUMN: Final[str] = "base_duration"
 COUNT_CSV_COLUMNS: Final[tuple[str, ...]] = (
     SCALE_TYPE_COLUMN,
     HAND_COLUMN,
@@ -22,6 +25,15 @@ COUNT_CSV_COLUMNS: Final[tuple[str, ...]] = (
     COUNT_COLUMN,
     FIGURE_COLUMN,
 )
+BASE_DURATION_CSV_COLUMNS: Final[tuple[str, ...]] = (
+    SCALE_TYPE_COLUMN,
+    HAND_COLUMN,
+    N_COLUMN,
+    BASE_DURATION_COLUMN,
+    COUNT_COLUMN,
+)
+
+type BaseDurationCountsByGroup = dict[tuple[ScaleType, Hand, int], Counter[Fraction]]
 
 type FigureNGramCountRecord = dict[str, str | int]
 
@@ -109,6 +121,21 @@ def read_figure_counts_csv_for_groups(
             count = int(row[COUNT_COLUMN])
             figure = FigureNGram.model_validate_json(row[FIGURE_COLUMN])
             counts.setdefault(scale_type, {}).setdefault(hand, {}).setdefault(n, Counter())[figure] += count
+
+    return counts
+
+
+def read_base_duration_counts_csv(path: Path) -> BaseDurationCountsByGroup:
+    counts: BaseDurationCountsByGroup = {}
+    with path.open("r", encoding="utf-8", newline="") as file:
+        reader = csv.DictReader(file)
+        for row in reader:
+            scale_type = ScaleType(row[SCALE_TYPE_COLUMN])
+            hand = Hand(row[HAND_COLUMN])
+            n = int(row[N_COLUMN])
+            base_duration = parse_ratio(row[BASE_DURATION_COLUMN])
+            count = int(row[COUNT_COLUMN])
+            counts.setdefault((scale_type, hand, n), Counter())[base_duration] += count
 
     return counts
 

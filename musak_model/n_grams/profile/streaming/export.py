@@ -7,6 +7,8 @@ from pathlib import Path
 from musak_model.n_grams.figure.signature import figure_signature_from_json, figure_signature_to_ngram
 from musak_model.n_grams.profile.artifacts import FigureArtifactPaths
 from musak_model.n_grams.profile.io import (
+    BASE_DURATION_COLUMN,
+    BASE_DURATION_CSV_COLUMNS,
     COUNT_COLUMN,
     COUNT_CSV_COLUMNS,
     FIGURE_COLUMN,
@@ -57,6 +59,7 @@ def export_figure_artifacts(
     )
     sample_profile_count = export_sample_counts(store, artifact_paths.by_sample_path)
     export_counts_csv(store, artifact_paths.counts_path, limit_per_group=None)
+    export_base_durations_csv(store, artifact_paths.base_durations_path)
     write_rhythm_counts_csv(rhythm_counts, rhythm_paths.counts_path)
     write_rhythm_profile(rhythm_profile, rhythm_paths.profile_path)
     write_profile_atomically(profile, artifact_paths.profile_path)
@@ -120,6 +123,28 @@ def export_counts_csv(
                     N_COLUMN: row.figure_length,
                     COUNT_COLUMN: row.occurrence_count,
                     FIGURE_COLUMN: figure_signature_to_ngram(figure_signature_from_json(row.figure)).model_dump_json(),
+                }
+            )
+    temp_path.replace(path)
+
+
+def export_base_durations_csv(
+    store: FigureWorkStore,
+    path: Path,
+) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path = path.with_suffix(f"{path.suffix}.tmp")
+    with temp_path.open("w", encoding="utf-8", newline="") as file:
+        writer = csv.DictWriter(file, fieldnames=BASE_DURATION_CSV_COLUMNS)
+        writer.writeheader()
+        for row in store.tables.iter_base_duration_rows():
+            writer.writerow(
+                {
+                    SCALE_TYPE_COLUMN: row.scale_type,
+                    HAND_COLUMN: row.hand,
+                    N_COLUMN: row.figure_length,
+                    BASE_DURATION_COLUMN: row.base_duration,
+                    COUNT_COLUMN: row.occurrence_count,
                 }
             )
     temp_path.replace(path)
