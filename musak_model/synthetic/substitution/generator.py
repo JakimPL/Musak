@@ -10,6 +10,12 @@ from musak_model.generation.constraints import (
     GenerationConstraints,
     GenerationConstraintState,
 )
+from musak_model.n_grams.figure.schema import FigureNGram
+from musak_model.synthetic.base_durations import (
+    BaseDurationDistribution,
+    BaseDurationWeight,
+    weighted_base_duration_choice,
+)
 from musak_model.synthetic.figures import FigureVocabulary
 from musak_model.synthetic.harmony.expansion import chord_pitch_class_set
 from musak_model.synthetic.harmony.vocabulary import ChordVocabularyConfig
@@ -19,10 +25,7 @@ from musak_model.synthetic.processes.hand_coupling import HandCouplingSampler
 from musak_model.synthetic.processes.pitch import RegisterCurveSampler
 from musak_model.synthetic.substitution.config import SubstitutionConfig
 from musak_model.synthetic.substitution.emission import anchor_figure_to_tokens
-from musak_model.synthetic.substitution.sampling import (
-    monorhythmic_entries,
-    sample_substituted_figure,
-)
+from musak_model.synthetic.substitution.sampling import sample_substituted_figure
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import BarToken, EndToken, Hand, HandToken, RestToken, ScaleType, Token
 
@@ -36,6 +39,7 @@ class SegmentGenerator:
     chord_track_sampler: ChordTrackSampler
     chord_vocabulary: ChordVocabularyConfig
     figure_vocabulary: FigureVocabulary
+    base_duration_distribution: BaseDurationDistribution
     duration_vocabulary: DurationVocabulary
     figure_lengths: tuple[int, ...]
 
@@ -109,7 +113,6 @@ class SegmentGenerator:
                         state=state,
                         tokens=tokens,
                         hand=hand,
-                        bar_duration=bar_duration,
                         scale_type=scale_type,
                         chord_pitch_classes=chord_pcs,
                         anchor=anchor,
@@ -147,7 +150,6 @@ class SegmentGenerator:
         state: GenerationConstraintState,
         tokens: list[Token],
         hand: Hand,
-        bar_duration: Fraction,
         scale_type: ScaleType,
         chord_pitch_classes: frozenset[int],
         anchor: int,
@@ -155,19 +157,57 @@ class SegmentGenerator:
         envelope_value: float,
         rng: Generator,
     ) -> tuple[GenerationConstraintState, list[Token]]:
+        """Fill an active hand's bar by placing empirical figures left to right.
+
+        NEEDS IMPROVEMENT: this is a greedy, no-lookahead fill. Figures are placed back to back until no
+        sampled figure fits the remaining bar time, then the trailing gap becomes a rest; every figure in
+        the bar shares the bar's single register anchor, slope target, and accent value, so sub-bar
+        register motion and accent shaping are not yet modelled.
+        """
+        while True:
+            remaining = state.remaining_duration(hand)
+            if remaining <= 0:
+                break
+
+            placement = self._place_one_figure(
+                state=state,
+                hand=hand,
+                scale_type=scale_type,
+                chord_pitch_classes=chord_pitch_classes,
+                anchor=anchor,
+                target_slope=target_slope,
+                envelope_value=envelope_value,
+                remaining=remaining,
+                rng=rng,
+            )
+            if placement is None:
+                return self._fill_with_rest(state=state, tokens=tokens, hand=hand, duration=remaining)
+
+            state, placed_tokens = placement
+            tokens = tokens + placed_tokens
+
+        return state, tokens
+
+    def _place_one_figure(
+        self,
+        *,
+        state: GenerationConstraintState,
+        hand: Hand,
+        scale_type: ScaleType,
+        chord_pitch_classes: frozenset[int],
+        anchor: int,
+        target_slope: int,
+        envelope_value: float,
+        remaining: Fraction,
+        rng: Generator,
+    ) -> tuple[GenerationConstraintState, list[Token]] | None:
         for _ in range(self.substitution_config.max_resample_retries):
             figure_length = int(rng.choice(self.figure_lengths))
-            base_duration = bar_duration / figure_length
-            if self.duration_vocabulary.duration_id_or_none(base_duration) is None:
-                continue
-
-            entries = monorhythmic_entries(
-                self.figure_vocabulary,
-                scale_type=scale_type,
-                hand=hand,
-                figure_length=figure_length,
+            entries = self.figure_vocabulary.filter(scale_type=scale_type, hand=hand, n=figure_length).entries
+            candidate_bases = self.base_duration_distribution.candidates(
+                scale_type=scale_type, hand=hand, figure_length=figure_length
             )
-            if not entries:
+            if not entries or not candidate_bases:
                 continue
 
             entry = sample_substituted_figure(
@@ -180,6 +220,11 @@ class SegmentGenerator:
                 config=self.substitution_config,
                 rng=rng,
             )
+            fitting_bases = self._fitting_base_durations(entry.figure, candidate_bases, remaining=remaining)
+            if not fitting_bases:
+                continue
+
+            base_duration = weighted_base_duration_choice(fitting_bases, rng=rng)
             candidate_tokens = anchor_figure_to_tokens(
                 figure=entry.figure,
                 anchor=anchor,
@@ -190,19 +235,35 @@ class SegmentGenerator:
             trial_state = state
             try:
                 for token in candidate_tokens:
-                    trial_state = trial_state.apply(
-                        token,
-                        duration_vocabulary=self.duration_vocabulary,
-                    )
+                    trial_state = trial_state.apply(token, duration_vocabulary=self.duration_vocabulary)
             except GenerationConstraintError:
                 continue
 
-            return trial_state, tokens + candidate_tokens
+            return trial_state, candidate_tokens
 
-        raise GenerationConstraintError(
-            f"could not place a figure in the {hand.value} hand within "
-            f"{self.substitution_config.max_resample_retries} retries"
-        )
+        return None
+
+    def _fitting_base_durations(
+        self,
+        figure: FigureNGram,
+        candidate_bases: tuple[BaseDurationWeight, ...],
+        *,
+        remaining: Fraction,
+    ) -> list[BaseDurationWeight]:
+        normalized_durations = frozenset(duration for _, duration in figure.onsets)
+        span_units = sum((duration for _, duration in figure.onsets), Fraction(0))
+        fitting: list[BaseDurationWeight] = []
+        for base_duration, count in candidate_bases:
+            if span_units * base_duration > remaining:
+                continue
+
+            if all(
+                self.duration_vocabulary.duration_id_or_none(normalized * base_duration) is not None
+                for normalized in normalized_durations
+            ):
+                fitting.append((base_duration, count))
+
+        return fitting
 
     def _emit_hand_rest(
         self,
@@ -212,10 +273,20 @@ class SegmentGenerator:
         hand: Hand,
         bar_duration: Fraction,
     ) -> tuple[GenerationConstraintState, list[Token]]:
-        rest_tokens = self._silent_bar_tokens(bar_duration)
+        return self._fill_with_rest(state=state, tokens=tokens, hand=hand, duration=bar_duration)
+
+    def _fill_with_rest(
+        self,
+        *,
+        state: GenerationConstraintState,
+        tokens: list[Token],
+        hand: Hand,
+        duration: Fraction,
+    ) -> tuple[GenerationConstraintState, list[Token]]:
+        rest_tokens = self._rest_tokens_for_duration(duration)
         if rest_tokens is None:
             raise GenerationConstraintError(
-                f"could not represent a silent {hand.value} hand bar of duration {bar_duration}"
+                f"could not fill {duration} of the {hand.value} hand bar with vocabulary rests"
             )
 
         for token in rest_tokens:
@@ -223,18 +294,22 @@ class SegmentGenerator:
 
         return state, tokens
 
-    def _silent_bar_tokens(self, bar_duration: Fraction) -> list[Token] | None:
-        whole_bar_id = self.duration_vocabulary.duration_id_or_none(bar_duration)
-        if whole_bar_id is not None:
-            return [RestToken(duration_id=whole_bar_id)]
+    def _rest_tokens_for_duration(self, duration: Fraction) -> list[Token] | None:
+        direct_id = self.duration_vocabulary.duration_id_or_none(duration)
+        if direct_id is not None:
+            return [RestToken(duration_id=direct_id)]
 
-        for figure_length in self.figure_lengths:
-            base_duration = bar_duration / figure_length
-            base_id = self.duration_vocabulary.duration_id_or_none(base_duration)
-            if base_id is not None:
-                return [RestToken(duration_id=base_id) for _ in range(figure_length)]
+        rest_tokens: list[Token] = []
+        remaining = duration
+        for fraction in sorted(self.duration_vocabulary.all_fractions(), reverse=True):
+            while fraction <= remaining:
+                rest_tokens.append(RestToken(duration_id=self.duration_vocabulary.require_duration_id(fraction)))
+                remaining -= fraction
 
-        return None
+        if remaining != 0:
+            return None
+
+        return rest_tokens
 
     def _append(
         self,

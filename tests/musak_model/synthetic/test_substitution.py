@@ -10,6 +10,7 @@ from musak_model.generation.constraints import (
     GenerationConstraintState,
 )
 from musak_model.n_grams.figure.schema import FigureNGram
+from musak_model.synthetic.base_durations import BaseDurationDistribution
 from musak_model.synthetic.figures import FigureVocabulary
 from musak_model.synthetic.harmony.expansion import chord_pitch_class_set
 from musak_model.synthetic.harmony.schema import Chord, ChordQuality
@@ -66,6 +67,24 @@ def _flat_accent_field_sampler() -> AccentFieldSampler:
 def _always_active_hand_coupling_sampler() -> HandCouplingSampler:
     return HandCouplingSampler(
         config=HandCouplingConfig(co_activity_strength=0.5, activity_right=1.0, activity_left=1.0)
+    )
+
+
+def _base_durations(bases_by_group: dict[tuple[Hand, int], dict[Fraction, int]]) -> BaseDurationDistribution:
+    return BaseDurationDistribution(
+        weights_by_group={
+            (ScaleType.MAJOR, hand, figure_length): tuple(sorted(bases.items()))
+            for (hand, figure_length), bases in bases_by_group.items()
+        }
+    )
+
+
+def _uniform_base_durations(*, figure_length: int, base_duration: Fraction) -> BaseDurationDistribution:
+    return _base_durations(
+        {
+            (Hand.RIGHT, figure_length): {base_duration: 1},
+            (Hand.LEFT, figure_length): {base_duration: 1},
+        }
     )
 
 
@@ -286,6 +305,7 @@ def test_segment_generator_produces_constraint_valid_segment(
         chord_track_sampler=chord_track_sampler,
         chord_vocabulary=ChordVocabularyConfig.load(),
         figure_vocabulary=vocabulary,
+        base_duration_distribution=_uniform_base_durations(figure_length=2, base_duration=Fraction(1, 2)),
         duration_vocabulary=duration_vocabulary,
         figure_lengths=(2,),
     )
@@ -337,6 +357,7 @@ def test_silenced_hand_emits_rest_filled_bars(
         ),
         chord_vocabulary=ChordVocabularyConfig.load(),
         figure_vocabulary=vocabulary,
+        base_duration_distribution=_uniform_base_durations(figure_length=2, base_duration=Fraction(1, 2)),
         duration_vocabulary=duration_vocabulary,
         figure_lengths=(2,),
     )
@@ -395,6 +416,7 @@ def test_segment_generator_is_deterministic_for_a_given_seed(
         ),
         chord_vocabulary=ChordVocabularyConfig.load(),
         figure_vocabulary=vocabulary,
+        base_duration_distribution=_uniform_base_durations(figure_length=2, base_duration=Fraction(1, 2)),
         duration_vocabulary=duration_vocabulary,
         figure_lengths=(2,),
     )
@@ -422,3 +444,110 @@ def test_segment_generator_is_deterministic_for_a_given_seed(
     )
 
     assert first.tokens == second.tokens
+
+
+def test_segment_generator_places_multiple_figures_per_bar(
+    duration_vocabulary: DurationVocabulary,
+) -> None:
+    vocabulary = _major_vocabulary(
+        {
+            Hand.RIGHT: {2: [_figure([0, 1])]},
+            Hand.LEFT: {2: [_figure([0, 1])]},
+        }
+    )
+    generator = SegmentGenerator(
+        substitution_config=SubstitutionConfig(
+            lambda_curve=0.0, lambda_harm=0.0, lambda_accent=0.0, commonness_bias=1.0, max_resample_retries=4
+        ),
+        register_curve_sampler=RegisterCurveSampler(
+            config=RegisterCurveConfig(
+                arch_basis_count=3, arch_amplitude=0.0, arch_decay=1.0, ou_theta=0.5, ou_sigma=0.0
+            )
+        ),
+        accent_field_sampler=_flat_accent_field_sampler(),
+        hand_coupling_sampler=_always_active_hand_coupling_sampler(),
+        chord_track_sampler=ChordTrackSampler(
+            model=uniform_transition_model((Chord(root_degree=1, root_accidental=0, quality=ChordQuality.MAJOR),))
+        ),
+        chord_vocabulary=ChordVocabularyConfig.load(),
+        figure_vocabulary=vocabulary,
+        base_duration_distribution=_uniform_base_durations(figure_length=2, base_duration=Fraction(1, 8)),
+        duration_vocabulary=duration_vocabulary,
+        figure_lengths=(2,),
+    )
+    constraints = GenerationConstraints(time_numerator=4, time_denominator=4, bar_count=1)
+
+    segment = generator.generate(
+        bar_count=1,
+        time_numerator=4,
+        time_denominator=4,
+        scale_root=0,
+        scale_type=ScaleType.MAJOR,
+        constraints=constraints,
+        rng=default_rng(3),
+        source_file=Path("synthetic.mxl"),
+    )
+
+    eighth = duration_vocabulary.require_duration_id(Fraction(1, 8))
+    right_hand_tokens = _tokens_under_hand(segment.tokens, Hand.RIGHT)
+    assert all(isinstance(token, NoteToken) and token.duration_id == eighth for token in right_hand_tokens)
+    assert len(right_hand_tokens) == 8
+
+    state = GenerationConstraintState(constraints=constraints)
+    for token in segment.tokens:
+        state = state.apply(token, duration_vocabulary=duration_vocabulary)
+    assert state.ended
+    assert state.bar_index == 1
+
+
+def test_segment_generator_rests_the_trailing_gap_when_no_figure_fits(
+    duration_vocabulary: DurationVocabulary,
+) -> None:
+    vocabulary = _major_vocabulary(
+        {
+            Hand.RIGHT: {2: [_figure([0, 1])]},
+            Hand.LEFT: {2: [_figure([0, 1])]},
+        }
+    )
+    generator = SegmentGenerator(
+        substitution_config=SubstitutionConfig(
+            lambda_curve=0.0, lambda_harm=0.0, lambda_accent=0.0, commonness_bias=1.0, max_resample_retries=4
+        ),
+        register_curve_sampler=RegisterCurveSampler(
+            config=RegisterCurveConfig(
+                arch_basis_count=3, arch_amplitude=0.0, arch_decay=1.0, ou_theta=0.5, ou_sigma=0.0
+            )
+        ),
+        accent_field_sampler=_flat_accent_field_sampler(),
+        hand_coupling_sampler=_always_active_hand_coupling_sampler(),
+        chord_track_sampler=ChordTrackSampler(
+            model=uniform_transition_model((Chord(root_degree=1, root_accidental=0, quality=ChordQuality.MAJOR),))
+        ),
+        chord_vocabulary=ChordVocabularyConfig.load(),
+        figure_vocabulary=vocabulary,
+        base_duration_distribution=_uniform_base_durations(figure_length=2, base_duration=Fraction(3, 8)),
+        duration_vocabulary=duration_vocabulary,
+        figure_lengths=(2,),
+    )
+    constraints = GenerationConstraints(time_numerator=4, time_denominator=4, bar_count=1)
+
+    segment = generator.generate(
+        bar_count=1,
+        time_numerator=4,
+        time_denominator=4,
+        scale_root=0,
+        scale_type=ScaleType.MAJOR,
+        constraints=constraints,
+        rng=default_rng(1),
+        source_file=Path("synthetic.mxl"),
+    )
+
+    right_hand_tokens = _tokens_under_hand(segment.tokens, Hand.RIGHT)
+    assert any(isinstance(token, NoteToken) for token in right_hand_tokens)
+    assert any(isinstance(token, RestToken) for token in right_hand_tokens)
+
+    state = GenerationConstraintState(constraints=constraints)
+    for token in segment.tokens:
+        state = state.apply(token, duration_vocabulary=duration_vocabulary)
+    assert state.ended
+    assert state.bar_index == 1
