@@ -1,0 +1,17 @@
+figure_root: artifacts/figure-splits
+output_path: artifacts/analysis/calibration/lambda_sweep.tsv
+scale_type: major
+scale_root: 0
+time_numerator: 4
+time_denominator: 4
+bar_count: 16
+samples_per_config: 64
+min_n: 2
+max_n: 4
+self_transition_bias: 0.25
+commonness_bias: 1.0
+max_resample_retries: 8
+seed: 0
+lambda_curve: [0.0, 0.1, 0.25, 0.5, 1.0]
+lambda_harm: [0.0, 0.1, 0.25, 0.5, 1.0]
+lambda_accent: [0.0, 0.1, 0.25, 0.5, 1.0]
