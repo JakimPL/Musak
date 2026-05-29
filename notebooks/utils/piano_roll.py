@@ -145,8 +145,7 @@ def piano_roll_chart(
     height: int = 400,
 ) -> Any:
     frame = filter_piano_roll_dataframe(view_data.dataframe, hands=hands)
-    pitch_names = _FLAT_PITCH_NAMES if view_data.pitch_spelling == PitchSpelling.FLATS else _SHARP_PITCH_NAMES
-    pitch_label_expression = f"{list(pitch_names)}[datum.value % 12] + floor(datum.value / 12 - 1)"
+    label_expression = pitch_label_expression(view_data.pitch_spelling)
     y_domain = [
         max(0, float(frame["midi_pitch"].min()) - 1),
         min(MIDI_MAX_PITCH, float(frame["midi_pitch"].max()) + 1),
@@ -165,7 +164,7 @@ def piano_roll_chart(
             y=alt.Y(
                 "midi_pitch:Q",
                 title="Pitch",
-                axis=alt.Axis(labelExpr=pitch_label_expression),
+                axis=alt.Axis(labelExpr=label_expression),
                 scale=alt.Scale(domain=y_domain),
             ),
             color=alt.Color(
@@ -207,6 +206,11 @@ def piano_roll_chart(
         .resolve_scale(x="independent")
         .properties(width="container", height=height, title=view_data.title)
     )
+
+
+def pitch_label_expression(pitch_spelling: PitchSpelling = PitchSpelling.SHARPS) -> str:
+    pitch_names = _FLAT_PITCH_NAMES if pitch_spelling == PitchSpelling.FLATS else _SHARP_PITCH_NAMES
+    return f"{list(pitch_names)}[datum.value % 12] + floor(datum.value / 12 - 1)"
 
 
 def midi_pitch_name(midi_pitch: int, *, pitch_spelling: PitchSpelling = PitchSpelling.SHARPS) -> str:

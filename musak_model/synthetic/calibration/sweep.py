@@ -83,11 +83,12 @@ def _generate_segments(
             bar_count=config.bar_count,
             time_numerator=config.time_numerator,
             time_denominator=config.time_denominator,
+            grid_count_per_bar=config.grid_cells_per_bar,
             scale_root=config.scale_root,
             scale_type=config.scale_type,
             constraints=constraints,
             rng=default_rng(config.seed + sample_index),
             source_file=_SOURCE_FILE,
-        )
+        ).segment
         for sample_index in range(config.samples_per_config)
     ]

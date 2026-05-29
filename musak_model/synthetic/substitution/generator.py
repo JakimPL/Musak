@@ -20,15 +20,28 @@ from musak_model.synthetic.base_durations import (
 from musak_model.synthetic.figures import FigureVocabulary, FigureVocabularyEntry
 from musak_model.synthetic.harmony.expansion import chord_pitch_class_set
 from musak_model.synthetic.harmony.vocabulary import ChordVocabularyConfig
-from musak_model.synthetic.processes.accent import AccentFieldSampler
+from musak_model.synthetic.processes.accent import AccentCell, AccentFieldSampler
 from musak_model.synthetic.processes.chord_track import ChordTrackSampler
 from musak_model.synthetic.processes.hand_coupling import HandCouplingSampler
 from musak_model.synthetic.processes.pitch import RegisterCurveSampler
 from musak_model.synthetic.substitution.config import SubstitutionConfig
 from musak_model.synthetic.substitution.emission import anchor_figure_to_tokens
 from musak_model.synthetic.substitution.sampling import sample_substituted_figure
+from musak_model.synthetic.substitution.trace import BaselineSample, GenerationTrace, SegmentGenerationResult
 from musak_model.tokens.duration import DurationVocabulary
-from musak_model.tokens.schema import BarToken, EndToken, Hand, HandToken, RestToken, ScaleType, Token
+from musak_model.tokens.pitch import diatonic_position_to_degree_and_octave, note_token_to_midi_pitch
+from musak_model.tokens.schema import (
+    MIN_DURATION_ID,
+    BarToken,
+    EndToken,
+    Hand,
+    HandToken,
+    NoteToken,
+    RestToken,
+    ScaleType,
+    Token,
+    scale_size_for_type,
+)
 
 type FigureEntriesByGroup = Mapping[tuple[Hand, int], tuple[FigureVocabularyEntry, ...]]
 type ProgressCallback = Callable[[int, int], None]
@@ -53,51 +66,84 @@ class SegmentGenerator:
         bar_count: int,
         time_numerator: int,
         time_denominator: int,
+        grid_count_per_bar: int,
         scale_root: int,
         scale_type: ScaleType,
         constraints: GenerationConstraints,
         rng: Generator,
         source_file: Path,
         progress_callback: ProgressCallback | None = None,
-    ) -> Segment:
+    ) -> SegmentGenerationResult:
         if bar_count <= 0:
             raise ValueError("bar_count must be positive")
+
+        if grid_count_per_bar <= 0:
+            raise ValueError("grid_count_per_bar must be positive")
 
         if not self.figure_lengths:
             raise ValueError("figure_lengths must be non-empty")
 
         bar_duration = Fraction(time_numerator, time_denominator)
+        cell_duration = bar_duration / grid_count_per_bar
+        cell_count = bar_count * grid_count_per_bar
         entries_by_group = self._figure_entries_by_group(scale_type)
         right_curve = self.register_curve_sampler.sample(
-            length=bar_count,
+            length=cell_count,
             scale_type=scale_type,
             hand=Hand.RIGHT,
             rng=rng,
         )
         left_curve = self.register_curve_sampler.sample(
-            length=bar_count,
+            length=cell_count,
             scale_type=scale_type,
             hand=Hand.LEFT,
             rng=rng,
         )
-        right_envelope = self.accent_field_sampler.sample_weights(
+        right_accent = self.accent_field_sampler.sample(
             bar_count=bar_count,
-            grid_count_per_bar=1,
+            grid_count_per_bar=grid_count_per_bar,
             rng=rng,
         )
-        left_envelope = self.accent_field_sampler.sample_weights(
+        left_accent = self.accent_field_sampler.sample(
             bar_count=bar_count,
-            grid_count_per_bar=1,
+            grid_count_per_bar=grid_count_per_bar,
             rng=rng,
         )
         gates = self.hand_coupling_sampler.sample_gates(
-            cell_count=bar_count,
+            cell_count=cell_count,
             rng=rng,
         )
         chord_track = self.chord_track_sampler.sample(
             length=bar_count,
             rng=rng,
         )
+
+        scale_size = scale_size_for_type(scale_type)
+        baseline_samples: list[BaselineSample] = []
+        for cell_index in range(cell_count):
+            bar_index, position = divmod(cell_index, grid_count_per_bar)
+            for hand, curve, accent in (
+                (Hand.RIGHT, right_curve, right_accent),
+                (Hand.LEFT, left_curve, left_accent),
+            ):
+                anchor = int(curve[cell_index])
+                baseline_samples.append(
+                    BaselineSample(
+                        hand=hand,
+                        bar_index=bar_index,
+                        position=position,
+                        start_in_bars=1 + bar_index + position / grid_count_per_bar,
+                        register_anchor=anchor,
+                        register_midi_pitch=self._register_midi_pitch(
+                            anchor=anchor,
+                            scale_size=scale_size,
+                            scale_root=scale_root,
+                            scale_type=scale_type,
+                            hand=hand,
+                        ),
+                        accent_weight=accent[cell_index].weight,
+                    )
+                )
 
         state = GenerationConstraintState(constraints=constraints)
         tokens: list[Token] = []
@@ -107,39 +153,32 @@ class SegmentGenerator:
                 scale_type=scale_type,
                 vocabulary=self.chord_vocabulary,
             )
-            for hand, curve, envelope in (
-                (Hand.RIGHT, right_curve, right_envelope),
-                (Hand.LEFT, left_curve, left_envelope),
+            for hand, curve, accent in (
+                (Hand.RIGHT, right_curve, right_accent),
+                (Hand.LEFT, left_curve, left_accent),
             ):
-                anchor = int(curve[bar_index])
-                next_anchor = int(curve[bar_index + 1]) if bar_index + 1 < bar_count else anchor
                 state, tokens = self._append(state, tokens, HandToken(hand=hand))
-                if gates[bar_index][hand]:
-                    state, tokens = self._emit_hand_bar(
-                        state=state,
-                        tokens=tokens,
-                        hand=hand,
-                        entries_by_group=entries_by_group,
-                        scale_type=scale_type,
-                        chord_pitch_classes=chord_pcs,
-                        anchor=anchor,
-                        target_slope=next_anchor - anchor,
-                        envelope_value=envelope[bar_index],
-                        rng=rng,
-                    )
-                else:
-                    state, tokens = self._emit_hand_rest(
-                        state=state,
-                        tokens=tokens,
-                        hand=hand,
-                        bar_duration=bar_duration,
-                    )
+                state, tokens = self._emit_hand_bar(
+                    state=state,
+                    tokens=tokens,
+                    hand=hand,
+                    bar_index=bar_index,
+                    grid_count_per_bar=grid_count_per_bar,
+                    cell_duration=cell_duration,
+                    curve=curve,
+                    accent=accent,
+                    gates=gates,
+                    entries_by_group=entries_by_group,
+                    scale_type=scale_type,
+                    chord_pitch_classes=chord_pcs,
+                    rng=rng,
+                )
             state, tokens = self._append(state, tokens, BarToken())
             if progress_callback is not None:
                 progress_callback(bar_index + 1, bar_count)
 
         state, tokens = self._append(state, tokens, EndToken())
-        return Segment(
+        segment = Segment(
             tokens=tokens,
             metadata=SegmentMetadata(
                 scale_root=scale_root,
@@ -152,6 +191,30 @@ class SegmentGenerator:
                 difficulty_level=None,
             ),
         )
+        trace = GenerationTrace(
+            samples=tuple(baseline_samples),
+            grid_count_per_bar=grid_count_per_bar,
+            bar_count=bar_count,
+        )
+        return SegmentGenerationResult(segment=segment, trace=trace)
+
+    @staticmethod
+    def _register_midi_pitch(
+        *,
+        anchor: int,
+        scale_size: int,
+        scale_root: int,
+        scale_type: ScaleType,
+        hand: Hand,
+    ) -> int:
+        degree, octave_offset = diatonic_position_to_degree_and_octave(anchor, scale_size=scale_size)
+        note_token = NoteToken(
+            degree=degree,
+            accidental=0,
+            octave_offset=octave_offset,
+            duration_id=MIN_DURATION_ID,
+        )
+        return note_token_to_midi_pitch(note_token, scale_root=scale_root, scale_type=scale_type, hand=hand)
 
     def _figure_entries_by_group(self, scale_type: ScaleType) -> FigureEntriesByGroup:
         figure_lengths = frozenset(self.figure_lengths)
@@ -171,26 +234,55 @@ class SegmentGenerator:
         state: GenerationConstraintState,
         tokens: list[Token],
         hand: Hand,
+        bar_index: int,
+        grid_count_per_bar: int,
+        cell_duration: Fraction,
+        curve: tuple[int, ...],
+        accent: tuple[AccentCell, ...],
+        gates: tuple[Mapping[Hand, bool], ...],
         entries_by_group: FigureEntriesByGroup,
         scale_type: ScaleType,
         chord_pitch_classes: frozenset[int],
-        anchor: int,
-        target_slope: int,
-        envelope_value: float,
         rng: Generator,
     ) -> tuple[GenerationConstraintState, list[Token]]:
-        """Fill an active hand's bar by placing empirical figures left to right.
+        """Fill an active hand's bar from a sub-bar onset grid.
 
-        NEEDS IMPROVEMENT: this is a greedy, no-lookahead fill. Figures are placed back to back until no
-        sampled figure fits the remaining bar time, then the trailing gap becomes a rest; every figure in
-        the bar shares the bar's single register anchor, slope target, and accent value, so sub-bar
-        register motion and accent shaping are not yet modelled.
+        A cell fires iff its accent is an onset and the hand-coupling gate is active for the hand. The
+        cursor walks the bar: stretches before the next fired cell become rests, a fired cell starts a
+        figure whose register anchor, slope target, and accent value are read at that cell. A figure may
+        span many cells; the cursor advances to its end and onsets it masks are skipped.
+
+        NEEDS IMPROVEMENT: figures are still placed greedily with no lookahead. When no sampled figure fits
+        the remaining bar time the trailing gap becomes a rest.
         """
+        bar_start = state.constraints.bar_start(bar_index)
+        bar_end = state.constraints.bar_end(bar_index)
         while True:
-            remaining = state.remaining_duration(hand)
-            if remaining <= 0:
+            cursor = state.cursor(hand)
+            if cursor >= bar_end:
                 break
 
+            fired_cell_index = self._next_fired_cell(
+                hand=hand,
+                bar_index=bar_index,
+                grid_count_per_bar=grid_count_per_bar,
+                cell_duration=cell_duration,
+                bar_start=bar_start,
+                cursor=cursor,
+                accent=accent,
+                gates=gates,
+            )
+            if fired_cell_index is None:
+                return self._fill_with_rest(state=state, tokens=tokens, hand=hand, duration=bar_end - cursor)
+
+            onset_time = bar_start + (fired_cell_index % grid_count_per_bar) * cell_duration
+            if onset_time > cursor:
+                state, tokens = self._fill_with_rest(
+                    state=state, tokens=tokens, hand=hand, duration=onset_time - cursor
+                )
+
+            anchor = int(curve[fired_cell_index])
+            next_cell_index = min(fired_cell_index + 1, len(curve) - 1)
             placement = self._place_one_figure(
                 state=state,
                 hand=hand,
@@ -198,18 +290,44 @@ class SegmentGenerator:
                 scale_type=scale_type,
                 chord_pitch_classes=chord_pitch_classes,
                 anchor=anchor,
-                target_slope=target_slope,
-                envelope_value=envelope_value,
-                remaining=remaining,
+                target_slope=int(curve[next_cell_index]) - anchor,
+                envelope_value=accent[fired_cell_index].weight,
+                remaining=bar_end - state.cursor(hand),
                 rng=rng,
             )
             if placement is None:
-                return self._fill_with_rest(state=state, tokens=tokens, hand=hand, duration=remaining)
+                return self._fill_with_rest(
+                    state=state, tokens=tokens, hand=hand, duration=bar_end - state.cursor(hand)
+                )
 
             state, placed_tokens = placement
             tokens = tokens + placed_tokens
 
         return state, tokens
+
+    @staticmethod
+    def _next_fired_cell(
+        *,
+        hand: Hand,
+        bar_index: int,
+        grid_count_per_bar: int,
+        cell_duration: Fraction,
+        bar_start: Fraction,
+        cursor: Fraction,
+        accent: tuple[AccentCell, ...],
+        gates: tuple[Mapping[Hand, bool], ...],
+    ) -> int | None:
+        current_position = max(0, (cursor - bar_start) // cell_duration)
+        for position in range(int(current_position), grid_count_per_bar):
+            onset_time = bar_start + position * cell_duration
+            if onset_time < cursor:
+                continue
+
+            cell_index = bar_index * grid_count_per_bar + position
+            if accent[cell_index].onset and gates[cell_index][hand]:
+                return cell_index
+
+        return None
 
     def _place_one_figure(
         self,
@@ -288,16 +406,6 @@ class SegmentGenerator:
                 fitting.append((base_duration, count))
 
         return fitting
-
-    def _emit_hand_rest(
-        self,
-        *,
-        state: GenerationConstraintState,
-        tokens: list[Token],
-        hand: Hand,
-        bar_duration: Fraction,
-    ) -> tuple[GenerationConstraintState, list[Token]]:
-        return self._fill_with_rest(state=state, tokens=tokens, hand=hand, duration=bar_duration)
 
     def _fill_with_rest(
         self,

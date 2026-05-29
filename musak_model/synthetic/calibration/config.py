@@ -18,6 +18,7 @@ class CalibrationConfig(BaseModel):
     scale_root: int = Field(ge=0)
     time_numerator: int = Field(gt=0)
     time_denominator: int = Field(gt=0)
+    grid_count_per_bar: int | None = Field(default=None, gt=0)
     bar_count: int = Field(gt=0)
     samples_per_config: int = Field(gt=0)
     min_n: int = Field(gt=0)
@@ -51,6 +52,13 @@ class CalibrationConfig(BaseModel):
     @property
     def figure_lengths(self) -> tuple[int, ...]:
         return tuple(range(self.min_n, self.max_n + 1))
+
+    @property
+    def grid_cells_per_bar(self) -> int:
+        if self.grid_count_per_bar is not None:
+            return self.grid_count_per_bar
+
+        return self.time_numerator
 
     @classmethod
     def load(cls, path: Path = CALIBRATION_CONFIG_PATH) -> CalibrationConfig:

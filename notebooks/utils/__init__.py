@@ -1,3 +1,9 @@
+from musak_model.synthetic.substitution import GenerationTrace
+from notebooks.utils.baselines import (
+    BaselineOverlayViewData,
+    baseline_overlay_chart,
+    baseline_overlay_view_data,
+)
 from notebooks.utils.encoded import (
     EncodedManifestSelection,
     EncodedShard,
@@ -106,6 +112,8 @@ from notebooks.utils.synthetic import (
 from notebooks.utils.tokens import default_duration_vocabulary, token_label, token_rows
 
 __all__ = [
+    "BaselineOverlayViewData",
+    "GenerationTrace",
     "DatasetStatistics",
     "FileSelection",
     "FIGURE_CHORDS_ONLY_COLUMN",
@@ -136,6 +144,8 @@ __all__ = [
     "EncodedManifestSelection",
     "EncodedShard",
     "analysis_result_files",
+    "baseline_overlay_chart",
+    "baseline_overlay_view_data",
     "categorical_distribution",
     "default_duration_vocabulary",
     "default_encoded_browser_root",

@@ -20,6 +20,7 @@ from musak_model.synthetic.processes.chord_track import ChordTrackSampler, unifo
 from musak_model.synthetic.processes.hand_coupling import HandCouplingConfig, HandCouplingSampler
 from musak_model.synthetic.processes.pitch import RegisterCurveConfig, RegisterCurveSampler
 from musak_model.synthetic.substitution import (
+    SegmentGenerationResult,
     SegmentGenerator,
     SubstitutionConfig,
     accent_fit,
@@ -55,6 +56,19 @@ def _flat_accent_field_sampler() -> AccentFieldSampler:
     return AccentFieldSampler(
         config=AccentFieldConfig(
             baseline_logit=0.0,
+            metric_gain=0.0,
+            metric_exponent=1.0,
+            envelope_basis_count=3,
+            envelope_amplitude=0.0,
+            envelope_decay=1.0,
+        )
+    )
+
+
+def _always_onset_accent_field_sampler() -> AccentFieldSampler:
+    return AccentFieldSampler(
+        config=AccentFieldConfig(
+            baseline_logit=40.0,
             metric_gain=0.0,
             metric_exponent=1.0,
             envelope_basis_count=3,
@@ -315,12 +329,13 @@ def test_segment_generator_produces_constraint_valid_segment(
         bar_count=2,
         time_numerator=4,
         time_denominator=4,
+        grid_count_per_bar=1,
         scale_root=0,
         scale_type=ScaleType.MAJOR,
         constraints=constraints,
         rng=default_rng(7),
         source_file=Path("synthetic.mxl"),
-    )
+    ).segment
 
     assert isinstance(segment, Segment)
     state = GenerationConstraintState(constraints=constraints)
@@ -348,7 +363,7 @@ def test_silenced_hand_emits_rest_filled_bars(
                 arch_basis_count=3, arch_amplitude=0.0, arch_decay=1.0, ou_theta=0.5, ou_sigma=0.0
             )
         ),
-        accent_field_sampler=_flat_accent_field_sampler(),
+        accent_field_sampler=_always_onset_accent_field_sampler(),
         hand_coupling_sampler=HandCouplingSampler(
             config=HandCouplingConfig(co_activity_strength=0.5, activity_right=1.0, activity_left=0.0)
         ),
@@ -367,12 +382,13 @@ def test_silenced_hand_emits_rest_filled_bars(
         bar_count=2,
         time_numerator=4,
         time_denominator=4,
+        grid_count_per_bar=1,
         scale_root=0,
         scale_type=ScaleType.MAJOR,
         constraints=constraints,
         rng=default_rng(0),
         source_file=Path("synthetic.mxl"),
-    )
+    ).segment
 
     whole_rest_id = duration_vocabulary.require_duration_id(Fraction(1))
     left_hand_tokens = _tokens_under_hand(segment.tokens, Hand.LEFT)
@@ -426,22 +442,24 @@ def test_segment_generator_is_deterministic_for_a_given_seed(
         bar_count=3,
         time_numerator=4,
         time_denominator=4,
+        grid_count_per_bar=1,
         scale_root=0,
         scale_type=ScaleType.MAJOR,
         constraints=constraints,
         rng=default_rng(123),
         source_file=Path("synthetic.mxl"),
-    )
+    ).segment
     second = generator.generate(
         bar_count=3,
         time_numerator=4,
         time_denominator=4,
+        grid_count_per_bar=1,
         scale_root=0,
         scale_type=ScaleType.MAJOR,
         constraints=constraints,
         rng=default_rng(123),
         source_file=Path("synthetic.mxl"),
-    )
+    ).segment
 
     assert first.tokens == second.tokens
 
@@ -464,7 +482,7 @@ def test_segment_generator_places_multiple_figures_per_bar(
                 arch_basis_count=3, arch_amplitude=0.0, arch_decay=1.0, ou_theta=0.5, ou_sigma=0.0
             )
         ),
-        accent_field_sampler=_flat_accent_field_sampler(),
+        accent_field_sampler=_always_onset_accent_field_sampler(),
         hand_coupling_sampler=_always_active_hand_coupling_sampler(),
         chord_track_sampler=ChordTrackSampler(
             model=uniform_transition_model((Chord(root_degree=1, root_accidental=0, quality=ChordQuality.MAJOR),))
@@ -481,12 +499,13 @@ def test_segment_generator_places_multiple_figures_per_bar(
         bar_count=1,
         time_numerator=4,
         time_denominator=4,
+        grid_count_per_bar=4,
         scale_root=0,
         scale_type=ScaleType.MAJOR,
         constraints=constraints,
         rng=default_rng(3),
         source_file=Path("synthetic.mxl"),
-    )
+    ).segment
 
     eighth = duration_vocabulary.require_duration_id(Fraction(1, 8))
     right_hand_tokens = _tokens_under_hand(segment.tokens, Hand.RIGHT)
@@ -518,7 +537,7 @@ def test_segment_generator_rests_the_trailing_gap_when_no_figure_fits(
                 arch_basis_count=3, arch_amplitude=0.0, arch_decay=1.0, ou_theta=0.5, ou_sigma=0.0
             )
         ),
-        accent_field_sampler=_flat_accent_field_sampler(),
+        accent_field_sampler=_always_onset_accent_field_sampler(),
         hand_coupling_sampler=_always_active_hand_coupling_sampler(),
         chord_track_sampler=ChordTrackSampler(
             model=uniform_transition_model((Chord(root_degree=1, root_accidental=0, quality=ChordQuality.MAJOR),))
@@ -535,12 +554,13 @@ def test_segment_generator_rests_the_trailing_gap_when_no_figure_fits(
         bar_count=1,
         time_numerator=4,
         time_denominator=4,
+        grid_count_per_bar=1,
         scale_root=0,
         scale_type=ScaleType.MAJOR,
         constraints=constraints,
         rng=default_rng(1),
         source_file=Path("synthetic.mxl"),
-    )
+    ).segment
 
     right_hand_tokens = _tokens_under_hand(segment.tokens, Hand.RIGHT)
     assert any(isinstance(token, NoteToken) for token in right_hand_tokens)
@@ -551,3 +571,228 @@ def test_segment_generator_rests_the_trailing_gap_when_no_figure_fits(
         state = state.apply(token, duration_vocabulary=duration_vocabulary)
     assert state.ended
     assert state.bar_index == 1
+
+
+def _grid_generator(
+    duration_vocabulary: DurationVocabulary,
+    *,
+    accent_field_sampler: AccentFieldSampler,
+    hand_coupling_sampler: HandCouplingSampler,
+    register_curve_sampler: RegisterCurveSampler,
+    base_duration: Fraction,
+    figure: FigureNGram,
+) -> SegmentGenerator:
+    vocabulary = _major_vocabulary(
+        {
+            Hand.RIGHT: {len(figure.onsets): [figure]},
+            Hand.LEFT: {len(figure.onsets): [figure]},
+        }
+    )
+    return SegmentGenerator(
+        substitution_config=SubstitutionConfig(
+            lambda_curve=0.0, lambda_harm=0.0, lambda_accent=0.0, commonness_bias=1.0, max_resample_retries=4
+        ),
+        register_curve_sampler=register_curve_sampler,
+        accent_field_sampler=accent_field_sampler,
+        hand_coupling_sampler=hand_coupling_sampler,
+        chord_track_sampler=ChordTrackSampler(
+            model=uniform_transition_model((Chord(root_degree=1, root_accidental=0, quality=ChordQuality.MAJOR),))
+        ),
+        chord_vocabulary=ChordVocabularyConfig.load(),
+        figure_vocabulary=vocabulary,
+        base_duration_distribution=_uniform_base_durations(
+            figure_length=len(figure.onsets), base_duration=base_duration
+        ),
+        duration_vocabulary=duration_vocabulary,
+        figure_lengths=(len(figure.onsets),),
+    )
+
+
+def _flat_register_curve_sampler() -> RegisterCurveSampler:
+    return RegisterCurveSampler(
+        config=RegisterCurveConfig(arch_basis_count=3, arch_amplitude=0.0, arch_decay=1.0, ou_theta=0.5, ou_sigma=0.0)
+    )
+
+
+def test_hand_rests_mid_bar_when_a_sub_bar_cell_does_not_fire(
+    duration_vocabulary: DurationVocabulary,
+) -> None:
+    # A quarter-note grid; some cells fire and some do not, so a single bar mixes figures and rests.
+    generator = _grid_generator(
+        duration_vocabulary,
+        accent_field_sampler=_flat_accent_field_sampler(),
+        hand_coupling_sampler=_always_active_hand_coupling_sampler(),
+        register_curve_sampler=_flat_register_curve_sampler(),
+        base_duration=Fraction(1, 8),
+        figure=_figure([0, 1]),
+    )
+    constraints = GenerationConstraints(time_numerator=4, time_denominator=4, bar_count=1)
+
+    segment = generator.generate(
+        bar_count=1,
+        time_numerator=4,
+        time_denominator=4,
+        grid_count_per_bar=4,
+        scale_root=0,
+        scale_type=ScaleType.MAJOR,
+        constraints=constraints,
+        rng=default_rng(2),
+        source_file=Path("synthetic.mxl"),
+    ).segment
+
+    right_hand_tokens = _tokens_under_hand(segment.tokens, Hand.RIGHT)
+    assert any(isinstance(token, NoteToken) for token in right_hand_tokens)
+    assert any(isinstance(token, RestToken) for token in right_hand_tokens)
+
+    state = GenerationConstraintState(constraints=constraints)
+    for token in segment.tokens:
+        state = state.apply(token, duration_vocabulary=duration_vocabulary)
+    assert state.ended
+    assert state.bar_index == 1
+
+
+def test_register_anchor_varies_across_cells_within_a_bar(
+    duration_vocabulary: DurationVocabulary,
+) -> None:
+    register_curve_sampler = RegisterCurveSampler(
+        config=RegisterCurveConfig(arch_basis_count=3, arch_amplitude=6.0, arch_decay=1.0, ou_theta=0.3, ou_sigma=1.0)
+    )
+    result = _grid_generator(
+        duration_vocabulary,
+        accent_field_sampler=_always_onset_accent_field_sampler(),
+        hand_coupling_sampler=_always_active_hand_coupling_sampler(),
+        register_curve_sampler=register_curve_sampler,
+        base_duration=Fraction(1, 8),
+        figure=_figure([0, 1]),
+    ).generate(
+        bar_count=1,
+        time_numerator=4,
+        time_denominator=4,
+        grid_count_per_bar=4,
+        scale_root=0,
+        scale_type=ScaleType.MAJOR,
+        constraints=GenerationConstraints(time_numerator=4, time_denominator=4, bar_count=1),
+        rng=default_rng(5),
+        source_file=Path("synthetic.mxl"),
+    )
+
+    right_anchors = {
+        sample.register_anchor for sample in result.trace.samples if sample.hand == Hand.RIGHT and sample.bar_index == 0
+    }
+    assert len(right_anchors) > 1
+
+
+def test_accent_weight_varies_across_cells_within_a_bar(
+    duration_vocabulary: DurationVocabulary,
+) -> None:
+    accent_field_sampler = AccentFieldSampler(
+        config=AccentFieldConfig(
+            baseline_logit=0.0,
+            metric_gain=3.0,
+            metric_exponent=1.0,
+            envelope_basis_count=3,
+            envelope_amplitude=1.0,
+            envelope_decay=1.0,
+        )
+    )
+    result = _grid_generator(
+        duration_vocabulary,
+        accent_field_sampler=accent_field_sampler,
+        hand_coupling_sampler=_always_active_hand_coupling_sampler(),
+        register_curve_sampler=_flat_register_curve_sampler(),
+        base_duration=Fraction(1, 8),
+        figure=_figure([0, 1]),
+    ).generate(
+        bar_count=1,
+        time_numerator=4,
+        time_denominator=4,
+        grid_count_per_bar=4,
+        scale_root=0,
+        scale_type=ScaleType.MAJOR,
+        constraints=GenerationConstraints(time_numerator=4, time_denominator=4, bar_count=1),
+        rng=default_rng(5),
+        source_file=Path("synthetic.mxl"),
+    )
+
+    right_weights = {
+        sample.accent_weight for sample in result.trace.samples if sample.hand == Hand.RIGHT and sample.bar_index == 0
+    }
+    assert len(right_weights) > 1
+
+
+def test_a_single_figure_can_span_multiple_cells(
+    duration_vocabulary: DurationVocabulary,
+) -> None:
+    # A four-onset figure at base duration 1/4 spans a whole 4/4 bar (four quarter cells) from one onset.
+    generator = _grid_generator(
+        duration_vocabulary,
+        accent_field_sampler=_always_onset_accent_field_sampler(),
+        hand_coupling_sampler=_always_active_hand_coupling_sampler(),
+        register_curve_sampler=_flat_register_curve_sampler(),
+        base_duration=Fraction(1, 4),
+        figure=_figure([0, 1, 2, 3]),
+    )
+    constraints = GenerationConstraints(time_numerator=4, time_denominator=4, bar_count=1)
+
+    segment = generator.generate(
+        bar_count=1,
+        time_numerator=4,
+        time_denominator=4,
+        grid_count_per_bar=4,
+        scale_root=0,
+        scale_type=ScaleType.MAJOR,
+        constraints=constraints,
+        rng=default_rng(0),
+        source_file=Path("synthetic.mxl"),
+    ).segment
+
+    quarter = duration_vocabulary.require_duration_id(Fraction(1, 4))
+    right_hand_tokens = _tokens_under_hand(segment.tokens, Hand.RIGHT)
+    assert len(right_hand_tokens) == 4
+    assert all(isinstance(token, NoteToken) and token.duration_id == quarter for token in right_hand_tokens)
+
+
+def test_segment_generator_seed_determinism_covers_tokens_and_trace(
+    duration_vocabulary: DurationVocabulary,
+) -> None:
+    register_curve_sampler = RegisterCurveSampler(
+        config=RegisterCurveConfig(arch_basis_count=3, arch_amplitude=2.0, arch_decay=1.0, ou_theta=0.3, ou_sigma=0.5)
+    )
+    accent_field_sampler = AccentFieldSampler(
+        config=AccentFieldConfig(
+            baseline_logit=0.5,
+            metric_gain=2.0,
+            metric_exponent=1.0,
+            envelope_basis_count=3,
+            envelope_amplitude=0.5,
+            envelope_decay=1.0,
+        )
+    )
+
+    def _run() -> SegmentGenerationResult:
+        return _grid_generator(
+            duration_vocabulary,
+            accent_field_sampler=accent_field_sampler,
+            hand_coupling_sampler=HandCouplingSampler(
+                config=HandCouplingConfig(co_activity_strength=0.6, activity_right=0.7, activity_left=0.7)
+            ),
+            register_curve_sampler=register_curve_sampler,
+            base_duration=Fraction(1, 8),
+            figure=_figure([0, 1]),
+        ).generate(
+            bar_count=3,
+            time_numerator=4,
+            time_denominator=4,
+            grid_count_per_bar=4,
+            scale_root=0,
+            scale_type=ScaleType.MAJOR,
+            constraints=GenerationConstraints(time_numerator=4, time_denominator=4, bar_count=3),
+            rng=default_rng(99),
+            source_file=Path("synthetic.mxl"),
+        )
+
+    first = _run()
+    second = _run()
+
+    assert first.segment.tokens == second.segment.tokens
+    assert first.trace == second.trace

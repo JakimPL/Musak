@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+from typing import Final
+
 import marimo
+
+DEFAULT_GRID_COUNT_PER_BAR: Final = 4
 
 __generated_with = "0.23.8"
 app = marimo.App(width="wide", app_title="Synthetic Sight-Reading Generator")
@@ -18,6 +22,8 @@ def _():
     from notebooks.utils import (
         PitchSpelling,
         SyntheticGenerationRequest,
+        baseline_overlay_chart,
+        baseline_overlay_view_data,
         generate_synthetic_segment,
         hand_controls,
         load_synthetic_inputs,
@@ -33,6 +39,8 @@ def _():
         ScaleType,
         SyntheticGenerationRequest,
         alt,
+        baseline_overlay_chart,
+        baseline_overlay_view_data,
         generate_synthetic_segment,
         hand_controls,
         load_synthetic_inputs,
@@ -120,6 +128,9 @@ def _(ScaleType, SyntheticGenerationRequest, mo, set_generation_request, synthet
     )
     time_numerator = mo.ui.number(start=1, stop=16, step=1, value=4, label="Time numerator")
     time_denominator = mo.ui.dropdown(options=["1", "2", "4", "8", "16"], value="4", label="Time denominator")
+    grid_count_per_bar = mo.ui.number(
+        start=1, stop=64, step=1, value=DEFAULT_GRID_COUNT_PER_BAR, label="Grid cells per bar"
+    )
     bar_count = mo.ui.number(start=1, stop=64, step=1, value=8, label="Bars")
     seed = mo.ui.number(start=0, stop=2**31 - 1, step=1, value=1234, label="Seed")
     min_n = mo.ui.number(start=1, stop=8, step=1, value=2, label="Min figure length")
@@ -177,6 +188,7 @@ def _(ScaleType, SyntheticGenerationRequest, mo, set_generation_request, synthet
                 scale_type=scale_type.value,
                 time_numerator=int(time_numerator.value),
                 time_denominator=int(time_denominator.value),
+                grid_count_per_bar=int(grid_count_per_bar.value),
                 bar_count=int(bar_count.value),
                 seed=int(seed.value),
                 min_n=int(min_n.value),
@@ -216,7 +228,11 @@ def _(ScaleType, SyntheticGenerationRequest, mo, set_generation_request, synthet
         [
             mo.md("## Controls"),
             mo.md("### Musical Context"),
-            mo.hstack([scale_root, scale_type, time_numerator, time_denominator, bar_count, seed], gap=2, wrap=True),
+            mo.hstack(
+                [scale_root, scale_type, time_numerator, time_denominator, grid_count_per_bar, bar_count, seed],
+                gap=2,
+                wrap=True,
+            ),
             mo.md("### Figures and Tilts"),
             mo.hstack([min_n, max_n, lambda_curve, lambda_harm, lambda_accent, commonness_bias], gap=2, wrap=True),
             mo.hstack([max_resample_retries], gap=2, wrap=True),
@@ -351,6 +367,18 @@ def _(
         )
 
     piano_roll_output
+    return
+
+
+@app.cell
+def _(PitchSpelling, alt, baseline_overlay_chart, baseline_overlay_view_data, mo, output):
+    if output is None or output.segment is None:
+        baseline_output = mo.md("")
+    else:
+        baseline_view_data = baseline_overlay_view_data(output.trace, pitch_spelling=PitchSpelling.SHARPS)
+        baseline_output = mo.ui.altair_chart(baseline_overlay_chart(baseline_view_data, alt=alt))
+
+    baseline_output
     return
 
 

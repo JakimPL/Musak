@@ -13,8 +13,12 @@ from musak_model.synthetic.substitution.scoring import (
     is_monorhythmic,
     slope_fit,
 )
+from musak_model.synthetic.substitution.trace import BaselineSample, GenerationTrace, SegmentGenerationResult
 
 __all__ = [
+    "BaselineSample",
+    "GenerationTrace",
+    "SegmentGenerationResult",
     "SegmentGenerator",
     "SubstitutionConfig",
     "accent_fit",

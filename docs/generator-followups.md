@@ -6,24 +6,22 @@ what closing the gap requires.
 
 The earlier gaps are closed: the accent field is wired into substitution, and the length-0 decoder window
 is guarded. (The register home-offset $\mu_i$ was never actually a gap — `octave_offset` is home-relative
-and $\mu_i$ is applied at token-to-MIDI conversion; see `docs/generator.md` §3.) The remaining gaps below
-share a single root cause — the generator still resolves register, accent, and hand activity at **bar**
-resolution rather than at the **grid-cell** resolution the design assumes — and are best taken as one
-coherent unit of work.
+and $\mu_i$ is applied at token-to-MIDI conversion; see `docs/generator.md` §3.) Gaps 1 and 3 are now
+closed too: `SegmentGenerator.generate` takes a `grid_count_per_bar` and drives emission from a sub-bar
+onset grid. The remaining gap (#2, sync) still resolves hand interaction below the grid the design assumes.
 
-## 1. Activity gating is bar-resolution, not grid-cell-resolution
+## 1. Activity gating is bar-resolution, not grid-cell-resolution — CLOSED
 
 **Design (§4, §7).** The accent field is a marked point process on the bar grid; each grid cell is
 independently an onset or a rest, and the hand-coupling gate acts per cell, so a hand can fall silent for
 part of a bar.
 
-**Code today.** `SegmentGenerator.generate` samples the accent envelope and the hand-coupling gates with
-one cell per bar (`grid_count_per_bar=1`, `cell_count=bar_count`). A hand is therefore either active for a
-whole bar or silent for a whole bar; there is no sub-bar gating. The samplers themselves already accept a
-finer grid — only the caller fixes it to one cell per bar.
-
-**To close the gap.** Drive the per-bar emission from a sub-bar onset grid: sample the accent field and
-gates at the real grid resolution, and let fired cells start figures while unfired cells become rests.
+**Resolution.** `SegmentGenerator.generate` now takes `grid_count_per_bar` and samples the accent field
+(`AccentFieldSampler.sample`, with onset marks) and the hand-coupling gates at `cell_count =
+bar_count * grid_count_per_bar`. A cell fires iff its accent is an onset *and* the per-cell coupling gate
+is active for the hand; the cursor walks each bar, resting unfired stretches and starting a figure at each
+fired cell, so a hand can fall silent mid-bar. Figure durations are unchanged — a figure may still span
+many cells; the grid only fixes onset times.
 
 ## 2. Sync coupling is not implemented
 
@@ -38,17 +36,15 @@ sync parameter and no mechanism aligning the two hands' attacks within a bar.
 depends on gap 1. Add $h_s$ to `HandCouplingConfig` and bias the two hands' onset grids toward coincident
 attacks.
 
-## 3. Register and accent are shared across all figures in a bar
+## 3. Register and accent are shared across all figures in a bar — CLOSED
 
 **Design (§3, §6).** The register curve yields an integer diatonic position *per onset step*, and the
 accent value entering the substitution tilt is the envelope *at the current cell*.
 
-**Code today.** The register curve is sampled per bar (`length=bar_count`) and every figure placed in a
-bar shares that bar's single anchor, slope target, and accent value (see the `_emit_hand_bar` docstring).
-Sub-bar register motion and per-cell accent shaping are therefore not modelled.
-
-**To close the gap.** Sample register and accent at the onset-grid resolution (gap 1) and read the anchor,
-slope, and envelope per placement rather than per bar.
+**Resolution.** The register curve is now sampled at grid resolution (`length =
+bar_count * grid_count_per_bar`) and each figure reads its anchor from the firing cell, its slope target
+from that cell to the next, and its envelope value from the firing cell's accent weight, so sub-bar
+register motion and per-cell accent shaping are modelled.
 
 ## Note on the greedy fill
 

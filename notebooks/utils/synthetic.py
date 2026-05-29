@@ -18,7 +18,7 @@ from musak_model.synthetic.processes.accent import AccentFieldConfig, AccentFiel
 from musak_model.synthetic.processes.chord_track import ChordTrackSampler, uniform_transition_model
 from musak_model.synthetic.processes.hand_coupling import HandCouplingConfig, HandCouplingSampler
 from musak_model.synthetic.processes.pitch import RegisterCurveConfig, RegisterCurveSampler
-from musak_model.synthetic.substitution import SegmentGenerator, SubstitutionConfig
+from musak_model.synthetic.substitution import GenerationTrace, SegmentGenerator, SubstitutionConfig
 from musak_model.tokens.config import TokenizationConfig
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import ScaleType
@@ -48,6 +48,7 @@ class SyntheticGenerationRequest:
     scale_type: str
     time_numerator: int
     time_denominator: int
+    grid_count_per_bar: int
     bar_count: int
     seed: int
     min_n: int
@@ -84,6 +85,7 @@ class SyntheticGenerationRequest:
 @dataclass(frozen=True)
 class SyntheticGeneratedOutput:
     segment: Segment | None
+    trace: GenerationTrace
     duration_vocabulary: DurationVocabulary
     decode_error: str | None
     error: str | None
@@ -145,10 +147,11 @@ def generate_synthetic_segment(
         figure_lengths=tuple(range(request.min_n, request.max_n + 1)),
     )
     try:
-        segment = generator.generate(
+        result = generator.generate(
             bar_count=request.bar_count,
             time_numerator=request.time_numerator,
             time_denominator=request.time_denominator,
+            grid_count_per_bar=request.grid_count_per_bar,
             scale_root=request.scale_root,
             scale_type=scale_type,
             constraints=_build_constraints(request, scale_type=scale_type),
@@ -159,12 +162,14 @@ def generate_synthetic_segment(
     except (GenerationConstraintError, ValueError) as exception:
         return _failure(duration_vocabulary, f"Generation failed: {exception}")
 
+    segment = result.segment
     decode_error = segment_decode_error(segment, duration_vocabulary=duration_vocabulary)
     status_message = (
         f"Generated {segment.bar_count} bar(s), {len(segment.tokens)} tokens | decode error: {decode_error or '-'}"
     )
     return SyntheticGeneratedOutput(
         segment=segment,
+        trace=result.trace,
         duration_vocabulary=duration_vocabulary,
         decode_error=decode_error,
         error=None,
@@ -199,6 +204,7 @@ def _build_constraints(request: SyntheticGenerationRequest, *, scale_type: Scale
 def _failure(duration_vocabulary: DurationVocabulary, message: str) -> SyntheticGeneratedOutput:
     return SyntheticGeneratedOutput(
         segment=None,
+        trace=GenerationTrace(samples=(), grid_count_per_bar=1, bar_count=0),
         duration_vocabulary=duration_vocabulary,
         decode_error=None,
         error=message,
