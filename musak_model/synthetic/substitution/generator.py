@@ -1,3 +1,4 @@
+from bisect import bisect_right
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from fractions import Fraction
@@ -19,8 +20,10 @@ from musak_model.synthetic.base_durations import (
 )
 from musak_model.synthetic.figures import FigureVocabulary, FigureVocabularyEntry
 from musak_model.synthetic.harmony.expansion import chord_pitch_class_set
+from musak_model.synthetic.harmony.schema import Chord
 from musak_model.synthetic.harmony.vocabulary import ChordVocabularyConfig
-from musak_model.synthetic.processes.accent import AccentCell, AccentFieldSampler
+from musak_model.synthetic.harmony.windows import chord_window_grid
+from musak_model.synthetic.processes.accent import AccentFieldSampler
 from musak_model.synthetic.processes.chord_track import ChordTrackSampler
 from musak_model.synthetic.processes.hand_coupling import HandCouplingSampler
 from musak_model.synthetic.processes.pitch import RegisterCurveSampler
@@ -42,6 +45,7 @@ from musak_model.tokens.schema import (
     Token,
     scale_size_for_type,
 )
+from musak_shared.misc import is_power_of_two
 
 type FigureEntriesByGroup = Mapping[tuple[Hand, int], tuple[FigureVocabularyEntry, ...]]
 type ProgressCallback = Callable[[int, int], None]
@@ -67,6 +71,7 @@ class SegmentGenerator:
         time_numerator: int,
         time_denominator: int,
         grid_count_per_bar: int,
+        chord_resolution: int,
         scale_root: int,
         scale_type: ScaleType,
         constraints: GenerationConstraints,
@@ -79,6 +84,9 @@ class SegmentGenerator:
 
         if grid_count_per_bar <= 0:
             raise ValueError("grid_count_per_bar must be positive")
+
+        if not is_power_of_two(chord_resolution):
+            raise ValueError("chord_resolution must be a power of two note value (1 whole, 2 half, 4 quarter, ...)")
 
         if not self.figure_lengths:
             raise ValueError("figure_lengths must be non-empty")
@@ -99,12 +107,12 @@ class SegmentGenerator:
             hand=Hand.LEFT,
             rng=rng,
         )
-        right_accent = self.accent_field_sampler.sample(
+        right_weights = self.accent_field_sampler.sample_weights(
             bar_count=bar_count,
             grid_count_per_bar=grid_count_per_bar,
             rng=rng,
         )
-        left_accent = self.accent_field_sampler.sample(
+        left_weights = self.accent_field_sampler.sample_weights(
             bar_count=bar_count,
             grid_count_per_bar=grid_count_per_bar,
             rng=rng,
@@ -113,18 +121,35 @@ class SegmentGenerator:
             cell_count=cell_count,
             rng=rng,
         )
-        chord_track = self.chord_track_sampler.sample(
-            length=bar_count,
+        onsets = self.hand_coupling_sampler.sample_onsets(
+            right_weights=right_weights,
+            left_weights=left_weights,
             rng=rng,
+        )
+        chord_windows = chord_window_grid(
+            measure_duration=bar_duration,
+            total_duration=bar_duration * bar_count,
+            resolution=chord_resolution,
+        )
+        chord_track = self.chord_track_sampler.sample(
+            length=len(chord_windows),
+            rng=rng,
+        )
+        cell_chord_pitch_classes = self._cell_chord_pitch_classes(
+            chord_windows=chord_windows,
+            chord_track=chord_track,
+            scale_type=scale_type,
+            cell_duration=cell_duration,
+            cell_count=cell_count,
         )
 
         scale_size = scale_size_for_type(scale_type)
         baseline_samples: list[BaselineSample] = []
         for cell_index in range(cell_count):
             bar_index, position = divmod(cell_index, grid_count_per_bar)
-            for hand, curve, accent in (
-                (Hand.RIGHT, right_curve, right_accent),
-                (Hand.LEFT, left_curve, left_accent),
+            for hand, curve, weights in (
+                (Hand.RIGHT, right_curve, right_weights),
+                (Hand.LEFT, left_curve, left_weights),
             ):
                 anchor = int(curve[cell_index])
                 baseline_samples.append(
@@ -141,21 +166,16 @@ class SegmentGenerator:
                             scale_type=scale_type,
                             hand=hand,
                         ),
-                        accent_weight=accent[cell_index].weight,
+                        accent_weight=weights[cell_index],
                     )
                 )
 
         state = GenerationConstraintState(constraints=constraints)
         tokens: list[Token] = []
         for bar_index in range(bar_count):
-            chord_pcs = chord_pitch_class_set(
-                chord_track[bar_index],
-                scale_type=scale_type,
-                vocabulary=self.chord_vocabulary,
-            )
-            for hand, curve, accent in (
-                (Hand.RIGHT, right_curve, right_accent),
-                (Hand.LEFT, left_curve, left_accent),
+            for hand, curve, weights in (
+                (Hand.RIGHT, right_curve, right_weights),
+                (Hand.LEFT, left_curve, left_weights),
             ):
                 state, tokens = self._append(state, tokens, HandToken(hand=hand))
                 state, tokens = self._emit_hand_bar(
@@ -166,11 +186,12 @@ class SegmentGenerator:
                     grid_count_per_bar=grid_count_per_bar,
                     cell_duration=cell_duration,
                     curve=curve,
-                    accent=accent,
+                    weights=weights,
+                    onsets=onsets,
                     gates=gates,
                     entries_by_group=entries_by_group,
                     scale_type=scale_type,
-                    chord_pitch_classes=chord_pcs,
+                    cell_chord_pitch_classes=cell_chord_pitch_classes,
                     rng=rng,
                 )
             state, tokens = self._append(state, tokens, BarToken())
@@ -216,6 +237,25 @@ class SegmentGenerator:
         )
         return note_token_to_midi_pitch(note_token, scale_root=scale_root, scale_type=scale_type, hand=hand)
 
+    def _cell_chord_pitch_classes(
+        self,
+        *,
+        chord_windows: tuple[tuple[Fraction, Fraction], ...],
+        chord_track: tuple[Chord, ...],
+        scale_type: ScaleType,
+        cell_duration: Fraction,
+        cell_count: int,
+    ) -> tuple[frozenset[int], ...]:
+        window_starts = [start for start, _ in chord_windows]
+        pitch_classes_per_window = tuple(
+            chord_pitch_class_set(chord, scale_type=scale_type, vocabulary=self.chord_vocabulary)
+            for chord in chord_track
+        )
+        return tuple(
+            pitch_classes_per_window[bisect_right(window_starts, cell_index * cell_duration) - 1]
+            for cell_index in range(cell_count)
+        )
+
     def _figure_entries_by_group(self, scale_type: ScaleType) -> FigureEntriesByGroup:
         figure_lengths = frozenset(self.figure_lengths)
         grouped: dict[tuple[Hand, int], list[FigureVocabularyEntry]] = {}
@@ -238,16 +278,17 @@ class SegmentGenerator:
         grid_count_per_bar: int,
         cell_duration: Fraction,
         curve: tuple[int, ...],
-        accent: tuple[AccentCell, ...],
+        weights: tuple[float, ...],
+        onsets: tuple[Mapping[Hand, bool], ...],
         gates: tuple[Mapping[Hand, bool], ...],
         entries_by_group: FigureEntriesByGroup,
         scale_type: ScaleType,
-        chord_pitch_classes: frozenset[int],
+        cell_chord_pitch_classes: tuple[frozenset[int], ...],
         rng: Generator,
     ) -> tuple[GenerationConstraintState, list[Token]]:
         """Fill an active hand's bar from a sub-bar onset grid.
 
-        A cell fires iff its accent is an onset and the hand-coupling gate is active for the hand. The
+        A cell fires iff its onset mask and the hand-coupling gate are both active for the hand. The
         cursor walks the bar: stretches before the next fired cell become rests, a fired cell starts a
         figure whose register anchor, slope target, and accent value are read at that cell. A figure may
         span many cells; the cursor advances to its end and onsets it masks are skipped.
@@ -269,7 +310,7 @@ class SegmentGenerator:
                 cell_duration=cell_duration,
                 bar_start=bar_start,
                 cursor=cursor,
-                accent=accent,
+                onsets=onsets,
                 gates=gates,
             )
             if fired_cell_index is None:
@@ -286,10 +327,10 @@ class SegmentGenerator:
                 hand=hand,
                 entries_by_group=entries_by_group,
                 scale_type=scale_type,
-                chord_pitch_classes=chord_pitch_classes,
+                chord_pitch_classes=cell_chord_pitch_classes[fired_cell_index],
                 curve=curve,
                 fired_cell_index=fired_cell_index,
-                envelope_value=accent[fired_cell_index].weight,
+                envelope_value=weights[fired_cell_index],
                 remaining=bar_end - state.cursor(hand),
                 rng=rng,
             )
@@ -312,7 +353,7 @@ class SegmentGenerator:
         cell_duration: Fraction,
         bar_start: Fraction,
         cursor: Fraction,
-        accent: tuple[AccentCell, ...],
+        onsets: tuple[Mapping[Hand, bool], ...],
         gates: tuple[Mapping[Hand, bool], ...],
     ) -> int | None:
         current_position = max(0, (cursor - bar_start) // cell_duration)
@@ -322,7 +363,7 @@ class SegmentGenerator:
                 continue
 
             cell_index = bar_index * grid_count_per_bar + position
-            if accent[cell_index].onset and gates[cell_index][hand]:
+            if onsets[cell_index][hand] and gates[cell_index][hand]:
                 return cell_index
 
         return None

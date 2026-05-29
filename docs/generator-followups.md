@@ -12,7 +12,8 @@ surfaced by the code-derived model in [`docs/generator-model.md`](generator-mode
 Already closed: the accent field is wired into substitution, the length-0 decoder window is guarded, and
 the activity gate plus register/accent reads are now per grid cell (gaps 1 and 3). (The register home-offset
 $\mu_i$ was never a gap — `octave_offset` is home-relative and $\mu_i$ is applied at token-to-MIDI
-conversion; see `docs/generator.md` §3.) A quick-wins pass then closed gaps 5, 6, 12 and 13 (below).
+conversion; see `docs/generator.md` §3.) A quick-wins pass then closed gaps 5, 6, 12 and 13, and a
+structural pass closed gaps 2 (sync coupling) and 9 (sub-bar harmonic rhythm) (all below).
 
 ---
 
@@ -29,18 +30,25 @@ is active for the hand; the cursor walks each bar, resting unfired stretches and
 fired cell, so a hand can fall silent mid-bar. Figure durations are unchanged — a figure may still span
 many cells; the grid only fixes onset times.
 
-## 2. Sync coupling is not implemented
+## 2. Sync coupling is not implemented — CLOSED
 
 **Design (§7).** Hand interaction has three couplings — co-activity, **sync** ($h_s$: the probability that
-both hands' attacks coincide on the grid), and shared harmony. Co-activity and shared harmony exist;
-sync does not.
+both hands' attacks coincide on the grid), and shared harmony.
 
-**Code today.** `HandCouplingSampler` models only co-activity (the Gaussian-copula gate). There is no
-sync parameter and no mechanism aligning the two hands' attacks within a bar.
+**Code before.** `HandCouplingSampler` modelled only co-activity (the Gaussian-copula gate); the two hands'
+onset Bernoulli draws were independent inside `AccentFieldSampler.sample`.
 
-**To close the gap.** Sync only carries information once a bar holds more than one onset per hand, so it
-depends on gap 1. Add $h_s$ to `HandCouplingConfig` and bias the two hands' onset grids toward coincident
-attacks.
+**Resolution.** The per-hand onset draw moved out of `AccentFieldSampler` (now weights-only via
+`sample_weights`; `AccentCell` and `sample` were removed) into `HandCouplingSampler.sample_onsets`, which
+owns both couplings. With probability `sync_strength` a cell uses one shared uniform for both hands
+(comonotonic, so attacks coincide while each hand's marginal onset probability stays equal to its weight);
+otherwise the hands draw independently. `generate()` now fires a cell iff its coupled onset mask and the
+co-activity gate are both active. Wired through `HandCouplingConfig.sync_strength` (`hand_coupling.yml`),
+`SyntheticGenerationRequest`, and a notebook slider.
+
+Note: relocating the onset draw shifts the rng stream for every seed (even at `sync_strength=0`), so
+generated token sequences differ from the pre-change output; the determinism tests assert run-to-run
+equality and structural validity, not golden tokens, so they are unaffected.
 
 ## 3. Register and accent are shared across all figures in a bar — CLOSED
 
@@ -134,19 +142,25 @@ design and remove/annotate the now-dead `monorhythmic_entries` helper (confirm i
 a texture-mode knob (monophonic melodic lines vs. chordal/Alberti) and filter the candidate pool
 accordingly.
 
-## 9. Harmonic rhythm is fixed at one chord per bar — `D3`
+## 9. Harmonic rhythm is fixed at one chord per bar — `D3` — CLOSED
 
 **Design (§5).** The harmonic-rhythm resolution is a configurable power-of-two note value (whole/half/
 quarter), bar-aligned with truncation, yielding sub-bar chord windows in odd meters.
 
-**Code today.** Generation samples `chord_track` with `length=bar_count` and computes `chord_pcs` once per
-bar (`generator.py:116,151`). There is no sub-bar chord windowing at generation time; the configurable
-resolution exists only on the offline `ChordDecoderConfig.resolution`.
+**Code before.** Generation sampled `chord_track` with `length=bar_count` and computed the chord pitch
+classes once per bar; sub-bar windowing existed only on the offline `ChordDecoderConfig.resolution`.
 
-**To close the gap.** Lay down the bar-aligned chord grid at generation time — reuse the windowing logic in
-`harmony/decoding/windows.py:sounding_windows` — sample one chord per window, and select the active chord
-per cell by the cell's onset time. Add a harmonic-rhythm resolution to the generation config. Best done by
-factoring the window-grid construction into a shared utility used by both decoder and generator.
+**Resolution.** The bar-aligned, barline-truncated tiling is now a shared `chord_window_grid`
+(`synthetic/harmony/windows.py`), used by both `decoding/windows.py:sounding_windows` and the generator.
+`SegmentGenerator.generate` takes a power-of-two `chord_resolution`, samples one chord per window
+(`chord_track` length = window count), and conditions each fired cell by the chord at its first onset via a
+precomputed per-cell pitch-class map (`bisect` over the window starts). Wired through `CalibrationConfig`
+(default 1, also in `calibration.yml`), `SyntheticGenerationRequest`, and a notebook control. No
+divisibility constraint ties `chord_resolution` to `grid_count_per_bar`.
+
+Note: `chord_resolution=1` reproduces one-chord-per-bar only in meters no longer than a whole note (the 4/4
+default and common meters ≤ 4/4). In 5/4 and larger it yields the bar-aligned-truncated windows the design
+prescribes (a whole-note window plus a tail) — more than one window per bar, by design.
 
 ## 10. Register curve is hand- and scale-agnostic — `D4`
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+import numpy as np
 from numpy.random import Generator
 from pydantic import BaseModel, ConfigDict, Field
 from scipy.stats import norm
@@ -18,6 +19,7 @@ class HandCouplingConfig(BaseModel):
     co_activity_strength: float = Field(ge=0.0, le=1.0)
     activity_right: float = Field(ge=0.0, le=1.0)
     activity_left: float = Field(ge=0.0, le=1.0)
+    sync_strength: float = Field(ge=0.0, le=1.0)
 
     @classmethod
     def load(cls, path: Path = HAND_COUPLING_CONFIG_PATH) -> HandCouplingConfig:
@@ -48,4 +50,28 @@ class HandCouplingSampler:
         return tuple(
             {Hand.RIGHT: bool(is_right_active), Hand.LEFT: bool(is_left_active)}
             for is_right_active, is_left_active in zip(right_active, left_active, strict=True)
+        )
+
+    def sample_onsets(
+        self,
+        *,
+        right_weights: tuple[float, ...],
+        left_weights: tuple[float, ...],
+        rng: Generator,
+    ) -> tuple[dict[Hand, bool], ...]:
+        right = np.asarray(right_weights, dtype=np.float64)
+        left = np.asarray(left_weights, dtype=np.float64)
+        if right.size != left.size:
+            raise ValueError("right_weights and left_weights must have equal length")
+
+        cell_count = right.size
+        shared = rng.random(cell_count) < self.config.sync_strength
+        shared_uniform = rng.random(cell_count)
+        right_draw = np.where(shared, shared_uniform, rng.random(cell_count))
+        left_draw = np.where(shared, shared_uniform, rng.random(cell_count))
+        right_onset = right_draw < right
+        left_onset = left_draw < left
+        return tuple(
+            {Hand.RIGHT: bool(is_right_onset), Hand.LEFT: bool(is_left_onset)}
+            for is_right_onset, is_left_onset in zip(right_onset, left_onset, strict=True)
         )

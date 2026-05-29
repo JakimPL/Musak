@@ -62,7 +62,9 @@ def _generator(duration_vocabulary: DurationVocabulary) -> SegmentGenerator:
             )
         ),
         hand_coupling_sampler=HandCouplingSampler(
-            config=HandCouplingConfig(co_activity_strength=0.5, activity_right=1.0, activity_left=1.0)
+            config=HandCouplingConfig(
+                co_activity_strength=0.5, activity_right=1.0, activity_left=1.0, sync_strength=0.0
+            )
         ),
         chord_track_sampler=ChordTrackSampler(
             model=uniform_transition_model((Chord(root_degree=1, root_accidental=0, quality=ChordQuality.MAJOR),))
@@ -93,6 +95,7 @@ def _config(
         scale_root=0,
         time_numerator=4,
         time_denominator=4,
+        chord_resolution=1,
         bar_count=2,
         samples_per_config=samples_per_config,
         min_n=2,
@@ -101,6 +104,7 @@ def _config(
         commonness_bias=1.0,
         max_resample_retries=4,
         seed=0,
+        target_total_variation_distance=0.1,
         lambda_curve=lambda_curve,
         lambda_harm=lambda_harm,
         lambda_accent=lambda_accent,
@@ -177,6 +181,7 @@ def _config_with_n_range(*, min_n: int, max_n: int) -> CalibrationConfig:
         scale_root=0,
         time_numerator=4,
         time_denominator=4,
+        chord_resolution=1,
         bar_count=2,
         samples_per_config=4,
         min_n=min_n,
@@ -185,6 +190,7 @@ def _config_with_n_range(*, min_n: int, max_n: int) -> CalibrationConfig:
         commonness_bias=1.0,
         max_resample_retries=4,
         seed=0,
+        target_total_variation_distance=0.1,
         lambda_curve=(0.0,),
         lambda_harm=(0.0,),
         lambda_accent=(0.0,),

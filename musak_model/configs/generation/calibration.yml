@@ -4,6 +4,7 @@ scale_type: major
 scale_root: 0
 time_numerator: 4
 time_denominator: 4
+chord_resolution: 1
 bar_count: 16
 samples_per_config: 64
 min_n: 2

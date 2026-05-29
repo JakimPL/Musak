@@ -1,10 +1,6 @@
 from __future__ import annotations
 
-from typing import Final
-
 import marimo
-
-DEFAULT_GRID_COUNT_PER_BAR: Final = 4
 
 __generated_with = "0.23.8"
 app = marimo.App(width="wide", app_title="Synthetic Sight-Reading Generator")
@@ -33,7 +29,10 @@ def _():
     )
 
     alt.data_transformers.disable_max_rows()
+
+    DEFAULT_GRID_COUNT_PER_BAR = 4
     return (
+        DEFAULT_GRID_COUNT_PER_BAR,
         DEFAULT_PROCESSED_ROOT,
         PitchSpelling,
         ScaleType,
@@ -119,7 +118,14 @@ def _(mo):
 
 
 @app.cell
-def _(ScaleType, SyntheticGenerationRequest, mo, set_generation_request, synthetic_inputs):
+def _(
+    DEFAULT_GRID_COUNT_PER_BAR,
+    ScaleType,
+    SyntheticGenerationRequest,
+    mo,
+    set_generation_request,
+    synthetic_inputs,
+):
     mo.stop(synthetic_inputs is None, mo.md(""))
 
     scale_root = mo.ui.slider(start=0, stop=11, step=1, value=0, label="Scale root", show_value=True)
@@ -131,6 +137,7 @@ def _(ScaleType, SyntheticGenerationRequest, mo, set_generation_request, synthet
     grid_count_per_bar = mo.ui.number(
         start=1, stop=64, step=1, value=DEFAULT_GRID_COUNT_PER_BAR, label="Grid cells per bar"
     )
+    chord_resolution = mo.ui.dropdown(options=["1", "2", "4", "8", "16"], value="1", label="Chord resolution")
     bar_count = mo.ui.number(start=1, stop=64, step=1, value=8, label="Bars")
     seed = mo.ui.number(start=0, stop=2**31 - 1, step=1, value=1234, label="Seed")
     min_n = mo.ui.number(start=1, stop=8, step=1, value=2, label="Min figure length")
@@ -164,6 +171,7 @@ def _(ScaleType, SyntheticGenerationRequest, mo, set_generation_request, synthet
         start=0.0, stop=1.0, step=0.05, value=0.9, label="Right-hand activity", show_value=True
     )
     activity_left = mo.ui.slider(start=0.0, stop=1.0, step=0.05, value=0.9, label="Left-hand activity", show_value=True)
+    sync_strength = mo.ui.slider(start=0.0, stop=1.0, step=0.05, value=0.0, label="Sync strength", show_value=True)
     self_transition_bias = mo.ui.slider(
         start=0.0, stop=1.0, step=0.05, value=0.25, label="Chord self-transition bias", show_value=True
     )
@@ -189,6 +197,7 @@ def _(ScaleType, SyntheticGenerationRequest, mo, set_generation_request, synthet
                 time_numerator=int(time_numerator.value),
                 time_denominator=int(time_denominator.value),
                 grid_count_per_bar=int(grid_count_per_bar.value),
+                chord_resolution=int(chord_resolution.value),
                 bar_count=int(bar_count.value),
                 seed=int(seed.value),
                 min_n=int(min_n.value),
@@ -212,6 +221,7 @@ def _(ScaleType, SyntheticGenerationRequest, mo, set_generation_request, synthet
                 co_activity_strength=float(co_activity_strength.value),
                 activity_right=float(activity_right.value),
                 activity_left=float(activity_left.value),
+                sync_strength=float(sync_strength.value),
                 self_transition_bias=float(self_transition_bias.value),
                 use_constraints=use_constraints.value,
                 minimum_duration=minimum_duration.value,
@@ -229,7 +239,16 @@ def _(ScaleType, SyntheticGenerationRequest, mo, set_generation_request, synthet
             mo.md("## Controls"),
             mo.md("### Musical Context"),
             mo.hstack(
-                [scale_root, scale_type, time_numerator, time_denominator, grid_count_per_bar, bar_count, seed],
+                [
+                    scale_root,
+                    scale_type,
+                    time_numerator,
+                    time_denominator,
+                    grid_count_per_bar,
+                    chord_resolution,
+                    bar_count,
+                    seed,
+                ],
                 gap=2,
                 wrap=True,
             ),
@@ -252,7 +271,11 @@ def _(ScaleType, SyntheticGenerationRequest, mo, set_generation_request, synthet
                 wrap=True,
             ),
             mo.md("### Hand Coupling and Harmony"),
-            mo.hstack([co_activity_strength, activity_right, activity_left, self_transition_bias], gap=2, wrap=True),
+            mo.hstack(
+                [co_activity_strength, activity_right, activity_left, sync_strength, self_transition_bias],
+                gap=2,
+                wrap=True,
+            ),
             mo.md("### Hard Constraints"),
             mo.hstack([use_constraints, minimum_duration, allow_dotted], gap=2, wrap=True),
             mo.hstack([max_notes_per_hand, max_onset_span, max_gap, max_span], gap=2, wrap=True),

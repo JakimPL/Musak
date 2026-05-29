@@ -13,11 +13,13 @@ def _config(
     co_activity_strength: float = 0.5,
     activity_right: float = 0.5,
     activity_left: float = 0.5,
+    sync_strength: float = 0.0,
 ) -> HandCouplingConfig:
     return HandCouplingConfig(
         co_activity_strength=co_activity_strength,
         activity_right=activity_right,
         activity_left=activity_left,
+        sync_strength=sync_strength,
     )
 
 
@@ -27,6 +29,7 @@ def test_default_config_loads() -> None:
     assert 0.0 <= config.co_activity_strength <= 1.0
     assert 0.0 <= config.activity_right <= 1.0
     assert 0.0 <= config.activity_left <= 1.0
+    assert 0.0 <= config.sync_strength <= 1.0
 
 
 def test_sample_gates_is_deterministic_for_a_given_seed() -> None:
@@ -80,9 +83,64 @@ def test_sample_gates_rejects_non_positive_cell_count() -> None:
         sampler.sample_gates(cell_count=0, rng=default_rng(0))
 
 
+def test_sample_onsets_is_deterministic_for_a_given_seed() -> None:
+    sampler = HandCouplingSampler(config=_config(sync_strength=0.5))
+    weights = (0.5,) * 64
+
+    first = sampler.sample_onsets(right_weights=weights, left_weights=weights, rng=default_rng(3))
+    second = sampler.sample_onsets(right_weights=weights, left_weights=weights, rng=default_rng(3))
+
+    assert first == second
+
+
+def test_full_sync_coincides_attacks_under_equal_weights() -> None:
+    sampler = HandCouplingSampler(config=_config(sync_strength=1.0))
+    weights = (0.5,) * 256
+
+    onsets = sampler.sample_onsets(right_weights=weights, left_weights=weights, rng=default_rng(0))
+
+    assert all(onset[Hand.RIGHT] == onset[Hand.LEFT] for onset in onsets)
+
+
+def test_zero_sync_allows_independent_attacks() -> None:
+    sampler = HandCouplingSampler(config=_config(sync_strength=0.0))
+    weights = (0.5,) * 256
+
+    onsets = sampler.sample_onsets(right_weights=weights, left_weights=weights, rng=default_rng(0))
+
+    coincidences = sum(1 for onset in onsets if onset[Hand.RIGHT] == onset[Hand.LEFT])
+    assert 0 < coincidences < len(onsets)
+
+
+@pytest.mark.parametrize("sync_strength", [0.0, 1.0])
+def test_onset_rate_tracks_per_cell_weight(sync_strength: float) -> None:
+    sampler = HandCouplingSampler(config=_config(sync_strength=sync_strength))
+    pattern = (0.9, 0.1, 0.5, 0.1)
+    runs = 4000
+    rng = default_rng(0)
+    counts = [0] * len(pattern)
+    for _ in range(runs):
+        onsets = sampler.sample_onsets(right_weights=pattern, left_weights=pattern, rng=rng)
+        for index, onset in enumerate(onsets):
+            counts[index] += 1 if onset[Hand.RIGHT] else 0
+
+    for count, weight in zip(counts, pattern, strict=True):
+        assert abs(count / runs - weight) < 0.03
+
+
+def test_sample_onsets_rejects_mismatched_lengths() -> None:
+    sampler = HandCouplingSampler(config=_config())
+
+    with pytest.raises(ValueError, match="equal length"):
+        sampler.sample_onsets(right_weights=(0.5, 0.5), left_weights=(0.5,), rng=default_rng(0))
+
+
 def test_config_rejects_out_of_range_values() -> None:
     with pytest.raises(ValidationError):
         _config(co_activity_strength=1.5)
 
     with pytest.raises(ValidationError):
         _config(activity_right=-0.1)
+
+    with pytest.raises(ValidationError):
+        _config(sync_strength=1.5)

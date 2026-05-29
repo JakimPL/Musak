@@ -77,6 +77,7 @@ Every entry lists the two entities being bridged and the package that owns the c
 | --- | --- | --- |
 | `expand_chord_to_tones` | `synthetic/harmony/expansion.py` | `Chord` + `scale_type` + vocabulary → `tuple[ChordTone, ...]` |
 | `chord_pitch_class_set` | `synthetic/harmony/expansion.py` | `Chord` + `scale_type` + vocabulary → `frozenset[pitch_class]` |
+| `chord_window_grid` | `synthetic/harmony/windows.py` | `(measure_duration, total_duration, resolution)` → `tuple[(start, end), ...]` (bar-aligned, barline-truncated) |
 | `anchor_figure_to_tokens` | `synthetic/substitution/emission.py` | `FigureNGram` + anchor + `base_duration` → `list[Token]` |
 
 ### Decoding to notation / piano-roll (`musak_model/decoder`)

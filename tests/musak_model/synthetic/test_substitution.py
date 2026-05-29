@@ -16,7 +16,11 @@ from musak_model.synthetic.harmony.expansion import chord_pitch_class_set
 from musak_model.synthetic.harmony.schema import Chord, ChordQuality
 from musak_model.synthetic.harmony.vocabulary import ChordVocabularyConfig
 from musak_model.synthetic.processes.accent import AccentFieldConfig, AccentFieldSampler
-from musak_model.synthetic.processes.chord_track import ChordTrackSampler, uniform_transition_model
+from musak_model.synthetic.processes.chord_track import (
+    ChordTrackSampler,
+    ChordTransitionModel,
+    uniform_transition_model,
+)
 from musak_model.synthetic.processes.hand_coupling import HandCouplingConfig, HandCouplingSampler
 from musak_model.synthetic.processes.pitch import RegisterCurveConfig, RegisterCurveSampler
 from musak_model.synthetic.substitution import (
@@ -80,7 +84,7 @@ def _always_onset_accent_field_sampler() -> AccentFieldSampler:
 
 def _always_active_hand_coupling_sampler() -> HandCouplingSampler:
     return HandCouplingSampler(
-        config=HandCouplingConfig(co_activity_strength=0.5, activity_right=1.0, activity_left=1.0)
+        config=HandCouplingConfig(co_activity_strength=0.5, activity_right=1.0, activity_left=1.0, sync_strength=0.0)
     )
 
 
@@ -360,6 +364,7 @@ def test_segment_generator_produces_constraint_valid_segment(
         time_numerator=4,
         time_denominator=4,
         grid_count_per_bar=1,
+        chord_resolution=1,
         scale_root=0,
         scale_type=ScaleType.MAJOR,
         constraints=constraints,
@@ -373,6 +378,63 @@ def test_segment_generator_produces_constraint_valid_segment(
         state = state.apply(token, duration_vocabulary=duration_vocabulary)
     assert state.ended
     assert state.bar_index == 2
+
+
+def test_sub_bar_chord_resolution_conditions_each_half_bar(
+    duration_vocabulary: DurationVocabulary,
+) -> None:
+    c_major = Chord(root_degree=1, root_accidental=0, quality=ChordQuality.MAJOR)
+    g_major = Chord(root_degree=5, root_accidental=0, quality=ChordQuality.MAJOR)
+    chord_track_sampler = ChordTrackSampler(
+        model=ChordTransitionModel(
+            initial_distribution={c_major: 1.0, g_major: 0.0},
+            transitions={
+                c_major: {c_major: 0.0, g_major: 1.0},
+                g_major: {c_major: 0.0, g_major: 1.0},
+            },
+        )
+    )
+    tonic_note = _figure([0])
+    dominant_note = _figure([1])
+    generator = SegmentGenerator(
+        substitution_config=SubstitutionConfig(
+            lambda_curve=0.0, lambda_harm=50.0, lambda_accent=0.0, commonness_bias=0.0, max_resample_retries=4
+        ),
+        register_curve_sampler=RegisterCurveSampler(
+            config=RegisterCurveConfig(
+                arch_basis_count=3, arch_amplitude=0.0, arch_decay=1.0, ou_theta=0.5, ou_sigma=0.0
+            )
+        ),
+        accent_field_sampler=_always_onset_accent_field_sampler(),
+        hand_coupling_sampler=HandCouplingSampler(
+            config=HandCouplingConfig(
+                co_activity_strength=0.5, activity_right=1.0, activity_left=0.0, sync_strength=0.0
+            )
+        ),
+        chord_track_sampler=chord_track_sampler,
+        chord_vocabulary=ChordVocabularyConfig.load(),
+        figure_vocabulary=_major_vocabulary({Hand.RIGHT: {1: [tonic_note, dominant_note]}}),
+        base_duration_distribution=_uniform_base_durations(figure_length=1, base_duration=Fraction(1, 2)),
+        duration_vocabulary=duration_vocabulary,
+        figure_lengths=(1,),
+    )
+    constraints = GenerationConstraints(time_numerator=4, time_denominator=4, bar_count=1)
+
+    segment = generator.generate(
+        bar_count=1,
+        time_numerator=4,
+        time_denominator=4,
+        grid_count_per_bar=2,
+        chord_resolution=2,
+        scale_root=0,
+        scale_type=ScaleType.MAJOR,
+        constraints=constraints,
+        rng=default_rng(0),
+        source_file=Path("synthetic.mxl"),
+    ).segment
+
+    right_notes = [token for token in _tokens_under_hand(segment.tokens, Hand.RIGHT) if isinstance(token, NoteToken)]
+    assert [note.degree for note in right_notes] == [1, 2]
 
 
 def test_silenced_hand_emits_rest_filled_bars(
@@ -395,7 +457,9 @@ def test_silenced_hand_emits_rest_filled_bars(
         ),
         accent_field_sampler=_always_onset_accent_field_sampler(),
         hand_coupling_sampler=HandCouplingSampler(
-            config=HandCouplingConfig(co_activity_strength=0.5, activity_right=1.0, activity_left=0.0)
+            config=HandCouplingConfig(
+                co_activity_strength=0.5, activity_right=1.0, activity_left=0.0, sync_strength=0.0
+            )
         ),
         chord_track_sampler=ChordTrackSampler(
             model=uniform_transition_model((Chord(root_degree=1, root_accidental=0, quality=ChordQuality.MAJOR),))
@@ -413,6 +477,7 @@ def test_silenced_hand_emits_rest_filled_bars(
         time_numerator=4,
         time_denominator=4,
         grid_count_per_bar=1,
+        chord_resolution=1,
         scale_root=0,
         scale_type=ScaleType.MAJOR,
         constraints=constraints,
@@ -473,6 +538,7 @@ def test_segment_generator_is_deterministic_for_a_given_seed(
         time_numerator=4,
         time_denominator=4,
         grid_count_per_bar=1,
+        chord_resolution=1,
         scale_root=0,
         scale_type=ScaleType.MAJOR,
         constraints=constraints,
@@ -484,6 +550,7 @@ def test_segment_generator_is_deterministic_for_a_given_seed(
         time_numerator=4,
         time_denominator=4,
         grid_count_per_bar=1,
+        chord_resolution=1,
         scale_root=0,
         scale_type=ScaleType.MAJOR,
         constraints=constraints,
@@ -530,6 +597,7 @@ def test_segment_generator_places_multiple_figures_per_bar(
         time_numerator=4,
         time_denominator=4,
         grid_count_per_bar=4,
+        chord_resolution=1,
         scale_root=0,
         scale_type=ScaleType.MAJOR,
         constraints=constraints,
@@ -585,6 +653,7 @@ def test_segment_generator_rests_the_trailing_gap_when_no_figure_fits(
         time_numerator=4,
         time_denominator=4,
         grid_count_per_bar=1,
+        chord_resolution=1,
         scale_root=0,
         scale_type=ScaleType.MAJOR,
         constraints=constraints,
@@ -663,6 +732,7 @@ def test_hand_rests_mid_bar_when_a_sub_bar_cell_does_not_fire(
         time_numerator=4,
         time_denominator=4,
         grid_count_per_bar=4,
+        chord_resolution=1,
         scale_root=0,
         scale_type=ScaleType.MAJOR,
         constraints=constraints,
@@ -699,6 +769,7 @@ def test_register_anchor_varies_across_cells_within_a_bar(
         time_numerator=4,
         time_denominator=4,
         grid_count_per_bar=4,
+        chord_resolution=1,
         scale_root=0,
         scale_type=ScaleType.MAJOR,
         constraints=GenerationConstraints(time_numerator=4, time_denominator=4, bar_count=1),
@@ -737,6 +808,7 @@ def test_accent_weight_varies_across_cells_within_a_bar(
         time_numerator=4,
         time_denominator=4,
         grid_count_per_bar=4,
+        chord_resolution=1,
         scale_root=0,
         scale_type=ScaleType.MAJOR,
         constraints=GenerationConstraints(time_numerator=4, time_denominator=4, bar_count=1),
@@ -769,6 +841,7 @@ def test_a_single_figure_can_span_multiple_cells(
         time_numerator=4,
         time_denominator=4,
         grid_count_per_bar=4,
+        chord_resolution=1,
         scale_root=0,
         scale_type=ScaleType.MAJOR,
         constraints=constraints,
@@ -804,7 +877,9 @@ def test_segment_generator_seed_determinism_covers_tokens_and_trace(
             duration_vocabulary,
             accent_field_sampler=accent_field_sampler,
             hand_coupling_sampler=HandCouplingSampler(
-                config=HandCouplingConfig(co_activity_strength=0.6, activity_right=0.7, activity_left=0.7)
+                config=HandCouplingConfig(
+                    co_activity_strength=0.6, activity_right=0.7, activity_left=0.7, sync_strength=0.0
+                )
             ),
             register_curve_sampler=register_curve_sampler,
             base_duration=Fraction(1, 8),
@@ -814,6 +889,7 @@ def test_segment_generator_seed_determinism_covers_tokens_and_trace(
             time_numerator=4,
             time_denominator=4,
             grid_count_per_bar=4,
+            chord_resolution=1,
             scale_root=0,
             scale_type=ScaleType.MAJOR,
             constraints=GenerationConstraints(time_numerator=4, time_denominator=4, bar_count=3),

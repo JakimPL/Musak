@@ -84,6 +84,7 @@ def _generate_segments(
             time_numerator=config.time_numerator,
             time_denominator=config.time_denominator,
             grid_count_per_bar=config.grid_cells_per_bar,
+            chord_resolution=config.chord_resolution,
             scale_root=config.scale_root,
             scale_type=config.scale_type,
             constraints=constraints,

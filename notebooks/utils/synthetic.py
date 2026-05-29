@@ -49,6 +49,7 @@ class SyntheticGenerationRequest:
     time_numerator: int
     time_denominator: int
     grid_count_per_bar: int
+    chord_resolution: int
     bar_count: int
     seed: int
     min_n: int
@@ -72,6 +73,7 @@ class SyntheticGenerationRequest:
     co_activity_strength: float
     activity_right: float
     activity_left: float
+    sync_strength: float
     self_transition_bias: float
     use_constraints: bool
     minimum_duration: str
@@ -135,6 +137,7 @@ def generate_synthetic_segment(
                 co_activity_strength=request.co_activity_strength,
                 activity_right=request.activity_right,
                 activity_left=request.activity_left,
+                sync_strength=request.sync_strength,
             )
         ),
         chord_track_sampler=ChordTrackSampler(
@@ -152,6 +155,7 @@ def generate_synthetic_segment(
             time_numerator=request.time_numerator,
             time_denominator=request.time_denominator,
             grid_count_per_bar=request.grid_count_per_bar,
+            chord_resolution=request.chord_resolution,
             scale_root=request.scale_root,
             scale_type=scale_type,
             constraints=_build_constraints(request, scale_type=scale_type),

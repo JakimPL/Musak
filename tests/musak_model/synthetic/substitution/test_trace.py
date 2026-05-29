@@ -65,7 +65,9 @@ def _generator(duration_vocabulary: DurationVocabulary) -> SegmentGenerator:
             )
         ),
         hand_coupling_sampler=HandCouplingSampler(
-            config=HandCouplingConfig(co_activity_strength=0.5, activity_right=1.0, activity_left=1.0)
+            config=HandCouplingConfig(
+                co_activity_strength=0.5, activity_right=1.0, activity_left=1.0, sync_strength=0.0
+            )
         ),
         chord_track_sampler=ChordTrackSampler(
             model=uniform_transition_model((Chord(root_degree=1, root_accidental=0, quality=ChordQuality.MAJOR),))
@@ -101,6 +103,7 @@ def test_trace_has_one_sample_per_hand_per_bar(duration_vocabulary: DurationVoca
         time_numerator=4,
         time_denominator=4,
         grid_count_per_bar=1,
+        chord_resolution=1,
         scale_root=0,
         scale_type=ScaleType.MAJOR,
         constraints=constraints,
@@ -130,6 +133,7 @@ def test_trace_register_pitch_matches_zero_anchor(duration_vocabulary: DurationV
         time_numerator=4,
         time_denominator=4,
         grid_count_per_bar=1,
+        chord_resolution=1,
         scale_root=0,
         scale_type=ScaleType.MAJOR,
         constraints=constraints,

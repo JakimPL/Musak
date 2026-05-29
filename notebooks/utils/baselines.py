@@ -105,7 +105,7 @@ def baseline_overlay_chart(
             alt.Tooltip("start_in_bars:Q", title="Bar", format=".3f"),
         ],
     )
-    pitch_line = pitch_base.mark_line(detail="hand:N")
+    pitch_line = pitch_base.mark_line().encode(detail=alt.Detail("hand:N"))
     pitch_points = pitch_base.mark_point(filled=True)
     pitch_curve = pitch_line + pitch_points
     impulse_grid = (

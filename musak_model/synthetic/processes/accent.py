@@ -30,14 +30,6 @@ class AccentFieldConfig(BaseModel):
 
 
 @dataclass(frozen=True)
-class AccentCell:
-    bar_index: int
-    position: int
-    onset: bool
-    weight: float
-
-
-@dataclass(frozen=True)
 class AccentFieldSampler:
     config: AccentFieldConfig
 
@@ -73,30 +65,6 @@ class AccentFieldSampler:
         )
         probabilities: NDArray[np.float64] = expit(logits)
         return tuple(float(weight) for weight in probabilities)
-
-    def sample(
-        self,
-        *,
-        bar_count: int,
-        grid_count_per_bar: int,
-        rng: Generator,
-    ) -> tuple[AccentCell, ...]:
-        weights = self.sample_weights(bar_count=bar_count, grid_count_per_bar=grid_count_per_bar, rng=rng)
-        weights_array = np.asarray(weights, dtype=np.float64)
-        onsets = rng.random(size=weights_array.size) < weights_array
-
-        cell_indices = np.arange(weights_array.size)
-        bar_indices = cell_indices // grid_count_per_bar
-        positions = cell_indices % grid_count_per_bar
-        return tuple(
-            AccentCell(
-                bar_index=int(bar_index),
-                position=int(position),
-                onset=bool(onset),
-                weight=float(weight),
-            )
-            for bar_index, position, onset, weight in zip(bar_indices, positions, onsets, weights, strict=True)
-        )
 
 
 def _indispensability_per_position(grid_count_per_bar: int) -> NDArray[np.float64]:

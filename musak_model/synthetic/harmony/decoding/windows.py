@@ -3,6 +3,7 @@ from fractions import Fraction
 
 from musak_model.data.schema import Segment
 from musak_model.n_grams.figure.parser import extract_hand_onset_runs
+from musak_model.synthetic.harmony.windows import chord_window_grid
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.pitch import degree_pitch_class
 
@@ -26,15 +27,10 @@ def sounding_windows(
     if events:
         total_duration = max(total_duration, max(end for _, end, _ in events))
 
-    window_value = Fraction(1, resolution)
     windows: list[SoundingWindow] = []
-    window_start = Fraction(0)
-    while window_start < total_duration:
-        next_bar_boundary = (window_start // measure_duration + 1) * measure_duration
-        window_end = min(window_start + window_value, next_bar_boundary, total_duration)
-        if window_end <= window_start:
-            break
-
+    for window_start, window_end in chord_window_grid(
+        measure_duration=measure_duration, total_duration=total_duration, resolution=resolution
+    ):
         weights: dict[int, Fraction] = {}
         for event_start, event_end, event_pitch_class in events:
             overlap = min(event_end, window_end) - max(event_start, window_start)
@@ -42,7 +38,6 @@ def sounding_windows(
                 weights[event_pitch_class] = weights.get(event_pitch_class, Fraction(0)) + overlap
 
         windows.append(SoundingWindow(start=window_start, end=window_end, pitch_class_weights=weights))
-        window_start = window_end
 
     return tuple(windows)
 

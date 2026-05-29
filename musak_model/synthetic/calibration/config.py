@@ -2,11 +2,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from musak_model.paths import CALIBRATION_CONFIG_PATH
 from musak_model.tokens.schema import ScaleType
 from musak_shared.files import load_yaml_config
+from musak_shared.misc import is_power_of_two
 
 
 class CalibrationConfig(BaseModel):
@@ -19,6 +20,7 @@ class CalibrationConfig(BaseModel):
     time_numerator: int = Field(gt=0)
     time_denominator: int = Field(gt=0)
     grid_count_per_bar: int | None = Field(default=None, gt=0)
+    chord_resolution: int = Field(gt=0)
     bar_count: int = Field(gt=0)
     samples_per_config: int = Field(gt=0)
     min_n: int = Field(gt=0)
@@ -30,7 +32,15 @@ class CalibrationConfig(BaseModel):
     lambda_curve: tuple[float, ...]
     lambda_harm: tuple[float, ...]
     lambda_accent: tuple[float, ...]
-    target_total_variation_distance: float = Field(default=0.1, ge=0.0, le=1.0)
+    target_total_variation_distance: float = Field(ge=0.0, le=1.0)
+
+    @field_validator("chord_resolution")
+    @classmethod
+    def _validate_chord_resolution(cls, value: int) -> int:
+        if not is_power_of_two(value):
+            raise ValueError("chord_resolution must be a power of two note value (1 whole, 2 half, 4 quarter, ...)")
+
+        return value
 
     @model_validator(mode="after")
     def _validate(self) -> CalibrationConfig:
