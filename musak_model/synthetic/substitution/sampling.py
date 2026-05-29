@@ -7,7 +7,7 @@ from scipy.special import softmax
 
 from musak_model.synthetic.figures import FigureVocabulary, FigureVocabularyEntry
 from musak_model.synthetic.substitution.config import SubstitutionConfig
-from musak_model.synthetic.substitution.scoring import harm_fit, is_monorhythmic, slope_fit
+from musak_model.synthetic.substitution.scoring import accent_fit, harm_fit, is_monorhythmic, slope_fit
 from musak_model.tokens.schema import Hand, ScaleType
 
 
@@ -29,6 +29,7 @@ def tilted_log_probabilities(
     target_slope: int,
     scale_type: ScaleType,
     chord_pitch_classes: frozenset[int],
+    envelope_value: float,
     config: SubstitutionConfig,
 ) -> NDArray[np.float64]:
     counts = np.fromiter((entry.count for entry in entries), dtype=np.float64, count=len(entries))
@@ -51,12 +52,19 @@ def tilted_log_probabilities(
         dtype=np.float64,
         count=len(entries),
     )
+    accent_scores = np.fromiter(
+        (accent_fit(figure=entry.figure, envelope_value=envelope_value) for entry in entries),
+        dtype=np.float64,
+        count=len(entries),
+    )
     return _combine_log_terms(
         log_p_emp=log_p_emp,
         slope_scores=slope_scores,
         harm_scores=harm_scores,
+        accent_scores=accent_scores,
         lambda_curve=config.lambda_curve,
         lambda_harm=config.lambda_harm,
+        lambda_accent=config.lambda_accent,
     )
 
 
@@ -67,6 +75,7 @@ def sample_substituted_figure(
     target_slope: int,
     scale_type: ScaleType,
     chord_pitch_classes: frozenset[int],
+    envelope_value: float,
     config: SubstitutionConfig,
     rng: Generator,
 ) -> FigureVocabularyEntry:
@@ -79,6 +88,7 @@ def sample_substituted_figure(
         target_slope=target_slope,
         scale_type=scale_type,
         chord_pitch_classes=chord_pitch_classes,
+        envelope_value=envelope_value,
         config=config,
     )
     probabilities = softmax(log_probabilities)
@@ -90,7 +100,9 @@ def _combine_log_terms(
     log_p_emp: NDArray[np.float64],
     slope_scores: NDArray[np.float64],
     harm_scores: NDArray[np.float64],
+    accent_scores: NDArray[np.float64],
     lambda_curve: float,
     lambda_harm: float,
+    lambda_accent: float,
 ) -> NDArray[np.float64]:
-    return log_p_emp + lambda_curve * slope_scores + lambda_harm * harm_scores
+    return log_p_emp + lambda_curve * slope_scores + lambda_harm * harm_scores + lambda_accent * accent_scores

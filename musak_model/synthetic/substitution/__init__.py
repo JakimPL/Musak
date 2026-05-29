@@ -7,6 +7,7 @@ from musak_model.synthetic.substitution.sampling import (
     tilted_log_probabilities,
 )
 from musak_model.synthetic.substitution.scoring import (
+    accent_fit,
     figure_net_contour,
     harm_fit,
     is_monorhythmic,
@@ -16,6 +17,7 @@ from musak_model.synthetic.substitution.scoring import (
 __all__ = [
     "SegmentGenerator",
     "SubstitutionConfig",
+    "accent_fit",
     "anchor_figure_to_tokens",
     "figure_net_contour",
     "harm_fit",

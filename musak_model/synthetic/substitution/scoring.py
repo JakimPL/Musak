@@ -1,4 +1,5 @@
 from fractions import Fraction
+from math import gcd
 
 from musak_model.n_grams.figure.schema import FigureNGram
 from musak_model.tokens.pitch import degree_pitch_class, diatonic_position_to_degree_and_octave
@@ -30,9 +31,7 @@ def harm_fit(
     for degrees, _ in figure.onsets:
         for relative_position, accidental in degrees:
             absolute_position = anchor + relative_position
-            absolute_degree, _octave_offset = diatonic_position_to_degree_and_octave(
-                absolute_position, scale_size=scale_size
-            )
+            absolute_degree, _ = diatonic_position_to_degree_and_octave(absolute_position, scale_size=scale_size)
             note_pitch_class = degree_pitch_class(absolute_degree, accidental, scale_type=scale_type)
             if note_pitch_class in chord_pitch_classes:
                 chord_tone_count += 1
@@ -43,3 +42,21 @@ def harm_fit(
         return 0.0
 
     return chord_tone_count / total_count
+
+
+def accent_fit(
+    *,
+    figure: FigureNGram,
+    envelope_value: float,
+) -> float:
+    durations = [float(duration) for _, duration in figure.onsets]
+    total = sum(durations)
+    if total <= 0.0:
+        return 0.0
+
+    onset_count = len(durations)
+    stress = sum(
+        (duration / total) * (gcd(position, onset_count) / onset_count) for position, duration in enumerate(durations)
+    )
+
+    return stress * envelope_value

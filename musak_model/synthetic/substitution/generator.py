@@ -145,6 +145,7 @@ class SegmentGenerator:
                 target_slope=target_slope,
                 scale_type=scale_type,
                 chord_pitch_classes=chord_pitch_classes,
+                envelope_value=0.0,
                 config=self.substitution_config,
                 rng=rng,
             )

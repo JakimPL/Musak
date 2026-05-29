@@ -19,6 +19,7 @@ from musak_model.synthetic.processes.pitch import RegisterCurveConfig, RegisterC
 from musak_model.synthetic.substitution import (
     SegmentGenerator,
     SubstitutionConfig,
+    accent_fit,
     anchor_figure_to_tokens,
     figure_net_contour,
     harm_fit,
@@ -78,6 +79,34 @@ def test_harm_fit_counts_chord_tone_fraction() -> None:
     assert harm_fit(figure=mixed, anchor=0, scale_type=ScaleType.MAJOR, chord_pitch_classes=chord_pcs) == 0.5
 
 
+def test_accent_fit_scales_with_envelope_value() -> None:
+    figure = _figure([0, 2])
+
+    assert accent_fit(figure=figure, envelope_value=0.0) == 0.0
+    half = accent_fit(figure=figure, envelope_value=0.5)
+    full = accent_fit(figure=figure, envelope_value=1.0)
+    assert full == 2 * half
+
+
+def test_accent_fit_prefers_front_loaded_over_uniform() -> None:
+    uniform = _figure([0, 1], durations=[Fraction(1), Fraction(1)])
+    front_loaded = _figure([0, 1], durations=[Fraction(2), Fraction(1)])
+    back_loaded = _figure([0, 1], durations=[Fraction(1), Fraction(2)])
+
+    envelope_value = 1.0
+    uniform_score = accent_fit(figure=uniform, envelope_value=envelope_value)
+    front_score = accent_fit(figure=front_loaded, envelope_value=envelope_value)
+    back_score = accent_fit(figure=back_loaded, envelope_value=envelope_value)
+
+    assert front_score > uniform_score > back_score
+
+
+def test_accent_fit_handles_single_onset_figure() -> None:
+    single = _figure([0])
+
+    assert accent_fit(figure=single, envelope_value=0.7) == 0.7
+
+
 def test_chord_pitch_class_set_matches_expansion() -> None:
     vocabulary = ChordVocabularyConfig.load()
     tonic = Chord(root_degree=1, root_accidental=0, quality=ChordQuality.MAJOR)
@@ -113,7 +142,9 @@ def test_sample_substituted_figure_is_deterministic_for_a_given_seed() -> None:
         hand=Hand.RIGHT,
         figure_length=2,
     )
-    config = SubstitutionConfig(lambda_curve=1.0, lambda_harm=1.0, commonness_bias=1.0, max_resample_retries=4)
+    config = SubstitutionConfig(
+        lambda_curve=1.0, lambda_harm=1.0, lambda_accent=0.0, commonness_bias=1.0, max_resample_retries=4
+    )
 
     first = sample_substituted_figure(
         entries=entries,
@@ -121,6 +152,7 @@ def test_sample_substituted_figure_is_deterministic_for_a_given_seed() -> None:
         target_slope=2,
         scale_type=ScaleType.MAJOR,
         chord_pitch_classes=frozenset({0, 4, 7}),
+        envelope_value=0.0,
         config=config,
         rng=default_rng(11),
     )
@@ -130,6 +162,7 @@ def test_sample_substituted_figure_is_deterministic_for_a_given_seed() -> None:
         target_slope=2,
         scale_type=ScaleType.MAJOR,
         chord_pitch_classes=frozenset({0, 4, 7}),
+        envelope_value=0.0,
         config=config,
         rng=default_rng(11),
     )
@@ -146,7 +179,9 @@ def test_high_lambda_curve_selects_the_slope_matching_figure() -> None:
         hand=Hand.RIGHT,
         figure_length=2,
     )
-    config = SubstitutionConfig(lambda_curve=50.0, lambda_harm=0.0, commonness_bias=0.0, max_resample_retries=4)
+    config = SubstitutionConfig(
+        lambda_curve=50.0, lambda_harm=0.0, lambda_accent=0.0, commonness_bias=0.0, max_resample_retries=4
+    )
 
     chosen = sample_substituted_figure(
         entries=entries,
@@ -154,11 +189,35 @@ def test_high_lambda_curve_selects_the_slope_matching_figure() -> None:
         target_slope=2,
         scale_type=ScaleType.MAJOR,
         chord_pitch_classes=frozenset({0, 4, 7}),
+        envelope_value=0.0,
         config=config,
         rng=default_rng(0),
     )
 
     assert chosen.figure == ascending
+
+
+def test_high_lambda_accent_selects_front_loaded_figure_under_high_envelope() -> None:
+    uniform = _figure([0, 1], durations=[Fraction(1), Fraction(1)])
+    front_loaded = _figure([0, 1], durations=[Fraction(2), Fraction(1)])
+    vocabulary = _major_vocabulary({Hand.RIGHT: {2: [uniform, front_loaded]}})
+    entries = vocabulary.filter(scale_type=ScaleType.MAJOR, hand=Hand.RIGHT, n=2).entries
+    config = SubstitutionConfig(
+        lambda_curve=0.0, lambda_harm=0.0, lambda_accent=50.0, commonness_bias=0.0, max_resample_retries=4
+    )
+
+    chosen = sample_substituted_figure(
+        entries=entries,
+        anchor=0,
+        target_slope=0,
+        scale_type=ScaleType.MAJOR,
+        chord_pitch_classes=frozenset({0, 4, 7}),
+        envelope_value=1.0,
+        config=config,
+        rng=default_rng(0),
+    )
+
+    assert chosen.figure == front_loaded
 
 
 def test_segment_generator_produces_constraint_valid_segment(
@@ -184,7 +243,7 @@ def test_segment_generator_produces_constraint_valid_segment(
     )
     generator = SegmentGenerator(
         substitution_config=SubstitutionConfig(
-            lambda_curve=0.0, lambda_harm=0.0, commonness_bias=1.0, max_resample_retries=4
+            lambda_curve=0.0, lambda_harm=0.0, lambda_accent=0.0, commonness_bias=1.0, max_resample_retries=4
         ),
         register_curve_sampler=register_curve_sampler,
         chord_track_sampler=chord_track_sampler,
@@ -225,7 +284,7 @@ def test_segment_generator_is_deterministic_for_a_given_seed(
     )
     generator = SegmentGenerator(
         substitution_config=SubstitutionConfig(
-            lambda_curve=0.0, lambda_harm=0.0, commonness_bias=1.0, max_resample_retries=4
+            lambda_curve=0.0, lambda_harm=0.0, lambda_accent=0.0, commonness_bias=1.0, max_resample_retries=4
         ),
         register_curve_sampler=RegisterCurveSampler(
             config=RegisterCurveConfig(
