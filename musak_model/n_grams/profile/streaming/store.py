@@ -134,6 +134,7 @@ def complete_figure_artifacts_exist(artifact_paths: FigureArtifactPaths) -> bool
         for path in (
             artifact_paths.config_path,
             artifact_paths.counts_path,
+            artifact_paths.base_durations_path,
             artifact_paths.profile_path,
             artifact_paths.by_sample_path,
         )

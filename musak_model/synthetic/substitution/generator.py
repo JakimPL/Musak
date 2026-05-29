@@ -1,3 +1,4 @@
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from fractions import Fraction
 from pathlib import Path
@@ -16,7 +17,7 @@ from musak_model.synthetic.base_durations import (
     BaseDurationWeight,
     weighted_base_duration_choice,
 )
-from musak_model.synthetic.figures import FigureVocabulary
+from musak_model.synthetic.figures import FigureVocabulary, FigureVocabularyEntry
 from musak_model.synthetic.harmony.expansion import chord_pitch_class_set
 from musak_model.synthetic.harmony.vocabulary import ChordVocabularyConfig
 from musak_model.synthetic.processes.accent import AccentFieldSampler
@@ -28,6 +29,9 @@ from musak_model.synthetic.substitution.emission import anchor_figure_to_tokens
 from musak_model.synthetic.substitution.sampling import sample_substituted_figure
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import BarToken, EndToken, Hand, HandToken, RestToken, ScaleType, Token
+
+type FigureEntriesByGroup = Mapping[tuple[Hand, int], tuple[FigureVocabularyEntry, ...]]
+type ProgressCallback = Callable[[int, int], None]
 
 
 @dataclass(frozen=True)
@@ -54,6 +58,7 @@ class SegmentGenerator:
         constraints: GenerationConstraints,
         rng: Generator,
         source_file: Path,
+        progress_callback: ProgressCallback | None = None,
     ) -> Segment:
         if bar_count <= 0:
             raise ValueError("bar_count must be positive")
@@ -62,6 +67,7 @@ class SegmentGenerator:
             raise ValueError("figure_lengths must be non-empty")
 
         bar_duration = Fraction(time_numerator, time_denominator)
+        entries_by_group = self._figure_entries_by_group(scale_type)
         right_curve = self.register_curve_sampler.sample(
             length=bar_count,
             scale_type=scale_type,
@@ -113,6 +119,7 @@ class SegmentGenerator:
                         state=state,
                         tokens=tokens,
                         hand=hand,
+                        entries_by_group=entries_by_group,
                         scale_type=scale_type,
                         chord_pitch_classes=chord_pcs,
                         anchor=anchor,
@@ -128,6 +135,8 @@ class SegmentGenerator:
                         bar_duration=bar_duration,
                     )
             state, tokens = self._append(state, tokens, BarToken())
+            if progress_callback is not None:
+                progress_callback(bar_index + 1, bar_count)
 
         state, tokens = self._append(state, tokens, EndToken())
         return Segment(
@@ -144,12 +153,25 @@ class SegmentGenerator:
             ),
         )
 
+    def _figure_entries_by_group(self, scale_type: ScaleType) -> FigureEntriesByGroup:
+        figure_lengths = frozenset(self.figure_lengths)
+        grouped: dict[tuple[Hand, int], list[FigureVocabularyEntry]] = {}
+        for entry in self.figure_vocabulary.entries:
+            group = entry.group
+            if group.scale_type != scale_type or group.n not in figure_lengths:
+                continue
+
+            grouped.setdefault((group.hand, group.n), []).append(entry)
+
+        return {key: tuple(entries) for key, entries in grouped.items()}
+
     def _emit_hand_bar(
         self,
         *,
         state: GenerationConstraintState,
         tokens: list[Token],
         hand: Hand,
+        entries_by_group: FigureEntriesByGroup,
         scale_type: ScaleType,
         chord_pitch_classes: frozenset[int],
         anchor: int,
@@ -172,6 +194,7 @@ class SegmentGenerator:
             placement = self._place_one_figure(
                 state=state,
                 hand=hand,
+                entries_by_group=entries_by_group,
                 scale_type=scale_type,
                 chord_pitch_classes=chord_pitch_classes,
                 anchor=anchor,
@@ -193,6 +216,7 @@ class SegmentGenerator:
         *,
         state: GenerationConstraintState,
         hand: Hand,
+        entries_by_group: FigureEntriesByGroup,
         scale_type: ScaleType,
         chord_pitch_classes: frozenset[int],
         anchor: int,
@@ -203,7 +227,7 @@ class SegmentGenerator:
     ) -> tuple[GenerationConstraintState, list[Token]] | None:
         for _ in range(self.substitution_config.max_resample_retries):
             figure_length = int(rng.choice(self.figure_lengths))
-            entries = self.figure_vocabulary.filter(scale_type=scale_type, hand=hand, n=figure_length).entries
+            entries = entries_by_group.get((hand, figure_length), ())
             candidate_bases = self.base_duration_distribution.candidates(
                 scale_type=scale_type, hand=hand, figure_length=figure_length
             )

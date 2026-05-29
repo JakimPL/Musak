@@ -26,6 +26,36 @@ def selected_musicxml_file(file_browser: Any) -> FileSelection:
     )
 
 
+def selected_directory(file_browser: Any, *, description: str) -> FileSelection:
+    value_repr = repr(getattr(file_browser, "value", None))
+
+    try:
+        selected_path = file_browser.path(0)
+    except (AttributeError, IndexError, TypeError, ValueError) as exception:
+        return FileSelection(
+            path=None,
+            message=f"Could not read the selected path: {type(exception).__name__}: {exception}",
+            value_repr=value_repr,
+        )
+
+    if selected_path is None:
+        return FileSelection(
+            path=None,
+            message=f"No directory is selected. Browse to and select a {description} directory.",
+            value_repr=value_repr,
+        )
+
+    path = Path(selected_path)
+    if not path.is_dir():
+        return FileSelection(
+            path=None,
+            message=f"Selected path is not a directory: {path}",
+            value_repr=value_repr,
+        )
+
+    return FileSelection(path=path, message=None, value_repr=value_repr)
+
+
 def selected_file(
     file_browser: Any,
     *,

@@ -123,7 +123,7 @@ def test_make_analyze_n_grams_uses_dataset_and_analysis_variables() -> None:
         "DATA_DIR=data/sample-dataset",
         "ANALYSIS_CONFIG=musak_model/configs/analysis/n_grams.yml",
         "ANALYSIS_OUTPUT=artifacts/analysis/sample-figures.csv",
-        "ANALYSIS_ENCODED_DIR=artifacts/processed/sample-dataset/encoded/abc",
+        "ANALYSIS_ENCODED_DIRECTORY=artifacts/processed/sample-dataset/encoded/abc",
         "ANALYSIS_NO_PROGRESS=1",
     )
 
@@ -131,7 +131,7 @@ def test_make_analyze_n_grams_uses_dataset_and_analysis_variables() -> None:
     assert '--data-dir "data/sample-dataset"' in output
     assert '--analysis-config "musak_model/configs/analysis/n_grams.yml"' in output
     assert '--output "artifacts/analysis/sample-figures.csv"' in output
-    assert '--encoded-dir "artifacts/processed/sample-dataset/encoded/abc"' in output
+    assert '--encoded-directory "artifacts/processed/sample-dataset/encoded/abc"' in output
     assert "--no-progress" in output
 
 

@@ -138,6 +138,7 @@ def resolve_figure_counts_path(path: Path) -> Path:
         return path
 
     candidates = (
+        path / FIGURE_COUNTS_NAME,
         path / FIGURE_ALL_DIR_NAME / FIGURE_COUNTS_NAME,
         path / "figure" / FIGURE_ALL_DIR_NAME / FIGURE_COUNTS_NAME,
     )

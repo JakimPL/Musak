@@ -15,7 +15,7 @@ PROCESS_TOKENIZATION_BATCH_SIZE ?=
 PROCESS_SKIP_FIGURE_ANALYSIS ?=
 ANALYSIS_CONFIG ?=
 ANALYSIS_OUTPUT ?=
-ANALYSIS_ENCODED_DIR ?=
+ANALYSIS_ENCODED_DIRECTORY ?=
 ANALYSIS_NO_PROGRESS ?=
 ANALYSIS_OVERWRITE ?= $(OVERWRITE)
 ANALYSIS_RESUME ?= $(RESUME)
@@ -97,7 +97,7 @@ help:
 	@printf '%s\n' '  PROCESS_SKIP_FIGURE_ANALYSIS=1 skips figure analysis during process/tokenize.'
 	@printf '%s\n' '  ANALYSIS_CONFIG       Optional figure n-gram analysis YAML override.'
 	@printf '%s\n' '  ANALYSIS_OUTPUT       Optional extra figure n-gram CSV output path.'
-	@printf '%s\n' '  ANALYSIS_ENCODED_DIR  Optional encoded run directory override when multiple tokenizer runs exist.'
+	@printf '%s\n' '  ANALYSIS_ENCODED_DIRECTORY  Optional encoded run directory override when multiple tokenizer runs exist.'
 	@printf '%s\n' '  ANALYSIS_NO_PROGRESS=1 disables figure n-gram progress bars.'
 	@printf '%s\n' '  ANALYSIS_OVERWRITE=1 restarts figure analysis. Defaults to OVERWRITE when set.'
 	@printf '%s\n' '  ANALYSIS_RESUME=1 passes --resume to standalone figure analysis. Partial compatible work resumes automatically.'
@@ -229,7 +229,7 @@ define analyze_n_grams_command
 		--data-dir "$(DATA_DIR)" \
 		$(call optional_arg,ANALYSIS_CONFIG,--analysis-config) \
 		$(call optional_arg,ANALYSIS_OUTPUT,--output) \
-		$(call optional_arg,ANALYSIS_ENCODED_DIR,--encoded-dir) \
+		$(call optional_arg,ANALYSIS_ENCODED_DIRECTORY,--encoded-directory) \
 		$(call optional_flag,ANALYSIS_NO_PROGRESS,--no-progress) \
 		$(call optional_non_resume_flag,ANALYSIS_OVERWRITE,--overwrite) \
 		$(call optional_flag,ANALYSIS_RESUME,--resume)

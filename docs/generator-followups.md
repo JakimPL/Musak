@@ -4,49 +4,54 @@
 not yet match it — gaps to be closed. Each entry names what the design says, what the code does today, and
 what closing the gap requires.
 
-## 1. Accent-field output is not consumed by substitution
+The earlier gaps are closed: the accent field is wired into substitution, and the length-0 decoder window
+is guarded. (The register home-offset $\mu_i$ was never actually a gap — `octave_offset` is home-relative
+and $\mu_i$ is applied at token-to-MIDI conversion; see `docs/generator.md` §3.) The remaining gaps below
+share a single root cause — the generator still resolves register, accent, and hand activity at **bar**
+resolution rather than at the **grid-cell** resolution the design assumes — and are best taken as one
+coherent unit of work.
 
-**Design (§4, §6).** The per-cell probability $p_i(t)$ produced by the LGCP plays two roles: it gates
-whether the cell becomes an onset, and it is the accent value surviving onsets carry forward into the
-substitution step as the third tilt $\lambda_{\text{accent}} \, A(f, \lambda_i(k))$ of the I-projection.
+## 1. Activity gating is bar-resolution, not grid-cell-resolution
 
-**Code today.** `AccentFieldSampler` in `musak_model/synthetic/processes/accent.py` fully computes the
-LGCP and emits `AccentCell.weight`. `SegmentGenerator.sample` in
-`musak_model/synthetic/substitution/generator.py` never instantiates the sampler, so the accent value
-reaches no consumer; the tilted log-probabilities only see $\lambda_{\text{curve}} S$ and
-$\lambda_{\text{harm}} H$.
+**Design (§4, §7).** The accent field is a marked point process on the bar grid; each grid cell is
+independently an onset or a rest, and the hand-coupling gate acts per cell, so a hand can fall silent for
+part of a bar.
 
-**To close the gap.** Instantiate `AccentFieldSampler` in `SegmentGenerator`, plumb each anchor cell's
-weight through to the substitution step, and add the $A$ score — figure internal accent shape against the
-envelope — alongside the existing slope and harmony scores.
+**Code today.** `SegmentGenerator.generate` samples the accent envelope and the hand-coupling gates with
+one cell per bar (`grid_count_per_bar=1`, `cell_count=bar_count`). A hand is therefore either active for a
+whole bar or silent for a whole bar; there is no sub-bar gating. The samplers themselves already accept a
+finer grid — only the caller fixes it to one cell per bar.
 
-## 2. Register-curve home-offset $\mu_i$ is dropped
+**To close the gap.** Drive the per-bar emission from a sub-bar onset grid: sample the accent field and
+gates at the real grid resolution, and let fired cells start figures while unfired cells become rests.
 
-**Design (§3).** The trajectory is $P_i(k) = \mathrm{round}(\mu_i + P_i^{\text{arch}}(k) + r_k)$ with
-$\mu_i = o_i \cdot s$ — five-octave home for the right hand, three-octave home for the left — so the curve
-anchors each hand on its own register.
+## 2. Sync coupling is not implemented
 
-**Code today.** `RegisterCurveSampler.sample` in `musak_model/synthetic/processes/pitch.py` returns
-`np.rint(arch + residual)`; the `scale_type` and `hand` arguments are accepted and immediately discarded
-(`_ = scale_type, hand`). The trajectory is zero-centred, so both hands sample around the same diatonic
-position.
+**Design (§7).** Hand interaction has three couplings — co-activity, **sync** ($h_s$: the probability that
+both hands' attacks coincide on the grid), and shared harmony. Co-activity and shared harmony exist;
+sync does not.
 
-**To close the gap.** Compute `mu_i = HAND_HOME_OCTAVES[hand] * scale_size_for_type(scale_type)` inside
-the sampler and add it into the lattice-quantised sum; cover with a test that the long-run mean of the
-trajectory tracks $\mu_i$ per hand.
+**Code today.** `HandCouplingSampler` models only co-activity (the Gaussian-copula gate). There is no
+sync parameter and no mechanism aligning the two hands' attacks within a bar.
 
-## 3. Decoder windowing can append a length-0 tail window
+**To close the gap.** Sync only carries information once a bar holds more than one onset per hand, so it
+depends on gap 1. Add $h_s$ to `HandCouplingConfig` and bias the two hands' onset grids toward coincident
+attacks.
 
-**Design (§5.1).** The chord grid is laid down from the downbeat at the configured resolution and
-truncated at the next barline; every emitted window is a contiguous slice of the bar containing the
-sounding pitch classes that fell inside it.
+## 3. Register and accent are shared across all figures in a bar
 
-**Code today.** `musak_model/synthetic/harmony/decoding/windows.py` clips
-`window_end = min(window_start + window_value, next_bar_boundary, total_duration)` and appends a window
-every iteration. When the resolution is finer than the bar fragment remaining after truncation,
-`window_end == window_start` can hold and a length-0 window enters the Viterbi pass with empty
-`pitch_class_weights`. Such a window scores all candidates identically and biases the backtrack toward
-whichever candidate is chosen first by ties.
+**Design (§3, §6).** The register curve yields an integer diatonic position *per onset step*, and the
+accent value entering the substitution tilt is the envelope *at the current cell*.
 
-**To close the gap.** Guard the append with `if window_end > window_start` in `windows.py`; no other
-change is needed.
+**Code today.** The register curve is sampled per bar (`length=bar_count`) and every figure placed in a
+bar shares that bar's single anchor, slope target, and accent value (see the `_emit_hand_bar` docstring).
+Sub-bar register motion and per-cell accent shaping are therefore not modelled.
+
+**To close the gap.** Sample register and accent at the onset-grid resolution (gap 1) and read the anchor,
+slope, and envelope per placement rather than per bar.
+
+## Note on the greedy fill
+
+`_emit_hand_bar` fills a bar left to right with no lookahead and rests the trailing gap when no sampled
+figure fits the remaining time (flagged in its docstring). This is adequate for v1 but is a quality, not a
+correctness, limitation; it is independent of the gaps above.

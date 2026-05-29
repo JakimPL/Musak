@@ -81,6 +81,7 @@ def resolve_base_durations_path(path: Path) -> Path:
         return path
 
     candidates = (
+        path / FIGURE_BASE_DURATIONS_NAME,
         path / FIGURE_ALL_DIR_NAME / FIGURE_BASE_DURATIONS_NAME,
         path / "figure" / FIGURE_ALL_DIR_NAME / FIGURE_BASE_DURATIONS_NAME,
     )

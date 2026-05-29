@@ -5,7 +5,7 @@ from numpy.random import default_rng
 from pydantic import ValidationError
 
 from musak_model.synthetic.processes.pitch import RegisterCurveConfig, RegisterCurveSampler
-from musak_model.tokens.schema import HAND_HOME_OCTAVES, Hand, ScaleType, scale_size_for_type
+from musak_model.tokens.schema import Hand, ScaleType
 
 
 def _config(
@@ -46,34 +46,18 @@ def test_zero_amplitude_and_sigma_yield_constant_home_register() -> None:
         config=_config(arch_amplitude=0.0, ou_sigma=0.0),
     )
 
-    right_trajectory = sampler.sample(length=8, scale_type=ScaleType.MAJOR, hand=Hand.RIGHT, rng=default_rng(0))
-    left_trajectory = sampler.sample(length=8, scale_type=ScaleType.MAJOR, hand=Hand.LEFT, rng=default_rng(0))
+    trajectory = sampler.sample(length=8, scale_type=ScaleType.MAJOR, hand=Hand.RIGHT, rng=default_rng(0))
 
-    right_home = HAND_HOME_OCTAVES[Hand.RIGHT] * scale_size_for_type(ScaleType.MAJOR)
-    left_home = HAND_HOME_OCTAVES[Hand.LEFT] * scale_size_for_type(ScaleType.MAJOR)
-    assert right_trajectory == (right_home,) * 8
-    assert left_trajectory == (left_home,) * 8
+    assert trajectory == (0,) * 8
 
 
-def test_ou_only_trajectory_is_anchored_near_home_register_on_average() -> None:
+def test_ou_only_trajectory_is_anchored_near_zero_on_average() -> None:
     sampler = RegisterCurveSampler(config=_config(arch_amplitude=0.0, ou_theta=0.5, ou_sigma=1.0))
     rng = default_rng(7)
 
-    home_position = HAND_HOME_OCTAVES[Hand.RIGHT] * scale_size_for_type(ScaleType.MAJOR)
     means = [fmean(sampler.sample(length=64, scale_type=ScaleType.MAJOR, hand=Hand.RIGHT, rng=rng)) for _ in range(40)]
 
-    assert abs(fmean(means) - home_position) < 1.0
-
-
-def test_left_and_right_hand_trajectories_centre_on_different_home_registers() -> None:
-    sampler = RegisterCurveSampler(config=_config(arch_amplitude=0.0, ou_theta=0.5, ou_sigma=1.0))
-
-    right_mean = fmean(sampler.sample(length=256, scale_type=ScaleType.MAJOR, hand=Hand.RIGHT, rng=default_rng(11)))
-    left_mean = fmean(sampler.sample(length=256, scale_type=ScaleType.MAJOR, hand=Hand.LEFT, rng=default_rng(11)))
-
-    scale_size = scale_size_for_type(ScaleType.MAJOR)
-    expected_gap = (HAND_HOME_OCTAVES[Hand.RIGHT] - HAND_HOME_OCTAVES[Hand.LEFT]) * scale_size
-    assert abs((right_mean - left_mean) - expected_gap) < 1.0
+    assert abs(fmean(means)) < 1.0
 
 
 def test_sample_rejects_non_positive_length() -> None:

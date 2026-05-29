@@ -6,7 +6,7 @@ from notebooks.utils.encoded import (
     load_encoded_manifest_selection,
     load_encoded_shard,
 )
-from notebooks.utils.file_browser import FileSelection, selected_file, selected_musicxml_file
+from notebooks.utils.file_browser import FileSelection, selected_directory, selected_file, selected_musicxml_file
 from notebooks.utils.model_output import (
     GeneratedOutput,
     GenerationRequest,
@@ -96,6 +96,13 @@ from notebooks.utils.statistics import (
     token_histogram_distribution,
     token_summary_rows,
 )
+from notebooks.utils.synthetic import (
+    SyntheticGeneratedOutput,
+    SyntheticGenerationRequest,
+    SyntheticInputs,
+    generate_synthetic_segment,
+    load_synthetic_inputs,
+)
 from notebooks.utils.tokens import default_duration_vocabulary, token_label, token_rows
 
 __all__ = [
@@ -120,6 +127,9 @@ __all__ = [
     "SampleTraceRow",
     "SamplingOptions",
     "SamplingResult",
+    "SyntheticGeneratedOutput",
+    "SyntheticGenerationRequest",
+    "SyntheticInputs",
     "GeneratedOutput",
     "GenerationRequest",
     "LoadedModel",
@@ -146,6 +156,8 @@ __all__ = [
     "figure_pattern_metric_rows",
     "generation_summary_metric_rows",
     "figure_property_distribution",
+    "generate_synthetic_segment",
+    "load_synthetic_inputs",
     "ineligibility_reason_distribution",
     "scale_root_distribution",
     "load_encoded_shard",
@@ -174,6 +186,7 @@ __all__ = [
     "table_records",
     "token_histogram_distribution",
     "score_summary",
+    "selected_directory",
     "selected_file",
     "selected_musicxml_file",
     "sample_autoregressive",

@@ -113,7 +113,7 @@ def resolve_encoded_directory(
         return encoded_directory
 
     if data_directory is None:
-        raise ValueError("--data-dir is required when --encoded-dir is omitted")
+        raise ValueError("--data-dir is required when --encoded-directory is omitted")
 
     encoded_root = processed_root / data_directory.name / "encoded"
     encoded_directorys = encoded_run_directories(encoded_root)
@@ -121,7 +121,7 @@ def resolve_encoded_directory(
         raise FileNotFoundError(f"No encoded runs found in {encoded_root}")
 
     if len(encoded_directorys) > 1:
-        raise ValueError(f"Multiple encoded runs found in {encoded_root}; pass --encoded-dir explicitly")
+        raise ValueError(f"Multiple encoded runs found in {encoded_root}; pass --encoded-directory explicitly")
 
     return encoded_directorys[0]
 
@@ -153,7 +153,7 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="Root directory for processed dataset artifacts.",
     )
     parser.add_argument(
-        "--encoded-dir",
+        "--encoded-directory",
         type=Path,
         help=(
             f"Specific encoded run directory containing {ENCODED_JSONL_NAME} and {TOKENIZER_SNAPSHOT_NAME}. "
@@ -169,7 +169,7 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--output",
         type=Path,
-        help="Extra CSV output path. Canonical counts are always written under <encoded-dir>/figure/all/counts.csv.",
+        help="Extra CSV output path. Canonical counts are always written under <encoded-directory>/figure/all/counts.csv.",
     )
     parser.add_argument(
         "--log-level",

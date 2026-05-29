@@ -168,7 +168,12 @@ The trajectory delivered to the substitution step is the lattice-quantised sum
 
 $$P_i(k) \;=\; \mathrm{round}\bigl(\mu_i \,+\, P_i^{\text{arch}}(k) \,+\, r_k\bigr),$$
 
-an integer diatonic position per onset step.
+an integer diatonic position per onset step. In the implementation the home register $\mu_i = o_i \cdot s$
+is not added to the curve itself: token `octave_offset` is measured relative to the hand's home octave, and
+$\mu_i$ is applied once at token-to-MIDI conversion (`note_token_to_midi_pitch` adds
+`HAND_HOME_OCTAVES[hand]`). The sampled curve therefore carries only the home-relative
+$P_i^{\text{arch}}(k) + r_k$, and adding $\mu_i$ a second time inside the curve would double-count the home
+octave.
 
 ## 4. The accent field
 
