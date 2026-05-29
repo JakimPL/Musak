@@ -1,4 +1,6 @@
+import csv
 import shutil
+from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -29,6 +31,14 @@ def write_yaml_config(data: dict[str, Any], path: Path) -> None:
     temp_path = path.with_suffix(f"{path.suffix}.tmp")
     temp_path.write_text(yaml.safe_dump(data, sort_keys=True), encoding="utf-8")
     temp_path.replace(path)
+
+
+def write_csv_rows(path: Path, *, columns: Sequence[str], rows: Iterable[Mapping[str, Any]]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8", newline="") as file:
+        writer = csv.DictWriter(file, fieldnames=list(columns))
+        writer.writeheader()
+        writer.writerows(rows)
 
 
 def line_count(path: Path) -> int:

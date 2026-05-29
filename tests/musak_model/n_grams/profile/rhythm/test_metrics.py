@@ -6,8 +6,8 @@ from musak_model.data.schema import SegmentMetadata
 from musak_model.n_grams.profile.rhythm.extraction import count_sample_rhythm_metrics
 from musak_model.n_grams.profile.rhythm.io import (
     build_rhythm_profile,
-    read_rhythm_counts_csv,
-    write_rhythm_counts_csv,
+    read_rhythm_counts,
+    write_rhythm_counts,
 )
 from musak_model.n_grams.profile.rhythm.metrics import rhythm_reference_distribution_metrics
 from musak_model.n_grams.profile.rhythm.schema import (
@@ -67,11 +67,11 @@ def test_rhythm_counts_csv_round_trips_and_builds_profile(tmp_path: Path) -> Non
             _key(kind="duration_value", parameter="", value="1/8"): 1,
         }
     )
-    path = tmp_path / "counts.csv"
+    path = tmp_path / "counts.parquet"
 
-    write_rhythm_counts_csv(counts, path)
+    write_rhythm_counts(counts, path)
     profile = build_rhythm_profile(
-        read_rhythm_counts_csv(path),
+        read_rhythm_counts(path),
         metadata=RhythmProfileMetadata(
             rhythm_min_n=2,
             rhythm_max_n=4,
@@ -81,7 +81,7 @@ def test_rhythm_counts_csv_round_trips_and_builds_profile(tmp_path: Path) -> Non
         ),
     )
 
-    assert read_rhythm_counts_csv(path) == counts
+    assert read_rhythm_counts(path) == counts
     assert profile.groups[0].total == 3
     assert profile.groups[0].unique_values == 2
 

@@ -1,3 +1,4 @@
+import csv
 from pathlib import Path
 
 from musak_shared.files import (
@@ -7,7 +8,22 @@ from musak_shared.files import (
     remove_directory_tree,
     remove_empty_parents,
     truncate_text_lines,
+    write_csv_rows,
 )
+
+
+def test_write_csv_rows_writes_header_and_rows(tmp_path: Path) -> None:
+    path = tmp_path / "nested" / "rows.csv"
+
+    write_csv_rows(
+        path,
+        columns=("stage", "seconds"),
+        rows=[{"stage": "parse", "seconds": 1}, {"stage": "tokenize", "seconds": 2}],
+    )
+
+    with path.open("r", encoding="utf-8", newline="") as file:
+        records = list(csv.DictReader(file))
+    assert records == [{"stage": "parse", "seconds": "1"}, {"stage": "tokenize", "seconds": "2"}]
 
 
 def test_line_count_returns_zero_for_missing_file(tmp_path: Path) -> None:

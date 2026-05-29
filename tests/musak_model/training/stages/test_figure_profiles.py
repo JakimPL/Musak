@@ -29,8 +29,8 @@ def test_split_figure_profile_metrics_compare_matching_train_and_validation(tmp_
     assert metrics["model/split/figure/count/comparable_groups"] == 1.0
     assert metrics["model/split/figure/mean/total_relative_abs_error"] == 0.0
     assert metrics["model/split/figure/mean/identity_total_variation_distance"] == 0.0
-    assert len(list((tmp_path / "figure-splits").glob("*/train/all/counts.csv"))) == 1
-    assert len(list((tmp_path / "figure-splits").glob("*/validation/all/counts.csv"))) == 1
+    assert len(list((tmp_path / "figure-splits").glob("*/train/all/counts.parquet"))) == 1
+    assert len(list((tmp_path / "figure-splits").glob("*/validation/all/counts.parquet"))) == 1
 
     reused_metrics = split_figure_profile_metrics(
         IngestionSplit(train=[sample], validation=[sample], invalid_files=[]),

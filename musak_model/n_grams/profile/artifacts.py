@@ -6,8 +6,8 @@ FIGURE_DIR_NAME: Final[str] = "figure"
 FIGURE_CONFIG_NAME: Final[str] = "config.yml"
 FIGURE_ALL_DIR_NAME: Final[str] = "all"
 FIGURE_PROFILE_NAME: Final[str] = "profile.json"
-FIGURE_COUNTS_NAME: Final[str] = "counts.csv"
-FIGURE_BASE_DURATIONS_NAME: Final[str] = "base_durations.csv"
+FIGURE_COUNTS_NAME: Final[str] = "counts.parquet"
+FIGURE_BASE_DURATIONS_NAME: Final[str] = "base_durations.parquet"
 FIGURE_BY_SAMPLE_NAME: Final[str] = "by_sample.jsonl"
 
 

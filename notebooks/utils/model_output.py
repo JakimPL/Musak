@@ -29,10 +29,10 @@ from musak_model.n_grams.figure.counter import count_hand_figure_ngrams
 from musak_model.n_grams.figure.parser import extract_hand_onset_runs
 from musak_model.n_grams.figure.samples.schema import FigureNGramCountsByScale
 from musak_model.n_grams.figure.schema import FigureNGram
-from musak_model.n_grams.profile.io import read_figure_counts_csv_for_groups
+from musak_model.n_grams.profile.io import read_figure_counts_for_groups
 from musak_model.n_grams.profile.metrics.reference.distribution import figure_reference_alignment_metrics
 from musak_model.n_grams.profile.rhythm.extraction import count_segment_rhythm_metrics
-from musak_model.n_grams.profile.rhythm.io import read_rhythm_counts_csv
+from musak_model.n_grams.profile.rhythm.io import read_rhythm_counts
 from musak_model.n_grams.profile.rhythm.metrics import rhythm_reference_distribution_metrics
 from musak_model.n_grams.profile.rhythm.schema import RhythmCountCounter, RhythmCountKey, RhythmMetricKind
 from musak_model.paths import MODEL_CONFIG_DIR
@@ -541,7 +541,7 @@ def load_figure_reference_counts(
     scale_type: ScaleType,
     groups: frozenset[tuple[Hand, int]],
 ) -> FigureNGramCountsByScale:
-    return read_figure_counts_csv_for_groups(path, scale_type=scale_type, groups=groups)
+    return read_figure_counts_for_groups(path, scale_type=scale_type, groups=groups)
 
 
 def figure_reference_count_groups(
@@ -638,7 +638,7 @@ def figure_reference_alignment_metric_rows(
 
 @cache
 def load_rhythm_reference_counts(path: Path) -> RhythmCountCounter:
-    return read_rhythm_counts_csv(path)
+    return read_rhythm_counts(path)
 
 
 def rhythm_reference_counts_path(figure_counts_path: Path) -> Path:

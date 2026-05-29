@@ -4,7 +4,7 @@ from pathlib import Path
 from musak_model.n_grams.figure.samples.schema import FigureNGramCountsByScale
 from musak_model.n_grams.profile.artifacts import FigureArtifactPaths, figure_artifact_paths
 from musak_model.n_grams.profile.io import (
-    read_figure_counts_csv,
+    read_figure_counts,
     read_figure_profile,
     read_figure_sample_counts_jsonl,
 )
@@ -43,7 +43,7 @@ def load_figure_profile_artifacts(
         )
 
     profile = read_figure_profile(paths.profile_path)
-    counts_by_scale = read_figure_counts_csv(paths.counts_path)
+    counts_by_scale = read_figure_counts(paths.counts_path)
     sample_counts = tuple(read_figure_sample_counts_jsonl(paths.by_sample_path))
     rhythm_artifacts = load_rhythm_profile_artifacts(paths)
     _validate_artifact_consistency(profile=profile, sample_counts=sample_counts, paths=paths)

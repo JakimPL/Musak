@@ -5,7 +5,7 @@ from pathlib import Path
 from musak_model.n_grams.figure.schema import FigureNGram
 from musak_model.n_grams.profile.artifacts import FigureArtifactPaths, figure_artifact_paths
 from musak_model.n_grams.profile.builder import build_figure_profile, build_figure_sample_counts
-from musak_model.n_grams.profile.io import write_figure_profile, write_figure_sample_counts_jsonl
+from musak_model.n_grams.profile.io import write_figure_counts, write_figure_profile, write_figure_sample_counts_jsonl
 from musak_model.n_grams.profile.loading import (
     figure_profile_encoded_directory,
     load_figure_profile_artifacts,
@@ -38,7 +38,7 @@ def test_load_figure_profile_artifacts_requires_complete_canonical_artifacts(tmp
         raise AssertionError("expected incomplete artifacts to raise FileNotFoundError")
 
     assert "profile.json" in message
-    assert "counts.csv" in message
+    assert "counts.parquet" in message
     assert "by_sample.jsonl" in message
 
 
@@ -164,5 +164,4 @@ def test_load_processed_figure_profile_artifacts_infers_encoded_directory(
 def _write_required_artifact_placeholders(paths: FigureArtifactPaths) -> None:
     paths.config_path.parent.mkdir(parents=True, exist_ok=True)
     paths.config_path.write_text("min_n: 1\nmax_n: 1\n", encoding="utf-8")
-    paths.counts_path.parent.mkdir(parents=True, exist_ok=True)
-    paths.counts_path.write_text("scale_type,hand,n,count,figure\n", encoding="utf-8")
+    write_figure_counts({}, paths.counts_path)

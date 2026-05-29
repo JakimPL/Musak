@@ -1,21 +1,22 @@
-import csv
 from collections.abc import Iterator
 from pathlib import Path
+
+import polars as pl
 
 from musak_model.n_grams.config import NGramAnalysisConfig
 from musak_model.n_grams.figure.signature import figure_signature_from_json, figure_signature_to_ngram
 from musak_model.n_grams.profile.artifacts import FigureArtifactPaths
 from musak_model.n_grams.profile.io import (
     BASE_DURATION_COLUMN,
-    BASE_DURATION_CSV_COLUMNS,
+    BASE_DURATION_SCHEMA,
     COUNT_COLUMN,
-    COUNT_CSV_COLUMNS,
     FIGURE_COLUMN,
+    FIGURE_COUNT_SCHEMA,
     HAND_COLUMN,
     N_COLUMN,
     SCALE_TYPE_COLUMN,
 )
-from musak_model.n_grams.profile.rhythm.io import build_rhythm_profile, write_rhythm_counts_csv, write_rhythm_profile
+from musak_model.n_grams.profile.rhythm.io import build_rhythm_profile, write_rhythm_counts, write_rhythm_profile
 from musak_model.n_grams.profile.rhythm.schema import (
     RhythmCountCounter,
     RhythmProfileMetadata,
@@ -28,6 +29,7 @@ from musak_model.n_grams.profile.streaming.totals import figure_group_totals
 from musak_model.processing.io import JSON_INDENT
 from musak_model.tokens.schema import Hand, ScaleType
 from musak_shared.files import write_yaml_config
+from musak_shared.tables import write_table
 
 
 def export_figure_artifacts(
@@ -52,14 +54,14 @@ def export_figure_artifacts(
         ),
     )
     sample_profile_count = export_sample_counts(store, artifact_paths.by_sample_path)
-    export_counts_csv(store, artifact_paths.counts_path, limit_per_group=None)
-    export_base_durations_csv(store, artifact_paths.base_durations_path)
-    write_rhythm_counts_csv(rhythm_counts, rhythm_paths.counts_path)
+    export_counts(store, artifact_paths.counts_path, limit_per_group=None)
+    export_base_durations(store, artifact_paths.base_durations_path)
+    write_rhythm_counts(rhythm_counts, rhythm_paths.counts_path)
     write_rhythm_profile(rhythm_profile, rhythm_paths.profile_path)
     write_profile_atomically(profile, artifact_paths.profile_path)
     write_yaml_config(config.model_dump(mode="json"), artifact_paths.config_path)
     if output_path is not None:
-        export_counts_csv(store, output_path, limit_per_group=limit_per_group)
+        export_counts(store, output_path, limit_per_group=limit_per_group)
 
     return FigureStoreSummary(
         encoded_sample_count=store.encoded_sample_count(),
@@ -98,50 +100,40 @@ def profile_from_store(
     )
 
 
-def export_counts_csv(
+def export_counts(
     store: FigureWorkStore,
     path: Path,
     *,
     limit_per_group: int | None,
 ) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temp_path = path.with_suffix(f"{path.suffix}.tmp")
-    with temp_path.open("w", encoding="utf-8", newline="") as file:
-        writer = csv.DictWriter(file, fieldnames=COUNT_CSV_COLUMNS)
-        writer.writeheader()
-        for row in store.tables.iter_limited_figure_rows(limit_per_group=limit_per_group):
-            writer.writerow(
-                {
-                    SCALE_TYPE_COLUMN: row.scale_type,
-                    HAND_COLUMN: row.hand,
-                    N_COLUMN: row.figure_length,
-                    COUNT_COLUMN: row.occurrence_count,
-                    FIGURE_COLUMN: figure_signature_to_ngram(figure_signature_from_json(row.figure)).model_dump_json(),
-                }
-            )
-    temp_path.replace(path)
+    records = [
+        {
+            SCALE_TYPE_COLUMN: row.scale_type,
+            HAND_COLUMN: row.hand,
+            N_COLUMN: row.figure_length,
+            COUNT_COLUMN: row.occurrence_count,
+            FIGURE_COLUMN: figure_signature_to_ngram(figure_signature_from_json(row.figure)).model_dump_json(),
+        }
+        for row in store.tables.iter_limited_figure_rows(limit_per_group=limit_per_group)
+    ]
+    write_table(pl.DataFrame(records, schema=FIGURE_COUNT_SCHEMA, orient="row"), path)
 
 
-def export_base_durations_csv(
+def export_base_durations(
     store: FigureWorkStore,
     path: Path,
 ) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temp_path = path.with_suffix(f"{path.suffix}.tmp")
-    with temp_path.open("w", encoding="utf-8", newline="") as file:
-        writer = csv.DictWriter(file, fieldnames=BASE_DURATION_CSV_COLUMNS)
-        writer.writeheader()
-        for row in store.tables.iter_base_duration_rows():
-            writer.writerow(
-                {
-                    SCALE_TYPE_COLUMN: row.scale_type,
-                    HAND_COLUMN: row.hand,
-                    N_COLUMN: row.figure_length,
-                    BASE_DURATION_COLUMN: row.base_duration,
-                    COUNT_COLUMN: row.occurrence_count,
-                }
-            )
-    temp_path.replace(path)
+    records = [
+        {
+            SCALE_TYPE_COLUMN: row.scale_type,
+            HAND_COLUMN: row.hand,
+            N_COLUMN: row.figure_length,
+            BASE_DURATION_COLUMN: row.base_duration,
+            COUNT_COLUMN: row.occurrence_count,
+        }
+        for row in store.tables.iter_base_duration_rows()
+    ]
+    write_table(pl.DataFrame(records, schema=BASE_DURATION_SCHEMA, orient="row"), path)
 
 
 def export_sample_counts(

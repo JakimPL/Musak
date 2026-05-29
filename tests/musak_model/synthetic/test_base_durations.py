@@ -3,16 +3,39 @@ from fractions import Fraction
 from pathlib import Path
 from statistics import fmean
 
+import polars as pl
 import pytest
 from numpy.random import default_rng
 
-from musak_model.n_grams.profile.io import BASE_DURATION_CSV_COLUMNS
+from musak_model.n_grams.profile.io import (
+    BASE_DURATION_COLUMN,
+    BASE_DURATION_SCHEMA,
+    COUNT_COLUMN,
+    HAND_COLUMN,
+    N_COLUMN,
+    SCALE_TYPE_COLUMN,
+)
 from musak_model.synthetic.base_durations import (
     BaseDurationDistribution,
     load_base_duration_distribution,
     weighted_base_duration_choice,
 )
 from musak_model.tokens.schema import Hand, ScaleType
+from musak_shared.tables import write_table
+
+
+def _write_base_durations(path: Path, rows: list[tuple[ScaleType, Hand, int, Fraction, int]]) -> None:
+    records = [
+        {
+            SCALE_TYPE_COLUMN: scale_type.value,
+            HAND_COLUMN: hand.value,
+            N_COLUMN: figure_length,
+            BASE_DURATION_COLUMN: f"{base_duration.numerator}/{base_duration.denominator}",
+            COUNT_COLUMN: count,
+        }
+        for scale_type, hand, figure_length, base_duration, count in rows
+    ]
+    write_table(pl.DataFrame(records, schema=BASE_DURATION_SCHEMA, orient="row"), path)
 
 
 def _distribution() -> BaseDurationDistribution:
@@ -57,19 +80,16 @@ def test_weighted_choice_rejects_empty() -> None:
         weighted_base_duration_choice((), rng=default_rng(0))
 
 
-def test_load_base_duration_distribution_round_trips_csv(tmp_path: Path) -> None:
-    path = tmp_path / "base_durations.csv"
-    rows = [
-        (ScaleType.MAJOR, Hand.RIGHT, 2, Fraction(1, 8), 3),
-        (ScaleType.MAJOR, Hand.RIGHT, 2, Fraction(1, 4), 1),
-        (ScaleType.MAJOR, Hand.LEFT, 3, Fraction(1, 16), 5),
-    ]
-    lines = [",".join(BASE_DURATION_CSV_COLUMNS)]
-    for scale_type, hand, figure_length, base_duration, count in rows:
-        lines.append(
-            f"{scale_type.value},{hand.value},{figure_length},{base_duration.numerator}/{base_duration.denominator},{count}"
-        )
-    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+def test_load_base_duration_distribution_round_trips(tmp_path: Path) -> None:
+    path = tmp_path / "base_durations.parquet"
+    _write_base_durations(
+        path,
+        [
+            (ScaleType.MAJOR, Hand.RIGHT, 2, Fraction(1, 8), 3),
+            (ScaleType.MAJOR, Hand.RIGHT, 2, Fraction(1, 4), 1),
+            (ScaleType.MAJOR, Hand.LEFT, 3, Fraction(1, 16), 5),
+        ],
+    )
 
     distribution = load_base_duration_distribution(path)
 
@@ -85,10 +105,8 @@ def test_load_base_duration_distribution_round_trips_csv(tmp_path: Path) -> None
 def test_load_base_duration_distribution_resolves_artifact_directory(tmp_path: Path) -> None:
     all_directory = tmp_path / "figure" / "all"
     all_directory.mkdir(parents=True)
-    path = all_directory / "base_durations.csv"
-    path.write_text(
-        "\n".join([",".join(BASE_DURATION_CSV_COLUMNS), "major,right,2,1/4,1"]) + "\n",
-        encoding="utf-8",
+    _write_base_durations(
+        all_directory / "base_durations.parquet", [(ScaleType.MAJOR, Hand.RIGHT, 2, Fraction(1, 4), 1)]
     )
 
     distribution = load_base_duration_distribution(tmp_path)

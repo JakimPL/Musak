@@ -6,7 +6,7 @@ from random import Random
 import pytest
 
 from musak_model.n_grams.figure.schema import FigureNGram
-from musak_model.n_grams.profile.io import write_figure_counts_csv
+from musak_model.n_grams.profile.io import write_figure_counts
 from musak_model.synthetic.figures import (
     FigureVocabulary,
     load_figure_split_vocabulary,
@@ -17,7 +17,7 @@ from musak_model.tokens.schema import Hand, ScaleType
 
 
 def test_load_figure_vocabulary_reads_counts_as_figure_objects(tmp_path: Path) -> None:
-    counts_path = _write_counts(tmp_path / "counts.csv")
+    counts_path = _write_counts(tmp_path / "counts.parquet")
 
     vocabulary = load_figure_vocabulary(counts_path)
 
@@ -31,7 +31,7 @@ def test_load_figure_vocabulary_reads_counts_as_figure_objects(tmp_path: Path) -
 
 def test_load_figure_vocabulary_resolves_split_directory(tmp_path: Path) -> None:
     split_directory = tmp_path / "split" / "train"
-    counts_path = split_directory / "all" / "counts.csv"
+    counts_path = split_directory / "all" / "counts.parquet"
     _write_counts(counts_path)
 
     vocabulary = load_figure_vocabulary(split_directory)
@@ -41,14 +41,14 @@ def test_load_figure_vocabulary_resolves_split_directory(tmp_path: Path) -> None
 
 def test_load_figure_vocabulary_resolves_processed_encoded_directory(tmp_path: Path) -> None:
     encoded_directory = tmp_path / "encoded"
-    counts_path = encoded_directory / "figure" / "all" / "counts.csv"
+    counts_path = encoded_directory / "figure" / "all" / "counts.parquet"
     _write_counts(counts_path)
 
     assert resolve_figure_counts_path(encoded_directory) == counts_path
 
 
 def test_load_figure_split_vocabulary_reads_training_split_artifact(tmp_path: Path) -> None:
-    _write_counts(tmp_path / "abc123" / "validation" / "all" / "counts.csv")
+    _write_counts(tmp_path / "abc123" / "validation" / "all" / "counts.parquet")
 
     vocabulary = load_figure_split_vocabulary(
         split_key="abc123",
@@ -60,7 +60,7 @@ def test_load_figure_split_vocabulary_reads_training_split_artifact(tmp_path: Pa
 
 
 def test_figure_vocabulary_filters_by_group_and_properties(tmp_path: Path) -> None:
-    vocabulary = load_figure_vocabulary(_write_counts(tmp_path / "counts.csv"))
+    vocabulary = load_figure_vocabulary(_write_counts(tmp_path / "counts.parquet"))
 
     filtered = vocabulary.filter(
         scale_type=ScaleType.MAJOR,
@@ -76,7 +76,7 @@ def test_figure_vocabulary_filters_by_group_and_properties(tmp_path: Path) -> No
 
 
 def test_figure_vocabulary_reports_count_weighted_length_distribution(tmp_path: Path) -> None:
-    vocabulary = load_figure_vocabulary(_write_counts(tmp_path / "counts.csv"))
+    vocabulary = load_figure_vocabulary(_write_counts(tmp_path / "counts.parquet"))
 
     assert vocabulary.length_distribution() == {2: 0.6, 3: 0.4}
 
@@ -107,7 +107,7 @@ def test_figure_vocabulary_rejects_empty_sampling() -> None:
 def _write_counts(path: Path) -> Path:
     first = FigureNGram(onsets=((((0, 0),), Fraction(1)), (((1, 0),), Fraction(1))))
     second = FigureNGram(onsets=((((0, 0),), Fraction(1)), (((2, 1),), Fraction(1)), (((4, 0),), Fraction(1))))
-    write_figure_counts_csv(
+    write_figure_counts(
         {
             ScaleType.MAJOR: {
                 Hand.RIGHT: {

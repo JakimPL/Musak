@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
 from musak_model.n_grams.profile.artifacts import FigureArtifactPaths
-from musak_model.n_grams.profile.rhythm.io import read_rhythm_counts_csv, read_rhythm_profile
+from musak_model.n_grams.profile.rhythm.io import read_rhythm_counts, read_rhythm_profile
 from musak_model.n_grams.profile.rhythm.schema import (
     RhythmArtifactPaths,
     RhythmCountCounter,
@@ -32,5 +32,5 @@ def load_rhythm_profile_artifacts(paths: FigureArtifactPaths) -> RhythmProfileAr
     return RhythmProfileArtifacts(
         paths=rhythm_paths,
         profile=read_rhythm_profile(rhythm_paths.profile_path),
-        counts=read_rhythm_counts_csv(rhythm_paths.counts_path),
+        counts=read_rhythm_counts(rhythm_paths.counts_path),
     )

@@ -1,5 +1,5 @@
 from musak_model.n_grams.figure.samples.schema import FigureNGramCountsByScale
-from musak_model.n_grams.profile.io import read_figure_counts_csv
+from musak_model.n_grams.profile.io import read_figure_counts
 from musak_model.synthetic.base_durations import load_base_duration_distribution
 from musak_model.synthetic.calibration.config import CalibrationConfig
 from musak_model.synthetic.figures import load_figure_vocabulary, resolve_figure_counts_path
@@ -43,4 +43,4 @@ def build_calibration_generator(config: CalibrationConfig) -> SegmentGenerator:
 
 
 def load_reference_counts(config: CalibrationConfig) -> FigureNGramCountsByScale:
-    return read_figure_counts_csv(resolve_figure_counts_path(config.figure_root))
+    return read_figure_counts(resolve_figure_counts_path(config.figure_root))

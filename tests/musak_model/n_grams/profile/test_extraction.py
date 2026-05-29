@@ -7,13 +7,13 @@ from musak_model.n_grams.config import NGramAnalysisConfig
 from musak_model.n_grams.profile.artifacts import figure_artifact_paths
 from musak_model.n_grams.profile.extraction import extract_figure_artifacts
 from musak_model.n_grams.profile.io import (
-    read_base_duration_counts_csv,
-    read_figure_counts_csv,
+    read_base_duration_counts,
+    read_figure_counts,
     read_figure_profile,
     read_figure_sample_counts_jsonl,
 )
 from musak_model.n_grams.profile.reference import FigureReferenceStore
-from musak_model.n_grams.profile.rhythm.io import read_rhythm_counts_csv, read_rhythm_profile
+from musak_model.n_grams.profile.rhythm.io import read_rhythm_counts, read_rhythm_profile
 from musak_model.n_grams.profile.rhythm.schema import rhythm_artifact_paths_for_figure_root
 from musak_model.n_grams.profile.schema import FigureSampleCounts
 from musak_model.n_grams.profile.streaming.schema import FigureBatchTask
@@ -56,7 +56,7 @@ def test_extract_figure_artifacts_writes_by_sample_jsonl(
     assert rhythm_paths.counts_path.is_file()
     assert rhythm_paths.profile_path.is_file()
     assert read_rhythm_profile(rhythm_paths.profile_path).metadata.sample_count == 2
-    assert read_rhythm_counts_csv(rhythm_paths.counts_path)
+    assert read_rhythm_counts(rhythm_paths.counts_path)
     assert [sample_count.sample_index for sample_count in sample_counts] == [0, 1]
     assert sample_counts[0].scale_type == ScaleType.MAJOR
     assert sample_counts[1].scale_type == ScaleType.HARMONIC_MINOR
@@ -240,7 +240,7 @@ def test_extract_figure_artifacts_writes_base_durations_csv(
     )
 
     assert result.artifact_paths.base_durations_path.is_file()
-    counts_by_group = read_base_duration_counts_csv(result.artifact_paths.base_durations_path)
+    counts_by_group = read_base_duration_counts(result.artifact_paths.base_durations_path)
     assert counts_by_group[(ScaleType.MAJOR, Hand.RIGHT, 2)] == Counter({Fraction(1, 4): 1})
     assert counts_by_group[(ScaleType.HARMONIC_MINOR, Hand.LEFT, 2)] == Counter({Fraction(1, 4): 1})
 
@@ -286,7 +286,7 @@ def test_counts_csv_aggregates_same_figure_across_anchors(
         show_progress=False,
     )
 
-    counts = read_figure_counts_csv(result.artifact_paths.counts_path)
+    counts = read_figure_counts(result.artifact_paths.counts_path)
     ascending_step_figures = counts[ScaleType.MAJOR][Hand.RIGHT][2]
     assert len(ascending_step_figures) == 1
     ((figure, count),) = ascending_step_figures.items()

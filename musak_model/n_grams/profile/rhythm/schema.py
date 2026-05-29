@@ -4,13 +4,14 @@ from fractions import Fraction
 from pathlib import Path
 from typing import Final, Literal, NamedTuple
 
+import polars as pl
 from pydantic import BaseModel, ConfigDict, Field
 
 from musak_model.tokens.schema import Hand, ScaleType
 
 RHYTHM_DIR_NAME: Final[str] = "rhythm"
 RHYTHM_PROFILE_NAME: Final[str] = "profile.json"
-RHYTHM_COUNTS_NAME: Final[str] = "counts.csv"
+RHYTHM_COUNTS_NAME: Final[str] = "counts.parquet"
 
 RHYTHM_SCALE_TYPE_COLUMN: Final[str] = "scale_type"
 RHYTHM_TIME_SIGNATURE_COLUMN: Final[str] = "time_signature"
@@ -19,15 +20,15 @@ RHYTHM_KIND_COLUMN: Final[str] = "kind"
 RHYTHM_PARAMETER_COLUMN: Final[str] = "parameter"
 RHYTHM_VALUE_COLUMN: Final[str] = "value"
 RHYTHM_COUNT_COLUMN: Final[str] = "count"
-RHYTHM_COUNT_CSV_COLUMNS: Final[tuple[str, ...]] = (
-    RHYTHM_SCALE_TYPE_COLUMN,
-    RHYTHM_TIME_SIGNATURE_COLUMN,
-    RHYTHM_HAND_COLUMN,
-    RHYTHM_KIND_COLUMN,
-    RHYTHM_PARAMETER_COLUMN,
-    RHYTHM_VALUE_COLUMN,
-    RHYTHM_COUNT_COLUMN,
-)
+RHYTHM_COUNT_SCHEMA: Final[dict[str, pl.DataType]] = {
+    RHYTHM_SCALE_TYPE_COLUMN: pl.String(),
+    RHYTHM_TIME_SIGNATURE_COLUMN: pl.String(),
+    RHYTHM_HAND_COLUMN: pl.String(),
+    RHYTHM_KIND_COLUMN: pl.String(),
+    RHYTHM_PARAMETER_COLUMN: pl.String(),
+    RHYTHM_VALUE_COLUMN: pl.String(),
+    RHYTHM_COUNT_COLUMN: pl.Int64(),
+}
 
 type RhythmMetricKind = Literal[
     "rhythm_ngram",

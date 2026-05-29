@@ -75,7 +75,7 @@ def test_default_output_path_uses_analysis_directory() -> None:
         encoded_directory=Path("processed/PDMX/encoded/abc"),
     )
 
-    assert path == Path("processed/PDMX/encoded/abc/figure/all/counts.csv")
+    assert path == Path("processed/PDMX/encoded/abc/figure/all/counts.parquet")
 
 
 def test_copy_analysis_config_writes_canonical_config(tmp_path: Path) -> None:
