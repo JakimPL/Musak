@@ -25,6 +25,7 @@ def build_calibration_generator(config: CalibrationConfig) -> SegmentGenerator:
             lambda_curve=0.0,
             lambda_harm=0.0,
             lambda_accent=0.0,
+            lambda_chord_figure=0.0,
             commonness_bias=config.commonness_bias,
             max_resample_retries=config.max_resample_retries,
             monophonic=False,

@@ -47,6 +47,7 @@ def _generator(duration_vocabulary: DurationVocabulary) -> SegmentGenerator:
             lambda_curve=0.0,
             lambda_harm=0.0,
             lambda_accent=0.0,
+            lambda_chord_figure=0.0,
             commonness_bias=1.0,
             max_resample_retries=4,
             monophonic=False,

@@ -50,6 +50,7 @@ def selected_substitution_config(selection: TiltSelection, config: CalibrationCo
         lambda_curve=selection.lambda_curve,
         lambda_harm=selection.lambda_harm,
         lambda_accent=selection.lambda_accent,
+        lambda_chord_figure=0.0,
         commonness_bias=config.commonness_bias,
         max_resample_retries=config.max_resample_retries,
         monophonic=False,

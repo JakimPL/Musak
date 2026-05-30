@@ -5,7 +5,7 @@ from musak_model.synthetic.processes.accent import AccentFieldConfig, AccentFiel
 from musak_model.synthetic.processes.chord_track import ChordTrackSampler, ChordTransitionModel
 from musak_model.synthetic.processes.hand_coupling import HandCouplingConfig, HandCouplingSampler
 from musak_model.synthetic.processes.pitch import RegisterCurveConfig, RegisterCurveOverride, RegisterCurveSampler
-from musak_model.synthetic.substitution import SegmentGenerator, SubstitutionConfig
+from musak_model.synthetic.substitution import FigureByChordModel, SegmentGenerator, SubstitutionConfig
 from musak_model.tokens.duration import DurationVocabulary
 
 
@@ -21,6 +21,7 @@ def build_segment_generator(
     chord_vocabulary: ChordVocabularyConfig,
     figure_vocabulary: FigureVocabulary,
     anchored_figure_vocabulary: AnchoredFigureVocabulary = AnchoredFigureVocabulary(entries=()),
+    figure_by_chord_model: FigureByChordModel = FigureByChordModel(),
     base_duration_distribution: BaseDurationDistribution,
     duration_vocabulary: DurationVocabulary,
     figure_lengths: tuple[int, ...],
@@ -34,6 +35,7 @@ def build_segment_generator(
         chord_vocabulary=chord_vocabulary,
         figure_vocabulary=figure_vocabulary,
         anchored_figure_vocabulary=anchored_figure_vocabulary,
+        figure_by_chord_model=figure_by_chord_model,
         base_duration_distribution=base_duration_distribution,
         duration_vocabulary=duration_vocabulary,
         figure_lengths=figure_lengths,

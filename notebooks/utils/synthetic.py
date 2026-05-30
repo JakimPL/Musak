@@ -74,6 +74,7 @@ class SyntheticGenerationRequest:
     lambda_curve: float
     lambda_harm: float
     lambda_accent: float
+    lambda_chord_figure: float
     commonness_bias: float
     max_resample_retries: int
     arch_basis_count: int
@@ -128,6 +129,7 @@ def generate_synthetic_segment(
             lambda_curve=request.lambda_curve,
             lambda_harm=request.lambda_harm,
             lambda_accent=request.lambda_accent,
+            lambda_chord_figure=request.lambda_chord_figure,
             commonness_bias=request.commonness_bias,
             max_resample_retries=request.max_resample_retries,
             monophonic=request.monophonic,

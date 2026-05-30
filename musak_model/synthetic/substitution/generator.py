@@ -27,6 +27,7 @@ from musak_model.synthetic.processes.accent import AccentFieldSampler
 from musak_model.synthetic.processes.chord_track import ChordTrackSampler
 from musak_model.synthetic.processes.hand_coupling import HandCouplingSampler
 from musak_model.synthetic.processes.pitch import RegisterCurveSampler
+from musak_model.synthetic.substitution.chord_figure import FigureByChordModel
 from musak_model.synthetic.substitution.config import SubstitutionConfig
 from musak_model.synthetic.substitution.emission import anchor_figure_to_tokens
 from musak_model.synthetic.substitution.sampling import sample_substituted_figure
@@ -65,6 +66,7 @@ class SegmentGenerator:
     duration_vocabulary: DurationVocabulary
     figure_lengths: tuple[int, ...]
     anchored_figure_vocabulary: AnchoredFigureVocabulary = AnchoredFigureVocabulary(entries=())
+    figure_by_chord_model: FigureByChordModel = FigureByChordModel()
 
     def generate(
         self,
@@ -149,6 +151,12 @@ class SegmentGenerator:
             cell_duration=cell_duration,
             cell_count=cell_count,
         )
+        cell_chords = self._cell_chords(
+            chord_windows=chord_windows,
+            chord_track=chord_track,
+            cell_duration=cell_duration,
+            cell_count=cell_count,
+        )
 
         scale_size = scale_size_for_type(scale_type)
         baseline_samples: list[BaselineSample] = []
@@ -200,6 +208,7 @@ class SegmentGenerator:
                     degree_entries_by_group=degree_entries_by_group,
                     scale_type=scale_type,
                     cell_chord_pitch_classes=cell_chord_pitch_classes,
+                    cell_chords=cell_chords,
                     rng=rng,
                 )
             state, tokens = self._append(state, tokens, BarToken())
@@ -264,6 +273,19 @@ class SegmentGenerator:
             for cell_index in range(cell_count)
         )
 
+    @staticmethod
+    def _cell_chords(
+        *,
+        chord_windows: tuple[tuple[Fraction, Fraction], ...],
+        chord_track: tuple[Chord, ...],
+        cell_duration: Fraction,
+        cell_count: int,
+    ) -> tuple[Chord, ...]:
+        window_starts = [start for start, _ in chord_windows]
+        return tuple(
+            chord_track[bisect_right(window_starts, cell_index * cell_duration) - 1] for cell_index in range(cell_count)
+        )
+
     def _figure_entries_by_group(self, scale_type: ScaleType) -> FigureEntriesByGroup:
         figure_lengths = frozenset(self.figure_lengths)
         grouped: dict[tuple[Hand, int], list[FigureVocabularyEntry]] = {}
@@ -313,6 +335,7 @@ class SegmentGenerator:
         degree_entries_by_group: DegreeFigureEntriesByGroup,
         scale_type: ScaleType,
         cell_chord_pitch_classes: tuple[frozenset[int], ...],
+        cell_chords: tuple[Chord, ...],
         rng: Generator,
     ) -> tuple[GenerationConstraintState, list[Token]]:
         """Fill an active hand's bar from a sub-bar onset grid.
@@ -358,6 +381,7 @@ class SegmentGenerator:
                 degree_entries_by_group=degree_entries_by_group,
                 scale_type=scale_type,
                 chord_pitch_classes=cell_chord_pitch_classes[fired_cell_index],
+                chord=cell_chords[fired_cell_index],
                 curve=curve,
                 fired_cell_index=fired_cell_index,
                 grid_count_per_bar=grid_count_per_bar,
@@ -408,6 +432,7 @@ class SegmentGenerator:
         degree_entries_by_group: DegreeFigureEntriesByGroup,
         scale_type: ScaleType,
         chord_pitch_classes: frozenset[int],
+        chord: Chord,
         curve: tuple[int, ...],
         fired_cell_index: int,
         grid_count_per_bar: int,
@@ -442,6 +467,8 @@ class SegmentGenerator:
                 grid_count_per_bar=grid_count_per_bar,
                 config=self.substitution_config,
                 rng=rng,
+                chord=chord,
+                figure_by_chord_model=self.figure_by_chord_model,
             )
             fitting_bases = self._fitting_base_durations(entry.figure, candidate_bases, remaining=remaining)
             if not fitting_bases:

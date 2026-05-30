@@ -1,3 +1,4 @@
+from collections.abc import Mapping, Sequence
 from fractions import Fraction
 from math import gcd
 
@@ -8,6 +9,20 @@ from musak_model.tokens.schema import ScaleType, scale_size_for_type
 
 def is_monorhythmic(figure: FigureNGram) -> bool:
     return all(duration == Fraction(1) for _, duration in figure.onsets)
+
+
+def chord_figure_log_probabilities(
+    *,
+    figures: Sequence[FigureNGram],
+    table: Mapping[FigureNGram, float] | None,
+) -> list[float]:
+    if not table:
+        return [0.0] * len(figures)
+
+    # A figure unobserved with this chord backs off to the least-likely observed one (never rewarded);
+    # an absent table is neutral (every entry scores 0, so the term cancels under the softmax).
+    floor = min(table.values())
+    return [table.get(figure, floor) for figure in figures]
 
 
 def figure_net_contour(figure: FigureNGram) -> int:

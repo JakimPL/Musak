@@ -154,6 +154,9 @@ def _(
     lambda_curve = mo.ui.slider(start=0.0, stop=5.0, step=0.05, value=1.0, label="λ curve", show_value=True)
     lambda_harm = mo.ui.slider(start=0.0, stop=5.0, step=0.05, value=1.0, label="λ harmony", show_value=True)
     lambda_accent = mo.ui.slider(start=0.0, stop=5.0, step=0.05, value=1.0, label="λ accent", show_value=True)
+    lambda_chord_figure = mo.ui.slider(
+        start=0.0, stop=5.0, step=0.05, value=0.0, label="λ chord figure", show_value=True
+    )
     commonness_bias = mo.ui.slider(start=0.0, stop=3.0, step=0.05, value=1.0, label="Commonness bias", show_value=True)
     max_resample_retries = mo.ui.number(start=1, stop=64, step=1, value=8, label="Max resample retries")
 
@@ -217,6 +220,7 @@ def _(
                 lambda_curve=float(lambda_curve.value),
                 lambda_harm=float(lambda_harm.value),
                 lambda_accent=float(lambda_accent.value),
+                lambda_chord_figure=float(lambda_chord_figure.value),
                 commonness_bias=float(commonness_bias.value),
                 max_resample_retries=int(max_resample_retries.value),
                 arch_basis_count=int(arch_basis_count.value),
@@ -267,7 +271,16 @@ def _(
             ),
             mo.md("### Figures and Tilts"),
             mo.hstack(
-                [min_n, max_n, monophonic, lambda_curve, lambda_harm, lambda_accent, commonness_bias],
+                [
+                    min_n,
+                    max_n,
+                    monophonic,
+                    lambda_curve,
+                    lambda_harm,
+                    lambda_accent,
+                    lambda_chord_figure,
+                    commonness_bias,
+                ],
                 gap=2,
                 wrap=True,
             ),
