@@ -7,6 +7,9 @@ from musak_model.n_grams.config import NGramAnalysisConfig
 from musak_model.n_grams.figure.signature import figure_signature_from_json, figure_signature_to_ngram
 from musak_model.n_grams.profile.artifacts import FigureArtifactPaths
 from musak_model.n_grams.profile.io import (
+    ANCHOR_ACCIDENTAL_COLUMN,
+    ANCHOR_DEGREE_COLUMN,
+    ANCHOR_FIGURE_COUNT_SCHEMA,
     BASE_DURATION_COLUMN,
     BASE_DURATION_SCHEMA,
     COUNT_COLUMN,
@@ -59,7 +62,7 @@ def export_figure_artifacts(
         ),
     )
     sample_profile_count = export_sample_counts(store, artifact_paths.by_sample_path)
-    export_counts(store, artifact_paths.counts_path, limit_per_group=None)
+    export_anchor_counts(store, artifact_paths.counts_path)
     export_base_durations(store, artifact_paths.base_durations_path)
     write_rhythm_counts(rhythm_counts, rhythm_paths.counts_path)
     write_rhythm_profile(rhythm_profile, rhythm_paths.profile_path)
@@ -131,6 +134,22 @@ def export_counts(
         for row in store.tables.iter_limited_figure_rows(limit_per_group=limit_per_group)
     ]
     write_table(pl.DataFrame(records, schema=FIGURE_COUNT_SCHEMA, orient="row"), path)
+
+
+def export_anchor_counts(store: FigureWorkStore, path: Path) -> None:
+    records = [
+        {
+            SCALE_TYPE_COLUMN: row.scale_type,
+            HAND_COLUMN: row.hand,
+            N_COLUMN: row.figure_length,
+            ANCHOR_DEGREE_COLUMN: row.anchor_degree,
+            ANCHOR_ACCIDENTAL_COLUMN: row.anchor_accidental,
+            COUNT_COLUMN: row.occurrence_count,
+            FIGURE_COLUMN: figure_signature_to_ngram(figure_signature_from_json(row.figure)).model_dump_json(),
+        }
+        for row in store.tables.iter_anchor_figure_rows()
+    ]
+    write_table(pl.DataFrame(records, schema=ANCHOR_FIGURE_COUNT_SCHEMA, orient="row"), path)
 
 
 def export_base_durations(

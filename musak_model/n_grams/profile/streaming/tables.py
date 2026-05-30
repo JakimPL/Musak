@@ -110,6 +110,16 @@ class FigureCountRow(NamedTuple):
     occurrence_count: int
 
 
+class AnchorFigureCountRow(NamedTuple):
+    scale_type: str
+    hand: str
+    figure_length: int
+    anchor_degree: int
+    anchor_accidental: int
+    figure: str
+    occurrence_count: int
+
+
 class BaseDurationRow(NamedTuple):
     scale_type: str
     hand: str
@@ -304,6 +314,30 @@ class FigureWorkTables:
                 scale_type=str(scale_type),
                 hand=str(hand),
                 figure_length=int(figure_length),
+                figure=str(figure),
+                occurrence_count=int(count),
+            )
+
+    def iter_anchor_figure_rows(self) -> Iterator[AnchorFigureCountRow]:
+        aggregated_count = func.sum(_COUNTS_TABLE.c[_COUNT_COUNT_COLUMN]).label(_COUNT_COUNT_COLUMN)
+        group_columns = (
+            _COUNTS_TABLE.c[_COUNT_SCALE_TYPE_COLUMN],
+            _COUNTS_TABLE.c[_COUNT_HAND_COLUMN],
+            _COUNTS_TABLE.c[_COUNT_N_COLUMN],
+            _COUNTS_TABLE.c[_COUNT_ANCHOR_DEGREE_COLUMN],
+            _COUNTS_TABLE.c[_COUNT_ANCHOR_ACCIDENTAL_COLUMN],
+            _COUNTS_TABLE.c[_COUNT_FIGURE_COLUMN],
+        )
+        result = self._connection.execute(
+            select(*group_columns, aggregated_count).group_by(*group_columns).order_by(*group_columns)
+        )
+        for scale_type, hand, figure_length, anchor_degree, anchor_accidental, figure, count in result:
+            yield AnchorFigureCountRow(
+                scale_type=str(scale_type),
+                hand=str(hand),
+                figure_length=int(figure_length),
+                anchor_degree=int(anchor_degree),
+                anchor_accidental=int(anchor_accidental),
                 figure=str(figure),
                 occurrence_count=int(count),
             )

@@ -20,11 +20,22 @@ N_COLUMN: Final[str] = "n"
 COUNT_COLUMN: Final[str] = "count"
 FIGURE_COLUMN: Final[str] = "figure"
 BASE_DURATION_COLUMN: Final[str] = "base_duration"
+ANCHOR_DEGREE_COLUMN: Final[str] = "anchor_degree"
+ANCHOR_ACCIDENTAL_COLUMN: Final[str] = "anchor_accidental"
 
 FIGURE_COUNT_SCHEMA: Final[dict[str, pl.DataType]] = {
     SCALE_TYPE_COLUMN: pl.String(),
     HAND_COLUMN: pl.String(),
     N_COLUMN: pl.Int64(),
+    COUNT_COLUMN: pl.Int64(),
+    FIGURE_COLUMN: pl.String(),
+}
+ANCHOR_FIGURE_COUNT_SCHEMA: Final[dict[str, pl.DataType]] = {
+    SCALE_TYPE_COLUMN: pl.String(),
+    HAND_COLUMN: pl.String(),
+    N_COLUMN: pl.Int64(),
+    ANCHOR_DEGREE_COLUMN: pl.Int64(),
+    ANCHOR_ACCIDENTAL_COLUMN: pl.Int64(),
     COUNT_COLUMN: pl.Int64(),
     FIGURE_COLUMN: pl.String(),
 }
@@ -37,6 +48,7 @@ BASE_DURATION_SCHEMA: Final[dict[str, pl.DataType]] = {
 }
 
 type BaseDurationCountsByGroup = dict[tuple[ScaleType, Hand, int], Counter[Fraction]]
+type AnchoredFigureCountsByGroup = dict[tuple[ScaleType, Hand, int, int, int], Counter[FigureNGram]]
 
 
 def figure_counts_frame(
@@ -71,6 +83,45 @@ def write_figure_counts(counts: FigureNGramCountsByScale, path: Path) -> None:
 
 def read_figure_counts(path: Path) -> FigureNGramCountsByScale:
     return _figure_counts_from_frame(read_table(path))
+
+
+def write_anchor_figure_counts(counts: AnchoredFigureCountsByGroup, path: Path) -> None:
+    records = [
+        {
+            SCALE_TYPE_COLUMN: scale_type.value,
+            HAND_COLUMN: hand.value,
+            N_COLUMN: n,
+            ANCHOR_DEGREE_COLUMN: anchor_degree,
+            ANCHOR_ACCIDENTAL_COLUMN: anchor_accidental,
+            COUNT_COLUMN: count,
+            FIGURE_COLUMN: figure.model_dump_json(),
+        }
+        for (scale_type, hand, n, anchor_degree, anchor_accidental), figure_counts in sorted(
+            counts.items(), key=lambda item: (item[0][0].value, item[0][1].value, item[0][2:])
+        )
+        for figure, count in figure_counts.most_common()
+    ]
+    write_table(pl.DataFrame(records, schema=ANCHOR_FIGURE_COUNT_SCHEMA, orient="row"), path)
+
+
+def read_anchor_figure_counts(path: Path) -> AnchoredFigureCountsByGroup:
+    counts: AnchoredFigureCountsByGroup = {}
+    frame = read_table(path)
+    if ANCHOR_DEGREE_COLUMN not in frame.columns:
+        return counts
+
+    for row in frame.iter_rows(named=True):
+        group = (
+            ScaleType(row[SCALE_TYPE_COLUMN]),
+            Hand(row[HAND_COLUMN]),
+            int(row[N_COLUMN]),
+            int(row[ANCHOR_DEGREE_COLUMN]),
+            int(row[ANCHOR_ACCIDENTAL_COLUMN]),
+        )
+        figure = FigureNGram.model_validate_json(row[FIGURE_COLUMN])
+        counts.setdefault(group, Counter())[figure] += int(row[COUNT_COLUMN])
+
+    return counts
 
 
 def read_figure_counts_for_groups(
