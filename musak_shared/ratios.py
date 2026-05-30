@@ -6,7 +6,11 @@ type RatioValue = Fraction | tuple[int, int]
 RATIO_SEPARATOR_SYMBOL: Final[str] = "/"
 
 
-def format_ratio(value: RatioValue, *, separator: str = RATIO_SEPARATOR_SYMBOL) -> str:
+def format_ratio(
+    value: RatioValue,
+    *,
+    separator: str = RATIO_SEPARATOR_SYMBOL,
+) -> str:
     if isinstance(value, Fraction):
         numerator, denominator = value.numerator, value.denominator
     elif isinstance(value, tuple):

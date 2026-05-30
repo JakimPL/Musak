@@ -36,6 +36,8 @@ type RhythmMetricKind = Literal[
     "onset_grid_alignment",
     "duration_grid_alignment",
     "strong_beat_onset",
+    "onset_position",
+    "bar_total",
 ]
 
 

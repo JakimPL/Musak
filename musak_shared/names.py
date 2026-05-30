@@ -8,7 +8,11 @@ def get_note_name(note: int, keys: dict[int, str] | None = None) -> str:
     return keys[(note - MIDDLE_C) % PITCHES_PER_OCTAVE]
 
 
-def midi_to_vexflow_key(midi_note: int, *, prefer_flats: bool = False) -> str:
+def midi_to_vexflow_key(
+    midi_note: int,
+    *,
+    prefer_flats: bool = False,
+) -> str:
     names = FLAT_PITCH_CLASS_NAMES if prefer_flats else SHARP_PITCH_CLASS_NAMES
     pitch_name = names[midi_note % PITCHES_PER_OCTAVE].lower()
     octave = (midi_note // PITCHES_PER_OCTAVE) - 1

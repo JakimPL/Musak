@@ -11,6 +11,7 @@ from musak_model.n_grams.profile.rhythm.schema import RhythmCountCounter, Rhythm
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import Hand
 from musak_model.tokens.vocabulary import TokenVocabulary
+from musak_shared.ratios import format_ratio
 
 if TYPE_CHECKING:
     from musak_model.training.ingestion.schema import EncodedExercise
@@ -80,6 +81,22 @@ def count_segment_rhythm_metrics(
             measure_duration=measure_duration,
             strong_beat_offsets=strong_beat_offsets,
         )
+        _count_onset_positions(
+            counts,
+            runs=runs,
+            scale_type=segment.scale_type.value,
+            time_signature=time_signature,
+            hand=hand,
+            measure_duration=measure_duration,
+            grid_alignment_denominators=grid_alignment_denominators,
+        )
+        _count_bar_total(
+            counts,
+            scale_type=segment.scale_type.value,
+            time_signature=time_signature,
+            hand=hand,
+            bar_count=segment.bar_count,
+        )
         _count_rhythm_ngrams(
             counts,
             runs=runs,
@@ -109,7 +126,7 @@ def _count_duration_values(
                 hand=hand.value,
                 kind="duration_value",
                 parameter="",
-                value=_fraction_text(onset.duration),
+                value=format_ratio(onset.duration),
             )
         ] += 1
 
@@ -174,6 +191,74 @@ def _count_strong_beat_onsets(
         counts[key] += 1
 
 
+def _count_onset_positions(
+    counts: RhythmCountCounter,
+    *,
+    runs: tuple[HandOnsetRun, ...],
+    scale_type: str,
+    time_signature: str,
+    hand: Hand,
+    measure_duration: Fraction,
+    grid_alignment_denominators: tuple[int, ...],
+) -> None:
+    onsets = _iter_onsets(runs)
+    for denominator in grid_alignment_denominators:
+        if not _grid_divides_measure(measure_duration, denominator):
+            continue
+
+        occupied_bars_per_cell = _cell_occupancy(onsets, measure_duration=measure_duration, denominator=denominator)
+        for cell, occupied_bars in occupied_bars_per_cell.items():
+            key = RhythmCountKey(
+                scale_type=scale_type,
+                time_signature=time_signature,
+                hand=hand.value,
+                kind="onset_position",
+                parameter=str(denominator),
+                value=str(cell),
+            )
+            counts[key] += occupied_bars
+
+
+def _grid_divides_measure(measure_duration: Fraction, denominator: int) -> bool:
+    return (measure_duration * denominator).denominator == 1
+
+
+def _onset_bar_and_cell(onset: PitchedOnset, *, measure_duration: Fraction, denominator: int) -> tuple[int, int]:
+    bar = int(onset.start // measure_duration)
+    cell = int((onset.start % measure_duration) * denominator)
+    return bar, cell
+
+
+def _cell_occupancy(onsets: tuple[PitchedOnset, ...], *, measure_duration: Fraction, denominator: int) -> Counter[int]:
+    occupied_bar_cells = {
+        _onset_bar_and_cell(onset, measure_duration=measure_duration, denominator=denominator) for onset in onsets
+    }
+    occupied_bars_per_cell: Counter[int] = Counter()
+    for _, cell in occupied_bar_cells:
+        occupied_bars_per_cell[cell] += 1
+
+    return occupied_bars_per_cell
+
+
+def _count_bar_total(
+    counts: RhythmCountCounter,
+    *,
+    scale_type: str,
+    time_signature: str,
+    hand: Hand,
+    bar_count: int,
+) -> None:
+    key = RhythmCountKey(
+        scale_type=scale_type,
+        time_signature=time_signature,
+        hand=hand.value,
+        kind="bar_total",
+        parameter="",
+        value="",
+    )
+    counts[key] += bar_count
+
+
 def _count_rhythm_ngrams(
     counts: RhythmCountCounter,
     *,
@@ -214,13 +299,9 @@ def _alignment_value(value: Fraction, *, grid: Fraction) -> str:
 def _rhythm_ngram_value(onsets: tuple[PitchedOnset, ...]) -> str:
     return json.dumps(
         {
-            "durations": [_fraction_text(onset.duration) for onset in onsets],
-            "iois": [_fraction_text(onsets[index + 1].start - onsets[index].start) for index in range(len(onsets) - 1)],
+            "durations": [format_ratio(onset.duration) for onset in onsets],
+            "iois": [format_ratio(onsets[index + 1].start - onsets[index].start) for index in range(len(onsets) - 1)],
         },
         sort_keys=True,
         separators=(",", ":"),
     )
-
-
-def _fraction_text(value: Fraction) -> str:
-    return f"{value.numerator}/{value.denominator}"
