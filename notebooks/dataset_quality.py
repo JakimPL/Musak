@@ -7,6 +7,7 @@ app = marimo.App(width="wide", app_title="Dataset Quality")
 @app.cell
 def _():
     from pathlib import Path
+    from types import SimpleNamespace
 
     import altair as alt
     import marimo as mo
@@ -16,6 +17,7 @@ def _():
     from musak_model.paths import DEFAULT_DATA_DIR, DEFAULT_PROCESSED_ROOT
     from musak_model.processing.fingerprint import file_sha256
     from musak_model.processing.manifest import EncodedManifestField
+    from musak_model.tokens.schema import Hand
     from musak_shared.notation.html import score_data_html
     from notebooks.utils import (
         DEFAULT_DATASET_QUALITY_DATABASE_PATH,
@@ -23,14 +25,21 @@ def _():
         SegmentRating,
         SegmentReviewDecision,
         SourceFileReview,
+        build_encoded_jsonl_index,
         eligible_source_rows,
         encoded_run_directories,
+        encoded_sample_to_segment,
+        encoded_shard_path_for_manifest_row,
         hand_controls,
         initialize_quality_database,
         load_dataset_statistics,
-        load_encoded_manifest_selections,
+        load_encoded_manifest_selection,
+        load_encoded_sample_from_index,
+        load_encoded_shard_context,
         mark_source_file_skipped,
-        piano_roll_player_panel,
+        piano_roll_audio_data,
+        piano_roll_audio_panel,
+        piano_roll_chart_panel,
         processed_dataset_directories,
         quality_database_summary_rows,
         rating_by_segment_key,
@@ -44,23 +53,32 @@ def _():
         DEFAULT_DATA_DIR,
         DEFAULT_PROCESSED_ROOT,
         EncodedManifestField,
+        Hand,
         Path,
         PitchSpelling,
         SegmentRating,
         SegmentReviewDecision,
+        SimpleNamespace,
         SourceFileReview,
         alt,
+        build_encoded_jsonl_index,
         eligible_source_rows,
+        encoded_sample_to_segment,
         encoded_run_directories,
+        encoded_shard_path_for_manifest_row,
         file_sha256,
         hand_controls,
         initialize_quality_database,
         load_dataset_statistics,
-        load_encoded_manifest_selections,
+        load_encoded_sample_from_index,
+        load_encoded_manifest_selection,
+        load_encoded_shard_context,
         mark_source_file_skipped,
         mo,
         pd,
-        piano_roll_player_panel,
+        piano_roll_audio_data,
+        piano_roll_audio_panel,
+        piano_roll_chart_panel,
         processed_dataset_directories,
         quality_database_summary_rows,
         rating_by_segment_key,
@@ -180,12 +198,26 @@ def _(database_path, dataset_dir, encoded_directory, initialize_quality_database
 
 
 @app.cell
-def _(database_path, dataset_name, mo, quality_database_summary_rows, review_revision, stats, unrated_source_frame):
-    review_revision()
+def _(
+    database_path,
+    dataset_name,
+    mo,
+    progress_review_revision,
+    quality_database_summary_rows,
+    set_progress_review_revision,
+    stats,
+    unrated_source_frame,
+):
+    progress_review_revision()
     if stats is None or stats.encoded is None:
         unrated_sources = None
         progress_output = mo.md("")
     else:
+
+        def _refresh_progress(_):
+            set_progress_review_revision(progress_review_revision() + 1)
+
+        refresh_progress_button = mo.ui.run_button(label="Refresh progress", on_change=_refresh_progress)
         unrated_sources = unrated_source_frame(
             stats.encoded,
             dataset_name=dataset_name,
@@ -196,6 +228,7 @@ def _(database_path, dataset_name, mo, quality_database_summary_rows, review_rev
             [
                 mo.ui.table(summary_rows, selection=None, label="Rating database"),
                 mo.callout(f"{len(unrated_sources)} source file(s) still have unrated eligible segments.", kind="info"),
+                refresh_progress_button,
             ],
             gap=1,
         )
@@ -208,14 +241,20 @@ def _(mo):
     selected_source_id, set_selected_source_id = mo.state(None)
     selected_segment_index, set_selected_segment_index = mo.state(0)
     action_message, set_action_message = mo.state("")
-    review_revision, set_review_revision = mo.state(0)
+    current_source_review_revision, set_current_source_review_revision = mo.state(0)
+    progress_review_revision, set_progress_review_revision = mo.state(0)
+    completed_source_ids, set_completed_source_ids = mo.state(frozenset())
     return (
         action_message,
-        review_revision,
+        completed_source_ids,
+        current_source_review_revision,
+        progress_review_revision,
         selected_segment_index,
         selected_source_id,
         set_action_message,
-        set_review_revision,
+        set_completed_source_ids,
+        set_current_source_review_revision,
+        set_progress_review_revision,
         set_selected_segment_index,
         set_selected_source_id,
     )
@@ -241,15 +280,26 @@ def _(EncodedManifestField, mo, stats):
 
 
 @app.cell
-def _(set_selected_segment_index, set_selected_source_id, unrated_sources):
+def _(
+    completed_source_ids,
+    set_completed_source_ids,
+    set_selected_segment_index,
+    set_selected_source_id,
+    unrated_sources,
+):
     def draw_next_unrated_source(*, completed_source_id: str | None = None) -> str | None:
         if unrated_sources is None or unrated_sources.empty:
             set_selected_source_id(None)
             return None
 
-        candidates = unrated_sources
+        completed_ids = set(completed_source_ids())
         if completed_source_id is not None:
-            candidates = candidates.loc[candidates["source_id"].astype(str) != completed_source_id]
+            completed_ids.add(completed_source_id)
+            set_completed_source_ids(frozenset(completed_ids))
+
+        candidates = unrated_sources
+        if completed_ids:
+            candidates = candidates.loc[~candidates["source_id"].astype(str).isin(completed_ids)]
         if candidates.empty:
             set_selected_source_id(None)
             return None
@@ -319,10 +369,10 @@ def _(
     file_sha256,
     mark_source_file_skipped,
     mo,
-    review_revision,
     selected_rows,
     set_action_message,
-    set_review_revision,
+    set_completed_source_ids,
+    completed_source_ids,
 ):
     if selected_rows is None or selected_rows.empty:
         source_output = mo.md("")
@@ -345,7 +395,7 @@ def _(
                 ),
             )
             set_action_message(f"Skipped file `{selected_source_path}`.")
-            set_review_revision(review_revision() + 1)
+            set_completed_source_ids(frozenset(set(completed_source_ids()) | {str(current_source_id)}))
 
         skip_button = mo.ui.run_button(label="Skip entire file", on_change=_skip_file)
         source_output = mo.vstack(
@@ -376,8 +426,8 @@ def _(
 
 
 @app.cell
-def _(database_path, dataset_name, current_source_id, rating_by_segment_key, review_revision):
-    review_revision()
+def _(current_source_review_revision, database_path, dataset_name, current_source_id, rating_by_segment_key):
+    current_source_review_revision()
     existing_ratings = (
         rating_by_segment_key(database_path, dataset_name=dataset_name, source_id=str(current_source_id))
         if current_source_id is not None
@@ -401,119 +451,181 @@ def _(mo):
 
 
 @app.cell
-def _(mo, selected_rows, selected_segment_index, set_selected_segment_index):
+def _(mo, selected_rows, selected_segment_index):
     if selected_rows is None or selected_rows.empty:
         selected_segment_count = 0
-        active_segment_index = None
+        segment_slider = None
         navigation_output = mo.md("")
     else:
         selected_segment_count = len(selected_rows)
-        current_index = selected_segment_index()
-        active_segment_index = min(max(int(current_index), 0), selected_segment_count - 1)
-
-        def _previous_segment(_):
-            set_selected_segment_index(max(active_segment_index - 1, 0))
-
-        def _next_segment(_):
-            set_selected_segment_index(min(active_segment_index + 1, selected_segment_count - 1))
-
-        previous_button = mo.ui.run_button(
-            label="Previous segment",
-            on_change=_previous_segment,
-            disabled=active_segment_index == 0,
+        current_value = min(max(int(selected_segment_index()) + 1, 1), selected_segment_count)
+        segment_slider = mo.ui.slider(
+            start=1,
+            stop=selected_segment_count,
+            step=1,
+            value=current_value,
+            label="Segment",
+            show_value=True,
+            include_input=True,
         )
-        next_button = mo.ui.run_button(
-            label="Next segment",
-            on_change=_next_segment,
-            disabled=active_segment_index >= selected_segment_count - 1,
-        )
-        navigation_output = mo.hstack(
-            [
-                previous_button,
-                mo.md(f"Segment {active_segment_index + 1} of {selected_segment_count}"),
-                next_button,
-            ],
-            gap=2,
-            align="center",
-        )
+        navigation_output = segment_slider
     navigation_output
-    return active_segment_index, selected_segment_count
+    return segment_slider, selected_segment_count
 
 
 @app.cell
-def _(active_segment_index):
-    selected_preview_segment_index = active_segment_index
+def _(segment_slider):
+    selected_preview_segment_index = int(segment_slider.value) - 1 if segment_slider is not None else None
     return (selected_preview_segment_index,)
 
 
 @app.cell
-def _(dataset_dir, encoded_directory, load_encoded_manifest_selections, selected_rows):
-    if selected_rows is None or selected_rows.empty or dataset_dir is None:
-        selected_segment_selections = None
-        selected_segment_error = ""
+def _(selected_preview_segment_index, selected_rows):
+    if selected_rows is None or selected_rows.empty or selected_preview_segment_index is None:
+        selected_row_dict = None
     else:
-        try:
-            _row_dicts = [
-                {str(key): value for key, value in row.to_dict().items()} for _, row in selected_rows.iterrows()
-            ]
-            selected_segment_selections = load_encoded_manifest_selections(
-                _row_dicts,
-                dataset_dir=dataset_dir,
-                encoded_directory=encoded_directory,
-            )
-            selected_segment_error = ""
-        except (FileNotFoundError, IndexError, TypeError, ValueError) as exception:
-            selected_segment_selections = None
-            selected_segment_error = f"{type(exception).__name__}: {exception}"
+        selected_row = selected_rows.reset_index(drop=True).iloc[selected_preview_segment_index]
+        selected_row_dict = {str(key): value for key, value in selected_row.to_dict().items()}
+    return (selected_row_dict,)
 
-    return selected_segment_error, selected_segment_selections
+
+@app.cell
+def _(build_encoded_jsonl_index, load_encoded_sample_from_index, load_encoded_shard_context, mo):
+    @mo.cache
+    def cached_encoded_shard_context(path):
+        return load_encoded_shard_context(path)
+
+    @mo.cache
+    def cached_encoded_jsonl_index(path):
+        return build_encoded_jsonl_index(path)
+
+    def cached_encoded_sample(path, line_index: int):
+        return load_encoded_sample_from_index(cached_encoded_jsonl_index(path), line_index)
+
+    return cached_encoded_sample, cached_encoded_shard_context
 
 
 @app.cell
 def _(
     EncodedManifestField,
+    SimpleNamespace,
+    cached_encoded_sample,
+    cached_encoded_shard_context,
+    dataset_dir,
+    encoded_directory,
+    encoded_sample_to_segment,
+    encoded_shard_path_for_manifest_row,
+    load_encoded_manifest_selection,
+    selected_row_dict,
+):
+    if selected_row_dict is None or dataset_dir is None:
+        selected_segment_selection = None
+        selected_segment_error = ""
+    else:
+        try:
+            encoded_line = selected_row_dict.get(str(EncodedManifestField.ENCODED_LINE))
+            if encoded_line is None or encoded_line == "" or encoded_line != encoded_line:
+                selected_segment_selection = load_encoded_manifest_selection(
+                    selected_row_dict,
+                    dataset_dir=dataset_dir,
+                    encoded_directory=encoded_directory,
+                )
+            else:
+                encoded_shard_path = encoded_shard_path_for_manifest_row(
+                    selected_row_dict,
+                    dataset_dir=dataset_dir,
+                    encoded_directory=encoded_directory,
+                )
+                shard = cached_encoded_shard_context(encoded_shard_path)
+                encoded_line_index = int(encoded_line)
+                sample = cached_encoded_sample(encoded_shard_path, encoded_line_index)
+                segment = encoded_sample_to_segment(sample, shard=shard)
+                selected_segment_selection = SimpleNamespace(
+                    segment=segment,
+                    duration_vocabulary=shard.duration_vocabulary,
+                )
+            selected_segment_error = ""
+        except (FileNotFoundError, IndexError, TypeError, ValueError) as exception:
+            selected_segment_selection = None
+            selected_segment_error = f"{type(exception).__name__}: {exception}"
+
+    return selected_segment_error, selected_segment_selection
+
+
+@app.cell
+def _(
+    Hand,
     PitchSpelling,
+    mo,
+    piano_roll_audio_data,
+    score_data_html,
+    segment_piano_roll_view_data,
+    segment_to_score_data,
+):
+    @mo.cache
+    def cached_notation_preview(segment, duration_vocabulary):
+        score_data = segment_to_score_data(
+            segment,
+            duration_vocabulary=duration_vocabulary,
+            tempo=60,
+            measures_per_row=4,
+        )
+        return score_data_html(score_data), f"{max(220, len(score_data.rows) * 140 + 24)}px"
+
+    @mo.cache
+    def cached_piano_roll_view_data(segment, duration_vocabulary):
+        return segment_piano_roll_view_data(
+            segment,
+            duration_vocabulary=duration_vocabulary,
+            pitch_spelling=PitchSpelling.SHARPS,
+            bpm=60,
+        )
+
+    @mo.cache
+    def cached_audio_data(view_data, hand_values: tuple[str, ...]):
+        return piano_roll_audio_data(
+            view_data,
+            bpm=60,
+            hands=frozenset(Hand(hand_value) for hand_value in hand_values),
+        )
+
+    return cached_audio_data, cached_notation_preview, cached_piano_roll_view_data
+
+
+@app.cell
+def _(
+    EncodedManifestField,
     SegmentRating,
     SegmentReviewDecision,
-    alt,
     current_source_id,
+    current_source_review_revision,
     database_path,
     dataset_name,
     draw_next_unrated_source,
     existing_ratings,
     mo,
-    piano_roll_player_panel,
-    render_piano_rolls_checkbox,
-    score_data_html,
-    segment_hand_controls,
+    selected_row_dict,
     selected_segment_error,
     selected_preview_segment_index,
-    selected_segment_selections,
+    selected_segment_selection,
     selected_segment_count,
-    segment_piano_roll_view_data,
-    segment_to_score_data,
     selected_rows,
     set_action_message,
-    set_review_revision,
+    set_current_source_review_revision,
     set_selected_segment_index,
     upsert_segment_rating,
-    review_revision,
 ):
     if selected_rows is None or selected_rows.empty:
         segment_output = mo.callout("Draw or load a source file to review its eligible segments.", kind="warn")
     elif selected_segment_error:
         segment_output = mo.callout(f"Selected file preview failed: {selected_segment_error}", kind="warn")
-    elif selected_segment_selections is None:
+    elif selected_segment_selection is None or selected_row_dict is None:
         segment_output = mo.md("")
     elif selected_preview_segment_index is None:
         segment_output = mo.callout("Select a segment to preview.", kind="warn")
     else:
-        _row_dicts = [
-            {str(key): value for key, value in row.to_dict().items()}
-            for _, row in selected_rows.reset_index(drop=True).iterrows()
-        ]
-        row_dict = _row_dicts[selected_preview_segment_index]
-        selection = selected_segment_selections[selected_preview_segment_index]
+        row_dict = selected_row_dict
+        selection = selected_segment_selection
         window_start_bar = int(row_dict[str(EncodedManifestField.WINDOW_START_BAR)])
         bar_count = int(row_dict[str(EncodedManifestField.BAR_COUNT)])
         rating_key = (window_start_bar, bar_count)
@@ -572,7 +684,7 @@ def _(
                     f"+{selected_row[str(EncodedManifestField.BAR_COUNT)]}."
                 )
             )
-            set_review_revision(review_revision() + 1)
+            set_current_source_review_revision(current_source_review_revision() + 1)
             if selected_preview_segment_index + 1 < selected_segment_count:
                 set_selected_segment_index(selected_preview_segment_index + 1)
             else:
@@ -583,40 +695,9 @@ def _(
                     set_action_message(f"Saved final segment. Selected `{selected_path}`.")
 
         save_button = mo.ui.run_button(label="Save and next", on_change=_save_segment)
-
-        try:
-            score_data = segment_to_score_data(
-                selection.segment,
-                duration_vocabulary=selection.duration_vocabulary,
-                tempo=60,
-                measures_per_row=4,
-            )
-            iframe_height = f"{max(220, len(score_data.rows) * 140 + 24)}px"
-            notation_output = mo.iframe(score_data_html(score_data), height=iframe_height)
-        except (FileNotFoundError, IndexError, TypeError, ValueError) as exception:
-            notation_output = mo.callout(
-                f"Notation preview failed: {type(exception).__name__}: {exception}",
-                kind="warn",
-            )
-
-        if render_piano_rolls_checkbox.value:
-            view_data = segment_piano_roll_view_data(
-                selection.segment,
-                duration_vocabulary=selection.duration_vocabulary,
-                pitch_spelling=PitchSpelling.SHARPS,
-                bpm=60,
-            )
-            piano_roll_output = piano_roll_player_panel(
-                view_data,
-                mo=mo,
-                alt=alt,
-                bpm=60,
-                controls=segment_hand_controls,
-            )
-        else:
-            piano_roll_output = mo.md("")
-
         status_text = "rated" if rating_key in existing_ratings else "unrated"
+        key_signature = row_dict.get(str(EncodedManifestField.DECLARED_KEY_FIFTHS), "")
+        key_signature_text = "missing" if key_signature == "" else str(key_signature)
         segment_output = mo.vstack(
             [
                 mo.md(
@@ -625,11 +706,25 @@ def _(
                         f"{window_start_bar}-{window_start_bar + bar_count - 1} ({status_text})"
                     )
                 ),
-                mo.ui.table([row_dict], selection=None, label="Manifest row"),
-                notation_output,
-                piano_roll_output,
+                mo.ui.table(
+                    [
+                        {"Field": "Time signature", "Value": str(row_dict[str(EncodedManifestField.TIME_SIGNATURE)])},
+                        {"Field": "Declared key fifths", "Value": key_signature_text},
+                        {"Field": "Scale root", "Value": str(row_dict[str(EncodedManifestField.SCALE_ROOT)])},
+                        {"Field": "Scale type", "Value": str(row_dict[str(EncodedManifestField.SCALE_TYPE)])},
+                        {"Field": "Segment ID", "Value": str(row_dict[str(EncodedManifestField.SEGMENT_ID)])},
+                    ],
+                    selection=None,
+                    label="Review metadata",
+                ),
                 mo.hstack(
-                    [rating_control, decision_control, time_error_control, key_error_control, save_button],
+                    [
+                        rating_control,
+                        decision_control,
+                        time_error_control,
+                        key_error_control,
+                        save_button,
+                    ],
                     gap=2,
                     align="end",
                     wrap=True,
@@ -639,6 +734,95 @@ def _(
         )
 
     segment_output
+    return
+
+
+@app.cell
+def _(cached_notation_preview, mo, selected_segment_error, selected_segment_selection):
+    if selected_segment_selection is None or selected_segment_error:
+        notation_output = mo.md("")
+    else:
+        try:
+            notation_html, iframe_height = cached_notation_preview(
+                selected_segment_selection.segment,
+                selected_segment_selection.duration_vocabulary,
+            )
+            notation_output = mo.iframe(notation_html, height=iframe_height)
+        except (FileNotFoundError, IndexError, TypeError, ValueError) as exception:
+            notation_output = mo.callout(
+                f"Notation preview failed: {type(exception).__name__}: {exception}",
+                kind="warn",
+            )
+    notation_output
+    return
+
+
+@app.cell
+def _(
+    Hand,
+    cached_audio_data,
+    cached_piano_roll_view_data,
+    mo,
+    piano_roll_audio_panel,
+    segment_hand_controls,
+    selected_segment_error,
+    selected_segment_selection,
+):
+    if selected_segment_selection is None or selected_segment_error:
+        audio_output = mo.md("")
+    else:
+        selected_hand_values = tuple(hand.value for hand in Hand if hand in segment_hand_controls.selected_hands)
+        if selected_hand_values:
+            audio_output = mo.lazy(
+                lambda: piano_roll_audio_panel(
+                    cached_piano_roll_view_data(
+                        selected_segment_selection.segment,
+                        selected_segment_selection.duration_vocabulary,
+                    ),
+                    mo=mo,
+                    bpm=60,
+                    controls=segment_hand_controls,
+                    audio_data=cached_audio_data(
+                        cached_piano_roll_view_data(
+                            selected_segment_selection.segment,
+                            selected_segment_selection.duration_vocabulary,
+                        ),
+                        selected_hand_values,
+                    ),
+                ),
+                show_loading_indicator=True,
+            )
+        else:
+            audio_output = mo.callout("Select at least one hand to prepare the player.", kind="warn")
+    audio_output
+    return
+
+
+@app.cell
+def _(
+    alt,
+    cached_piano_roll_view_data,
+    mo,
+    piano_roll_chart_panel,
+    render_piano_rolls_checkbox,
+    segment_hand_controls,
+    selected_segment_error,
+    selected_segment_selection,
+):
+    if selected_segment_selection is None or selected_segment_error or not render_piano_rolls_checkbox.value:
+        piano_roll_output = mo.md("")
+    else:
+        _view_data = cached_piano_roll_view_data(
+            selected_segment_selection.segment,
+            selected_segment_selection.duration_vocabulary,
+        )
+        piano_roll_output = piano_roll_chart_panel(
+            _view_data,
+            mo=mo,
+            alt=alt,
+            controls=segment_hand_controls,
+        )
+    piano_roll_output
     return
 
 

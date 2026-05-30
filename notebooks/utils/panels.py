@@ -107,6 +107,89 @@ def piano_roll_player_panel(
     return mo.vstack([controls_output, player_output, chart_output], gap=1)
 
 
+def piano_roll_audio_panel(
+    view_data: PianoRollViewData | None,
+    *,
+    mo: MarimoModule,
+    bpm: int,
+    controls: HandControls,
+    audio_data: str | None = None,
+    exporter: Exporter | None = None,
+) -> Any:
+    if view_data is None:
+        return mo.md("")
+
+    selected_hands = controls.selected_hands
+    controls_output = mo.hstack([controls.right, controls.left], justify="start", gap=2)
+    if not selected_hands:
+        return mo.vstack(
+            [
+                controls_output,
+                mo.callout("Select at least one hand to play notes.", kind="warn"),
+            ],
+            gap=1,
+        )
+
+    frame = filter_piano_roll_dataframe(view_data.dataframe, hands=selected_hands)
+    if frame.empty:
+        return mo.vstack(
+            [
+                controls_output,
+                mo.callout("No note events decoded for the selected hand(s).", kind="warn"),
+            ],
+            gap=1,
+        )
+
+    if audio_data is None:
+        try:
+            audio_data = piano_roll_audio_data(view_data, bpm=bpm, hands=selected_hands, exporter=exporter)
+        except AudioExportError as exception:
+            player_output = mo.callout(f"Audio export failed: {exception}", kind="warn")
+        else:
+            player_output = audio_player(mo, audio_data, selected_hands=selected_hands)
+    else:
+        player_output = audio_player(mo, audio_data, selected_hands=selected_hands)
+
+    return mo.vstack([controls_output, player_output], gap=1)
+
+
+def piano_roll_audio_data(
+    view_data: PianoRollViewData,
+    *,
+    bpm: int,
+    hands: frozenset[Hand],
+    exporter: Exporter | None = None,
+) -> str:
+    return piano_roll_events_to_audio_data(
+        view_data.events,
+        bpm=bpm,
+        hands=hands,
+        exporter=exporter,
+    )
+
+
+def piano_roll_chart_panel(
+    view_data: PianoRollViewData | None,
+    *,
+    mo: MarimoModule,
+    alt: Any,
+    controls: HandControls,
+) -> Any:
+    if view_data is None:
+        return mo.md("")
+
+    selected_hands = controls.selected_hands
+    frame = filter_piano_roll_dataframe(view_data.dataframe, hands=selected_hands)
+    if not selected_hands or frame.empty:
+        return mo.md("")
+
+    return mo.ui.altair_chart(
+        piano_roll_chart(view_data, alt=alt, hands=selected_hands),
+        chart_selection=False,
+        legend_selection=False,
+    )
+
+
 def audio_player(mo: MarimoModule, audio_data: str, *, selected_hands: frozenset[Hand]) -> Any:
     hand_key = "-".join(hand.value for hand in Hand if hand in selected_hands)
     audio_hash = hashlib.sha256(audio_data.encode("utf-8")).hexdigest()[:16]

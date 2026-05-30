@@ -30,6 +30,14 @@ class EncodedShard:
 
 
 @dataclass(frozen=True)
+class EncodedShardContext:
+    path: Path
+    snapshot: TokenizerSnapshot
+    duration_vocabulary: DurationVocabulary
+    token_vocabulary: TokenVocabulary
+
+
+@dataclass(frozen=True)
 class EncodedManifestSelection:
     row: Mapping[str, object]
     duration_vocabulary: DurationVocabulary
@@ -39,27 +47,80 @@ class EncodedManifestSelection:
     encoded_line: int | None = None
 
 
+@dataclass(frozen=True)
+class EncodedJsonlIndex:
+    path: Path
+    offsets: tuple[int, ...]
+
+
 def load_encoded_shard(path: Path) -> EncodedShard:
+    context = load_encoded_shard_context(path)
+    return EncodedShard(
+        path=path,
+        samples=load_encoded_jsonl(path),
+        snapshot=context.snapshot,
+        duration_vocabulary=context.duration_vocabulary,
+        token_vocabulary=context.token_vocabulary,
+    )
+
+
+def load_encoded_shard_context(path: Path) -> EncodedShardContext:
     snapshot_path = path.parent / TOKENIZER_SNAPSHOT_NAME
     snapshot = load_tokenizer_snapshot_json(snapshot_path)
     tokenization_config = TokenizationConfig.model_validate(snapshot.tokenization_config)
     duration_vocabulary = DurationVocabulary(tokenization_config)
     token_vocabulary = TokenVocabulary(duration_vocabulary)
-    return EncodedShard(
+    return EncodedShardContext(
         path=path,
-        samples=load_encoded_jsonl(path),
         snapshot=snapshot,
         duration_vocabulary=duration_vocabulary,
         token_vocabulary=token_vocabulary,
     )
 
 
+def load_encoded_sample_at_line(path: Path, line_index: int) -> EncodedExercise:
+    return load_encoded_sample_from_index(build_encoded_jsonl_index(path), line_index)
+
+
+def build_encoded_jsonl_index(path: Path) -> EncodedJsonlIndex:
+    offsets: list[int] = []
+    with path.open("rb") as file:
+        while True:
+            offset = file.tell()
+            line = file.readline()
+            if line == b"":
+                break
+            if line.strip():
+                offsets.append(offset)
+    return EncodedJsonlIndex(path=path, offsets=tuple(offsets))
+
+
+def load_encoded_sample_from_index(index: EncodedJsonlIndex, line_index: int) -> EncodedExercise:
+    if line_index < 0:
+        raise IndexError(f"encoded line must be non-negative, got {line_index}")
+    if line_index >= len(index.offsets):
+        raise IndexError(f"encoded line {line_index} is outside shard with {len(index.offsets)} sample(s)")
+
+    with index.path.open("rb") as file:
+        file.seek(index.offsets[line_index])
+        return EncodedExercise.model_validate_json(file.readline())
+
+
 def encoded_sample_to_segment(
     sample: EncodedExercise,
     *,
-    shard: EncodedShard,
+    shard: EncodedShard | EncodedShardContext,
 ) -> Segment:
     return encoded_exercise_to_segment(sample, token_vocabulary=shard.token_vocabulary)
+
+
+def encoded_shard_path_for_manifest_row(
+    row: Mapping[str, object],
+    *,
+    dataset_dir: Path,
+    encoded_directory: Path | None = None,
+) -> Path:
+    return _encoded_shard_path(row, dataset_directory=dataset_dir, encoded_directory=encoded_directory)
 
 
 def load_encoded_manifest_selection(

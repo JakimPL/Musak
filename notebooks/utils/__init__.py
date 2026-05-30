@@ -19,13 +19,20 @@ from notebooks.utils.dataset_quality import (
     upsert_segment_rating,
 )
 from notebooks.utils.encoded import (
+    EncodedJsonlIndex,
     EncodedManifestSelection,
     EncodedShard,
+    EncodedShardContext,
+    build_encoded_jsonl_index,
     default_encoded_browser_root,
     encoded_sample_to_segment,
+    encoded_shard_path_for_manifest_row,
     load_encoded_manifest_selection,
     load_encoded_manifest_selections,
+    load_encoded_sample_at_line,
+    load_encoded_sample_from_index,
     load_encoded_shard,
+    load_encoded_shard_context,
 )
 from notebooks.utils.file_browser import FileSelection, selected_directory, selected_file, selected_musicxml_file
 from notebooks.utils.model_output import (
@@ -78,7 +85,14 @@ from notebooks.utils.n_grams import (
     read_figure_count_frame,
     top_figure_frame,
 )
-from notebooks.utils.panels import HandControls, hand_controls, piano_roll_player_panel
+from notebooks.utils.panels import (
+    HandControls,
+    hand_controls,
+    piano_roll_audio_data,
+    piano_roll_audio_panel,
+    piano_roll_chart_panel,
+    piano_roll_player_panel,
+)
 from notebooks.utils.piano_roll import (
     PianoRollViewData,
     PitchSpelling,
@@ -161,11 +175,14 @@ __all__ = [
     "GenerationRequest",
     "LoadedModel",
     "EncodedManifestSelection",
+    "EncodedJsonlIndex",
     "EncodedShard",
+    "EncodedShardContext",
     "analysis_result_files",
     "approved_segment_rating_rows",
     "baseline_overlay_chart",
     "baseline_overlay_view_data",
+    "build_encoded_jsonl_index",
     "categorical_distribution",
     "default_duration_vocabulary",
     "default_encoded_browser_root",
@@ -173,6 +190,7 @@ __all__ = [
     "diagnostic_summary_rows",
     "empty_prompt",
     "encoded_sample_to_segment",
+    "encoded_shard_path_for_manifest_row",
     "encoded_run_directories",
     "encoded_segments_result",
     "encoded_table_frame",
@@ -193,6 +211,9 @@ __all__ = [
     "ineligibility_reason_distribution",
     "scale_root_distribution",
     "load_encoded_shard",
+    "load_encoded_shard_context",
+    "load_encoded_sample_at_line",
+    "load_encoded_sample_from_index",
     "load_encoded_manifest_selection",
     "load_encoded_manifest_selections",
     "load_dataset_statistics",
@@ -208,6 +229,9 @@ __all__ = [
     "parse_error_table_frame",
     "parsed_table_frame",
     "piano_roll_chart",
+    "piano_roll_audio_data",
+    "piano_roll_audio_panel",
+    "piano_roll_chart_panel",
     "piano_roll_dataframe",
     "piano_roll_player_panel",
     "prompt_from_encoded_sample",

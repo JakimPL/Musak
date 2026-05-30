@@ -12,7 +12,12 @@ from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import Hand, HandToken, NoteToken, ScaleType
 from musak_model.tokens.vocabulary import TokenVocabulary
 from musak_model.training.ingestion.schema import EncodedExercise
-from notebooks.utils.encoded import load_encoded_manifest_selection, load_encoded_manifest_selections
+from notebooks.utils.encoded import (
+    build_encoded_jsonl_index,
+    load_encoded_manifest_selection,
+    load_encoded_manifest_selections,
+    load_encoded_sample_from_index,
+)
 
 
 def test_load_encoded_manifest_selection_decodes_selected_manifest_row(tmp_path: Path) -> None:
@@ -73,6 +78,15 @@ def test_load_encoded_manifest_selection_uses_encoded_directory_when_row_has_no_
     )
 
     assert selection.segment.tokens == sample.to_segment(token_vocabulary=token_vocabulary).tokens
+
+
+def test_load_encoded_sample_from_index_reads_selected_line(tmp_path: Path) -> None:
+    encoded_directory, sample, _ = _write_encoded_run(tmp_path)
+    encoded_shard = encoded_directory / "data-00000.jsonl"
+
+    index = build_encoded_jsonl_index(encoded_shard)
+
+    assert load_encoded_sample_from_index(index, 0) == sample
 
 
 def test_load_encoded_manifest_selections_reuses_shard_for_multiple_rows(

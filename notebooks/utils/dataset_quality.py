@@ -71,6 +71,7 @@ _SEGMENT_RATINGS_TABLE: Final = Table(
     CheckConstraint(f"{_TIME_SIGNATURE_ERROR_COLUMN} IN (0, 1)"),
     CheckConstraint(f"{_KEY_SIGNATURE_ERROR_COLUMN} IN (0, 1)"),
 )
+_INITIALIZED_DATABASE_PATHS: Final[set[Path]] = set()
 
 
 class SegmentReviewDecision(StrEnum):
@@ -103,11 +104,16 @@ class SegmentRating:
 
 
 def initialize_quality_database(database_path: Path) -> None:
+    resolved_database_path = database_path.resolve()
+    if resolved_database_path in _INITIALIZED_DATABASE_PATHS and database_path.exists():
+        return
+
     database_path.parent.mkdir(parents=True, exist_ok=True)
     engine = _engine(database_path)
     try:
         with engine.begin() as connection:
             _SQL_METADATA.create_all(connection)
+        _INITIALIZED_DATABASE_PATHS.add(resolved_database_path)
     finally:
         engine.dispose()
 
