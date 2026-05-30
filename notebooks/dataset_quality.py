@@ -241,6 +241,9 @@ def _(mo):
     selected_source_id, set_selected_source_id = mo.state(None)
     selected_segment_index, set_selected_segment_index = mo.state(0)
     action_message, set_action_message = mo.state("")
+    selected_rating_value, set_selected_rating_value = mo.state(None)
+    selected_decision_value, set_selected_decision_value = mo.state(None)
+    selected_review_key, set_selected_review_key = mo.state(None)
     current_source_review_revision, set_current_source_review_revision = mo.state(0)
     progress_review_revision, set_progress_review_revision = mo.state(0)
     completed_source_ids, set_completed_source_ids = mo.state(frozenset())
@@ -249,12 +252,18 @@ def _(mo):
         completed_source_ids,
         current_source_review_revision,
         progress_review_revision,
+        selected_decision_value,
+        selected_rating_value,
+        selected_review_key,
         selected_segment_index,
         selected_source_id,
         set_action_message,
         set_completed_source_ids,
         set_current_source_review_revision,
         set_progress_review_revision,
+        set_selected_decision_value,
+        set_selected_rating_value,
+        set_selected_review_key,
         set_selected_segment_index,
         set_selected_source_id,
     )
@@ -489,6 +498,19 @@ def _(selected_preview_segment_index, selected_rows):
 
 
 @app.cell
+def _(EncodedManifestField, selected_row_dict):
+    if selected_row_dict is None:
+        active_review_key = None
+    else:
+        active_review_key = (
+            str(selected_row_dict[str(EncodedManifestField.SOURCE_ID)]),
+            int(selected_row_dict[str(EncodedManifestField.WINDOW_START_BAR)]),
+            int(selected_row_dict[str(EncodedManifestField.BAR_COUNT)]),
+        )
+    return (active_review_key,)
+
+
+@app.cell
 def _(build_encoded_jsonl_index, load_encoded_sample_from_index, load_encoded_shard_context, mo):
     @mo.cache
     def cached_encoded_shard_context(path):
@@ -596,6 +618,7 @@ def _(
     EncodedManifestField,
     SegmentRating,
     SegmentReviewDecision,
+    active_review_key,
     current_source_id,
     current_source_review_revision,
     database_path,
@@ -608,9 +631,15 @@ def _(
     selected_preview_segment_index,
     selected_segment_selection,
     selected_segment_count,
+    selected_decision_value,
+    selected_rating_value,
+    selected_review_key,
     selected_rows,
     set_action_message,
     set_current_source_review_revision,
+    set_selected_decision_value,
+    set_selected_rating_value,
+    set_selected_review_key,
     set_selected_segment_index,
     upsert_segment_rating,
 ):
@@ -632,19 +661,49 @@ def _(
         existing_decision = str(existing.get("decision", SegmentReviewDecision.OK.value))
         existing_time_error = bool(existing.get("time_signature_error", 0))
         existing_key_error = bool(existing.get("key_signature_error", 0))
+        effective_rating = selected_rating_value() if selected_review_key() == active_review_key else existing_rating
+        effective_decision = (
+            selected_decision_value() if selected_review_key() == active_review_key else existing_decision
+        )
 
-        rating_control = mo.ui.radio(
-            options=["1", "2", "3", "4"],
-            value=existing_rating,
-            inline=True,
-            label="Rating",
-        )
-        decision_control = mo.ui.radio(
-            options=[decision.value for decision in SegmentReviewDecision],
-            value=existing_decision,
-            inline=True,
-            label="Decision",
-        )
+        def _set_rating(value: str):
+            def _update_rating(_):
+                set_selected_review_key(active_review_key)
+                set_selected_rating_value(value)
+                set_action_message(f"Rating {value} selected.")
+
+            return _update_rating
+
+        def _set_decision(value: str):
+            def _update_decision(_):
+                set_selected_review_key(active_review_key)
+                set_selected_decision_value(value)
+                set_action_message(f"Decision {value} selected.")
+
+            return _update_decision
+
+        rating_buttons = [
+            mo.ui.run_button(
+                label=rating_value,
+                on_change=_set_rating(rating_value),
+                keyboard_shortcut=rating_value,
+                kind="success" if rating_value == effective_rating else "neutral",
+            )
+            for rating_value in ("1", "2", "3", "4")
+        ]
+        decision_buttons = [
+            mo.ui.run_button(
+                label=decision.value,
+                on_change=_set_decision(decision.value),
+                keyboard_shortcut={
+                    SegmentReviewDecision.OK: "o",
+                    SegmentReviewDecision.SKIP: "s",
+                    SegmentReviewDecision.TO_CORRECT: "c",
+                }[decision],
+                kind="success" if decision.value == effective_decision else "neutral",
+            )
+            for decision in SegmentReviewDecision
+        ]
         time_error_control = mo.ui.checkbox(value=existing_time_error, label="Time signature error")
         key_error_control = mo.ui.checkbox(value=existing_key_error, label="Key signature error")
 
@@ -652,12 +711,14 @@ def _(
             _,
             *,
             selected_row: dict[str, object] = row_dict,
-            selected_rating=rating_control,
-            selected_decision=decision_control,
             selected_time_error=time_error_control,
             selected_key_error=key_error_control,
         ):
-            if selected_rating.value is None:
+            current_rating = selected_rating_value() if selected_review_key() == active_review_key else effective_rating
+            current_decision = (
+                selected_decision_value() if selected_review_key() == active_review_key else effective_decision
+            )
+            if current_rating is None:
                 set_action_message("Select a rating before saving this segment.")
                 return
 
@@ -669,8 +730,8 @@ def _(
                     source_path=str(selected_row[str(EncodedManifestField.SOURCE_PATH)]),
                     window_start_bar=int(selected_row[str(EncodedManifestField.WINDOW_START_BAR)]),
                     bar_count=int(selected_row[str(EncodedManifestField.BAR_COUNT)]),
-                    rating=int(selected_rating.value),
-                    decision=SegmentReviewDecision(str(selected_decision.value)),
+                    rating=int(current_rating),
+                    decision=SegmentReviewDecision(str(current_decision)),
                     time_signature_error=bool(selected_time_error.value),
                     key_signature_error=bool(selected_key_error.value),
                     manifest_segment_id=str(selected_row[str(EncodedManifestField.SEGMENT_ID)]),
@@ -692,7 +753,7 @@ def _(
                 else:
                     set_action_message(f"Saved final segment. Selected `{selected_path}`.")
 
-        save_button = mo.ui.run_button(label="Save and next", on_change=_save_segment)
+        save_button = mo.ui.run_button(label="Save and next", on_change=_save_segment, keyboard_shortcut="Enter")
         status_text = "rated" if rating_key in existing_ratings else "unrated"
         key_signature = row_dict.get(str(EncodedManifestField.DECLARED_KEY_FIFTHS), "")
         key_signature_text = "missing" if key_signature == "" else str(key_signature)
@@ -717,8 +778,8 @@ def _(
                 ),
                 mo.hstack(
                     [
-                        rating_control,
-                        decision_control,
+                        mo.vstack([mo.md("Rating"), mo.hstack(rating_buttons, gap=1, wrap=True)], gap=0),
+                        mo.vstack([mo.md("Decision"), mo.hstack(decision_buttons, gap=1, wrap=True)], gap=0),
                         time_error_control,
                         key_error_control,
                         save_button,
@@ -732,6 +793,34 @@ def _(
         )
 
     segment_output
+    return
+
+
+@app.cell
+def _(
+    EncodedManifestField,
+    SegmentReviewDecision,
+    active_review_key,
+    existing_ratings,
+    mo,
+    selected_rating_value,
+    selected_decision_value,
+    selected_review_key,
+    selected_row_dict,
+):
+    if selected_row_dict is None:
+        review_state_output = mo.md("")
+    else:
+        _window_start_bar = int(selected_row_dict[str(EncodedManifestField.WINDOW_START_BAR)])
+        _bar_count = int(selected_row_dict[str(EncodedManifestField.BAR_COUNT)])
+        _existing = existing_ratings.get((_window_start_bar, _bar_count), {})
+        _existing_rating = str(_existing["rating"]) if "rating" in _existing else None
+        _existing_decision = str(_existing.get("decision", SegmentReviewDecision.OK.value))
+        _rating = selected_rating_value() if selected_review_key() == active_review_key else _existing_rating
+        _decision = selected_decision_value() if selected_review_key() == active_review_key else _existing_decision
+        _rating_text = "none" if _rating is None else str(_rating)
+        review_state_output = mo.callout(f"Selected rating: {_rating_text}; decision: {_decision}.", kind="info")
+    review_state_output
     return
 
 
