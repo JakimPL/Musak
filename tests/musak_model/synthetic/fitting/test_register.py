@@ -11,6 +11,7 @@ from musak_model.synthetic.fitting.register import (
     RegisterMoments,
     fit_register_config,
     fit_register_overrides,
+    fit_register_overrides_from_segments,
     register_moments,
     register_moments_from_sequences,
 )
@@ -133,3 +134,31 @@ def test_register_moments_reads_onset_register_per_hand(duration_vocabulary: Dur
 
     assert (ScaleType.MAJOR, Hand.RIGHT) in moments
     assert moments[(ScaleType.MAJOR, Hand.RIGHT)].residual_std > 0.0
+
+
+def test_fit_register_overrides_from_segments_keys_present_hands(duration_vocabulary: DurationVocabulary) -> None:
+    quarter = duration_vocabulary.require_duration_id(Fraction(1, 4))
+    tokens: list[Token] = [HandToken(hand=Hand.RIGHT)]
+    for octave_offset in (0, 1, 0, 1, 0, 1, 0, 1):
+        tokens.append(NoteToken(degree=1, accidental=0, octave_offset=octave_offset, duration_id=quarter))
+    tokens.append(EndToken())
+    segment = Segment(
+        tokens=tokens,
+        metadata=SegmentMetadata(
+            scale_root=0,
+            scale_type=ScaleType.MAJOR,
+            time_numerator=4,
+            time_denominator=4,
+            bar_count=2,
+            window_start_bar=0,
+            source_file=Path("test"),
+            difficulty_level=None,
+        ),
+    )
+    default = RegisterCurveConfig(arch_basis_count=1, arch_amplitude=4.0, arch_decay=1.0, ou_theta=0.2, ou_sigma=1.0)
+
+    overrides = fit_register_overrides_from_segments(
+        [segment], default=default, duration_vocabulary=duration_vocabulary
+    )
+
+    assert {(override.scale_type, override.hand) for override in overrides} == {(ScaleType.MAJOR, Hand.RIGHT)}

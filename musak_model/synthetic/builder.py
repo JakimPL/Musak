@@ -1,7 +1,7 @@
 from musak_model.synthetic.base_durations import BaseDurationDistribution
 from musak_model.synthetic.figures import FigureVocabulary
 from musak_model.synthetic.harmony.vocabulary import ChordVocabularyConfig
-from musak_model.synthetic.processes.accent import AccentFieldConfig, AccentFieldSampler
+from musak_model.synthetic.processes.accent import AccentFieldConfig, AccentFieldOverride, AccentFieldSampler
 from musak_model.synthetic.processes.chord_track import ChordTrackSampler, ChordTransitionModel
 from musak_model.synthetic.processes.hand_coupling import HandCouplingConfig, HandCouplingSampler
 from musak_model.synthetic.processes.pitch import RegisterCurveConfig, RegisterCurveOverride, RegisterCurveSampler
@@ -15,6 +15,7 @@ def build_segment_generator(
     register_curve_config: RegisterCurveConfig,
     register_curve_overrides: tuple[RegisterCurveOverride, ...] = (),
     accent_field_config: AccentFieldConfig,
+    accent_field_overrides: tuple[AccentFieldOverride, ...] = (),
     hand_coupling_config: HandCouplingConfig,
     chord_transition_model: ChordTransitionModel,
     chord_vocabulary: ChordVocabularyConfig,
@@ -26,7 +27,7 @@ def build_segment_generator(
     return SegmentGenerator(
         substitution_config=substitution_config,
         register_curve_sampler=RegisterCurveSampler(config=register_curve_config, overrides=register_curve_overrides),
-        accent_field_sampler=AccentFieldSampler(config=accent_field_config),
+        accent_field_sampler=AccentFieldSampler(config=accent_field_config, overrides=accent_field_overrides),
         hand_coupling_sampler=HandCouplingSampler(config=hand_coupling_config),
         chord_track_sampler=ChordTrackSampler(model=chord_transition_model),
         chord_vocabulary=chord_vocabulary,

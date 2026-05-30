@@ -18,13 +18,15 @@ structural pass closed gaps 2 (sync coupling) and 9 (sub-bar harmonic rhythm) (a
 A musical pass then closed #4 (metrical harmonic conditioning) and #8 (texture mode), and landed the
 **functional-harmony interim** of #11 (a hand-authored functional diatonic chord prior, now the generation
 default) plus the Stage 0 musical-evaluation metrics (`musical_metrics`, wired into `GenerationSuiteEvaluator`
-→ MLflow).
+→ MLflow). A fitting pass then closed #10: per-`(scale_type, hand)` register keying + the moment-matching
+machinery (`synthetic/fitting/`) that fits register overrides from the corpus and loads them into generation
+via a `FittedGeneratorConfig` artifact. Accent got the same keying + a fitter.
 
-**Still open:** #7 (figure-length distribution), #10 (per-hand, per-scale register parameters), and the
-remainder of #11 — the empirical decode→generate loop (corpus-fit chord transitions + $p(\text{figure} \mid C)$)
-and moment-matched process parameters — plus the greedy-fill note at the end. Two items are **deferred by
-design**: the calibration↔harmony/texture coupling (needs a proper mathematical model) and figure-to-figure
-continuity (novel approach).
+**Still open:** #7 (figure-length distribution); the accent **extractor** of #11 (its strong/weak slot
+denominator, see #11); and the empirical chord loop of #11 (corpus-fit chord transitions +
+$p(\text{figure} \mid C)$) — plus the greedy-fill note at the end. Two items are **deferred by design**: the
+calibration↔harmony/texture coupling (needs a proper mathematical model) and figure-to-figure continuity
+(novel approach).
 
 ---
 
@@ -172,19 +174,23 @@ Note: `chord_resolution=1` reproduces one-chord-per-bar only in meters no longer
 default and common meters ≤ 4/4). In 5/4 and larger it yields the bar-aligned-truncated windows the design
 prescribes (a whole-note window plus a tail) — more than one window per bar, by design.
 
-## 10. Register curve is hand- and scale-agnostic — `D4`
+## 10. Register curve is hand- and scale-agnostic — `D4` — CLOSED
 
 **Design (§3, §9).** The OU parameters $(\theta_i, \sigma_i)$ and arch amplitudes $\{A_j\}$ are per
-`(scale_type, hand)` — roughly four numbers per group — fit from the empirical register spread, lag-1
-autocorrelation, and low-frequency PSD.
+`(scale_type, hand)` — fit from the empirical register spread, lag-1 autocorrelation, and low-frequency PSD.
 
-**Code today.** `RegisterCurveSampler.sample` explicitly discards `scale_type` and `hand`
-(`processes/pitch.py:49`, `_ = scale_type, hand`); both hands draw i.i.d. from one shared
-`RegisterCurveConfig`. The only L/R difference is the home octave added at `note_token_to_midi_pitch`.
+**Code before.** `RegisterCurveSampler.sample` discarded `scale_type`/`hand`; both hands drew i.i.d. from one
+shared `RegisterCurveConfig`.
 
-**To close the gap.** Key the register config by `(scale_type, hand)` (a mapping, or per-group config
-objects) and wire the moment-matching fit (see #11). Even before fit data exists, allow per-hand config so
-the two hands' spreads can differ.
+**Resolution.** `RegisterCurveSampler` now holds `config` (default) + `overrides: tuple[RegisterCurveOverride,
+...]` and selects per `(scale_type, hand)` (default fallback). The moment-matching machinery lives in
+`synthetic/fitting/register.py`: `register_moments` extracts per-hand onset-register sequences and partitions
+each into a slow trend and a fast residual using the **same mid-cell DCT basis the arch uses**, so the split
+is consistent-by-construction (no arch/OU variance double-counting); `fit_register_config` maps the moments
+to a config (`θ = 1−ρ`, `σ = std·√(2θ−θ²)`, arch amplitude from `band_limited_random`'s closed-form
+variance). Fitted overrides persist in a `FittedGeneratorConfig` artifact and load into the **generation**
+path (`load_synthetic_inputs` → `build_segment_generator`); the calibration sweep stays on the default
+(neutral), per the deferred coupling. Same `config + overrides` keying now exists for the accent field.
 
 ## 11. Process parameters are hand-set; the decode→generate fitting loop is open — `D5`
 
@@ -200,14 +206,22 @@ uniform-random chord walk that was the dominant cause of incoherent harmony, *wi
 Calibration stays on `uniform_transition_model` (deferred coupling). `ViterbiChordDecoder` is still
 unconsumed, and `harm_fit` still uses the chord pitch-class set, not $p(\text{figure} \mid C)$.
 
-**Remaining (the empirical loop — largest item, several PRs).**
+**Moment-matching done (register; accent partial).** Register fitting is complete and connected (see #10).
+Accent has the same `config + overrides` keying (`processes/accent.py`) and a fitter
+(`synthetic/fitting/accent.py`: `baseline_logit = logit(weak)`, `metric_gain = logit(strong) − logit(weak)`)
+that reproduces the strong/weak onset rates through `expit`. The accent **extractor is still open**: the
+rhythm profile stores strong/weak onset *counts* (a ratio), not the per-cell *slot* occupancy the accent
+baseline/gain fit needs (the density denominator). Either derive slot counts from the rhythm metadata's
+`strong_beat_offsets` + grid, or fit `metric_gain` only from the strong/weak ratio (keeping `baseline_logit`
+hand-set) — to be decided.
+
+**Remaining (the empirical chord loop — largest item, several PRs).**
 - Add a fitting pass that runs the decoder over the corpus, accumulates the empirical chord transition
-  matrix and figure-by-chord co-occurrence counts, and persists them as artifacts (new `synthetic/fitting/`).
+  matrix and figure-by-chord co-occurrence counts, and persists them (extend `FittedGeneratorConfig`).
 - Build the empirical `ChordTransitionModel` (with the functional prior as its smoothing prior); select it
   via a `chord_model: "empirical"` flag.
 - Add an empirical $p(\text{figure} \mid C)$ term to the substitution tilt (a new `lambda_chord_figure`,
   backing off to the metrical chord-tone score from #4 — not a replacement).
-- Add moment-matching for the register and accent parameters (this is #10 / Stage B).
 
 ## 12. λ-tilt selection is manual — `D6` — CLOSED
 

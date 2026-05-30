@@ -11,6 +11,7 @@ from scipy.special import expit
 
 from musak_model.paths import ACCENT_FIELD_CONFIG_PATH
 from musak_model.synthetic.processes._basis import band_limited_random
+from musak_model.tokens.schema import Hand, ScaleType
 from musak_shared.files import load_yaml_config
 
 
@@ -29,15 +30,26 @@ class AccentFieldConfig(BaseModel):
         return cls.model_validate(load_yaml_config(path))
 
 
+class AccentFieldOverride(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    scale_type: ScaleType
+    hand: Hand
+    config: AccentFieldConfig
+
+
 @dataclass(frozen=True)
 class AccentFieldSampler:
     config: AccentFieldConfig
+    overrides: tuple[AccentFieldOverride, ...] = ()
 
     def sample_weights(
         self,
         *,
         bar_count: int,
         grid_count_per_bar: int,
+        scale_type: ScaleType,
+        hand: Hand,
         rng: Generator,
     ) -> tuple[float, ...]:
         if bar_count <= 0:
@@ -46,25 +58,31 @@ class AccentFieldSampler:
         if grid_count_per_bar <= 0:
             raise ValueError("grid_count_per_bar must be positive")
 
-        total_cells = bar_count * grid_count_per_bar
+        config = self._config_for(scale_type, hand)
         envelope = band_limited_random(
-            length=total_cells,
-            basis_count=self.config.envelope_basis_count,
-            amplitude=self.config.envelope_amplitude,
-            decay=self.config.envelope_decay,
+            length=bar_count * grid_count_per_bar,
+            basis_count=config.envelope_basis_count,
+            amplitude=config.envelope_amplitude,
+            decay=config.envelope_decay,
             rng=rng,
         )
-        indispensability = _indispensability_per_position(grid_count_per_bar)
         logits = _logits(
-            indispensability_per_position=indispensability,
+            indispensability_per_position=_indispensability_per_position(grid_count_per_bar),
             envelope=envelope,
             bar_count=bar_count,
-            baseline_logit=self.config.baseline_logit,
-            metric_gain=self.config.metric_gain,
-            metric_exponent=self.config.metric_exponent,
+            baseline_logit=config.baseline_logit,
+            metric_gain=config.metric_gain,
+            metric_exponent=config.metric_exponent,
         )
         probabilities: NDArray[np.float64] = expit(logits)
         return tuple(float(weight) for weight in probabilities)
+
+    def _config_for(self, scale_type: ScaleType, hand: Hand) -> AccentFieldConfig:
+        for override in self.overrides:
+            if override.scale_type == scale_type and override.hand == hand:
+                return override.config
+
+        return self.config
 
 
 def _indispensability_per_position(grid_count_per_bar: int) -> NDArray[np.float64]:

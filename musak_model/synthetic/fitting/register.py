@@ -150,5 +150,17 @@ def fit_register_overrides(
     )
 
 
+def fit_register_overrides_from_segments(
+    segments: Sequence[Segment],
+    *,
+    default: RegisterCurveConfig,
+    duration_vocabulary: DurationVocabulary,
+) -> tuple[RegisterCurveOverride, ...]:
+    moments = register_moments(
+        segments, duration_vocabulary=duration_vocabulary, arch_basis_count=default.arch_basis_count
+    )
+    return fit_register_overrides(moments, default=default)
+
+
 def _arch_unit_std(*, arch_basis_count: int, arch_decay: float) -> float:
     return sqrt(0.5 * sum(index ** (-2.0 * arch_decay) for index in range(1, arch_basis_count + 1)))

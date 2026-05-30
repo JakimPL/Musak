@@ -110,11 +110,15 @@ class SegmentGenerator:
         right_weights = self.accent_field_sampler.sample_weights(
             bar_count=bar_count,
             grid_count_per_bar=grid_count_per_bar,
+            scale_type=scale_type,
+            hand=Hand.RIGHT,
             rng=rng,
         )
         left_weights = self.accent_field_sampler.sample_weights(
             bar_count=bar_count,
             grid_count_per_bar=grid_count_per_bar,
+            scale_type=scale_type,
+            hand=Hand.LEFT,
             rng=rng,
         )
         gates = self.hand_coupling_sampler.sample_gates(
