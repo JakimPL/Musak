@@ -159,4 +159,8 @@ uv run pytest tests/
 - [docs/pipeline.md](docs/pipeline.md): model dataset processing and training commands.
 - [docs/model.md](docs/model.md): token semantics, MusicXML processing assumptions, generation evaluation, and model
   internals.
+- [docs/symbolic-music-literature-review.md](docs/symbolic-music-literature-review.md): targeted literature review for
+  symbolic, controllable music generation.
+- [docs/model-improvement-roadmap.md](docs/model-improvement-roadmap.md): staged research and implementation roadmap
+  for improving the sight-reading model.
 - [docs/metrics.md](docs/metrics.md): dataset and generation metric families.
