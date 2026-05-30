@@ -4,10 +4,10 @@ from math import sqrt
 from typing import Final
 
 import numpy as np
-from numpy.typing import NDArray
 
 from musak_model.data.schema import Segment
 from musak_model.n_grams.figure.parser import extract_hand_onset_runs
+from musak_model.n_grams.profile.register.dct import trend_and_residual
 from musak_model.synthetic.processes.pitch import RegisterCurveConfig, RegisterCurveOverride
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.pitch import note_diatonic_position
@@ -69,7 +69,7 @@ def register_moments_from_sequences(
             if values.size < minimum_length:
                 continue
 
-            trend, residual = _trend_and_residual(values - values.mean(), arch_basis_count=arch_basis_count)
+            trend, residual = trend_and_residual(values - values.mean(), arch_basis_count=arch_basis_count)
             trend_square_sum += float(trend @ trend)
             residual_square_sum += float(residual @ residual)
             residual_lag_product_sum += float(residual[:-1] @ residual[1:])
@@ -87,33 +87,12 @@ def register_moments_from_sequences(
     return moments
 
 
-def _trend_and_residual(
-    centered: NDArray[np.float64], *, arch_basis_count: int
-) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
-    length = centered.size
-    trend = np.zeros(length, dtype=np.float64)
-    for index in range(1, min(arch_basis_count, length - 1) + 1):
-        basis = _mid_cell_dct_basis(index, length)
-        trend += _dct_projection_coefficient(centered, basis) * basis
-
-    return trend, centered - trend
-
-
 def _ou_theta_from_autocorrelation(lag1_autocorrelation: float) -> float:
     return min(1.0, max(_MIN_OU_THETA, 1.0 - lag1_autocorrelation))
 
 
 def _ou_sigma_from_stationary_std(stationary_std: float, theta: float) -> float:
     return stationary_std * sqrt(2.0 * theta - theta**2)
-
-
-def _mid_cell_dct_basis(index: int, length: int) -> NDArray[np.float64]:
-    steps = np.arange(length)
-    return np.cos(np.pi * index * (steps + 0.5) / length)
-
-
-def _dct_projection_coefficient(values: NDArray[np.float64], basis: NDArray[np.float64]) -> float:
-    return 2.0 / values.size * float(values @ basis)
 
 
 def fit_register_config(
