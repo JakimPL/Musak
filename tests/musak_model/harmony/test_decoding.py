@@ -4,12 +4,12 @@ from pathlib import Path
 import pytest
 
 from musak_model.data.schema import Segment, SegmentMetadata
-from musak_model.synthetic.harmony.decoding import (
+from musak_model.harmony.decoding import (
     ChordDecoderConfig,
     ViterbiChordDecoder,
 )
-from musak_model.synthetic.harmony.schema import ChordQuality
-from musak_model.synthetic.harmony.vocabulary import ChordVocabularyConfig
+from musak_model.harmony.schema import ChordQuality
+from musak_model.harmony.vocabulary import ChordVocabularyConfig
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import (
     BarToken,

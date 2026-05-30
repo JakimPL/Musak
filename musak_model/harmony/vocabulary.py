@@ -5,8 +5,8 @@ from typing import Final
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from musak_model.harmony.schema import ChordExtension, ChordQuality
 from musak_model.paths import CHORD_VOCABULARY_CONFIG_PATH
-from musak_model.synthetic.harmony.schema import ChordExtension, ChordQuality
 from musak_shared.files import load_yaml_config
 
 TRIAD_INTERVAL_COUNT: Final[int] = 3

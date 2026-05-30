@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from fractions import Fraction
 from typing import NamedTuple
 
+from musak_model.n_grams.profile.chord.schema import ChordDecodeSpec, ChordStatistics
 from musak_model.n_grams.profile.register.schema import RegisterStatistics
 from musak_model.n_grams.profile.rhythm.schema import RhythmCountCounter
 from musak_model.tokens.config import TokenizationConfig
@@ -52,6 +53,7 @@ class FigureBatchTask:
     grid_alignment_denominators: tuple[int, ...]
     strong_beat_offsets: tuple[Fraction, ...]
     register_arch_basis_count: int
+    chord_decode: ChordDecodeSpec | None = None
 
 
 @dataclass(frozen=True)
@@ -62,6 +64,7 @@ class FigureBatchResult:
     counts: FigureCountCounter
     rhythm_counts: RhythmCountCounter
     register_statistics: RegisterStatistics
+    chord_statistics: ChordStatistics
     sample_payloads: tuple[tuple[int, str], ...]
 
 

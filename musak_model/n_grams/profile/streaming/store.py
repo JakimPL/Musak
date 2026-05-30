@@ -5,6 +5,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.engine import Connection, Engine
 
 from musak_model.n_grams.profile.artifacts import FigureArtifactPaths
+from musak_model.n_grams.profile.chord.schema import chord_artifact_paths_for_figure_root
 from musak_model.n_grams.profile.io import read_figure_profile
 from musak_model.n_grams.profile.register.schema import register_artifact_paths_for_figure_root
 from musak_model.n_grams.profile.rhythm.schema import rhythm_artifact_paths_for_figure_root
@@ -77,6 +78,8 @@ class FigureWorkStore:
             self.tables.upsert_sample_payloads(result.sample_payloads)
             self.tables.add_rhythm_counts(result.rhythm_counts)
             self.tables.add_register_statistics(result.register_statistics)
+            self.tables.add_chord_transitions(result.chord_statistics.transition_counts)
+            self.tables.add_figure_by_chord(result.chord_statistics.figure_by_chord_counts)
             self.tables.upsert_completed_batch(
                 batch_index=result.batch_index,
                 sample_start_index=result.sample_start_index,
@@ -119,6 +122,7 @@ def figure_reference_database_path(artifact_paths: FigureArtifactPaths) -> Path:
 def clear_figure_work(artifact_paths: FigureArtifactPaths) -> None:
     rhythm_paths = rhythm_artifact_paths_for_figure_root(artifact_paths.root_directory)
     register_paths = register_artifact_paths_for_figure_root(artifact_paths.root_directory)
+    chord_paths = chord_artifact_paths_for_figure_root(artifact_paths.root_directory)
     for path in (
         artifact_paths.config_path,
         artifact_paths.counts_path,
@@ -128,6 +132,9 @@ def clear_figure_work(artifact_paths: FigureArtifactPaths) -> None:
         rhythm_paths.profile_path,
         register_paths.statistics_path,
         register_paths.metadata_path,
+        chord_paths.transitions_path,
+        chord_paths.figure_path,
+        chord_paths.metadata_path,
         figure_reference_database_path(artifact_paths),
     ):
         path.unlink(missing_ok=True)
@@ -149,6 +156,7 @@ def complete_figure_artifacts_exist(artifact_paths: FigureArtifactPaths) -> bool
 def complete_reference_artifacts_exist(artifact_paths: FigureArtifactPaths) -> bool:
     rhythm_paths = rhythm_artifact_paths_for_figure_root(artifact_paths.root_directory)
     register_paths = register_artifact_paths_for_figure_root(artifact_paths.root_directory)
+    chord_paths = chord_artifact_paths_for_figure_root(artifact_paths.root_directory)
     return complete_figure_artifacts_exist(artifact_paths) and all(
         path.exists()
         for path in (
@@ -156,6 +164,9 @@ def complete_reference_artifacts_exist(artifact_paths: FigureArtifactPaths) -> b
             rhythm_paths.profile_path,
             register_paths.statistics_path,
             register_paths.metadata_path,
+            chord_paths.transitions_path,
+            chord_paths.figure_path,
+            chord_paths.metadata_path,
             figure_reference_database_path(artifact_paths),
         )
     )

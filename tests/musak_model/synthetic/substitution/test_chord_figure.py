@@ -3,9 +3,9 @@ from fractions import Fraction
 
 from numpy.random import default_rng
 
+from musak_model.harmony.schema import Chord, ChordQuality
 from musak_model.n_grams.figure.schema import FigureNGram
 from musak_model.synthetic.figures import FigureVocabulary, FigureVocabularyEntry
-from musak_model.synthetic.harmony.schema import Chord, ChordQuality
 from musak_model.synthetic.substitution import (
     FigureByChordModel,
     SubstitutionConfig,

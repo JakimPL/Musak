@@ -3,8 +3,8 @@ from fractions import Fraction
 from typing import Protocol
 
 from musak_model.data.schema import Segment
-from musak_model.synthetic.harmony.schema import Chord
-from musak_model.synthetic.harmony.vocabulary import ChordVocabularyConfig
+from musak_model.harmony.schema import Chord
+from musak_model.harmony.vocabulary import ChordVocabularyConfig
 from musak_model.tokens.duration import DurationVocabulary
 
 

@@ -6,6 +6,7 @@ from time import perf_counter
 from typing import Protocol, Self, cast
 
 from musak_model.n_grams.config import NGramAnalysisConfig
+from musak_model.n_grams.profile.chord.schema import ChordDecodeSpec
 from musak_model.n_grams.profile.streaming.schema import FigureBatchResult, FigureBatchTask
 from musak_model.n_grams.profile.streaming.store import FigureWorkStore
 from musak_model.n_grams.profile.streaming.tasks import figure_batch_tasks, figure_sample_batch_tasks
@@ -53,6 +54,7 @@ def process_missing_batches(
     encoded_jsonl_path: Path,
     tokenization_config: TokenizationConfig,
     config: NGramAnalysisConfig,
+    chord_decode: ChordDecodeSpec | None,
     show_progress: bool,
 ) -> None:
     completed_batches = store.completed_batch_indexes()
@@ -73,6 +75,7 @@ def process_missing_batches(
         grid_alignment_denominators=config.rhythm.grid_alignment_denominators,
         strong_beat_offsets=config.rhythm.strong_beat_offsets,
         register_arch_basis_count=config.register.arch_basis_count,
+        chord_decode=chord_decode,
         batch_size=config.execution.batch_size,
         completed_batches=completed_batches,
     )

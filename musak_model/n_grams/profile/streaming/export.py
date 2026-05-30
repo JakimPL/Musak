@@ -1,3 +1,4 @@
+from collections import Counter
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -6,6 +7,14 @@ import polars as pl
 from musak_model.n_grams.config import NGramAnalysisConfig
 from musak_model.n_grams.figure.signature import figure_signature_from_json, figure_signature_to_ngram
 from musak_model.n_grams.profile.artifacts import FigureArtifactPaths
+from musak_model.n_grams.profile.chord.io import write_chord_metadata, write_chord_transitions, write_figure_by_chord
+from musak_model.n_grams.profile.chord.schema import (
+    ChordDecodeSpec,
+    ChordProfileMetadata,
+    FigureByChordCountKey,
+    FigureByChordCounts,
+    chord_artifact_paths_for_figure_root,
+)
 from musak_model.n_grams.profile.io import (
     ANCHOR_ACCIDENTAL_COLUMN,
     ANCHOR_DEGREE_COLUMN,
@@ -47,6 +56,7 @@ def export_figure_artifacts(
     output_path: Path | None,
     config: NGramAnalysisConfig,
     limit_per_group: int | None,
+    chord_decode: ChordDecodeSpec | None = None,
 ) -> FigureStoreSummary:
     profile = profile_from_store(store, min_n=config.figure.min_n, max_n=config.figure.max_n)
     rhythm_counts = rhythm_counts_from_store(store)
@@ -75,6 +85,13 @@ def export_figure_artifacts(
         ),
         register_paths.metadata_path,
     )
+    if chord_decode is not None:
+        export_chord_artifacts(
+            store,
+            artifact_paths,
+            decode_spec=chord_decode,
+            sample_count=store.encoded_sample_count(),
+        )
     write_profile_atomically(profile, artifact_paths.profile_path)
     write_yaml_config(config.model_dump(mode="json"), artifact_paths.config_path)
     if output_path is not None:
@@ -150,6 +167,36 @@ def export_anchor_counts(store: FigureWorkStore, path: Path) -> None:
         for row in store.tables.iter_anchor_figure_rows()
     ]
     write_table(pl.DataFrame(records, schema=ANCHOR_FIGURE_COUNT_SCHEMA, orient="row"), path)
+
+
+def export_chord_artifacts(
+    store: FigureWorkStore,
+    artifact_paths: FigureArtifactPaths,
+    *,
+    decode_spec: ChordDecodeSpec,
+    sample_count: int,
+) -> None:
+    chord_paths = chord_artifact_paths_for_figure_root(artifact_paths.root_directory)
+    write_chord_transitions(store.tables.chord_transition_counts(), chord_paths.transitions_path)
+    write_figure_by_chord(_figure_by_chord_as_ngram(store.tables.figure_by_chord_counts()), chord_paths.figure_path)
+    write_chord_metadata(
+        ChordProfileMetadata(
+            resolution=decode_spec.decoder_config.resolution,
+            self_transition_bias=decode_spec.decoder_config.self_transition_bias,
+            non_chord_penalty=decode_spec.decoder_config.non_chord_penalty,
+            sample_count=sample_count,
+        ),
+        chord_paths.metadata_path,
+    )
+
+
+def _figure_by_chord_as_ngram(counts: FigureByChordCounts) -> FigureByChordCounts:
+    converted: FigureByChordCounts = Counter()
+    for key, count in counts.items():
+        figure = figure_signature_to_ngram(figure_signature_from_json(key.figure)).model_dump_json()
+        converted[FigureByChordCountKey(key.scale_type, key.hand, key.figure_length, key.chord, figure)] += count
+
+    return converted
 
 
 def export_base_durations(

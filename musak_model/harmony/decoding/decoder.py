@@ -1,12 +1,12 @@
 from dataclasses import dataclass
 
 from musak_model.data.schema import Segment
-from musak_model.synthetic.harmony.decoding.candidates import spellable_candidates
-from musak_model.synthetic.harmony.decoding.config import ChordDecoderConfig
-from musak_model.synthetic.harmony.decoding.schema import ChordWindow
-from musak_model.synthetic.harmony.decoding.viterbi import viterbi_decode
-from musak_model.synthetic.harmony.decoding.windows import sounding_windows
-from musak_model.synthetic.harmony.vocabulary import ChordVocabularyConfig
+from musak_model.harmony.decoding.candidates import spellable_candidates
+from musak_model.harmony.decoding.config import ChordDecoderConfig
+from musak_model.harmony.decoding.schema import ChordWindow
+from musak_model.harmony.decoding.viterbi import viterbi_decode
+from musak_model.harmony.decoding.windows import sounding_windows
+from musak_model.harmony.vocabulary import ChordVocabularyConfig
 from musak_model.tokens.duration import DurationVocabulary
 
 

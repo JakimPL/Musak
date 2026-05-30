@@ -1,8 +1,8 @@
 import pytest
 from pydantic import ValidationError
 
-from musak_model.synthetic.harmony.schema import ChordExtension, ChordQuality
-from musak_model.synthetic.harmony.vocabulary import (
+from musak_model.harmony.schema import ChordExtension, ChordQuality
+from musak_model.harmony.vocabulary import (
     ChordVocabularyConfig,
     ExtensionDefinition,
     QualityDefinition,

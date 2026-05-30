@@ -3,8 +3,16 @@ from fractions import Fraction
 from pathlib import Path
 
 from musak_model.data.schema import SegmentMetadata
+from musak_model.harmony.decoding.config import ChordDecoderConfig
+from musak_model.harmony.vocabulary import ChordVocabularyConfig
 from musak_model.n_grams.config import NGramAnalysisConfig
 from musak_model.n_grams.profile.artifacts import figure_artifact_paths
+from musak_model.n_grams.profile.chord.io import read_chord_metadata, read_chord_transitions
+from musak_model.n_grams.profile.chord.schema import (
+    INITIAL_CHORD_SOURCE,
+    ChordDecodeSpec,
+    chord_artifact_paths_for_figure_root,
+)
 from musak_model.n_grams.profile.extraction import extract_figure_artifacts
 from musak_model.n_grams.profile.io import (
     read_base_duration_counts,
@@ -86,7 +94,7 @@ def test_extract_figure_artifacts_resumes_partial_work_store(
     first_line = (encoded_directory / "data-00000.jsonl").read_text(encoding="utf-8").splitlines()[0]
     with FigureWorkStore(
         figure_reference_database_path(paths),
-        state_key=figure_state_key(config=config, snapshot=snapshot),
+        state_key=figure_state_key(config=config, snapshot=snapshot, chord_decode=_chord_decode_spec()),
         resume=False,
     ) as store:
         store.commit_batch(
@@ -103,6 +111,7 @@ def test_extract_figure_artifacts_resumes_partial_work_store(
                     grid_alignment_denominators=config.rhythm.grid_alignment_denominators,
                     strong_beat_offsets=config.rhythm.strong_beat_offsets,
                     register_arch_basis_count=config.register.arch_basis_count,
+                    chord_decode=_chord_decode_spec(),
                 )
             )
         )
@@ -220,6 +229,34 @@ def test_extract_figure_artifacts_populates_reference_database(
         assert sum(unmatched.values()) == 0
 
 
+def test_extract_figure_artifacts_writes_chord_substore(
+    tmp_path: Path,
+    tokenization_config: TokenizationConfig,
+    duration_vocabulary: DurationVocabulary,
+    token_vocabulary: TokenVocabulary,
+) -> None:
+    encoded_directory, analysis_config_path = _write_encoded_figure_inputs(
+        tmp_path,
+        tokenization_config=tokenization_config,
+        duration_vocabulary=duration_vocabulary,
+        token_vocabulary=token_vocabulary,
+    )
+
+    result = extract_figure_artifacts(
+        encoded_directory=encoded_directory,
+        analysis_config_path=analysis_config_path,
+        output_path=None,
+        show_progress=False,
+    )
+
+    chord_paths = chord_artifact_paths_for_figure_root(result.artifact_paths.root_directory)
+    assert chord_paths.transitions_path.is_file()
+    assert chord_paths.figure_path.is_file()
+    transitions = read_chord_transitions(chord_paths.transitions_path)
+    assert any(key.source_chord == INITIAL_CHORD_SOURCE for key in transitions)
+    assert read_chord_metadata(chord_paths.metadata_path).sample_count == 2
+
+
 def test_extract_figure_artifacts_writes_base_durations_csv(
     tmp_path: Path,
     tokenization_config: TokenizationConfig,
@@ -329,6 +366,10 @@ def _write_encoded_figure_inputs(
         )
 
     return encoded_directory, analysis_config_path
+
+
+def _chord_decode_spec() -> ChordDecodeSpec:
+    return ChordDecodeSpec(decoder_config=ChordDecoderConfig.load(), vocabulary=ChordVocabularyConfig.load())
 
 
 def _stale_analysis_config_path(tmp_path: Path) -> Path:

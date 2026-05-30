@@ -1,7 +1,9 @@
 import hashlib
 import json
+from typing import Any
 
 from musak_model.n_grams.config import NGramAnalysisConfig
+from musak_model.n_grams.profile.chord.schema import ChordDecodeSpec
 from musak_model.processing.snapshot import TokenizerSnapshot
 
 
@@ -9,8 +11,9 @@ def figure_state_key(
     *,
     config: NGramAnalysisConfig,
     snapshot: TokenizerSnapshot,
+    chord_decode: ChordDecodeSpec | None = None,
 ) -> str:
-    payload = {
+    payload: dict[str, Any] = {
         "tokenizer_hash": snapshot.tokenizer_hash,
         "min_n": config.figure.min_n,
         "max_n": config.figure.max_n,
@@ -21,4 +24,8 @@ def figure_state_key(
         "register_arch_basis_count": config.register.arch_basis_count,
         "batch_size": config.execution.batch_size,
     }
+    if chord_decode is not None:
+        payload["chord_decoder"] = chord_decode.decoder_config.model_dump(mode="json")
+        payload["chord_vocabulary"] = chord_decode.vocabulary.model_dump(mode="json")
+
     return hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()

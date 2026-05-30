@@ -2,7 +2,7 @@ import pytest
 from numpy.random import default_rng
 from pydantic import ValidationError
 
-from musak_model.synthetic.harmony.schema import Chord, ChordQuality
+from musak_model.harmony.schema import Chord, ChordQuality
 from musak_model.synthetic.processes.chord_track import (
     ChordTrackSampler,
     ChordTransitionModel,

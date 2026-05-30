@@ -10,6 +10,8 @@ from numpy.random import default_rng
 
 from musak_model.data.schema import Segment
 from musak_model.generation.constraints import GenerationConstraintError, GenerationConstraints
+from musak_model.harmony.decoding.candidates import spellable_candidates
+from musak_model.harmony.vocabulary import ChordVocabularyConfig
 from musak_model.synthetic.base_durations import BaseDurationDistribution, load_base_duration_distribution
 from musak_model.synthetic.builder import build_segment_generator
 from musak_model.synthetic.figures import (
@@ -19,8 +21,6 @@ from musak_model.synthetic.figures import (
     load_figure_vocabulary,
 )
 from musak_model.synthetic.fitting.artifacts import FittedGeneratorConfig, resolve_fitted_generator_config_path
-from musak_model.synthetic.harmony.decoding.candidates import spellable_candidates
-from musak_model.synthetic.harmony.vocabulary import ChordVocabularyConfig
 from musak_model.synthetic.processes.accent import AccentFieldConfig
 from musak_model.synthetic.processes.chord_track import functional_transition_model
 from musak_model.synthetic.processes.hand_coupling import HandCouplingConfig

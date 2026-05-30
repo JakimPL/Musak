@@ -6,6 +6,12 @@ from sqlalchemy import Column, Float, Integer, MetaData, String, Table, func, se
 from sqlalchemy.dialects.sqlite import Insert, insert
 from sqlalchemy.engine import Connection
 
+from musak_model.n_grams.profile.chord.schema import (
+    ChordTransitionCounts,
+    ChordTransitionKey,
+    FigureByChordCountKey,
+    FigureByChordCounts,
+)
 from musak_model.n_grams.profile.register.schema import RegisterStatistics, RegisterStatisticsKey, RegisterSums
 from musak_model.n_grams.profile.rhythm.schema import RhythmCountCounter, RhythmCountKey, RhythmMetricKind
 from musak_model.n_grams.profile.streaming.schema import FigureCountCounter, FigureCountKey
@@ -39,6 +45,9 @@ _REGISTER_SUM_COLUMNS: Final[tuple[str, ...]] = (
     _REGISTER_RESIDUAL_LAG_PRODUCT_SUM_COLUMN,
     _REGISTER_ELEMENT_COUNT_COLUMN,
 )
+_CHORD_SOURCE_COLUMN: Final[str] = "source_chord"
+_CHORD_DESTINATION_COLUMN: Final[str] = "destination_chord"
+_CHORD_CHORD_COLUMN: Final[str] = "chord"
 _BATCH_INDEX_COLUMN: Final[str] = "batch_index"
 _BATCH_SAMPLE_START_INDEX_COLUMN: Final[str] = "sample_start_index"
 _BATCH_SAMPLE_COUNT_COLUMN: Final[str] = "sample_count"
@@ -92,6 +101,23 @@ _REGISTER_STATISTICS_TABLE: Final = Table(
     Column(_REGISTER_RESIDUAL_SQUARE_SUM_COLUMN, Float, nullable=False),
     Column(_REGISTER_RESIDUAL_LAG_PRODUCT_SUM_COLUMN, Float, nullable=False),
     Column(_REGISTER_ELEMENT_COUNT_COLUMN, Integer, nullable=False),
+)
+_CHORD_TRANSITIONS_TABLE: Final = Table(
+    "chord_transitions",
+    _SQL_METADATA,
+    Column(_CHORD_SOURCE_COLUMN, String, primary_key=True),
+    Column(_CHORD_DESTINATION_COLUMN, String, primary_key=True),
+    Column(_COUNT_COUNT_COLUMN, Integer, nullable=False),
+)
+_FIGURE_BY_CHORD_TABLE: Final = Table(
+    "figure_by_chord",
+    _SQL_METADATA,
+    Column(_COUNT_SCALE_TYPE_COLUMN, String, primary_key=True),
+    Column(_COUNT_HAND_COLUMN, String, primary_key=True),
+    Column(_COUNT_N_COLUMN, Integer, primary_key=True),
+    Column(_CHORD_CHORD_COLUMN, String, primary_key=True),
+    Column(_COUNT_FIGURE_COLUMN, String, primary_key=True),
+    Column(_COUNT_COUNT_COLUMN, Integer, nullable=False),
 )
 _COMPLETED_BATCHES_TABLE: Final = Table(
     "completed_batches",
@@ -207,6 +233,33 @@ class FigureWorkTables:
         ]
         if records:
             self._connection.execute(_additive_register_upsert(_REGISTER_STATISTICS_TABLE), records)
+
+    def add_chord_transitions(self, counts: ChordTransitionCounts) -> None:
+        records = [
+            {
+                _CHORD_SOURCE_COLUMN: key.source_chord,
+                _CHORD_DESTINATION_COLUMN: key.destination_chord,
+                _COUNT_COUNT_COLUMN: count,
+            }
+            for key, count in counts.items()
+        ]
+        if records:
+            self._connection.execute(_additive_count_upsert(_CHORD_TRANSITIONS_TABLE), records)
+
+    def add_figure_by_chord(self, counts: FigureByChordCounts) -> None:
+        records = [
+            {
+                _COUNT_SCALE_TYPE_COLUMN: key.scale_type,
+                _COUNT_HAND_COLUMN: key.hand,
+                _COUNT_N_COLUMN: key.figure_length,
+                _CHORD_CHORD_COLUMN: key.chord,
+                _COUNT_FIGURE_COLUMN: key.figure,
+                _COUNT_COUNT_COLUMN: count,
+            }
+            for key, count in counts.items()
+        ]
+        if records:
+            self._connection.execute(_additive_count_upsert(_FIGURE_BY_CHORD_TABLE), records)
 
     def upsert_completed_batch(
         self,
@@ -371,6 +424,32 @@ class FigureWorkTables:
             )
 
         return statistics
+
+    def chord_transition_counts(self) -> ChordTransitionCounts:
+        counts: ChordTransitionCounts = Counter()
+        result = self._connection.execute(select(_CHORD_TRANSITIONS_TABLE))
+        for source_chord, destination_chord, count in result:
+            counts[ChordTransitionKey(source_chord=str(source_chord), destination_chord=str(destination_chord))] += int(
+                count
+            )
+
+        return counts
+
+    def figure_by_chord_counts(self) -> FigureByChordCounts:
+        counts: FigureByChordCounts = Counter()
+        result = self._connection.execute(select(_FIGURE_BY_CHORD_TABLE))
+        for scale_type, hand, figure_length, chord, figure, count in result:
+            counts[
+                FigureByChordCountKey(
+                    scale_type=str(scale_type),
+                    hand=str(hand),
+                    figure_length=int(figure_length),
+                    chord=str(chord),
+                    figure=str(figure),
+                )
+            ] += int(count)
+
+        return counts
 
     def conditional_figure_counts(
         self,

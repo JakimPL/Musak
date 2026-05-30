@@ -4,6 +4,7 @@ from time import perf_counter
 
 from musak_model.n_grams.config import NGramAnalysisConfig
 from musak_model.n_grams.profile.artifacts import FigureArtifactPaths
+from musak_model.n_grams.profile.chord.schema import ChordDecodeSpec
 from musak_model.n_grams.profile.streaming.executor import process_missing_batches
 from musak_model.n_grams.profile.streaming.export import export_figure_artifacts
 from musak_model.n_grams.profile.streaming.schema import FigureStoreSummary
@@ -28,13 +29,14 @@ def extract_streaming_figure_artifacts(
     artifact_paths: FigureArtifactPaths,
     config: NGramAnalysisConfig,
     snapshot: TokenizerSnapshot,
+    chord_decode: ChordDecodeSpec,
     output_path: Path | None,
     show_progress: bool,
     overwrite: bool,
     resume: bool,
 ) -> FigureStoreSummary:
     store_path = figure_reference_database_path(artifact_paths)
-    state_key = figure_state_key(config=config, snapshot=snapshot)
+    state_key = figure_state_key(config=config, snapshot=snapshot, chord_decode=chord_decode)
     if overwrite:
         _LOGGER.info("Clearing existing figure artifacts before extraction: %s", artifact_paths.root_directory)
         clear_figure_work(artifact_paths)
@@ -52,6 +54,7 @@ def extract_streaming_figure_artifacts(
             encoded_jsonl_path=encoded_directory / ENCODED_JSONL_NAME,
             tokenization_config=TokenizationConfig.model_validate(snapshot.tokenization_config),
             config=config,
+            chord_decode=chord_decode,
             show_progress=show_progress,
         )
         _LOGGER.info("Exporting figure artifacts")
@@ -62,6 +65,7 @@ def extract_streaming_figure_artifacts(
             output_path=output_path,
             config=config,
             limit_per_group=config.figure.limit_per_group,
+            chord_decode=chord_decode,
         )
         _LOGGER.info("Exported figure artifacts in %.1fs", perf_counter() - started_at)
 

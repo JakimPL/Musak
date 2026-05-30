@@ -8,7 +8,7 @@ import numpy as np
 from numpy.random import Generator
 from pydantic import BaseModel, ConfigDict, model_validator
 
-from musak_model.synthetic.harmony.schema import TRIAD_QUALITY_BY_INTERVALS, Chord
+from musak_model.harmony.schema import TRIAD_QUALITY_BY_INTERVALS, Chord
 from musak_model.tokens.schema import SCALE_INTERVALS, ScaleType
 from musak_shared.elements import HARMONIC_FUNCTION_BY_DEGREE, PITCHES_PER_OCTAVE, HarmonicFunction
 

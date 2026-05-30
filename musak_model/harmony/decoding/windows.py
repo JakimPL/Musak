@@ -2,8 +2,8 @@ from dataclasses import dataclass
 from fractions import Fraction
 
 from musak_model.data.schema import Segment
+from musak_model.harmony.windows import chord_window_grid
 from musak_model.n_grams.figure.parser import extract_hand_onset_runs
-from musak_model.synthetic.harmony.windows import chord_window_grid
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.pitch import degree_pitch_class
 

@@ -1,6 +1,6 @@
+from musak_model.harmony.vocabulary import ChordVocabularyConfig
 from musak_model.synthetic.base_durations import BaseDurationDistribution
 from musak_model.synthetic.figures import AnchoredFigureVocabulary, FigureVocabulary
-from musak_model.synthetic.harmony.vocabulary import ChordVocabularyConfig
 from musak_model.synthetic.processes.accent import AccentFieldConfig, AccentFieldOverride, AccentFieldSampler
 from musak_model.synthetic.processes.chord_track import ChordTrackSampler, ChordTransitionModel
 from musak_model.synthetic.processes.hand_coupling import HandCouplingConfig, HandCouplingSampler

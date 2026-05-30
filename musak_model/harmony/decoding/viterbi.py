@@ -1,9 +1,9 @@
 from collections.abc import Sequence
 from fractions import Fraction
 
-from musak_model.synthetic.harmony.decoding.candidates import Candidate
-from musak_model.synthetic.harmony.decoding.windows import SoundingWindow
-from musak_model.synthetic.harmony.schema import Chord
+from musak_model.harmony.decoding.candidates import Candidate
+from musak_model.harmony.decoding.windows import SoundingWindow
+from musak_model.harmony.schema import Chord
 
 
 def viterbi_decode(

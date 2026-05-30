@@ -3,7 +3,7 @@ from fractions import Fraction
 
 import pytest
 
-from musak_model.synthetic.harmony.windows import chord_window_grid
+from musak_model.harmony.windows import chord_window_grid
 
 
 @dataclass(frozen=True)

@@ -5,6 +5,8 @@ from pathlib import Path
 
 import pytest
 
+from musak_model.harmony.schema import Chord, ChordQuality
+from musak_model.harmony.vocabulary import ChordVocabularyConfig
 from musak_model.n_grams.figure.samples.schema import FigureNGramCountsByScale
 from musak_model.n_grams.figure.schema import FigureNGram
 from musak_model.synthetic.base_durations import BaseDurationDistribution
@@ -12,8 +14,6 @@ from musak_model.synthetic.calibration.config import CalibrationConfig
 from musak_model.synthetic.calibration.results import write_sweep_results
 from musak_model.synthetic.calibration.sweep import run_sweep
 from musak_model.synthetic.figures import FigureVocabulary
-from musak_model.synthetic.harmony.schema import Chord, ChordQuality
-from musak_model.synthetic.harmony.vocabulary import ChordVocabularyConfig
 from musak_model.synthetic.processes.accent import AccentFieldConfig, AccentFieldSampler
 from musak_model.synthetic.processes.chord_track import ChordTrackSampler, uniform_transition_model
 from musak_model.synthetic.processes.hand_coupling import HandCouplingConfig, HandCouplingSampler

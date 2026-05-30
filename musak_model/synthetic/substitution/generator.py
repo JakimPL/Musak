@@ -12,6 +12,10 @@ from musak_model.generation.constraints import (
     GenerationConstraints,
     GenerationConstraintState,
 )
+from musak_model.harmony.expansion import chord_pitch_class_set
+from musak_model.harmony.schema import Chord
+from musak_model.harmony.vocabulary import ChordVocabularyConfig
+from musak_model.harmony.windows import chord_window_grid
 from musak_model.n_grams.figure.schema import FigureNGram
 from musak_model.synthetic.base_durations import (
     BaseDurationDistribution,
@@ -19,10 +23,6 @@ from musak_model.synthetic.base_durations import (
     weighted_base_duration_choice,
 )
 from musak_model.synthetic.figures import AnchoredFigureVocabulary, FigureVocabulary, FigureVocabularyEntry
-from musak_model.synthetic.harmony.expansion import chord_pitch_class_set
-from musak_model.synthetic.harmony.schema import Chord
-from musak_model.synthetic.harmony.vocabulary import ChordVocabularyConfig
-from musak_model.synthetic.harmony.windows import chord_window_grid
 from musak_model.synthetic.processes.accent import AccentFieldSampler
 from musak_model.synthetic.processes.chord_track import ChordTrackSampler
 from musak_model.synthetic.processes.hand_coupling import HandCouplingSampler

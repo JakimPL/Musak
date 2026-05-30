@@ -3,8 +3,8 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 
+from musak_model.harmony.schema import Chord
 from musak_model.n_grams.figure.schema import FigureNGram
-from musak_model.synthetic.harmony.schema import Chord
 from musak_model.tokens.schema import Hand, ScaleType
 
 type FigureByChordKey = tuple[ScaleType, Hand, int, Chord]

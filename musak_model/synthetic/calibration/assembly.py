@@ -1,11 +1,11 @@
+from musak_model.harmony.decoding.candidates import spellable_candidates
+from musak_model.harmony.vocabulary import ChordVocabularyConfig
 from musak_model.n_grams.figure.samples.schema import FigureNGramCountsByScale
 from musak_model.n_grams.profile.io import read_figure_counts
 from musak_model.synthetic.base_durations import load_base_duration_distribution
 from musak_model.synthetic.builder import build_segment_generator
 from musak_model.synthetic.calibration.config import CalibrationConfig
 from musak_model.synthetic.figures import load_figure_vocabulary, resolve_figure_counts_path
-from musak_model.synthetic.harmony.decoding.candidates import spellable_candidates
-from musak_model.synthetic.harmony.vocabulary import ChordVocabularyConfig
 from musak_model.synthetic.processes.accent import AccentFieldConfig
 from musak_model.synthetic.processes.chord_track import uniform_transition_model
 from musak_model.synthetic.processes.hand_coupling import HandCouplingConfig

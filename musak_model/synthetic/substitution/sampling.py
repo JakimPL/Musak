@@ -5,9 +5,9 @@ from numpy.random import Generator
 from numpy.typing import NDArray
 from scipy.special import softmax
 
+from musak_model.harmony.schema import Chord
 from musak_model.n_grams.figure.schema import FigureNGram
 from musak_model.synthetic.figures import FigureVocabulary, FigureVocabularyEntry
-from musak_model.synthetic.harmony.schema import Chord
 from musak_model.synthetic.substitution.chord_figure import FigureByChordModel
 from musak_model.synthetic.substitution.config import SubstitutionConfig
 from musak_model.synthetic.substitution.scoring import (

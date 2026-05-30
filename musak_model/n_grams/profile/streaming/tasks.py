@@ -2,6 +2,7 @@ from collections.abc import Iterable, Iterator
 from fractions import Fraction
 from pathlib import Path
 
+from musak_model.n_grams.profile.chord.schema import ChordDecodeSpec
 from musak_model.n_grams.profile.streaming.schema import FigureBatchTask
 from musak_model.tokens.config import TokenizationConfig
 from musak_model.training.ingestion.schema import EncodedExercise
@@ -18,6 +19,7 @@ def figure_batch_tasks(
     grid_alignment_denominators: tuple[int, ...],
     strong_beat_offsets: tuple[Fraction, ...],
     register_arch_basis_count: int,
+    chord_decode: ChordDecodeSpec | None,
     batch_size: int,
     completed_batches: set[int],
 ) -> Iterator[FigureBatchTask]:
@@ -44,6 +46,7 @@ def figure_batch_tasks(
                         grid_alignment_denominators=grid_alignment_denominators,
                         strong_beat_offsets=strong_beat_offsets,
                         register_arch_basis_count=register_arch_basis_count,
+                        chord_decode=chord_decode,
                     )
                 batch_index += 1
                 sample_start_index += len(encoded_lines)
@@ -62,6 +65,7 @@ def figure_batch_tasks(
                 grid_alignment_denominators=grid_alignment_denominators,
                 strong_beat_offsets=strong_beat_offsets,
                 register_arch_basis_count=register_arch_basis_count,
+                chord_decode=chord_decode,
             )
 
 
@@ -132,6 +136,7 @@ def _figure_batch_task(
     grid_alignment_denominators: tuple[int, ...],
     strong_beat_offsets: tuple[Fraction, ...],
     register_arch_basis_count: int,
+    chord_decode: ChordDecodeSpec | None = None,
 ) -> FigureBatchTask:
     return FigureBatchTask(
         batch_index=batch_index,
@@ -145,4 +150,5 @@ def _figure_batch_task(
         grid_alignment_denominators=grid_alignment_denominators,
         strong_beat_offsets=strong_beat_offsets,
         register_arch_basis_count=register_arch_basis_count,
+        chord_decode=chord_decode,
     )

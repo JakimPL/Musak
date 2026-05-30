@@ -1,6 +1,8 @@
 from collections import Counter
 
 from musak_model.data.schema import Segment
+from musak_model.n_grams.profile.chord.extraction import chord_statistics
+from musak_model.n_grams.profile.chord.schema import ChordStatistics
 from musak_model.n_grams.profile.register.extraction import register_statistics
 from musak_model.n_grams.profile.rhythm.extraction import count_sample_rhythm_metrics
 from musak_model.n_grams.profile.rhythm.schema import RhythmCountCounter
@@ -54,5 +56,24 @@ def process_figure_batch_task(task: FigureBatchTask) -> FigureBatchResult:
             duration_vocabulary=duration_vocabulary,
             arch_basis_count=task.register_arch_basis_count,
         ),
+        chord_statistics=_chord_statistics(task, segments, duration_vocabulary=duration_vocabulary),
         sample_payloads=tuple(sample_payloads),
+    )
+
+
+def _chord_statistics(
+    task: FigureBatchTask,
+    segments: list[Segment],
+    *,
+    duration_vocabulary: DurationVocabulary,
+) -> ChordStatistics:
+    if task.chord_decode is None:
+        return ChordStatistics(transition_counts=Counter(), figure_by_chord_counts=Counter())
+
+    return chord_statistics(
+        segments,
+        duration_vocabulary=duration_vocabulary,
+        decode_spec=task.chord_decode,
+        min_n=task.min_n,
+        max_n=task.max_n,
     )

@@ -2,8 +2,11 @@ import shutil
 from dataclasses import dataclass
 from pathlib import Path
 
+from musak_model.harmony.decoding.config import ChordDecoderConfig
+from musak_model.harmony.vocabulary import ChordVocabularyConfig
 from musak_model.n_grams.config import NGramAnalysisConfig
 from musak_model.n_grams.profile.artifacts import FigureArtifactPaths, figure_artifact_paths
+from musak_model.n_grams.profile.chord.schema import ChordDecodeSpec
 from musak_model.n_grams.profile.streaming.orchestration import extract_streaming_figure_artifacts
 from musak_model.processing.io import load_tokenizer_snapshot_json
 from musak_model.processing.paths import ENCODED_JSONL_NAME, TOKENIZER_SNAPSHOT_NAME
@@ -35,11 +38,16 @@ def extract_figure_artifacts(
         raise FileNotFoundError(f"encoded JSONL does not exist: {encoded_jsonl_path}")
 
     snapshot = load_tokenizer_snapshot_json(tokenizer_snapshot_path)
+    chord_decode = ChordDecodeSpec(
+        decoder_config=ChordDecoderConfig.load(),
+        vocabulary=ChordVocabularyConfig.load(),
+    )
     summary = extract_streaming_figure_artifacts(
         encoded_directory=encoded_directory,
         artifact_paths=artifact_paths,
         config=config,
         snapshot=snapshot,
+        chord_decode=chord_decode,
         output_path=output_path,
         show_progress=show_progress,
         overwrite=overwrite,

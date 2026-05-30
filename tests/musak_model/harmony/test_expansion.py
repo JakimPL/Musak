@@ -2,12 +2,12 @@ from dataclasses import dataclass
 
 import pytest
 
-from musak_model.synthetic.harmony.expansion import (
+from musak_model.harmony.expansion import (
     UnspellableChordError,
     expand_chord_to_tones,
 )
-from musak_model.synthetic.harmony.schema import Chord, ChordExtension, ChordQuality
-from musak_model.synthetic.harmony.vocabulary import ChordVocabularyConfig
+from musak_model.harmony.schema import Chord, ChordExtension, ChordQuality
+from musak_model.harmony.vocabulary import ChordVocabularyConfig
 from musak_model.tokens.schema import ScaleType
 
 
