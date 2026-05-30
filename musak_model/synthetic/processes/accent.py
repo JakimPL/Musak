@@ -67,7 +67,7 @@ class AccentFieldSampler:
             rng=rng,
         )
         logits = _logits(
-            indispensability_per_position=_indispensability_per_position(grid_count_per_bar),
+            indispensability=indispensability_per_position(grid_count_per_bar),
             envelope=envelope,
             bar_count=bar_count,
             baseline_logit=config.baseline_logit,
@@ -85,19 +85,19 @@ class AccentFieldSampler:
         return self.config
 
 
-def _indispensability_per_position(grid_count_per_bar: int) -> NDArray[np.float64]:
+def indispensability_per_position(grid_count_per_bar: int) -> NDArray[np.float64]:
     positions = np.arange(grid_count_per_bar)
     return np.gcd(positions, grid_count_per_bar).astype(np.float64) / grid_count_per_bar
 
 
 def _logits(
     *,
-    indispensability_per_position: NDArray[np.float64],
+    indispensability: NDArray[np.float64],
     envelope: NDArray[np.float64],
     bar_count: int,
     baseline_logit: float,
     metric_gain: float,
     metric_exponent: float,
 ) -> NDArray[np.float64]:
-    tiled_indispensability = np.tile(indispensability_per_position, bar_count)
+    tiled_indispensability = np.tile(indispensability, bar_count)
     return baseline_logit + metric_gain * tiled_indispensability**metric_exponent + envelope
