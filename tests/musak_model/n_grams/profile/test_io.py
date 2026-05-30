@@ -10,10 +10,12 @@ from musak_model.n_grams.profile.builder import build_figure_profile, build_figu
 from musak_model.n_grams.profile.io import (
     FIGURE_COUNT_SCHEMA,
     figure_counts_frame,
+    read_anchor_figure_counts,
     read_figure_counts,
     read_figure_counts_for_groups,
     read_figure_profile,
     read_figure_sample_counts_jsonl,
+    write_anchor_figure_counts,
     write_figure_counts,
     write_figure_profile,
     write_figure_sample_counts_jsonl,
@@ -55,6 +57,43 @@ def test_figure_counts_round_trips(tmp_path: Path) -> None:
     write_figure_counts(counts, path)
 
     assert read_figure_counts(path) == counts
+
+
+def test_anchor_figure_counts_round_trip(tmp_path: Path) -> None:
+    figure = FigureNGram(onsets=((((0, 0),), Fraction(1)), (((1, 0),), Fraction(1))))
+    counts = {
+        (ScaleType.HARMONIC_MINOR, Hand.RIGHT, 2, 7, 0): Counter({figure: 5}),
+        (ScaleType.HARMONIC_MINOR, Hand.RIGHT, 2, 3, 0): Counter({figure: 2}),
+    }
+    path = tmp_path / "counts.parquet"
+
+    write_anchor_figure_counts(counts, path)
+
+    assert read_anchor_figure_counts(path) == counts
+
+
+def test_read_figure_counts_aggregates_anchor_grained_file(tmp_path: Path) -> None:
+    figure = FigureNGram(onsets=((((0, 0),), Fraction(1)),))
+    path = tmp_path / "counts.parquet"
+    write_anchor_figure_counts(
+        {
+            (ScaleType.MAJOR, Hand.RIGHT, 1, 7, 0): Counter({figure: 5}),
+            (ScaleType.MAJOR, Hand.RIGHT, 1, 3, 0): Counter({figure: 2}),
+        },
+        path,
+    )
+
+    aggregate = read_figure_counts(path)
+
+    assert aggregate == {ScaleType.MAJOR: {Hand.RIGHT: {1: Counter({figure: 7})}}}
+
+
+def test_read_anchor_figure_counts_ignores_legacy_aggregate_file(tmp_path: Path) -> None:
+    figure = FigureNGram(onsets=((((0, 0),), Fraction(1)),))
+    path = tmp_path / "counts.parquet"
+    write_figure_counts({ScaleType.MAJOR: {Hand.RIGHT: {1: Counter({figure: 3})}}}, path)
+
+    assert read_anchor_figure_counts(path) == {}
 
 
 def test_filtered_figure_counts_skips_unrelated_rows_before_parsing_json(tmp_path: Path) -> None:

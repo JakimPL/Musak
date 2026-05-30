@@ -12,7 +12,12 @@ from musak_model.data.schema import Segment
 from musak_model.generation.constraints import GenerationConstraintError, GenerationConstraints
 from musak_model.synthetic.base_durations import BaseDurationDistribution, load_base_duration_distribution
 from musak_model.synthetic.builder import build_segment_generator
-from musak_model.synthetic.figures import FigureVocabulary, load_figure_vocabulary
+from musak_model.synthetic.figures import (
+    AnchoredFigureVocabulary,
+    FigureVocabulary,
+    load_anchored_figure_vocabulary,
+    load_figure_vocabulary,
+)
 from musak_model.synthetic.fitting.artifacts import FittedGeneratorConfig, resolve_fitted_generator_config_path
 from musak_model.synthetic.harmony.decoding.candidates import spellable_candidates
 from musak_model.synthetic.harmony.vocabulary import ChordVocabularyConfig
@@ -32,6 +37,7 @@ _SOURCE_FILE = Path("synthetic")
 @dataclass(frozen=True)
 class SyntheticInputs:
     figure_vocabulary: FigureVocabulary
+    anchored_figure_vocabulary: AnchoredFigureVocabulary
     base_duration_distribution: BaseDurationDistribution
     duration_vocabulary: DurationVocabulary
     fitted: FittedGeneratorConfig
@@ -40,6 +46,7 @@ class SyntheticInputs:
 def load_synthetic_inputs(figure_directory: Path) -> SyntheticInputs:
     return SyntheticInputs(
         figure_vocabulary=load_figure_vocabulary(figure_directory),
+        anchored_figure_vocabulary=load_anchored_figure_vocabulary(figure_directory),
         base_duration_distribution=load_base_duration_distribution(figure_directory),
         duration_vocabulary=DurationVocabulary(TokenizationConfig.load()),
         fitted=_load_fitted_generator_config(figure_directory),
@@ -156,6 +163,7 @@ def generate_synthetic_segment(
         ),
         chord_vocabulary=chord_vocabulary,
         figure_vocabulary=inputs.figure_vocabulary,
+        anchored_figure_vocabulary=inputs.anchored_figure_vocabulary,
         base_duration_distribution=inputs.base_duration_distribution,
         duration_vocabulary=duration_vocabulary,
         figure_lengths=tuple(range(request.min_n, request.max_n + 1)),

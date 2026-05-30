@@ -18,7 +18,7 @@ from musak_model.synthetic.base_durations import (
     BaseDurationWeight,
     weighted_base_duration_choice,
 )
-from musak_model.synthetic.figures import FigureVocabulary, FigureVocabularyEntry
+from musak_model.synthetic.figures import AnchoredFigureVocabulary, FigureVocabulary, FigureVocabularyEntry
 from musak_model.synthetic.harmony.expansion import chord_pitch_class_set
 from musak_model.synthetic.harmony.schema import Chord
 from musak_model.synthetic.harmony.vocabulary import ChordVocabularyConfig
@@ -48,6 +48,7 @@ from musak_model.tokens.schema import (
 from musak_shared.misc import is_power_of_two
 
 type FigureEntriesByGroup = Mapping[tuple[Hand, int], tuple[FigureVocabularyEntry, ...]]
+type DegreeFigureEntriesByGroup = Mapping[tuple[Hand, int, int], tuple[FigureVocabularyEntry, ...]]
 type ProgressCallback = Callable[[int, int], None]
 
 
@@ -63,6 +64,7 @@ class SegmentGenerator:
     base_duration_distribution: BaseDurationDistribution
     duration_vocabulary: DurationVocabulary
     figure_lengths: tuple[int, ...]
+    anchored_figure_vocabulary: AnchoredFigureVocabulary = AnchoredFigureVocabulary(entries=())
 
     def generate(
         self,
@@ -95,6 +97,7 @@ class SegmentGenerator:
         cell_duration = bar_duration / grid_count_per_bar
         cell_count = bar_count * grid_count_per_bar
         entries_by_group = self._figure_entries_by_group(scale_type)
+        degree_entries_by_group = self._degree_entries_by_group(scale_type)
         right_curve = self.register_curve_sampler.sample(
             length=cell_count,
             scale_type=scale_type,
@@ -194,6 +197,7 @@ class SegmentGenerator:
                     onsets=onsets,
                     gates=gates,
                     entries_by_group=entries_by_group,
+                    degree_entries_by_group=degree_entries_by_group,
                     scale_type=scale_type,
                     cell_chord_pitch_classes=cell_chord_pitch_classes,
                     rng=rng,
@@ -275,6 +279,23 @@ class SegmentGenerator:
 
         return {key: tuple(entries) for key, entries in grouped.items()}
 
+    def _degree_entries_by_group(self, scale_type: ScaleType) -> DegreeFigureEntriesByGroup:
+        figure_lengths = frozenset(self.figure_lengths)
+        grouped: dict[tuple[Hand, int, int], list[FigureVocabularyEntry]] = {}
+        for entry in self.anchored_figure_vocabulary.entries:
+            group = entry.group
+            if group.scale_type != scale_type or group.n not in figure_lengths:
+                continue
+
+            if self.substitution_config.monophonic and not entry.figure.monophonic:
+                continue
+
+            grouped.setdefault((group.hand, group.n, entry.anchor_degree), []).append(
+                FigureVocabularyEntry(group=group, figure=entry.figure, count=entry.count)
+            )
+
+        return {key: tuple(entries) for key, entries in grouped.items()}
+
     def _emit_hand_bar(
         self,
         *,
@@ -289,6 +310,7 @@ class SegmentGenerator:
         onsets: tuple[Mapping[Hand, bool], ...],
         gates: tuple[Mapping[Hand, bool], ...],
         entries_by_group: FigureEntriesByGroup,
+        degree_entries_by_group: DegreeFigureEntriesByGroup,
         scale_type: ScaleType,
         cell_chord_pitch_classes: tuple[frozenset[int], ...],
         rng: Generator,
@@ -333,6 +355,7 @@ class SegmentGenerator:
                 state=state,
                 hand=hand,
                 entries_by_group=entries_by_group,
+                degree_entries_by_group=degree_entries_by_group,
                 scale_type=scale_type,
                 chord_pitch_classes=cell_chord_pitch_classes[fired_cell_index],
                 curve=curve,
@@ -382,6 +405,7 @@ class SegmentGenerator:
         state: GenerationConstraintState,
         hand: Hand,
         entries_by_group: FigureEntriesByGroup,
+        degree_entries_by_group: DegreeFigureEntriesByGroup,
         scale_type: ScaleType,
         chord_pitch_classes: frozenset[int],
         curve: tuple[int, ...],
@@ -392,12 +416,15 @@ class SegmentGenerator:
         rng: Generator,
     ) -> tuple[GenerationConstraintState, list[Token]] | None:
         anchor = int(curve[fired_cell_index])
+        anchor_degree, _ = diatonic_position_to_degree_and_octave(anchor, scale_size=scale_size_for_type(scale_type))
         metrical_position = fired_cell_index % grid_count_per_bar
         for _ in range(self.substitution_config.max_resample_retries):
             figure_length = int(rng.choice(self.figure_lengths))
             span_cell_index = min(fired_cell_index + figure_length - 1, len(curve) - 1)
             target_slope = int(curve[span_cell_index]) - anchor
-            entries = entries_by_group.get((hand, figure_length), ())
+            entries = degree_entries_by_group.get((hand, figure_length, anchor_degree), ()) or entries_by_group.get(
+                (hand, figure_length), ()
+            )
             candidate_bases = self.base_duration_distribution.candidates(
                 scale_type=scale_type, hand=hand, figure_length=figure_length
             )

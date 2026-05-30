@@ -6,7 +6,7 @@ from pathlib import Path
 from musak_model.n_grams.figure.samples.schema import FigureNGramCountsByScale
 from musak_model.n_grams.figure.schema import FigureNGram
 from musak_model.n_grams.profile.artifacts import FIGURE_ALL_DIR_NAME, FIGURE_COUNTS_NAME
-from musak_model.n_grams.profile.io import read_figure_counts
+from musak_model.n_grams.profile.io import AnchoredFigureCountsByGroup, read_anchor_figure_counts, read_figure_counts
 from musak_model.paths import DEFAULT_TRAINING_FIGURE_DIR
 from musak_model.tokens.schema import Hand, ScaleType
 
@@ -100,8 +100,46 @@ class FigureVocabulary:
         return {n: count / total_count for n, count in sorted(totals.items())}
 
 
+@dataclass(frozen=True)
+class AnchoredFigureVocabularyEntry:
+    group: FigureVocabularyGroup
+    anchor_degree: int
+    figure: FigureNGram
+    count: int
+
+
+@dataclass(frozen=True)
+class AnchoredFigureVocabulary:
+    entries: tuple[AnchoredFigureVocabularyEntry, ...]
+
+    @classmethod
+    def from_counts(cls, counts: AnchoredFigureCountsByGroup) -> AnchoredFigureVocabulary:
+        entries: list[AnchoredFigureVocabularyEntry] = []
+        for (scale_type, hand, n, anchor_degree, anchor_accidental), figure_counts in sorted(
+            counts.items(), key=lambda item: (item[0][0].value, item[0][1].value, item[0][2:])
+        ):
+            if anchor_accidental != 0:
+                continue
+
+            for figure, count in figure_counts.most_common():
+                entries.append(
+                    AnchoredFigureVocabularyEntry(
+                        group=FigureVocabularyGroup(scale_type=scale_type, hand=hand, n=n),
+                        anchor_degree=anchor_degree,
+                        figure=figure,
+                        count=count,
+                    )
+                )
+
+        return cls(entries=tuple(entries))
+
+
 def load_figure_vocabulary(path: Path) -> FigureVocabulary:
     return FigureVocabulary.from_counts(read_figure_counts(resolve_figure_counts_path(path)))
+
+
+def load_anchored_figure_vocabulary(path: Path) -> AnchoredFigureVocabulary:
+    return AnchoredFigureVocabulary.from_counts(read_anchor_figure_counts(resolve_figure_counts_path(path)))
 
 
 def load_figure_split_vocabulary(

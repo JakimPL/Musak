@@ -12,7 +12,12 @@ from musak_model.generation.constraints import (
 )
 from musak_model.n_grams.figure.schema import FigureNGram
 from musak_model.synthetic.base_durations import BaseDurationDistribution
-from musak_model.synthetic.figures import FigureVocabulary
+from musak_model.synthetic.figures import (
+    AnchoredFigureVocabulary,
+    AnchoredFigureVocabularyEntry,
+    FigureVocabulary,
+    FigureVocabularyGroup,
+)
 from musak_model.synthetic.harmony.expansion import chord_pitch_class_set
 from musak_model.synthetic.harmony.schema import Chord, ChordQuality
 from musak_model.synthetic.harmony.vocabulary import ChordVocabularyConfig
@@ -1061,3 +1066,105 @@ def test_segment_generator_seed_determinism_covers_tokens_and_trace(
 
     assert first.segment.tokens == second.segment.tokens
     assert first.trace == second.trace
+
+
+def _anchored_vocabulary(
+    figures_by_group: dict[tuple[Hand, int, int], list[FigureNGram]],
+) -> AnchoredFigureVocabulary:
+    return AnchoredFigureVocabulary(
+        entries=tuple(
+            AnchoredFigureVocabularyEntry(
+                group=FigureVocabularyGroup(scale_type=ScaleType.MAJOR, hand=hand, n=n),
+                anchor_degree=anchor_degree,
+                figure=figure,
+                count=1,
+            )
+            for (hand, n, anchor_degree), figures in figures_by_group.items()
+            for figure in figures
+        )
+    )
+
+
+def _degree_generator(
+    *,
+    aggregate: FigureNGram,
+    anchored: AnchoredFigureVocabulary,
+    duration_vocabulary: DurationVocabulary,
+) -> SegmentGenerator:
+    return SegmentGenerator(
+        substitution_config=SubstitutionConfig(
+            lambda_curve=0.0,
+            lambda_harm=0.0,
+            lambda_accent=0.0,
+            commonness_bias=1.0,
+            max_resample_retries=4,
+            monophonic=False,
+        ),
+        register_curve_sampler=RegisterCurveSampler(
+            config=RegisterCurveConfig(
+                arch_basis_count=1, arch_amplitude=0.0, arch_decay=1.0, ou_theta=1.0, ou_sigma=0.0
+            )
+        ),
+        accent_field_sampler=_always_onset_accent_field_sampler(),
+        hand_coupling_sampler=_always_active_hand_coupling_sampler(),
+        chord_track_sampler=ChordTrackSampler(
+            model=uniform_transition_model((Chord(root_degree=1, root_accidental=0, quality=ChordQuality.MAJOR),))
+        ),
+        chord_vocabulary=ChordVocabularyConfig.load(),
+        figure_vocabulary=_major_vocabulary({Hand.RIGHT: {2: [aggregate]}, Hand.LEFT: {2: [aggregate]}}),
+        base_duration_distribution=_uniform_base_durations(figure_length=2, base_duration=Fraction(1, 2)),
+        duration_vocabulary=duration_vocabulary,
+        figure_lengths=(2,),
+        anchored_figure_vocabulary=anchored,
+    )
+
+
+def _right_hand_note_degrees(segment: Segment) -> set[int]:
+    return {token.degree for token in _tokens_under_hand(segment.tokens, Hand.RIGHT) if isinstance(token, NoteToken)}
+
+
+def _generate_single_bar(generator: SegmentGenerator) -> Segment:
+    return generator.generate(
+        bar_count=1,
+        time_numerator=4,
+        time_denominator=4,
+        grid_count_per_bar=1,
+        chord_resolution=1,
+        scale_root=0,
+        scale_type=ScaleType.MAJOR,
+        constraints=GenerationConstraints(time_numerator=4, time_denominator=4, bar_count=1),
+        rng=default_rng(0),
+        source_file=Path("synthetic.mxl"),
+    ).segment
+
+
+def test_degree_conditioning_selects_the_anchor_degree_pool(duration_vocabulary: DurationVocabulary) -> None:
+    # Zero register => every anchor is diatonic position 0 => scale degree 1, so the degree-1 pool must be used.
+    ascending_third = _figure([0, 2])  # degree-1 pool: emits degrees 1 and 3
+    ascending_step = _figure([0, 1])  # aggregate fallback: would emit degrees 1 and 2
+    generator = _degree_generator(
+        aggregate=ascending_step,
+        anchored=_anchored_vocabulary({(Hand.RIGHT, 2, 1): [ascending_third], (Hand.LEFT, 2, 1): [ascending_third]}),
+        duration_vocabulary=duration_vocabulary,
+    )
+
+    degrees = _right_hand_note_degrees(_generate_single_bar(generator))
+
+    assert 3 in degrees
+    assert 2 not in degrees
+
+
+def test_degree_conditioning_falls_back_to_aggregate_when_degree_pool_is_empty(
+    duration_vocabulary: DurationVocabulary,
+) -> None:
+    ascending_third = _figure([0, 2])
+    ascending_step = _figure([0, 1])
+    generator = _degree_generator(
+        aggregate=ascending_step,
+        anchored=_anchored_vocabulary({(Hand.RIGHT, 2, 5): [ascending_third], (Hand.LEFT, 2, 5): [ascending_third]}),
+        duration_vocabulary=duration_vocabulary,
+    )
+
+    degrees = _right_hand_note_degrees(_generate_single_bar(generator))
+
+    assert 2 in degrees

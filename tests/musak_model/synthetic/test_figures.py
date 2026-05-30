@@ -3,8 +3,10 @@ from fractions import Fraction
 from pathlib import Path
 
 from musak_model.n_grams.figure.schema import FigureNGram
-from musak_model.n_grams.profile.io import write_figure_counts
+from musak_model.n_grams.profile.io import write_anchor_figure_counts, write_figure_counts
 from musak_model.synthetic.figures import (
+    AnchoredFigureVocabulary,
+    load_anchored_figure_vocabulary,
     load_figure_split_vocabulary,
     load_figure_vocabulary,
     resolve_figure_counts_path,
@@ -75,6 +77,33 @@ def test_figure_vocabulary_reports_count_weighted_length_distribution(tmp_path: 
     vocabulary = load_figure_vocabulary(_write_counts(tmp_path / "counts.parquet"))
 
     assert vocabulary.length_distribution() == {2: 0.6, 3: 0.4}
+
+
+def test_anchored_figure_vocabulary_keys_by_degree_and_drops_altered_anchors(tmp_path: Path) -> None:
+    leading_tone = FigureNGram(onsets=((((0, 0),), Fraction(1)), (((1, 0),), Fraction(1))))
+    chromatic = FigureNGram(onsets=((((0, 0),), Fraction(1)), (((1, 1),), Fraction(1))))
+    path = tmp_path / "counts.parquet"
+    write_anchor_figure_counts(
+        {
+            (ScaleType.HARMONIC_MINOR, Hand.RIGHT, 2, 7, 0): Counter({leading_tone: 4}),
+            (ScaleType.HARMONIC_MINOR, Hand.RIGHT, 2, 3, 0): Counter({leading_tone: 1}),
+            (ScaleType.HARMONIC_MINOR, Hand.RIGHT, 2, 7, 1): Counter({chromatic: 9}),
+        },
+        path,
+    )
+
+    vocabulary = load_anchored_figure_vocabulary(path)
+
+    degrees = {(entry.group.hand, entry.group.n, entry.anchor_degree) for entry in vocabulary.entries}
+    assert degrees == {(Hand.RIGHT, 2, 7), (Hand.RIGHT, 2, 3)}  # the altered-anchor (accidental != 0) row is dropped
+
+
+def test_anchored_figure_vocabulary_empty_when_no_anchor_columns(tmp_path: Path) -> None:
+    figure = FigureNGram(onsets=((((0, 0),), Fraction(1)),))
+    path = tmp_path / "counts.parquet"
+    write_figure_counts({ScaleType.MAJOR: {Hand.RIGHT: {1: Counter({figure: 3})}}}, path)
+
+    assert load_anchored_figure_vocabulary(path) == AnchoredFigureVocabulary(entries=())
 
 
 def _write_counts(path: Path) -> Path:
