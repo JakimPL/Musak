@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Final
 
 from pydantic import BaseModel, ConfigDict
 
 from musak_model.synthetic.processes.accent import AccentFieldOverride
 from musak_model.synthetic.processes.pitch import RegisterCurveOverride
+
+FITTED_GENERATOR_CONFIG_NAME: Final[str] = "fitted_generator.json"
 
 
 class FittedGeneratorConfig(BaseModel):

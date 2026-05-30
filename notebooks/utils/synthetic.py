@@ -13,7 +13,7 @@ from musak_model.generation.constraints import GenerationConstraintError, Genera
 from musak_model.synthetic.base_durations import BaseDurationDistribution, load_base_duration_distribution
 from musak_model.synthetic.builder import build_segment_generator
 from musak_model.synthetic.figures import FigureVocabulary, load_figure_vocabulary
-from musak_model.synthetic.fitting.artifacts import FittedGeneratorConfig
+from musak_model.synthetic.fitting.artifacts import FITTED_GENERATOR_CONFIG_NAME, FittedGeneratorConfig
 from musak_model.synthetic.harmony.decoding.candidates import spellable_candidates
 from musak_model.synthetic.harmony.vocabulary import ChordVocabularyConfig
 from musak_model.synthetic.processes.accent import AccentFieldConfig
@@ -27,7 +27,6 @@ from musak_model.tokens.schema import ScaleType
 from notebooks.utils.model_output import segment_decode_error
 
 _SOURCE_FILE = Path("synthetic")
-_FITTED_GENERATOR_NAME = "fitted_generator.json"
 
 
 @dataclass(frozen=True)
@@ -43,7 +42,7 @@ def load_synthetic_inputs(figure_directory: Path) -> SyntheticInputs:
         figure_vocabulary=load_figure_vocabulary(figure_directory),
         base_duration_distribution=load_base_duration_distribution(figure_directory),
         duration_vocabulary=DurationVocabulary(TokenizationConfig.load()),
-        fitted=_load_fitted_generator_config(figure_directory / _FITTED_GENERATOR_NAME),
+        fitted=_load_fitted_generator_config(figure_directory / FITTED_GENERATOR_CONFIG_NAME),
     )
 
 
