@@ -370,13 +370,12 @@ def _(
     mark_source_file_skipped,
     mo,
     selected_rows,
+    completed_source_ids,
     set_action_message,
     set_completed_source_ids,
-    completed_source_ids,
 ):
     if selected_rows is None or selected_rows.empty:
         source_output = mo.md("")
-        selected_source_path = None
     else:
         first_row = selected_rows.iloc[0]
         selected_source_path = str(first_row["source_path"])
@@ -422,7 +421,7 @@ def _(
             gap=2,
         )
     source_output
-    return (selected_source_path,)
+    return
 
 
 @app.cell
@@ -625,7 +624,6 @@ def _(
         segment_output = mo.callout("Select a segment to preview.", kind="warn")
     else:
         row_dict = selected_row_dict
-        selection = selected_segment_selection
         window_start_bar = int(row_dict[str(EncodedManifestField.WINDOW_START_BAR)])
         bar_count = int(row_dict[str(EncodedManifestField.BAR_COUNT)])
         rating_key = (window_start_bar, bar_count)
