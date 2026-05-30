@@ -2,10 +2,11 @@ from collections import Counter
 from collections.abc import Iterable, Iterator
 from typing import Final, NamedTuple, cast
 
-from sqlalchemy import Column, Integer, MetaData, String, Table, func, select
+from sqlalchemy import Column, Float, Integer, MetaData, String, Table, func, select
 from sqlalchemy.dialects.sqlite import Insert, insert
 from sqlalchemy.engine import Connection
 
+from musak_model.n_grams.profile.register.schema import RegisterStatistics, RegisterStatisticsKey, RegisterSums
 from musak_model.n_grams.profile.rhythm.schema import RhythmCountCounter, RhythmCountKey, RhythmMetricKind
 from musak_model.n_grams.profile.streaming.schema import FigureCountCounter, FigureCountKey
 
@@ -28,6 +29,16 @@ _RHYTHM_TIME_SIGNATURE_COLUMN: Final[str] = "time_signature"
 _RHYTHM_KIND_COLUMN: Final[str] = "kind"
 _RHYTHM_PARAMETER_COLUMN: Final[str] = "parameter"
 _RHYTHM_VALUE_COLUMN: Final[str] = "value"
+_REGISTER_TREND_SQUARE_SUM_COLUMN: Final[str] = "trend_square_sum"
+_REGISTER_RESIDUAL_SQUARE_SUM_COLUMN: Final[str] = "residual_square_sum"
+_REGISTER_RESIDUAL_LAG_PRODUCT_SUM_COLUMN: Final[str] = "residual_lag_product_sum"
+_REGISTER_ELEMENT_COUNT_COLUMN: Final[str] = "element_count"
+_REGISTER_SUM_COLUMNS: Final[tuple[str, ...]] = (
+    _REGISTER_TREND_SQUARE_SUM_COLUMN,
+    _REGISTER_RESIDUAL_SQUARE_SUM_COLUMN,
+    _REGISTER_RESIDUAL_LAG_PRODUCT_SUM_COLUMN,
+    _REGISTER_ELEMENT_COUNT_COLUMN,
+)
 _BATCH_INDEX_COLUMN: Final[str] = "batch_index"
 _BATCH_SAMPLE_START_INDEX_COLUMN: Final[str] = "sample_start_index"
 _BATCH_SAMPLE_COUNT_COLUMN: Final[str] = "sample_count"
@@ -71,6 +82,16 @@ _RHYTHM_COUNTS_TABLE: Final = Table(
     Column(_RHYTHM_PARAMETER_COLUMN, String, primary_key=True),
     Column(_RHYTHM_VALUE_COLUMN, String, primary_key=True),
     Column(_COUNT_COUNT_COLUMN, Integer, nullable=False),
+)
+_REGISTER_STATISTICS_TABLE: Final = Table(
+    "register_statistics",
+    _SQL_METADATA,
+    Column(_COUNT_SCALE_TYPE_COLUMN, String, primary_key=True),
+    Column(_COUNT_HAND_COLUMN, String, primary_key=True),
+    Column(_REGISTER_TREND_SQUARE_SUM_COLUMN, Float, nullable=False),
+    Column(_REGISTER_RESIDUAL_SQUARE_SUM_COLUMN, Float, nullable=False),
+    Column(_REGISTER_RESIDUAL_LAG_PRODUCT_SUM_COLUMN, Float, nullable=False),
+    Column(_REGISTER_ELEMENT_COUNT_COLUMN, Integer, nullable=False),
 )
 _COMPLETED_BATCHES_TABLE: Final = Table(
     "completed_batches",
@@ -161,6 +182,21 @@ class FigureWorkTables:
         ]
         if records:
             self._connection.execute(_additive_count_upsert(_RHYTHM_COUNTS_TABLE), records)
+
+    def add_register_statistics(self, statistics: RegisterStatistics) -> None:
+        records = [
+            {
+                _COUNT_SCALE_TYPE_COLUMN: key.scale_type,
+                _COUNT_HAND_COLUMN: key.hand,
+                _REGISTER_TREND_SQUARE_SUM_COLUMN: sums.trend_square_sum,
+                _REGISTER_RESIDUAL_SQUARE_SUM_COLUMN: sums.residual_square_sum,
+                _REGISTER_RESIDUAL_LAG_PRODUCT_SUM_COLUMN: sums.residual_lag_product_sum,
+                _REGISTER_ELEMENT_COUNT_COLUMN: sums.element_count,
+            }
+            for key, sums in statistics.items()
+        ]
+        if records:
+            self._connection.execute(_additive_register_upsert(_REGISTER_STATISTICS_TABLE), records)
 
     def upsert_completed_batch(
         self,
@@ -289,6 +325,19 @@ class FigureWorkTables:
 
         return counts
 
+    def register_statistics(self) -> RegisterStatistics:
+        statistics: RegisterStatistics = {}
+        result = self._connection.execute(select(_REGISTER_STATISTICS_TABLE))
+        for scale_type, hand, trend_square_sum, residual_square_sum, residual_lag_product_sum, element_count in result:
+            statistics[RegisterStatisticsKey(scale_type=str(scale_type), hand=str(hand))] = RegisterSums(
+                trend_square_sum=float(trend_square_sum),
+                residual_square_sum=float(residual_square_sum),
+                residual_lag_product_sum=float(residual_lag_product_sum),
+                element_count=int(element_count),
+            )
+
+        return statistics
+
     def conditional_figure_counts(
         self,
         *,
@@ -402,6 +451,14 @@ def _additive_count_upsert(table: Table) -> Insert:
         set_={
             _COUNT_COUNT_COLUMN: table.c[_COUNT_COUNT_COLUMN] + statement.excluded[_COUNT_COUNT_COLUMN],
         },
+    )
+
+
+def _additive_register_upsert(table: Table) -> Insert:
+    statement = insert(table)
+    return statement.on_conflict_do_update(
+        index_elements=list(table.primary_key.columns),
+        set_={column: table.c[column] + statement.excluded[column] for column in _REGISTER_SUM_COLUMNS},
     )
 
 

@@ -17,6 +17,7 @@ def _():
     from musak_model.conditioning.structural.schema import StructuralControlFeatures
     from musak_model.decoder.notation import segment_to_score_data
     from musak_model.generation.constraints import GenerationConstraints
+    from musak_model.n_grams.config import NGramAnalysisConfig
     from musak_model.paths import DEFAULT_CHECKPOINT_DIR, DEFAULT_TRAINING_FIGURE_DIR, TOKENIZATION_CONFIG_PATH
     from musak_model.tokens.schema import ScaleType
     from musak_shared.notation.html import score_data_html
@@ -59,6 +60,7 @@ def _():
         GeneratedOutput,
         GenerationRequest,
         GenerationConstraints,
+        NGramAnalysisConfig,
         PitchSpelling,
         SamplingOptions,
         ScaleType,
@@ -579,6 +581,7 @@ def _(mo, output):
 def _(
     mo,
     output,
+    NGramAnalysisConfig,
     figure_pattern_metric_rows,
     figure_reference_alignment_metric_rows,
     figure_reference_count_groups,
@@ -598,6 +601,7 @@ def _(
     if output is None:
         debug_output = mo.md("")
     else:
+        analysis_config = NGramAnalysisConfig.load()
         token_table = mo.ui.table(
             token_rows(output.decoded_segment.tokens, duration_vocabulary=output.duration_vocabulary),
             selection=None,
@@ -616,7 +620,11 @@ def _(
             else []
         )
         rhythm_metric_rows = (
-            rhythm_grid_metric_rows(output.decoded_segment, duration_vocabulary=output.duration_vocabulary)
+            rhythm_grid_metric_rows(
+                output.decoded_segment,
+                duration_vocabulary=output.duration_vocabulary,
+                rhythm_config=analysis_config.rhythm,
+            )
             if output.decode_error is None
             else []
         )
@@ -637,6 +645,7 @@ def _(
                     reference_groups = figure_reference_count_groups(
                         output.decoded_segment,
                         duration_vocabulary=output.duration_vocabulary,
+                        figure_config=analysis_config.figure,
                     )
                     reference_counts = load_figure_reference_counts(
                         selection.path,
@@ -647,6 +656,7 @@ def _(
                         output.decoded_segment,
                         duration_vocabulary=output.duration_vocabulary,
                         reference_counts=reference_counts,
+                        figure_config=analysis_config.figure,
                     )
                     rhythm_counts_path = rhythm_reference_counts_path(selection.path)
                     if rhythm_counts_path.exists():
@@ -655,6 +665,7 @@ def _(
                                 output.decoded_segment,
                                 duration_vocabulary=output.duration_vocabulary,
                                 reference_counts=load_rhythm_reference_counts(rhythm_counts_path),
+                                rhythm_config=analysis_config.rhythm,
                             )
                         )
                 except ValueError as exception:

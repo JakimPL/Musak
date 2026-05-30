@@ -59,7 +59,10 @@ def split_figure_profile_metrics(
     show_progress: bool = False,
 ) -> dict[str, float]:
     config_path = N_GRAM_ANALYSIS_CONFIG_PATH if analysis_config_path is None else analysis_config_path
-    config = NGramAnalysisConfig.load(config_path).model_copy(update={"workers": max(1, workers)})
+    loaded_config = NGramAnalysisConfig.load(config_path)
+    config = loaded_config.model_copy(
+        update={"execution": loaded_config.execution.model_copy(update={"workers": max(1, workers)})}
+    )
     split_key = split_cache_key(
         split,
         config=config,
@@ -72,10 +75,10 @@ def split_figure_profile_metrics(
         "batch_size=%s workers=%s artifact_dir=%s",
         len(split.train),
         len(split.validation),
-        config.min_n,
-        config.max_n,
-        config.batch_size,
-        config.workers,
+        config.figure.min_n,
+        config.figure.max_n,
+        config.execution.batch_size,
+        config.execution.workers,
         split_directory,
     )
     train_artifacts = build_split_artifacts(

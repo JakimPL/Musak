@@ -30,7 +30,7 @@ def build_split_artifacts(
     show_progress: bool,
 ) -> SplitFigureArtifacts:
     paths = figure_artifact_paths_from_root(split_directory / split_name)
-    task_count = (len(samples) + config.batch_size - 1) // config.batch_size
+    task_count = (len(samples) + config.execution.batch_size - 1) // config.execution.batch_size
     if complete_figure_artifacts_exist(paths):
         _LOGGER.info("Reusing %s split figure artifacts: %s", split_name, paths.root_directory)
         return SplitFigureArtifacts(profile=read_figure_profile(paths.profile_path), paths=paths)
@@ -40,9 +40,9 @@ def build_split_artifacts(
         split_name,
         len(samples),
         task_count,
-        config.min_n,
-        config.max_n,
-        config.workers,
+        config.figure.min_n,
+        config.figure.max_n,
+        config.execution.workers,
         paths.root_directory,
     )
     started_at = perf_counter()

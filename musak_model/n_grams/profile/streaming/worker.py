@@ -1,5 +1,7 @@
 from collections import Counter
 
+from musak_model.data.schema import Segment
+from musak_model.n_grams.profile.register.extraction import register_statistics
 from musak_model.n_grams.profile.rhythm.extraction import count_sample_rhythm_metrics
 from musak_model.n_grams.profile.rhythm.schema import RhythmCountCounter
 from musak_model.n_grams.profile.streaming.counting import count_sample_figure_signatures, sample_profile_payload
@@ -14,10 +16,12 @@ def process_figure_batch_task(task: FigureBatchTask) -> FigureBatchResult:
     token_vocabulary = TokenVocabulary(duration_vocabulary)
     counts: FigureCountCounter = Counter()
     rhythm_counts: RhythmCountCounter = Counter()
+    segments: list[Segment] = []
     sample_payloads: list[tuple[int, str]] = []
     for sample_offset, line in enumerate(task.encoded_lines):
         sample_index = task.sample_start_index + sample_offset
         sample = EncodedExercise.model_validate_json(line)
+        segments.append(sample.to_segment(token_vocabulary=token_vocabulary))
         sample_counts = count_sample_figure_signatures(
             sample,
             duration_vocabulary=duration_vocabulary,
@@ -45,5 +49,10 @@ def process_figure_batch_task(task: FigureBatchTask) -> FigureBatchResult:
         encoded_sample_count=len(task.encoded_lines),
         counts=counts,
         rhythm_counts=rhythm_counts,
+        register_statistics=register_statistics(
+            segments,
+            duration_vocabulary=duration_vocabulary,
+            arch_basis_count=task.register_arch_basis_count,
+        ),
         sample_payloads=tuple(sample_payloads),
     )

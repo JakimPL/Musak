@@ -96,12 +96,13 @@ def test_extract_figure_artifacts_resumes_partial_work_store(
                     sample_start_index=0,
                     encoded_lines=(first_line,),
                     tokenization_config=tokenization_config,
-                    min_n=config.min_n,
-                    max_n=config.max_n,
-                    rhythm_min_n=config.rhythm_min_n,
-                    rhythm_max_n=config.rhythm_max_n,
-                    grid_alignment_denominators=config.grid_alignment_denominators,
-                    strong_beat_offsets=config.strong_beat_offsets,
+                    min_n=config.figure.min_n,
+                    max_n=config.figure.max_n,
+                    rhythm_min_n=config.rhythm.min_n,
+                    rhythm_max_n=config.rhythm.max_n,
+                    grid_alignment_denominators=config.rhythm.grid_alignment_denominators,
+                    strong_beat_offsets=config.rhythm.strong_beat_offsets,
+                    register_arch_basis_count=config.register.arch_basis_count,
                 )
             )
         )
@@ -253,10 +254,7 @@ def test_counts_csv_aggregates_same_figure_across_anchors(
 ) -> None:
     encoded_directory = tmp_path / "processed" / "PDMX" / "encoded" / "anchors"
     analysis_config_path = tmp_path / "n_grams.yml"
-    analysis_config_path.write_text(
-        "\n".join(["min_n: 2", "max_n: 2", "limit_per_group: null", "workers: 1", "batch_size: 1"]),
-        encoding="utf-8",
-    )
+    analysis_config_path.write_text(_analysis_config_yaml(min_n=2, max_n=2, workers=1), encoding="utf-8")
     snapshot = build_tokenizer_snapshot(
         tokenization_config,
         duration_vocabulary=duration_vocabulary,
@@ -304,18 +302,7 @@ def _write_encoded_figure_inputs(
 ) -> tuple[Path, Path]:
     encoded_directory = tmp_path / "processed" / "PDMX" / "encoded" / "abc"
     analysis_config_path = tmp_path / "n_grams.yml"
-    analysis_config_path.write_text(
-        "\n".join(
-            [
-                "min_n: 2",
-                "max_n: 2",
-                "limit_per_group: null",
-                f"workers: {workers}",
-                "batch_size: 1",
-            ]
-        ),
-        encoding="utf-8",
-    )
+    analysis_config_path.write_text(_analysis_config_yaml(min_n=2, max_n=2, workers=workers), encoding="utf-8")
     snapshot = build_tokenizer_snapshot(
         tokenization_config,
         duration_vocabulary=duration_vocabulary,
@@ -346,19 +333,34 @@ def _write_encoded_figure_inputs(
 
 def _stale_analysis_config_path(tmp_path: Path) -> Path:
     path = tmp_path / "stale_n_grams.yml"
-    path.write_text(
-        "\n".join(
-            [
-                "min_n: 2",
-                "max_n: 3",
-                "limit_per_group: null",
-                "workers: 1",
-                "batch_size: 1",
-            ]
-        ),
-        encoding="utf-8",
-    )
+    path.write_text(_analysis_config_yaml(min_n=2, max_n=3, workers=1), encoding="utf-8")
     return path
+
+
+def _analysis_config_yaml(*, min_n: int, max_n: int, workers: int) -> str:
+    return "\n".join(
+        [
+            "figure:",
+            f"  min_n: {min_n}",
+            f"  max_n: {max_n}",
+            "  limit_per_group: null",
+            "  common_mass_threshold: 0.80",
+            "rhythm:",
+            "  min_n: 2",
+            "  max_n: 2",
+            "  grid_alignment_denominators:",
+            "    - 1",
+            "    - 2",
+            "    - 4",
+            "  strong_beat_offsets:",
+            "    - 0",
+            "register:",
+            "  arch_basis_count: 3",
+            "execution:",
+            f"  workers: {workers}",
+            "  batch_size: 1",
+        ]
+    )
 
 
 def _sample(token_ids: list[int], *, scale_type: ScaleType) -> EncodedExercise:

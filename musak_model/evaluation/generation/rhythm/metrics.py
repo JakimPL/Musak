@@ -6,7 +6,7 @@ from time import perf_counter
 from musak_model.data.schema import Segment, SegmentMetadata
 from musak_model.evaluation.generation.protocols import GenerationEvaluationOptions
 from musak_model.evaluation.generation.schema import GenerationSample
-from musak_model.n_grams.config import NGramAnalysisConfig
+from musak_model.n_grams.config import RhythmAnalysisConfig
 from musak_model.n_grams.profile.loading import FigureProfileArtifacts
 from musak_model.n_grams.profile.rhythm.extraction import count_segment_rhythm_metrics
 from musak_model.n_grams.profile.rhythm.loading import RhythmProfileArtifacts
@@ -22,7 +22,7 @@ def rhythm_profile_metrics(
     *,
     samples: list[GenerationSample],
     config: GenerationEvaluationOptions,
-    analysis_config: NGramAnalysisConfig,
+    rhythm_config: RhythmAnalysisConfig,
     duration_vocabulary: DurationVocabulary,
 ) -> dict[str, float]:
     if artifacts is None or artifacts.rhythm is None:
@@ -33,7 +33,7 @@ def rhythm_profile_metrics(
     generated_counts, generated_sample_count = generated_rhythm_counts(
         samples,
         config=config,
-        analysis_config=analysis_config,
+        rhythm_config=rhythm_config,
         duration_vocabulary=duration_vocabulary,
     )
     metrics = {
@@ -56,7 +56,7 @@ def generated_rhythm_counts(
     samples: list[GenerationSample],
     *,
     config: GenerationEvaluationOptions,
-    analysis_config: NGramAnalysisConfig,
+    rhythm_config: RhythmAnalysisConfig,
     duration_vocabulary: DurationVocabulary,
 ) -> tuple[RhythmCountCounter, int]:
     counts: RhythmCountCounter = Counter()
@@ -70,10 +70,10 @@ def generated_rhythm_counts(
                 count_segment_rhythm_metrics(
                     _sample_segment(sample, config=config),
                     duration_vocabulary=duration_vocabulary,
-                    rhythm_min_n=analysis_config.rhythm_min_n,
-                    rhythm_max_n=analysis_config.rhythm_max_n,
-                    grid_alignment_denominators=analysis_config.grid_alignment_denominators,
-                    strong_beat_offsets=analysis_config.strong_beat_offsets,
+                    rhythm_min_n=rhythm_config.min_n,
+                    rhythm_max_n=rhythm_config.max_n,
+                    grid_alignment_denominators=rhythm_config.grid_alignment_denominators,
+                    strong_beat_offsets=rhythm_config.strong_beat_offsets,
                 )
             )
         except ValueError:

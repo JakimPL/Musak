@@ -1,16 +1,21 @@
-min_n: 2
-max_n: 10
-rhythm_min_n: 2
-rhythm_max_n: 6
-limit_per_group: null
-workers: 16
-batch_size: 128
-figure_common_mass_threshold: 0.80
-grid_alignment_denominators:
-  - 1
-  - 2
-  - 4
-  - 8
-  - 16
-strong_beat_offsets:
-  - 0
+figure:
+  min_n: 2
+  max_n: 10
+  limit_per_group: null
+  common_mass_threshold: 0.80
+rhythm:
+  min_n: 2
+  max_n: 6
+  grid_alignment_denominators:
+    - 1
+    - 2
+    - 4
+    - 8
+    - 16
+  strong_beat_offsets:
+    - 0
+register:
+  arch_basis_count: 3
+execution:
+  workers: 16
+  batch_size: 128

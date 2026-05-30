@@ -52,10 +52,10 @@ def main() -> None:
     _LOGGER.info("Canonical count output: %s", output_path)
     _LOGGER.info("Canonical profile output: %s", artifact_paths.profile_path)
     _LOGGER.info("Extra table output: %s", args.output or "none")
-    _LOGGER.info("n range: %s..%s", config.min_n, config.max_n)
-    _LOGGER.info("Limit per group: %s", config.limit_per_group)
-    _LOGGER.info("Workers: %s", config.workers)
-    _LOGGER.info("Batch size: %s", config.batch_size)
+    _LOGGER.info("n range: %s..%s", config.figure.min_n, config.figure.max_n)
+    _LOGGER.info("Limit per group: %s", config.figure.limit_per_group)
+    _LOGGER.info("Workers: %s", config.execution.workers)
+    _LOGGER.info("Batch size: %s", config.execution.batch_size)
     try:
         result = extract_figure_artifacts(
             encoded_directory=encoded_directory,

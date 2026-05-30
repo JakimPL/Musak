@@ -60,25 +60,26 @@ def process_missing_batches(
         "Preparing figure n-gram batches: encoded_jsonl=%s completed_batches=%s batch_size=%s workers=%s",
         encoded_jsonl_path,
         len(completed_batches),
-        config.batch_size,
-        config.workers,
+        config.execution.batch_size,
+        config.execution.workers,
     )
     tasks = figure_batch_tasks(
         encoded_jsonl_path,
         tokenization_config=tokenization_config,
-        min_n=config.min_n,
-        max_n=config.max_n,
-        rhythm_min_n=config.rhythm_min_n,
-        rhythm_max_n=config.rhythm_max_n,
-        grid_alignment_denominators=config.grid_alignment_denominators,
-        strong_beat_offsets=config.strong_beat_offsets,
-        batch_size=config.batch_size,
+        min_n=config.figure.min_n,
+        max_n=config.figure.max_n,
+        rhythm_min_n=config.rhythm.min_n,
+        rhythm_max_n=config.rhythm.max_n,
+        grid_alignment_denominators=config.rhythm.grid_alignment_denominators,
+        strong_beat_offsets=config.rhythm.strong_beat_offsets,
+        register_arch_basis_count=config.register.arch_basis_count,
+        batch_size=config.execution.batch_size,
         completed_batches=completed_batches,
     )
     process_figure_batch_tasks(
         store,
         tasks,
-        workers=config.workers,
+        workers=config.execution.workers,
         show_progress=show_progress,
         progress_description="Counting figure n-gram batches",
     )
@@ -97,25 +98,26 @@ def process_missing_sample_batches(
     _LOGGER.info(
         "Preparing in-memory figure n-gram batches: completed_batches=%s batch_size=%s workers=%s",
         len(completed_batches),
-        config.batch_size,
-        config.workers,
+        config.execution.batch_size,
+        config.execution.workers,
     )
     tasks = figure_sample_batch_tasks(
         samples,
         tokenization_config=tokenization_config,
-        min_n=config.min_n,
-        max_n=config.max_n,
-        rhythm_min_n=config.rhythm_min_n,
-        rhythm_max_n=config.rhythm_max_n,
-        grid_alignment_denominators=config.grid_alignment_denominators,
-        strong_beat_offsets=config.strong_beat_offsets,
-        batch_size=config.batch_size,
+        min_n=config.figure.min_n,
+        max_n=config.figure.max_n,
+        rhythm_min_n=config.rhythm.min_n,
+        rhythm_max_n=config.rhythm.max_n,
+        grid_alignment_denominators=config.rhythm.grid_alignment_denominators,
+        strong_beat_offsets=config.rhythm.strong_beat_offsets,
+        register_arch_basis_count=config.register.arch_basis_count,
+        batch_size=config.execution.batch_size,
         completed_batches=completed_batches,
     )
     process_figure_batch_tasks(
         store,
         tasks,
-        workers=config.workers,
+        workers=config.execution.workers,
         show_progress=show_progress,
         progress_description=progress_description,
     )
@@ -174,7 +176,11 @@ def _process_missing_batches_in_parallel(
         _LOGGER.info("Completed %s figure n-gram batch(es)", completed_count)
 
 
-def _parallel_progress(description: str, *, enabled: bool) -> ProgressBar:
+def _parallel_progress(
+    description: str,
+    *,
+    enabled: bool,
+) -> ProgressBar:
     if not enabled:
         return NullProgressBar()
 

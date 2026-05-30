@@ -16,6 +16,11 @@ from musak_model.n_grams.profile.io import (
     N_COLUMN,
     SCALE_TYPE_COLUMN,
 )
+from musak_model.n_grams.profile.register.io import write_register_metadata, write_register_statistics
+from musak_model.n_grams.profile.register.schema import (
+    RegisterProfileMetadata,
+    register_artifact_paths_for_figure_root,
+)
 from musak_model.n_grams.profile.rhythm.io import build_rhythm_profile, write_rhythm_counts, write_rhythm_profile
 from musak_model.n_grams.profile.rhythm.schema import (
     RhythmCountCounter,
@@ -40,16 +45,16 @@ def export_figure_artifacts(
     config: NGramAnalysisConfig,
     limit_per_group: int | None,
 ) -> FigureStoreSummary:
-    profile = profile_from_store(store, min_n=config.min_n, max_n=config.max_n)
+    profile = profile_from_store(store, min_n=config.figure.min_n, max_n=config.figure.max_n)
     rhythm_counts = rhythm_counts_from_store(store)
     rhythm_paths = rhythm_artifact_paths_for_figure_root(artifact_paths.root_directory)
     rhythm_profile = build_rhythm_profile(
         rhythm_counts,
         metadata=RhythmProfileMetadata(
-            rhythm_min_n=config.rhythm_min_n,
-            rhythm_max_n=config.rhythm_max_n,
-            grid_alignment_denominators=config.grid_alignment_denominators,
-            strong_beat_offsets=config.strong_beat_offsets,
+            rhythm_min_n=config.rhythm.min_n,
+            rhythm_max_n=config.rhythm.max_n,
+            grid_alignment_denominators=config.rhythm.grid_alignment_denominators,
+            strong_beat_offsets=config.rhythm.strong_beat_offsets,
             sample_count=store.encoded_sample_count(),
         ),
     )
@@ -58,6 +63,15 @@ def export_figure_artifacts(
     export_base_durations(store, artifact_paths.base_durations_path)
     write_rhythm_counts(rhythm_counts, rhythm_paths.counts_path)
     write_rhythm_profile(rhythm_profile, rhythm_paths.profile_path)
+    register_paths = register_artifact_paths_for_figure_root(artifact_paths.root_directory)
+    write_register_statistics(store.tables.register_statistics(), register_paths.statistics_path)
+    write_register_metadata(
+        RegisterProfileMetadata(
+            arch_basis_count=config.register.arch_basis_count,
+            sample_count=store.encoded_sample_count(),
+        ),
+        register_paths.metadata_path,
+    )
     write_profile_atomically(profile, artifact_paths.profile_path)
     write_yaml_config(config.model_dump(mode="json"), artifact_paths.config_path)
     if output_path is not None:

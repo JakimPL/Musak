@@ -24,7 +24,7 @@ from musak_model.generation.constraints import (
 )
 from musak_model.model import HierarchicalAutoregressiveModel
 from musak_model.model.config import ModelConfig
-from musak_model.n_grams.config import NGramAnalysisConfig
+from musak_model.n_grams.config import FigureAnalysisConfig, RhythmAnalysisConfig
 from musak_model.n_grams.figure.counter import count_hand_figure_ngrams
 from musak_model.n_grams.figure.parser import extract_hand_onset_runs
 from musak_model.n_grams.figure.samples.schema import FigureNGramCountsByScale
@@ -554,14 +554,13 @@ def figure_reference_count_groups(
     segment: Segment,
     *,
     duration_vocabulary: DurationVocabulary,
-    analysis_config: NGramAnalysisConfig | None = None,
+    figure_config: FigureAnalysisConfig,
 ) -> frozenset[tuple[Hand, int]]:
-    resolved_config = analysis_config or NGramAnalysisConfig.load()
     generated_counts = _segment_figure_counts_by_scale(
         segment,
         duration_vocabulary=duration_vocabulary,
-        min_n=resolved_config.min_n,
-        max_n=resolved_config.max_n,
+        min_n=figure_config.min_n,
+        max_n=figure_config.max_n,
     )
     return frozenset(
         (hand, n)
@@ -577,14 +576,13 @@ def figure_reference_alignment_metric_rows(
     *,
     duration_vocabulary: DurationVocabulary,
     reference_counts: FigureNGramCountsByScale,
-    analysis_config: NGramAnalysisConfig | None = None,
+    figure_config: FigureAnalysisConfig,
 ) -> list[dict[str, object]]:
-    resolved_config = analysis_config or NGramAnalysisConfig.load()
     generated_counts = _segment_figure_counts_by_scale(
         segment,
         duration_vocabulary=duration_vocabulary,
-        min_n=resolved_config.min_n,
-        max_n=resolved_config.max_n,
+        min_n=figure_config.min_n,
+        max_n=figure_config.max_n,
     )
     compatible_reference_counts = _compatible_reference_counts(
         reference_counts=reference_counts,
@@ -594,7 +592,7 @@ def figure_reference_alignment_metric_rows(
         reference_counts=compatible_reference_counts,
         comparison_counts=generated_counts,
         metric_prefix=_REFERENCE_METRIC_PREFIX,
-        common_mass_threshold=resolved_config.figure_common_mass_threshold,
+        common_mass_threshold=figure_config.common_mass_threshold,
     )
     return [
         _figure_metric_row(
@@ -656,13 +654,12 @@ def rhythm_reference_alignment_metric_rows(
     *,
     duration_vocabulary: DurationVocabulary,
     reference_counts: RhythmCountCounter,
-    analysis_config: NGramAnalysisConfig | None = None,
+    rhythm_config: RhythmAnalysisConfig,
 ) -> list[dict[str, object]]:
-    resolved_config = analysis_config or NGramAnalysisConfig.load()
     generated_counts = _segment_rhythm_counts(
         segment,
         duration_vocabulary=duration_vocabulary,
-        analysis_config=resolved_config,
+        rhythm_config=rhythm_config,
     )
     metrics = rhythm_reference_distribution_metrics(
         reference_counts=_compatible_rhythm_reference_counts(
@@ -720,14 +717,13 @@ def rhythm_grid_metric_rows(
     segment: Segment,
     *,
     duration_vocabulary: DurationVocabulary,
-    analysis_config: NGramAnalysisConfig | None = None,
+    rhythm_config: RhythmAnalysisConfig,
 ) -> list[dict[str, object]]:
-    resolved_config = analysis_config or NGramAnalysisConfig.load()
-    grid_denominator = max(resolved_config.grid_alignment_denominators)
+    grid_denominator = max(rhythm_config.grid_alignment_denominators)
     rhythm_counts = _segment_rhythm_counts(
         segment,
         duration_vocabulary=duration_vocabulary,
-        analysis_config=resolved_config,
+        rhythm_config=rhythm_config,
     )
     onset_grid_count = _rhythm_count(
         rhythm_counts,
@@ -839,15 +835,15 @@ def _segment_rhythm_counts(
     segment: Segment,
     *,
     duration_vocabulary: DurationVocabulary,
-    analysis_config: NGramAnalysisConfig,
+    rhythm_config: RhythmAnalysisConfig,
 ) -> RhythmCountCounter:
     return count_segment_rhythm_metrics(
         segment,
         duration_vocabulary=duration_vocabulary,
-        rhythm_min_n=analysis_config.rhythm_min_n,
-        rhythm_max_n=analysis_config.rhythm_max_n,
-        grid_alignment_denominators=analysis_config.grid_alignment_denominators,
-        strong_beat_offsets=analysis_config.strong_beat_offsets,
+        rhythm_min_n=rhythm_config.min_n,
+        rhythm_max_n=rhythm_config.max_n,
+        grid_alignment_denominators=rhythm_config.grid_alignment_denominators,
+        strong_beat_offsets=rhythm_config.strong_beat_offsets,
     )
 
 

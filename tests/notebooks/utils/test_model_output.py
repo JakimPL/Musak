@@ -9,7 +9,13 @@ import torch.nn as nn
 from torch import Tensor
 
 from musak_model.data.schema import Segment, SegmentMetadata
-from musak_model.n_grams.config import NGramAnalysisConfig
+from musak_model.n_grams.config import (
+    ExecutionConfig,
+    FigureAnalysisConfig,
+    NGramAnalysisConfig,
+    RegisterAnalysisConfig,
+    RhythmAnalysisConfig,
+)
 from musak_model.n_grams.figure.schema import FigureNGram
 from musak_model.n_grams.profile.rhythm.schema import RhythmCountKey
 from musak_model.tokens.duration import DurationVocabulary
@@ -282,7 +288,7 @@ def test_figure_reference_alignment_metric_rows_compare_alignment_and_novelty(
         segment,
         duration_vocabulary=duration_vocabulary,
         reference_counts=reference_counts,
-        analysis_config=_analysis_config(),
+        figure_config=_analysis_config().figure,
     )
 
     assert _row_value(rows, "reference groups compared") == 2
@@ -318,7 +324,7 @@ def test_rhythm_grid_metric_rows_describe_grid_alignment(
     rows = rhythm_grid_metric_rows(
         segment,
         duration_vocabulary=duration_vocabulary,
-        analysis_config=_analysis_config(),
+        rhythm_config=_analysis_config().rhythm,
     )
 
     assert _row_value(rows, "rhythmic onsets") == 2
@@ -364,7 +370,7 @@ def test_rhythm_reference_alignment_metric_rows_compare_reference_distributions(
         segment,
         duration_vocabulary=duration_vocabulary,
         reference_counts=reference_counts,
-        analysis_config=_analysis_config(),
+        rhythm_config=_analysis_config().rhythm,
     )
 
     assert _row_value(rows, "duration-value distance") == "0.000"
@@ -375,16 +381,12 @@ def test_rhythm_reference_alignment_metric_rows_compare_reference_distributions(
 
 def _analysis_config() -> NGramAnalysisConfig:
     return NGramAnalysisConfig(
-        min_n=2,
-        max_n=4,
-        limit_per_group=None,
-        workers=1,
-        batch_size=1,
-        figure_common_mass_threshold=0.8,
-        rhythm_min_n=2,
-        rhythm_max_n=4,
-        grid_alignment_denominators=(1, 2, 4, 8, 16),
-        strong_beat_offsets=(Fraction(0),),
+        figure=FigureAnalysisConfig(min_n=2, max_n=4, limit_per_group=None, common_mass_threshold=0.8),
+        rhythm=RhythmAnalysisConfig(
+            min_n=2, max_n=4, grid_alignment_denominators=(1, 2, 4, 8, 16), strong_beat_offsets=(Fraction(0),)
+        ),
+        register=RegisterAnalysisConfig(arch_basis_count=3),
+        execution=ExecutionConfig(workers=1, batch_size=1),
     )
 
 
