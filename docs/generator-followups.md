@@ -18,15 +18,18 @@ structural pass closed gaps 2 (sync coupling) and 9 (sub-bar harmonic rhythm) (a
 A musical pass then closed #4 (metrical harmonic conditioning) and #8 (texture mode), and landed the
 **functional-harmony interim** of #11 (a hand-authored functional diatonic chord prior, now the generation
 default) plus the Stage 0 musical-evaluation metrics (`musical_metrics`, wired into `GenerationSuiteEvaluator`
-→ MLflow). A fitting pass then closed #10: per-`(scale_type, hand)` register keying + the moment-matching
-machinery (`synthetic/fitting/`) that fits register overrides from the corpus and loads them into generation
-via a `FittedGeneratorConfig` artifact. Accent got the same keying + a fitter.
+→ MLflow). A fitting pass then closed #10 (register) and the accent half of #11: both are now fit from
+**persisted corpus sufficient statistics** (computed once in the figure-profile corpus pass, not recomputed
+on the fly) and loaded into generation as per-`(scale_type, hand)` overrides via a `FittedGeneratorConfig`
+artifact. The loop is wired end-to-end: `scripts/fit_generator.py` (`make fit-generator`) reads the persisted
+statistics, writes `fitted_generator.json` next to the figure vocabulary (`all/`), and generation loads it
+(the notebook surfaces the fit status).
 
-**Still open:** #7 (figure-length distribution); the accent **extractor** of #11 (its strong/weak slot
-denominator, see #11); and the empirical chord loop of #11 (corpus-fit chord transitions +
-$p(\text{figure} \mid C)$) — plus the greedy-fill note at the end. Two items are **deferred by design**: the
-calibration↔harmony/texture coupling (needs a proper mathematical model) and figure-to-figure continuity
-(novel approach).
+**Still open:** #7 (figure-length distribution) and the **empirical chord loop** of #11 (corpus-fit chord
+transitions + $p(\text{figure} \mid C)$) — plus the greedy-fill note at the end. Three items are **deferred by
+design**: the calibration↔harmony/texture coupling (needs a proper mathematical model), figure-to-figure
+continuity (novel approach), and **envelope fitting** (the accent envelope's amplitude/decay need a bar-to-bar
+occupancy variance/autocorrelation statistic not currently stored; see #11).
 
 ---
 
@@ -183,16 +186,27 @@ prescribes (a whole-note window plus a tail) — more than one window per bar, b
 shared `RegisterCurveConfig`.
 
 **Resolution.** `RegisterCurveSampler` now holds `config` (default) + `overrides: tuple[RegisterCurveOverride,
-...]` and selects per `(scale_type, hand)` (default fallback). The moment-matching machinery lives in
-`synthetic/fitting/register.py`: `register_moments` extracts per-hand onset-register sequences and partitions
-each into a slow trend and a fast residual using the **same mid-cell DCT basis the arch uses**, so the split
-is consistent-by-construction (no arch/OU variance double-counting); `fit_register_config` maps the moments
-to a config (`θ = 1−ρ`, `σ = std·√(2θ−θ²)`, arch amplitude from `band_limited_random`'s closed-form
-variance). Fitted overrides persist in a `FittedGeneratorConfig` artifact and load into the **generation**
-path (`load_synthetic_inputs` → `build_segment_generator`); the calibration sweep stays on the default
-(neutral), per the deferred coupling. Same `config + overrides` keying now exists for the accent field.
+...]` and selects per `(scale_type, hand)` (default fallback). The moments are **fit from persisted corpus
+sufficient statistics, not by walking segments at fit time**: the figure-profile corpus pass accumulates
+per-`(scale_type, hand)` running sums (`n_grams/profile/register/` — Σtrend², Σresidual², Σresidual·lag, n),
+partitioning each onset-register sequence into a slow trend and a fast residual with the **same mid-cell DCT
+basis the arch uses** (consistent-by-construction; no arch/OU variance double-counting). At fit time
+`synthetic/fitting/register.py:register_moments_from_statistics` reduces the sums to moments and
+`fit_register_config` maps them to a config (`θ = 1−ρ`, `σ = std·√(2θ−θ²)`, arch amplitude from
+`band_limited_random`'s closed-form variance). Fitted overrides persist in a `FittedGeneratorConfig` artifact
+and load into the **generation** path (`load_synthetic_inputs` → `build_segment_generator`); the calibration
+sweep stays on the default (neutral), per the deferred coupling. Same `config + overrides` keying exists for
+the accent field (#11).
 
-## 11. Process parameters are hand-set; the decode→generate fitting loop is open — `D5`
+*Design-vs-code refinement:* `generator.md` §3/§9 describes the register fit as a Welch-averaged PSD of
+length-normalised trajectories; the implementation realises the same intent (moment-match arch + OU per
+`(scale_type, hand)`) via the **mid-cell DCT trend/residual partition**, which is consistent-by-construction
+with the arch sampler.
+
+## 11. The empirical chord decode→generate loop is open — `D5`
+
+Register and accent moment-matching are now closed and DB-backed (see "Moment-matching done" below); the
+remaining open piece of `D5` is the empirical chord loop.
 
 **Design (§5.1, §9).** The chord transition matrix and the chord-conditioned figure distribution
 $p(\text{figure} \mid C)$ that drives the harmonic-fit score are fit by Viterbi-decoding the training
@@ -206,16 +220,23 @@ uniform-random chord walk that was the dominant cause of incoherent harmony, *wi
 Calibration stays on `uniform_transition_model` (deferred coupling). `ViterbiChordDecoder` is still
 unconsumed, and `harm_fit` still uses the chord pitch-class set, not $p(\text{figure} \mid C)$.
 
-**Moment-matching done (register; accent partial).** Register fitting is complete and connected (see #10).
-Accent has the same `config + overrides` keying (`processes/accent.py`) and a fitter
-(`synthetic/fitting/accent.py`: `baseline_logit = logit(weak)`, `metric_gain = logit(strong) − logit(weak)`)
-that reproduces the strong/weak onset rates through `expit`. The accent **extractor is still open**: the
-rhythm profile stores strong/weak onset *counts* (a ratio), not the per-cell *slot* occupancy the accent
-baseline/gain fit needs (the density denominator). Either derive slot counts from the rhythm metadata's
-`strong_beat_offsets` + grid, or fit `metric_gain` only from the strong/weak ratio (keeping `baseline_logit`
-hand-set) — to be decided.
+**Moment-matching done (register + accent), DB-backed.** Both global processes are now fit from persisted
+corpus sufficient statistics (no on-the-fly recomputation). Register: see #10. Accent: the `config + overrides`
+keying (`processes/accent.py`) is fed by a **per-within-bar onset-occupancy profile** stored during the
+corpus pass as two rhythm kinds — `onset_position` (binary occupancy per bar×cell, per grid denominator) and
+`bar_total` (the per-`(scale, time_signature, hand)` bar count). This closes the old "denominator gap":
+`bar_total` *is* the slot denominator the strong/weak counts lacked. `synthetic/fitting/accent.py` pools the
+occupancy by metrical **indispensability** (`gcd(k,M)/M`) across time signatures and fits a **3-parameter
+weighted regression** of `logit(occupancy_rate)` on `indispensability^exponent` → `baseline_logit`,
+`metric_gain`, and a **fitted `metric_exponent`** (searched over a small candidate set). The accent
+**envelope** parameters remain pass-through (fitting deferred — see the deferred list).
 
-**Remaining (the empirical chord loop — largest item, several PRs).**
+*Design-vs-code refinement:* `generator.md` §9 describes the accent fit as fitting baseline/gain/exponent to
+"the measured strong/weak onset ratio and overall density"; the implementation uses the richer **per-position
+occupancy profile** instead (the strong/weak ratio is a two-bucket special case of it), which is what makes
+the exponent identifiable.
+
+**Remaining #11 — the empirical chord loop only (largest item, several PRs).**
 - Add a fitting pass that runs the decoder over the corpus, accumulates the empirical chord transition
   matrix and figure-by-chord co-occurrence counts, and persists them (extend `FittedGeneratorConfig`).
 - Build the empirical `ChordTransitionModel` (with the functional prior as its smoothing prior); select it

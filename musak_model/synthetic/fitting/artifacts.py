@@ -5,6 +5,7 @@ from typing import Final
 
 from pydantic import BaseModel, ConfigDict
 
+from musak_model.n_grams.profile.artifacts import FIGURE_ALL_DIR_NAME, FIGURE_DIR_NAME
 from musak_model.synthetic.processes.accent import AccentFieldOverride
 from musak_model.synthetic.processes.pitch import RegisterCurveOverride
 
@@ -24,3 +25,16 @@ class FittedGeneratorConfig(BaseModel):
     def write(self, path: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(self.model_dump_json(indent=2), encoding="utf-8")
+
+
+def resolve_fitted_generator_config_path(path: Path) -> Path | None:
+    candidates = (
+        path / FITTED_GENERATOR_CONFIG_NAME,
+        path / FIGURE_ALL_DIR_NAME / FITTED_GENERATOR_CONFIG_NAME,
+        path / FIGURE_DIR_NAME / FIGURE_ALL_DIR_NAME / FITTED_GENERATOR_CONFIG_NAME,
+    )
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate
+
+    return None

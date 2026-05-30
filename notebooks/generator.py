@@ -100,10 +100,17 @@ def _(figure_directory_browser, load_synthetic_inputs, mo, selected_directory):
                     kind="warn",
                 )
             else:
+                fitted = synthetic_inputs.fitted
+                fit_summary = (
+                    f"{len(fitted.register_overrides)} register + {len(fitted.accent_overrides)} accent overrides"
+                    if fitted.register_overrides or fitted.accent_overrides
+                    else "default parameters (no fitted_generator.json applied)"
+                )
                 figure_status = mo.callout(
                     f"Loaded `{directory_selection.path}`: "
                     f"{synthetic_inputs.figure_vocabulary.unique_count} figures, "
-                    f"{synthetic_inputs.figure_vocabulary.total_count} occurrences.",
+                    f"{synthetic_inputs.figure_vocabulary.total_count} occurrences. "
+                    f"Fit: {fit_summary}.",
                     kind="success",
                 )
 

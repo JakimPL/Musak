@@ -19,6 +19,11 @@ ANALYSIS_ENCODED_DIRECTORY ?=
 ANALYSIS_NO_PROGRESS ?=
 ANALYSIS_OVERWRITE ?= $(OVERWRITE)
 ANALYSIS_RESUME ?= $(RESUME)
+FIT_GRID_DENOMINATOR ?= 4
+FIT_FIGURE_DIRECTORY ?=
+FIT_ENCODED_DIRECTORY ?= $(ANALYSIS_ENCODED_DIRECTORY)
+FIT_REGISTER_CONFIG ?=
+FIT_ACCENT_CONFIG ?=
 APP_HOST ?= 127.0.0.1
 APP_PORT ?= 8000
 ARTIFACTS_DIR ?= artifacts
@@ -30,7 +35,7 @@ NOTEBOOK_NAMES := $(subst _,-,$(basename $(notdir $(NOTEBOOK_FILES))))
 NOTEBOOK_TARGETS := $(addprefix notebook-,$(NOTEBOOK_NAMES))
 NOTEBOOK_MODE ?= edit
 
-.PHONY: help install test app parse tokenize process analyze-n-grams train pretrain finetune mlflow FORCE
+.PHONY: help install test app parse tokenize process analyze-n-grams fit-generator train pretrain finetune mlflow FORCE
 
 PRETRAIN_DATA_DIR ?= $(DATA_DIR)
 PRETRAIN_EPOCHS ?= $(EPOCHS)
@@ -63,6 +68,7 @@ help:
 	@printf '%s\n' '  make tokenize         Encode parsed artifacts into tokenized dataset artifacts.'
 	@printf '%s\n' '  make process          Run parse, tokenize, then figure analysis for one MusicXML dataset.'
 	@printf '%s\n' '  make analyze-n-grams  Extract figure n-gram counts from encoded dataset artifacts.'
+	@printf '%s\n' '  make fit-generator    Fit register/accent generator overrides from corpus figure statistics.'
 	@printf '%s\n' '  make pretrain         Train the broad token-distribution pretrain model.'
 	@printf '%s\n' '  make finetune         Fine-tune from a pretrain checkpoint with conditioning controls.'
 	@printf '%s\n' '  make train            Run pretrain, then finetune.'
@@ -76,6 +82,7 @@ help:
 	@printf '%s\n' '  APP_PORT=8080 make app'
 	@printf '%s\n' '  DATA_DIR=data/pretraining-dataset make process'
 	@printf '%s\n' '  DATA_DIR=data/pretraining-dataset make analyze-n-grams'
+	@printf '%s\n' '  DATA_DIR=data/pretraining-dataset FIT_GRID_DENOMINATOR=4 make fit-generator'
 	@printf '%s\n' '  DATA_DIR=data/finetuning-dataset PROCESS_WHOLE_FILE_SEGMENTS=1 PROCESS_DIFFICULTY_LABELS=data/finetuning-difficulty.json PROCESS_OVERWRITE=1 make process'
 	@printf '%s\n' '  PRETRAIN_DATA_DIR=data/pretraining-dataset PRETRAIN_EPOCHS=25 PRETRAIN_DEVICE=cuda make pretrain'
 	@printf '%s\n' '  FINETUNE_DATA_DIR=data/finetuning-dataset FINETUNE_DIFFICULTY_LABELS=data/finetuning-difficulty.json FINETUNE_EPOCHS=8 make finetune'
@@ -101,6 +108,10 @@ help:
 	@printf '%s\n' '  ANALYSIS_NO_PROGRESS=1 disables figure n-gram progress bars.'
 	@printf '%s\n' '  ANALYSIS_OVERWRITE=1 restarts figure analysis. Defaults to OVERWRITE when set.'
 	@printf '%s\n' '  ANALYSIS_RESUME=1 passes --resume to standalone figure analysis. Partial compatible work resumes automatically.'
+	@printf '%s\n' '  FIT_GRID_DENOMINATOR  Onset-position grid the accent fit pools at; align with the generation grid. Default: 4'
+	@printf '%s\n' '  FIT_FIGURE_DIRECTORY  Figure artifact root override (e.g. a figure-splits dir). Defaults to the DATA_DIR figure profile.'
+	@printf '%s\n' '  FIT_ENCODED_DIRECTORY Encoded run directory override when multiple tokenizer runs exist.'
+	@printf '%s\n' '  FIT_REGISTER_CONFIG, FIT_ACCENT_CONFIG optional generator config YAML overrides for fit defaults.'
 	@printf '%s\n' '  PROFILE=1 or PROCESS_PROFILE=1 passes --profile to process.'
 	@printf '%s\n' '  ARTIFACTS_DIR         Generated artifact root. Default: artifacts'
 	@printf '%s\n' '  MLFLOW_DB             MLflow SQLite tracking database. Default: artifacts/mlflow/mlflow.db'
@@ -151,6 +162,10 @@ process:
 analyze-n-grams:
 	$(call require_var,DATA_DIR)
 	$(call analyze_n_grams_command)
+
+fit-generator:
+	$(if $(or $(DATA_DIR),$(FIT_FIGURE_DIRECTORY)),,$(error DATA_DIR or FIT_FIGURE_DIRECTORY is required))
+	$(call fit_generator_command)
 
 train:
 	$(MAKE) pretrain
@@ -233,6 +248,16 @@ define analyze_n_grams_command
 		$(call optional_flag,ANALYSIS_NO_PROGRESS,--no-progress) \
 		$(call optional_non_resume_flag,ANALYSIS_OVERWRITE,--overwrite) \
 		$(call optional_flag,ANALYSIS_RESUME,--resume)
+endef
+
+define fit_generator_command
+	uv run python scripts/fit_generator.py \
+		$(call optional_arg,DATA_DIR,--data-dir) \
+		$(call optional_arg,FIT_ENCODED_DIRECTORY,--encoded-directory) \
+		$(call optional_arg,FIT_FIGURE_DIRECTORY,--figure-directory) \
+		--grid-denominator "$(FIT_GRID_DENOMINATOR)" \
+		$(call optional_arg,FIT_REGISTER_CONFIG,--register-config) \
+		$(call optional_arg,FIT_ACCENT_CONFIG,--accent-config)
 endef
 
 define process_dataset_command
