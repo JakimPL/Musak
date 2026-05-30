@@ -4,7 +4,7 @@ import pytest
 from numpy.random import default_rng
 from pydantic import ValidationError
 
-from musak_model.synthetic.processes.pitch import RegisterCurveConfig, RegisterCurveSampler
+from musak_model.synthetic.processes.pitch import RegisterCurveConfig, RegisterCurveOverride, RegisterCurveSampler
 from musak_model.tokens.schema import Hand, ScaleType
 
 
@@ -58,6 +58,22 @@ def test_ou_only_trajectory_is_anchored_near_zero_on_average() -> None:
     means = [fmean(sampler.sample(length=64, scale_type=ScaleType.MAJOR, hand=Hand.RIGHT, rng=rng)) for _ in range(40)]
 
     assert abs(fmean(means)) < 1.0
+
+
+def test_override_applies_only_to_its_scale_and_hand() -> None:
+    loud = _config(arch_amplitude=10.0, ou_sigma=0.0)
+    sampler = RegisterCurveSampler(
+        config=_config(arch_amplitude=0.0, ou_sigma=0.0),
+        overrides=(RegisterCurveOverride(scale_type=ScaleType.MAJOR, hand=Hand.RIGHT, config=loud),),
+    )
+
+    right = sampler.sample(length=32, scale_type=ScaleType.MAJOR, hand=Hand.RIGHT, rng=default_rng(0))
+    left = sampler.sample(length=32, scale_type=ScaleType.MAJOR, hand=Hand.LEFT, rng=default_rng(0))
+    other_scale = sampler.sample(length=32, scale_type=ScaleType.HARMONIC_MINOR, hand=Hand.RIGHT, rng=default_rng(0))
+
+    assert any(value != 0 for value in right)
+    assert left == (0,) * 32
+    assert other_scale == (0,) * 32
 
 
 def test_sample_rejects_non_positive_length() -> None:

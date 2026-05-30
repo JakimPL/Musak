@@ -29,9 +29,18 @@ class RegisterCurveConfig(BaseModel):
         return cls.model_validate(load_yaml_config(path))
 
 
+class RegisterCurveOverride(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    scale_type: ScaleType
+    hand: Hand
+    config: RegisterCurveConfig
+
+
 @dataclass(frozen=True)
 class RegisterCurveSampler:
     config: RegisterCurveConfig
+    overrides: tuple[RegisterCurveOverride, ...] = ()
 
     def sample(
         self,
@@ -44,38 +53,35 @@ class RegisterCurveSampler:
         if length <= 0:
             raise ValueError("length must be positive")
 
-        # The hand's home register (mu_i = o_i * scale_size) is applied at token-to-MIDI conversion by
-        # `note_token_to_midi_pitch` (octave_offset is home-relative), so the curve itself centres on 0.
-        _ = scale_type, hand
-        arch = self._arch_trajectory(length=length, rng=rng)
-        residual = self._residual_trajectory(length=length, rng=rng)
+        config = self._config_for(scale_type, hand)
+        arch = self._arch_trajectory(config, length=length, rng=rng)
+        residual = self._residual_trajectory(config, length=length, rng=rng)
         return tuple(np.rint(arch + residual).astype(int).tolist())
 
-    def _arch_trajectory(
-        self,
-        *,
-        length: int,
-        rng: Generator,
-    ) -> NDArray[np.float64]:
+    def _config_for(self, scale_type: ScaleType, hand: Hand) -> RegisterCurveConfig:
+        for override in self.overrides:
+            if override.scale_type == scale_type and override.hand == hand:
+                return override.config
+
+        return self.config
+
+    @staticmethod
+    def _arch_trajectory(config: RegisterCurveConfig, *, length: int, rng: Generator) -> NDArray[np.float64]:
         return band_limited_random(
             length=length,
-            basis_count=self.config.arch_basis_count,
-            amplitude=self.config.arch_amplitude,
-            decay=self.config.arch_decay,
+            basis_count=config.arch_basis_count,
+            amplitude=config.arch_amplitude,
+            decay=config.arch_decay,
             rng=rng,
         )
 
-    def _residual_trajectory(
-        self,
-        *,
-        length: int,
-        rng: Generator,
-    ) -> NDArray[np.float64]:
+    @staticmethod
+    def _residual_trajectory(config: RegisterCurveConfig, *, length: int, rng: Generator) -> NDArray[np.float64]:
         residuals = np.zeros(length, dtype=np.float64)
         if length <= 1:
             return residuals
 
-        innovations = rng.normal(loc=0.0, scale=self.config.ou_sigma, size=length - 1)
-        pole = 1.0 - self.config.ou_theta
+        innovations = rng.normal(loc=0.0, scale=config.ou_sigma, size=length - 1)
+        pole = 1.0 - config.ou_theta
         residuals[1:] = lfilter([1.0], [1.0, -pole], innovations)
         return residuals
