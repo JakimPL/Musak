@@ -15,7 +15,7 @@ from musak_model.synthetic.figures import FigureVocabulary, load_figure_vocabula
 from musak_model.synthetic.harmony.decoding.candidates import spellable_candidates
 from musak_model.synthetic.harmony.vocabulary import ChordVocabularyConfig
 from musak_model.synthetic.processes.accent import AccentFieldConfig, AccentFieldSampler
-from musak_model.synthetic.processes.chord_track import ChordTrackSampler, uniform_transition_model
+from musak_model.synthetic.processes.chord_track import ChordTrackSampler, functional_transition_model
 from musak_model.synthetic.processes.hand_coupling import HandCouplingConfig, HandCouplingSampler
 from musak_model.synthetic.processes.pitch import RegisterCurveConfig, RegisterCurveSampler
 from musak_model.synthetic.substitution import GenerationTrace, SegmentGenerator, SubstitutionConfig
@@ -54,6 +54,7 @@ class SyntheticGenerationRequest:
     seed: int
     min_n: int
     max_n: int
+    monophonic: bool
     lambda_curve: float
     lambda_harm: float
     lambda_accent: float
@@ -75,6 +76,7 @@ class SyntheticGenerationRequest:
     activity_left: float
     sync_strength: float
     self_transition_bias: float
+    functional_strength: float
     use_constraints: bool
     minimum_duration: str
     allow_dotted: bool
@@ -112,6 +114,7 @@ def generate_synthetic_segment(
             lambda_accent=request.lambda_accent,
             commonness_bias=request.commonness_bias,
             max_resample_retries=request.max_resample_retries,
+            monophonic=request.monophonic,
         ),
         register_curve_sampler=RegisterCurveSampler(
             config=RegisterCurveConfig(
@@ -141,7 +144,12 @@ def generate_synthetic_segment(
             )
         ),
         chord_track_sampler=ChordTrackSampler(
-            model=uniform_transition_model(chords, self_transition_bias=request.self_transition_bias)
+            model=functional_transition_model(
+                chords,
+                scale_type=scale_type,
+                strength=request.functional_strength,
+                self_transition_bias=request.self_transition_bias,
+            )
         ),
         chord_vocabulary=chord_vocabulary,
         figure_vocabulary=inputs.figure_vocabulary,

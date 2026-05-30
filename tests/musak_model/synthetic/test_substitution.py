@@ -1,4 +1,5 @@
 from collections import Counter
+from dataclasses import replace
 from fractions import Fraction
 from pathlib import Path
 
@@ -37,7 +38,16 @@ from musak_model.synthetic.substitution import (
     slope_fit,
 )
 from musak_model.tokens.duration import DurationVocabulary
-from musak_model.tokens.schema import BarToken, Hand, HandToken, NoteToken, RestToken, ScaleType, Token
+from musak_model.tokens.schema import (
+    BarToken,
+    Hand,
+    HandToken,
+    JoinWithPreviousToken,
+    NoteToken,
+    RestToken,
+    ScaleType,
+    Token,
+)
 
 
 def _figure(positions: list[int], *, durations: list[Fraction] | None = None) -> FigureNGram:
@@ -142,13 +152,45 @@ def test_slope_fit_rewards_matching_net_contour() -> None:
 def test_harm_fit_counts_chord_tone_fraction() -> None:
     chord_pcs = frozenset({0, 4, 7})
 
-    all_chord_tones = _figure([0, 2])
-    none_chord_tones = _figure([1, 5])
-    mixed = _figure([0, 1])
+    assert _harm_fit(_figure([0, 2]), chord_pcs) == 1.0
+    assert _harm_fit(_figure([1, 5]), chord_pcs) == 0.0
+    assert _harm_fit(_figure([0, 1]), chord_pcs) == 0.5
 
-    assert harm_fit(figure=all_chord_tones, anchor=0, scale_type=ScaleType.MAJOR, chord_pitch_classes=chord_pcs) == 1.0
-    assert harm_fit(figure=none_chord_tones, anchor=0, scale_type=ScaleType.MAJOR, chord_pitch_classes=chord_pcs) == 0.0
-    assert harm_fit(figure=mixed, anchor=0, scale_type=ScaleType.MAJOR, chord_pitch_classes=chord_pcs) == 0.5
+
+def test_harm_fit_weights_chord_tones_by_metrical_position() -> None:
+    chord_pcs = frozenset({0, 4, 7})
+    chord_tone_on_strong = _figure([0, 1])  # chord tone on the downbeat, non-chord tone on the weak cell
+    chord_tone_on_weak = _figure([1, 0])  # non-chord tone on the downbeat, chord tone on the weak cell
+
+    strong = harm_fit(
+        figure=chord_tone_on_strong,
+        anchor=0,
+        scale_type=ScaleType.MAJOR,
+        chord_pitch_classes=chord_pcs,
+        metrical_position=0,
+        grid_count_per_bar=4,
+    )
+    weak = harm_fit(
+        figure=chord_tone_on_weak,
+        anchor=0,
+        scale_type=ScaleType.MAJOR,
+        chord_pitch_classes=chord_pcs,
+        metrical_position=0,
+        grid_count_per_bar=4,
+    )
+
+    assert strong > weak
+
+
+def _harm_fit(figure: FigureNGram, chord_pitch_classes: frozenset[int]) -> float:
+    return harm_fit(
+        figure=figure,
+        anchor=0,
+        scale_type=ScaleType.MAJOR,
+        chord_pitch_classes=chord_pitch_classes,
+        metrical_position=0,
+        grid_count_per_bar=1,
+    )
 
 
 def test_accent_fit_scales_with_envelope_value() -> None:
@@ -245,7 +287,12 @@ def test_sample_substituted_figure_is_deterministic_for_a_given_seed() -> None:
         figure_length=2,
     )
     config = SubstitutionConfig(
-        lambda_curve=1.0, lambda_harm=1.0, lambda_accent=0.0, commonness_bias=1.0, max_resample_retries=4
+        lambda_curve=1.0,
+        lambda_harm=1.0,
+        lambda_accent=0.0,
+        commonness_bias=1.0,
+        max_resample_retries=4,
+        monophonic=False,
     )
 
     first = sample_substituted_figure(
@@ -255,6 +302,8 @@ def test_sample_substituted_figure_is_deterministic_for_a_given_seed() -> None:
         scale_type=ScaleType.MAJOR,
         chord_pitch_classes=frozenset({0, 4, 7}),
         envelope_value=0.0,
+        metrical_position=0,
+        grid_count_per_bar=1,
         config=config,
         rng=default_rng(11),
     )
@@ -265,6 +314,8 @@ def test_sample_substituted_figure_is_deterministic_for_a_given_seed() -> None:
         scale_type=ScaleType.MAJOR,
         chord_pitch_classes=frozenset({0, 4, 7}),
         envelope_value=0.0,
+        metrical_position=0,
+        grid_count_per_bar=1,
         config=config,
         rng=default_rng(11),
     )
@@ -282,7 +333,12 @@ def test_high_lambda_curve_selects_the_slope_matching_figure() -> None:
         figure_length=2,
     )
     config = SubstitutionConfig(
-        lambda_curve=50.0, lambda_harm=0.0, lambda_accent=0.0, commonness_bias=0.0, max_resample_retries=4
+        lambda_curve=50.0,
+        lambda_harm=0.0,
+        lambda_accent=0.0,
+        commonness_bias=0.0,
+        max_resample_retries=4,
+        monophonic=False,
     )
 
     chosen = sample_substituted_figure(
@@ -292,6 +348,8 @@ def test_high_lambda_curve_selects_the_slope_matching_figure() -> None:
         scale_type=ScaleType.MAJOR,
         chord_pitch_classes=frozenset({0, 4, 7}),
         envelope_value=0.0,
+        metrical_position=0,
+        grid_count_per_bar=1,
         config=config,
         rng=default_rng(0),
     )
@@ -305,7 +363,12 @@ def test_high_lambda_accent_selects_front_loaded_figure_under_high_envelope() ->
     vocabulary = _major_vocabulary({Hand.RIGHT: {2: [uniform, front_loaded]}})
     entries = vocabulary.filter(scale_type=ScaleType.MAJOR, hand=Hand.RIGHT, n=2).entries
     config = SubstitutionConfig(
-        lambda_curve=0.0, lambda_harm=0.0, lambda_accent=50.0, commonness_bias=0.0, max_resample_retries=4
+        lambda_curve=0.0,
+        lambda_harm=0.0,
+        lambda_accent=50.0,
+        commonness_bias=0.0,
+        max_resample_retries=4,
+        monophonic=False,
     )
 
     chosen = sample_substituted_figure(
@@ -315,6 +378,8 @@ def test_high_lambda_accent_selects_front_loaded_figure_under_high_envelope() ->
         scale_type=ScaleType.MAJOR,
         chord_pitch_classes=frozenset({0, 4, 7}),
         envelope_value=1.0,
+        metrical_position=0,
+        grid_count_per_bar=1,
         config=config,
         rng=default_rng(0),
     )
@@ -345,7 +410,12 @@ def test_segment_generator_produces_constraint_valid_segment(
     )
     generator = SegmentGenerator(
         substitution_config=SubstitutionConfig(
-            lambda_curve=0.0, lambda_harm=0.0, lambda_accent=0.0, commonness_bias=1.0, max_resample_retries=4
+            lambda_curve=0.0,
+            lambda_harm=0.0,
+            lambda_accent=0.0,
+            commonness_bias=1.0,
+            max_resample_retries=4,
+            monophonic=False,
         ),
         register_curve_sampler=register_curve_sampler,
         accent_field_sampler=_flat_accent_field_sampler(),
@@ -398,7 +468,12 @@ def test_sub_bar_chord_resolution_conditions_each_half_bar(
     dominant_note = _figure([1])
     generator = SegmentGenerator(
         substitution_config=SubstitutionConfig(
-            lambda_curve=0.0, lambda_harm=50.0, lambda_accent=0.0, commonness_bias=0.0, max_resample_retries=4
+            lambda_curve=0.0,
+            lambda_harm=50.0,
+            lambda_accent=0.0,
+            commonness_bias=0.0,
+            max_resample_retries=4,
+            monophonic=False,
         ),
         register_curve_sampler=RegisterCurveSampler(
             config=RegisterCurveConfig(
@@ -437,6 +512,65 @@ def test_sub_bar_chord_resolution_conditions_each_half_bar(
     assert [note.degree for note in right_notes] == [1, 2]
 
 
+def test_monophonic_config_excludes_chord_figures(duration_vocabulary: DurationVocabulary) -> None:
+    chord_figure = FigureNGram(onsets=((((0, 0), (2, 0)), Fraction(1)),))
+    generator = SegmentGenerator(
+        substitution_config=SubstitutionConfig(
+            lambda_curve=0.0,
+            lambda_harm=0.0,
+            lambda_accent=0.0,
+            commonness_bias=1.0,
+            max_resample_retries=8,
+            monophonic=False,
+        ),
+        register_curve_sampler=RegisterCurveSampler(
+            config=RegisterCurveConfig(
+                arch_basis_count=3, arch_amplitude=0.0, arch_decay=1.0, ou_theta=0.5, ou_sigma=0.0
+            )
+        ),
+        accent_field_sampler=_always_onset_accent_field_sampler(),
+        hand_coupling_sampler=HandCouplingSampler(
+            config=HandCouplingConfig(
+                co_activity_strength=0.5, activity_right=1.0, activity_left=0.0, sync_strength=0.0
+            )
+        ),
+        chord_track_sampler=ChordTrackSampler(
+            model=uniform_transition_model((Chord(root_degree=1, root_accidental=0, quality=ChordQuality.MAJOR),))
+        ),
+        chord_vocabulary=ChordVocabularyConfig.load(),
+        figure_vocabulary=_major_vocabulary({Hand.RIGHT: {1: [chord_figure]}}),
+        base_duration_distribution=_uniform_base_durations(figure_length=1, base_duration=Fraction(1)),
+        duration_vocabulary=duration_vocabulary,
+        figure_lengths=(1,),
+    )
+
+    def _right_hand_tokens(*, monophonic: bool) -> list[Token]:
+        configured = replace(
+            generator,
+            substitution_config=generator.substitution_config.model_copy(update={"monophonic": monophonic}),
+        )
+        constraints = GenerationConstraints(time_numerator=4, time_denominator=4, bar_count=1)
+        segment = configured.generate(
+            bar_count=1,
+            time_numerator=4,
+            time_denominator=4,
+            grid_count_per_bar=1,
+            chord_resolution=1,
+            scale_root=0,
+            scale_type=ScaleType.MAJOR,
+            constraints=constraints,
+            rng=default_rng(0),
+            source_file=Path("synthetic.mxl"),
+        ).segment
+        return _tokens_under_hand(segment.tokens, Hand.RIGHT)
+
+    polyphonic_tokens = _right_hand_tokens(monophonic=False)
+    monophonic_tokens = _right_hand_tokens(monophonic=True)
+
+    assert any(isinstance(token, JoinWithPreviousToken) for token in polyphonic_tokens)
+    assert not any(isinstance(token, NoteToken) for token in monophonic_tokens)
+
+
 def test_silenced_hand_emits_rest_filled_bars(
     duration_vocabulary: DurationVocabulary,
 ) -> None:
@@ -448,7 +582,12 @@ def test_silenced_hand_emits_rest_filled_bars(
     )
     generator = SegmentGenerator(
         substitution_config=SubstitutionConfig(
-            lambda_curve=0.0, lambda_harm=0.0, lambda_accent=0.0, commonness_bias=1.0, max_resample_retries=4
+            lambda_curve=0.0,
+            lambda_harm=0.0,
+            lambda_accent=0.0,
+            commonness_bias=1.0,
+            max_resample_retries=4,
+            monophonic=False,
         ),
         register_curve_sampler=RegisterCurveSampler(
             config=RegisterCurveConfig(
@@ -509,7 +648,12 @@ def test_segment_generator_is_deterministic_for_a_given_seed(
     )
     generator = SegmentGenerator(
         substitution_config=SubstitutionConfig(
-            lambda_curve=0.0, lambda_harm=0.0, lambda_accent=0.0, commonness_bias=1.0, max_resample_retries=4
+            lambda_curve=0.0,
+            lambda_harm=0.0,
+            lambda_accent=0.0,
+            commonness_bias=1.0,
+            max_resample_retries=4,
+            monophonic=False,
         ),
         register_curve_sampler=RegisterCurveSampler(
             config=RegisterCurveConfig(
@@ -572,7 +716,12 @@ def test_segment_generator_places_multiple_figures_per_bar(
     )
     generator = SegmentGenerator(
         substitution_config=SubstitutionConfig(
-            lambda_curve=0.0, lambda_harm=0.0, lambda_accent=0.0, commonness_bias=1.0, max_resample_retries=4
+            lambda_curve=0.0,
+            lambda_harm=0.0,
+            lambda_accent=0.0,
+            commonness_bias=1.0,
+            max_resample_retries=4,
+            monophonic=False,
         ),
         register_curve_sampler=RegisterCurveSampler(
             config=RegisterCurveConfig(
@@ -628,7 +777,12 @@ def test_segment_generator_rests_the_trailing_gap_when_no_figure_fits(
     )
     generator = SegmentGenerator(
         substitution_config=SubstitutionConfig(
-            lambda_curve=0.0, lambda_harm=0.0, lambda_accent=0.0, commonness_bias=1.0, max_resample_retries=4
+            lambda_curve=0.0,
+            lambda_harm=0.0,
+            lambda_accent=0.0,
+            commonness_bias=1.0,
+            max_resample_retries=4,
+            monophonic=False,
         ),
         register_curve_sampler=RegisterCurveSampler(
             config=RegisterCurveConfig(
@@ -689,7 +843,12 @@ def _grid_generator(
     )
     return SegmentGenerator(
         substitution_config=SubstitutionConfig(
-            lambda_curve=0.0, lambda_harm=0.0, lambda_accent=0.0, commonness_bias=1.0, max_resample_retries=4
+            lambda_curve=0.0,
+            lambda_harm=0.0,
+            lambda_accent=0.0,
+            commonness_bias=1.0,
+            max_resample_retries=4,
+            monophonic=False,
         ),
         register_curve_sampler=register_curve_sampler,
         accent_field_sampler=accent_field_sampler,

@@ -15,11 +15,16 @@ $\mu_i$ was never a gap — `octave_offset` is home-relative and $\mu_i$ is appl
 conversion; see `docs/generator.md` §3.) A quick-wins pass then closed gaps 5, 6, 12 and 13, and a
 structural pass closed gaps 2 (sync coupling) and 9 (sub-bar harmonic rhythm) (all below).
 
-**Still open:** #4 (harmonic conditioning by metrical position), #7 (figure-length distribution), #8
-(texture mode / chord figures), #10 (per-hand, per-scale register parameters), and #11 (the decode→generate
-fitting loop) — plus the greedy-fill note at the end. Of these, #11 is the dominant lever on *musical
-coherence*: the chord track is still a uniform-random Markov walk over all triads (no functional harmony),
-and every process parameter is hand-set rather than fit to the corpus. #4 and #8 are the next most audible.
+A musical pass then closed #4 (metrical harmonic conditioning) and #8 (texture mode), and landed the
+**functional-harmony interim** of #11 (a hand-authored functional diatonic chord prior, now the generation
+default) plus the Stage 0 musical-evaluation metrics (`musical_metrics`, wired into `GenerationSuiteEvaluator`
+→ MLflow).
+
+**Still open:** #7 (figure-length distribution), #10 (per-hand, per-scale register parameters), and the
+remainder of #11 — the empirical decode→generate loop (corpus-fit chord transitions + $p(\text{figure} \mid C)$)
+and moment-matched process parameters — plus the greedy-fill note at the end. Two items are **deferred by
+design**: the calibration↔harmony/texture coupling (needs a proper mathematical model) and figure-to-figure
+continuity (novel approach).
 
 ---
 
@@ -68,21 +73,21 @@ register motion and per-cell accent shaping are modelled.
 
 ---
 
-## 4. Harmonic-fit tilt ignores metrical position — `D1`
+## 4. Harmonic-fit tilt ignores metrical position — `D1` — CLOSED
 
 **Design (§6).** The harmonic-fit score is $H(f, C, m)$: chord tones are rewarded on strong beats and
-non-chord tones are permitted — indeed favoured — on weak beats *between* chord tones, at a weight that
-depends on the figure's metrical position $m$ in the bar.
+non-chord tones are permitted on weak beats, at a weight that depends on the figure's metrical position $m$.
 
-**Code today.** `harm_fit` (`substitution/scoring.py:21`) returns the plain chord-tone fraction over all of
-the figure's note instances; it takes no metrical position and applies no strong/weak gradient. The cell's
-metrical position is available at the call site (`fired_cell_index % grid_count_per_bar`, and the accent
-field's indispensability `gcd(k, M)/M`) but is not threaded in.
+**Code before.** `harm_fit` returned the plain chord-tone fraction over all note instances; no metrical
+weighting.
 
-**To close the gap.** Pass the firing cell's metrical position (or its indispensability) into `harm_fit`,
-and make the per-onset chord-tone reward scale with metrical strength so NCTs are tolerated/encouraged on
-weak cells. Open design question: the score must account for *which onset of the figure lands on which
-beat*, not just the figure as a whole — decide the functional form before coding.
+**Resolution.** `harm_fit` now returns a **metrical-strength-weighted** mean of the per-onset chord-tone
+fraction: onset $i$ sits at bar position `(metrical_position + i) % grid_count_per_bar` (the one-cell-per-onset
+proxy, consistent with the slope-fit span in #5), weighted by its indispensability `gcd(position, M)/M`. Chord
+membership therefore matters most on strong cells and barely on weak ones, so non-chord passing tones are
+tolerated off the beat. The firing cell's `metrical_position` and `grid_count_per_bar` are threaded from
+`_place_one_figure` through `sample_substituted_figure`. At `grid_count_per_bar = 1` it reduces to the plain
+chord-tone fraction. (Effective only when `lambda_harm > 0`.)
 
 ## 5. Slope-fit uses an endpoint proxy compared against a one-cell slope — `D2` — CLOSED
 
@@ -134,19 +139,18 @@ length into a single tilted choice over a combined candidate pool. **Check befor
 scores TV distance per `(scale, hand, n)` group independently, so uniform length keeps every `n` populated
 for the metric — confirm against `figure_distribution_metrics` whether uniform sampling is intentional.
 
-## 8. Monorhythmic filtering is unused; chord/polyrhythmic figures are admitted — `D8`
+## 8. Monorhythmic filtering is unused; chord/polyrhythmic figures are admitted — `D8` — CLOSED
 
-**Design (§10).** Figures own local contour and rhythm; emission supports chords (via
-`JoinWithPreviousToken`). The functional-bass / block-chord texture is an *optional* mode, not the default.
+**Design (§10).** A monophonic two-melodic-line texture is the default; chordal/Alberti settings are an
+*optional* mode.
 
-**Code today.** `monorhythmic_entries` / `is_monorhythmic` (`substitution/sampling.py`, `scoring.py`) exist
-but are not called by the generator; `_figure_entries_by_group` (`generator.py:259`) admits *all* figures in
-each `(hand, n)` group, including `chords_only` and polyrhythmic ones.
+**Code before.** `_figure_entries_by_group` admitted *all* figures in each `(hand, n)` group, including
+`chords_only` and polyrhythmic ones, scattering chords into the melodic lines.
 
-**To close the gap.** Make the texture explicit rather than incidental: either (a) keep all figures by
-design and remove/annotate the now-dead `monorhythmic_entries` helper (confirm it is test-only), or (b) add
-a texture-mode knob (monophonic melodic lines vs. chordal/Alberti) and filter the candidate pool
-accordingly.
+**Resolution.** `SubstitutionConfig` gains a `monophonic: bool`; when set, `_figure_entries_by_group` filters
+the candidate pool to `entry.figure.monophonic`. Generation/notebook defaults to monophonic (a UI checkbox);
+**calibration explicitly sets `monophonic=False`** (unfiltered) to keep the figure-shape TV metric fair until
+the deferred calibration↔texture coupling is designed.
 
 ## 9. Harmonic rhythm is fixed at one chord per bar — `D3` — CLOSED
 
@@ -188,19 +192,22 @@ the two hands' spreads can differ.
 $p(\text{figure} \mid C)$ that drives the harmonic-fit score are fit by Viterbi-decoding the training
 corpus; OU/arch/accent parameters are moment-matched against the corpus.
 
-**Code today.** `ViterbiChordDecoder` (`harmony/decoding/`) exists and is correct, but its output is never
-consumed: `ChordTrackSampler` is always built from `uniform_transition_model`
-(`calibration/assembly.py`, `notebooks/utils/synthetic.py`), and `harm_fit` reads a chord pitch-class set,
-not $p(\text{figure} \mid C)$. Every process config is a static YAML / slider value. The decode→generate
-calibration loop is an unconnected seam.
+**Interim done.** Generation now uses `functional_transition_model` (`processes/chord_track.py`) — a
+hand-authored functional diatonic prior keyed on root-degree function (tonic/predominant/dominant) with
+V→I / vii°→I cadential weighting and a tonic-favoured initial distribution, blended with uniform by a
+`strength` knob (`strength=0` reduces exactly to `uniform_transition_model`). This replaces the
+uniform-random chord walk that was the dominant cause of incoherent harmony, *without* needing the corpus.
+Calibration stays on `uniform_transition_model` (deferred coupling). `ViterbiChordDecoder` is still
+unconsumed, and `harm_fit` still uses the chord pitch-class set, not $p(\text{figure} \mid C)$.
 
-**To close the gap (largest item — likely several PRs).**
+**Remaining (the empirical loop — largest item, several PRs).**
 - Add a fitting pass that runs the decoder over the corpus, accumulates the empirical chord transition
-  matrix and figure-by-chord co-occurrence counts, and persists them as artifacts.
-- Build `ChordTransitionModel` from the empirical matrix; replace the uniform prior in assembly.
-- Augment `harm_fit` to read the empirical $p(\text{figure} \mid C)$ conditional per design §6, rather than
-  only the binary chord-tone test (interacts with #4).
-- Add moment-matching for the register and accent parameters (interacts with #10).
+  matrix and figure-by-chord co-occurrence counts, and persists them as artifacts (new `synthetic/fitting/`).
+- Build the empirical `ChordTransitionModel` (with the functional prior as its smoothing prior); select it
+  via a `chord_model: "empirical"` flag.
+- Add an empirical $p(\text{figure} \mid C)$ term to the substitution tilt (a new `lambda_chord_figure`,
+  backing off to the metrical chord-tone score from #4 — not a replacement).
+- Add moment-matching for the register and accent parameters (this is #10 / Stage B).
 
 ## 12. λ-tilt selection is manual — `D6` — CLOSED
 

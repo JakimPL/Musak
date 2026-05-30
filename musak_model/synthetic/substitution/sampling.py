@@ -30,6 +30,8 @@ def tilted_log_probabilities(
     scale_type: ScaleType,
     chord_pitch_classes: frozenset[int],
     envelope_value: float,
+    metrical_position: int,
+    grid_count_per_bar: int,
     config: SubstitutionConfig,
 ) -> NDArray[np.float64]:
     counts = np.fromiter((entry.count for entry in entries), dtype=np.float64, count=len(entries))
@@ -46,6 +48,8 @@ def tilted_log_probabilities(
                 anchor=anchor,
                 scale_type=scale_type,
                 chord_pitch_classes=chord_pitch_classes,
+                metrical_position=metrical_position,
+                grid_count_per_bar=grid_count_per_bar,
             )
             for entry in entries
         ),
@@ -85,6 +89,8 @@ def sample_substituted_figure(
     scale_type: ScaleType,
     chord_pitch_classes: frozenset[int],
     envelope_value: float,
+    metrical_position: int,
+    grid_count_per_bar: int,
     config: SubstitutionConfig,
     rng: Generator,
 ) -> FigureVocabularyEntry:
@@ -98,6 +104,8 @@ def sample_substituted_figure(
         scale_type=scale_type,
         chord_pitch_classes=chord_pitch_classes,
         envelope_value=envelope_value,
+        metrical_position=metrical_position,
+        grid_count_per_bar=grid_count_per_bar,
         config=config,
     )
     probabilities = softmax(log_probabilities)

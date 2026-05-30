@@ -27,6 +27,7 @@ def build_calibration_generator(config: CalibrationConfig) -> SegmentGenerator:
             lambda_accent=0.0,
             commonness_bias=config.commonness_bias,
             max_resample_retries=config.max_resample_retries,
+            monophonic=False,
         ),
         register_curve_sampler=RegisterCurveSampler(config=RegisterCurveConfig.load()),
         accent_field_sampler=AccentFieldSampler(config=AccentFieldConfig.load()),

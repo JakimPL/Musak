@@ -13,6 +13,14 @@ class ChordQuality(StrEnum):
     AUGMENTED = "augmented"
 
 
+TRIAD_QUALITY_BY_INTERVALS: Final[dict[tuple[int, int], ChordQuality]] = {
+    (4, 7): ChordQuality.MAJOR,
+    (3, 7): ChordQuality.MINOR,
+    (3, 6): ChordQuality.DIMINISHED,
+    (4, 8): ChordQuality.AUGMENTED,
+}
+
+
 class ChordExtension(StrEnum):
     TRIAD = "triad"
     SEVENTH = "seventh"

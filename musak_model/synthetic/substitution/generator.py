@@ -264,6 +264,9 @@ class SegmentGenerator:
             if group.scale_type != scale_type or group.n not in figure_lengths:
                 continue
 
+            if self.substitution_config.monophonic and not entry.figure.monophonic:
+                continue
+
             grouped.setdefault((group.hand, group.n), []).append(entry)
 
         return {key: tuple(entries) for key, entries in grouped.items()}
@@ -330,6 +333,7 @@ class SegmentGenerator:
                 chord_pitch_classes=cell_chord_pitch_classes[fired_cell_index],
                 curve=curve,
                 fired_cell_index=fired_cell_index,
+                grid_count_per_bar=grid_count_per_bar,
                 envelope_value=weights[fired_cell_index],
                 remaining=bar_end - state.cursor(hand),
                 rng=rng,
@@ -378,11 +382,13 @@ class SegmentGenerator:
         chord_pitch_classes: frozenset[int],
         curve: tuple[int, ...],
         fired_cell_index: int,
+        grid_count_per_bar: int,
         envelope_value: float,
         remaining: Fraction,
         rng: Generator,
     ) -> tuple[GenerationConstraintState, list[Token]] | None:
         anchor = int(curve[fired_cell_index])
+        metrical_position = fired_cell_index % grid_count_per_bar
         for _ in range(self.substitution_config.max_resample_retries):
             figure_length = int(rng.choice(self.figure_lengths))
             span_cell_index = min(fired_cell_index + figure_length - 1, len(curve) - 1)
@@ -401,6 +407,8 @@ class SegmentGenerator:
                 scale_type=scale_type,
                 chord_pitch_classes=chord_pitch_classes,
                 envelope_value=envelope_value,
+                metrical_position=metrical_position,
+                grid_count_per_bar=grid_count_per_bar,
                 config=self.substitution_config,
                 rng=rng,
             )

@@ -9,3 +9,4 @@ class SubstitutionConfig(BaseModel):
     lambda_accent: float = Field(ge=0.0)
     commonness_bias: float = Field(ge=0.0)
     max_resample_retries: int = Field(gt=0)
+    monophonic: bool

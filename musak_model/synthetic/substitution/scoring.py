@@ -24,24 +24,28 @@ def harm_fit(
     anchor: int,
     scale_type: ScaleType,
     chord_pitch_classes: frozenset[int],
+    metrical_position: int,
+    grid_count_per_bar: int,
 ) -> float:
     scale_size = scale_size_for_type(scale_type)
-    chord_tone_count = 0
-    total_count = 0
-    for degrees, _ in figure.onsets:
-        for relative_position, accidental in degrees:
-            absolute_position = anchor + relative_position
-            absolute_degree, _ = diatonic_position_to_degree_and_octave(absolute_position, scale_size=scale_size)
-            note_pitch_class = degree_pitch_class(absolute_degree, accidental, scale_type=scale_type)
-            if note_pitch_class in chord_pitch_classes:
-                chord_tone_count += 1
+    weighted_chord_tone = 0.0
+    weight_total = 0.0
+    for onset_index, (degrees, _) in enumerate(figure.onsets):
+        position = (metrical_position + onset_index) % grid_count_per_bar
+        weight = gcd(position, grid_count_per_bar) / grid_count_per_bar
+        weighted_chord_tone += weight * _onset_chord_tone_fraction(
+            degrees,
+            anchor=anchor,
+            scale_size=scale_size,
+            scale_type=scale_type,
+            chord_pitch_classes=chord_pitch_classes,
+        )
+        weight_total += weight
 
-            total_count += 1
-
-    if total_count == 0:
+    if weight_total == 0.0:
         return 0.0
 
-    return chord_tone_count / total_count
+    return weighted_chord_tone / weight_total
 
 
 def accent_fit(

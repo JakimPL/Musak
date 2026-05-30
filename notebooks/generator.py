@@ -142,6 +142,7 @@ def _(
     seed = mo.ui.number(start=0, stop=2**31 - 1, step=1, value=1234, label="Seed")
     min_n = mo.ui.number(start=1, stop=8, step=1, value=2, label="Min figure length")
     max_n = mo.ui.number(start=1, stop=8, step=1, value=3, label="Max figure length")
+    monophonic = mo.ui.checkbox(value=True, label="Monophonic")
 
     lambda_curve = mo.ui.slider(start=0.0, stop=5.0, step=0.05, value=1.0, label="λ curve", show_value=True)
     lambda_harm = mo.ui.slider(start=0.0, stop=5.0, step=0.05, value=1.0, label="λ harmony", show_value=True)
@@ -175,6 +176,9 @@ def _(
     self_transition_bias = mo.ui.slider(
         start=0.0, stop=1.0, step=0.05, value=0.25, label="Chord self-transition bias", show_value=True
     )
+    functional_strength = mo.ui.slider(
+        start=0.0, stop=1.0, step=0.05, value=0.7, label="Functional harmony strength", show_value=True
+    )
 
     use_constraints = mo.ui.checkbox(value=True, label="Hard constraints")
     minimum_duration = mo.ui.dropdown(
@@ -202,6 +206,7 @@ def _(
                 seed=int(seed.value),
                 min_n=int(min_n.value),
                 max_n=int(max_n.value),
+                monophonic=monophonic.value,
                 lambda_curve=float(lambda_curve.value),
                 lambda_harm=float(lambda_harm.value),
                 lambda_accent=float(lambda_accent.value),
@@ -223,6 +228,7 @@ def _(
                 activity_left=float(activity_left.value),
                 sync_strength=float(sync_strength.value),
                 self_transition_bias=float(self_transition_bias.value),
+                functional_strength=float(functional_strength.value),
                 use_constraints=use_constraints.value,
                 minimum_duration=minimum_duration.value,
                 allow_dotted=allow_dotted.value,
@@ -253,7 +259,11 @@ def _(
                 wrap=True,
             ),
             mo.md("### Figures and Tilts"),
-            mo.hstack([min_n, max_n, lambda_curve, lambda_harm, lambda_accent, commonness_bias], gap=2, wrap=True),
+            mo.hstack(
+                [min_n, max_n, monophonic, lambda_curve, lambda_harm, lambda_accent, commonness_bias],
+                gap=2,
+                wrap=True,
+            ),
             mo.hstack([max_resample_retries], gap=2, wrap=True),
             mo.md("### Register Curve"),
             mo.hstack([arch_basis_count, arch_amplitude, arch_decay, ou_theta, ou_sigma], gap=2, wrap=True),
@@ -272,7 +282,14 @@ def _(
             ),
             mo.md("### Hand Coupling and Harmony"),
             mo.hstack(
-                [co_activity_strength, activity_right, activity_left, sync_strength, self_transition_bias],
+                [
+                    co_activity_strength,
+                    activity_right,
+                    activity_left,
+                    sync_strength,
+                    self_transition_bias,
+                    functional_strength,
+                ],
                 gap=2,
                 wrap=True,
             ),

@@ -1,3 +1,4 @@
+from enum import StrEnum
 from fractions import Fraction
 from typing import Final
 
@@ -19,6 +20,23 @@ PITCH_CLASS_NAMES: Final[tuple[str, ...]] = SHARP_PITCH_CLASS_NAMES
 KEYS: Final[dict[int, str]] = dict(enumerate(PITCH_CLASS_NAMES))
 KEY_FIFTHS_MIN: Final[int] = -7
 KEY_FIFTHS_MAX: Final[int] = 7
+
+
+class HarmonicFunction(StrEnum):
+    TONIC = "tonic"
+    PREDOMINANT = "predominant"
+    DOMINANT = "dominant"
+
+
+HARMONIC_FUNCTION_BY_DEGREE: Final[dict[int, HarmonicFunction]] = {
+    1: HarmonicFunction.TONIC,
+    2: HarmonicFunction.PREDOMINANT,
+    3: HarmonicFunction.TONIC,
+    4: HarmonicFunction.PREDOMINANT,
+    5: HarmonicFunction.DOMINANT,
+    6: HarmonicFunction.TONIC,
+    7: HarmonicFunction.DOMINANT,
+}
 
 QUARTER_NOTE_DURATION: Final[Fraction] = Fraction(1, 4)
 QUARTERS_PER_WHOLE: Final[int] = 4
