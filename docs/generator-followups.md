@@ -25,11 +25,17 @@ artifact. The loop is wired end-to-end: `scripts/fit_generator.py` (`make fit-ge
 statistics, writes `fitted_generator.json` next to the figure vocabulary (`all/`), and generation loads it
 (the notebook surfaces the fit status).
 
-**Still open:** #7 (figure-length distribution) and the **empirical chord loop** of #11 (corpus-fit chord
-transitions + $p(\text{figure} \mid C)$) — plus the greedy-fill note at the end. Three items are **deferred by
-design**: the calibration↔harmony/texture coupling (needs a proper mathematical model), figure-to-figure
-continuity (novel approach), and **envelope fitting** (the accent envelope's amplitude/decay need a bar-to-bar
-occupancy variance/autocorrelation statistic not currently stored; see #11).
+A harmony pass then closed the **empirical chord loop** of #11: the corpus is Viterbi-decoded in the figure
+pass into a persisted `chord/` sub-store (transition counts + figure-by-chord counts), `fit_generator.py`
+bakes the empirical (functional-prior-smoothed) per-scale-type transition model and $p(\text{figure} \mid C)$
+into `fitted_generator.json`, and generation consumes them via a `chord_model` selector and the
+`lambda_chord_figure` tilt. The chord decoder was relocated to a neutral `musak_model/harmony/` package so
+the figure pass can decode without inverting the n-grams↔synthetic layering.
+
+**Still open:** #7 (figure-length distribution) — plus the greedy-fill note at the end. Three items are
+**deferred by design**: the calibration↔harmony/texture coupling (needs a proper mathematical model),
+figure-to-figure continuity (novel approach), and **envelope fitting** (the accent envelope's amplitude/decay
+need a bar-to-bar occupancy variance/autocorrelation statistic not currently stored; see #11).
 
 ---
 
@@ -203,10 +209,10 @@ length-normalised trajectories; the implementation realises the same intent (mom
 `(scale_type, hand)`) via the **mid-cell DCT trend/residual partition**, which is consistent-by-construction
 with the arch sampler.
 
-## 11. The empirical chord decode→generate loop is open — `D5`
+## 11. The empirical chord decode→generate loop — `D5` — CLOSED
 
-Register and accent moment-matching are now closed and DB-backed (see "Moment-matching done" below); the
-remaining open piece of `D5` is the empirical chord loop.
+Register and accent moment-matching are DB-backed (see "Moment-matching done" below); the empirical chord
+loop — the last open piece of `D5` — is now closed too (see "Empirical chord loop done" below).
 
 **Design (§5.1, §9).** The chord transition matrix and the chord-conditioned figure distribution
 $p(\text{figure} \mid C)$ that drives the harmonic-fit score are fit by Viterbi-decoding the training
@@ -236,13 +242,26 @@ weighted regression** of `logit(occupancy_rate)` on `indispensability^exponent` 
 occupancy profile** instead (the strong/weak ratio is a two-bucket special case of it), which is what makes
 the exponent identifiable.
 
-**Remaining #11 — the empirical chord loop only (largest item, several PRs).**
-- Add a fitting pass that runs the decoder over the corpus, accumulates the empirical chord transition
-  matrix and figure-by-chord co-occurrence counts, and persists them (extend `FittedGeneratorConfig`).
-- Build the empirical `ChordTransitionModel` (with the functional prior as its smoothing prior); select it
-  via a `chord_model: "empirical"` flag.
-- Add an empirical $p(\text{figure} \mid C)$ term to the substitution tilt (a new `lambda_chord_figure`,
-  backing off to the metrical chord-tone score from #4 — not a replacement).
+**Empirical chord loop done (DB-backed, baked).** The decoder (relocated to the neutral
+`musak_model/harmony/` package so the n-grams figure pass may consume it) now runs over every segment in the
+figure-profile corpus pass. Two additive, mergeable count tables are persisted in a new `n_grams/profile/chord/`
+sub-store: **chord transitions** keyed by `(scale_type, source_chord, destination_chord)` with the initial
+chord folded in under a sentinel source, and **figure-by-chord** keyed by `(scale_type, hand, n, chord, figure)`
+(the chord covering each figure's first onset). `ChordDecoderConfig` + the chord vocabulary enter
+`figure_state_key`, so changing the decode forces a rebuild. The decode is confined to the durable reference
+pass; the transient train/validation split pass stays decode-free.
+
+`synthetic/fitting/chord.py` then fits, and `fit_generator.py` **bakes the results into `fitted_generator.json`**
+(no on-the-fly recomputation at generation): per-scale-type empirical `ChordTransitionModel`s
+(Dirichlet-smoothed toward the functional prior with `prior_count`; an unobserved source backs off exactly to
+the prior) and a `FigureByChordModel` of $\log p(\text{figure} \mid C)$. The bake uses string chord keys
+(`Chord.model_dump_json`) because pydantic does not round-trip model-keyed dicts. Generation consumes both: a
+`chord_model: "uniform" | "functional" | "empirical"` selector picks the transition matrix (empirical falls
+back to functional when a scale type was never fitted; calibration stays uniform), and a new
+`lambda_chord_figure` tilt term adds $\log p(\text{figure} \mid C)$ to the substitution score — backing off
+to `0` when the table or pair is unseen (an unobserved figure floors to the least-likely observed one, never
+rewarded), so at `lambda_chord_figure = 0` output is byte-identical to before. The metrical chord-tone
+`harm_fit` (#4) is unchanged; the new term **sharpens** it rather than replacing it.
 
 ## 12. λ-tilt selection is manual — `D6` — CLOSED
 

@@ -105,10 +105,10 @@ def test_chord_statistics_counts_adjacent_transitions_with_initial(
     )
 
     assert statistics.transition_counts == {
-        ChordTransitionKey(INITIAL_CHORD_SOURCE, _TONIC): 1,
-        ChordTransitionKey(_TONIC, _SUBDOMINANT): 1,
-        ChordTransitionKey(_SUBDOMINANT, _DOMINANT): 1,
-        ChordTransitionKey(_DOMINANT, _TONIC): 1,
+        ChordTransitionKey("major", INITIAL_CHORD_SOURCE, _TONIC): 1,
+        ChordTransitionKey("major", _TONIC, _SUBDOMINANT): 1,
+        ChordTransitionKey("major", _SUBDOMINANT, _DOMINANT): 1,
+        ChordTransitionKey("major", _DOMINANT, _TONIC): 1,
     }
 
 

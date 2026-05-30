@@ -10,6 +10,7 @@ CONDITIONING_CONFIG_PATH: Final[Path] = CONFIGS_DIR / "conditioning" / "conditio
 N_GRAM_ANALYSIS_CONFIG_PATH: Final[Path] = CONFIGS_DIR / "analysis" / "n_grams.yml"
 CHORD_VOCABULARY_CONFIG_PATH: Final[Path] = CONFIGS_DIR / "generation" / "chords.yml"
 CHORD_DECODING_CONFIG_PATH: Final[Path] = CONFIGS_DIR / "generation" / "chord_decoding.yml"
+CHORD_FIT_CONFIG_PATH: Final[Path] = CONFIGS_DIR / "generation" / "chord_fit.yml"
 REGISTER_CURVE_CONFIG_PATH: Final[Path] = CONFIGS_DIR / "generation" / "register_curve.yml"
 ACCENT_FIELD_CONFIG_PATH: Final[Path] = CONFIGS_DIR / "generation" / "accent_field.yml"
 HAND_COUPLING_CONFIG_PATH: Final[Path] = CONFIGS_DIR / "generation" / "hand_coupling.yml"

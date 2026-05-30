@@ -24,11 +24,10 @@ CHORD_CHORD_COLUMN: Final[str] = "chord"
 CHORD_FIGURE_COLUMN: Final[str] = "figure"
 CHORD_COUNT_COLUMN: Final[str] = "count"
 
-# Initial-chord counts share the transitions table: a row whose source is this sentinel (never a valid
-# Chord JSON) records how often `destination_chord` opened a decoded track.
 INITIAL_CHORD_SOURCE: Final[str] = ""
 
 CHORD_TRANSITIONS_SCHEMA: Final[dict[str, pl.DataType]] = {
+    CHORD_SCALE_TYPE_COLUMN: pl.String(),
     CHORD_SOURCE_COLUMN: pl.String(),
     CHORD_DESTINATION_COLUMN: pl.String(),
     CHORD_COUNT_COLUMN: pl.Int64(),
@@ -45,6 +44,7 @@ CHORD_FIGURE_SCHEMA: Final[dict[str, pl.DataType]] = {
 
 
 class ChordTransitionKey(NamedTuple):
+    scale_type: str
     source_chord: str
     destination_chord: str
 

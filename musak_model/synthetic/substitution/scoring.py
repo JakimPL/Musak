@@ -19,8 +19,6 @@ def chord_figure_log_probabilities(
     if not table:
         return [0.0] * len(figures)
 
-    # A figure unobserved with this chord backs off to the least-likely observed one (never rewarded);
-    # an absent table is neutral (every entry scores 0, so the term cancels under the softmax).
     floor = min(table.values())
     return [table.get(figure, floor) for figure in figures]
 

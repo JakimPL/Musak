@@ -35,5 +35,4 @@ class IntervalResponse(BaseModel):
     intervals: dict[str, int]
 
 
-# Alias for the config endpoint response
 IntervalConfigResponse = ConfigResponse

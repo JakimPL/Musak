@@ -27,6 +27,7 @@ from musak_shared.tables import read_table, write_table
 def write_chord_transitions(counts: ChordTransitionCounts, path: Path) -> None:
     records = [
         {
+            CHORD_SCALE_TYPE_COLUMN: key.scale_type,
             CHORD_SOURCE_COLUMN: key.source_chord,
             CHORD_DESTINATION_COLUMN: key.destination_chord,
             CHORD_COUNT_COLUMN: count,
@@ -40,6 +41,7 @@ def read_chord_transitions(path: Path) -> ChordTransitionCounts:
     counts: ChordTransitionCounts = Counter()
     for row in read_table(path).iter_rows(named=True):
         key = ChordTransitionKey(
+            scale_type=row[CHORD_SCALE_TYPE_COLUMN],
             source_chord=row[CHORD_SOURCE_COLUMN],
             destination_chord=row[CHORD_DESTINATION_COLUMN],
         )

@@ -105,6 +105,7 @@ _REGISTER_STATISTICS_TABLE: Final = Table(
 _CHORD_TRANSITIONS_TABLE: Final = Table(
     "chord_transitions",
     _SQL_METADATA,
+    Column(_COUNT_SCALE_TYPE_COLUMN, String, primary_key=True),
     Column(_CHORD_SOURCE_COLUMN, String, primary_key=True),
     Column(_CHORD_DESTINATION_COLUMN, String, primary_key=True),
     Column(_COUNT_COUNT_COLUMN, Integer, nullable=False),
@@ -237,6 +238,7 @@ class FigureWorkTables:
     def add_chord_transitions(self, counts: ChordTransitionCounts) -> None:
         records = [
             {
+                _COUNT_SCALE_TYPE_COLUMN: key.scale_type,
                 _CHORD_SOURCE_COLUMN: key.source_chord,
                 _CHORD_DESTINATION_COLUMN: key.destination_chord,
                 _COUNT_COUNT_COLUMN: count,
@@ -428,10 +430,14 @@ class FigureWorkTables:
     def chord_transition_counts(self) -> ChordTransitionCounts:
         counts: ChordTransitionCounts = Counter()
         result = self._connection.execute(select(_CHORD_TRANSITIONS_TABLE))
-        for source_chord, destination_chord, count in result:
-            counts[ChordTransitionKey(source_chord=str(source_chord), destination_chord=str(destination_chord))] += int(
-                count
-            )
+        for scale_type, source_chord, destination_chord, count in result:
+            counts[
+                ChordTransitionKey(
+                    scale_type=str(scale_type),
+                    source_chord=str(source_chord),
+                    destination_chord=str(destination_chord),
+                )
+            ] += int(count)
 
         return counts
 

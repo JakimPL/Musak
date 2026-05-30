@@ -1,0 +1,7 @@
+# Smoothing for the empirical chord transition model.
+# prior_count: Dirichlet pseudo-count blending each empirical row toward the functional prior
+#   (small -> trust the data; large -> trust the prior). functional_strength / self_transition_bias
+#   shape that functional prior (see functional_transition_model).
+prior_count: 1.0
+functional_strength: 0.7
+self_transition_bias: 0.25

@@ -157,10 +157,10 @@ flowchart TB
 | **FigureVocabulary** `figures.py` | `counts.parquet` | `entries: (group=(scale,hand,n), figure, count)` | loaded via `read_figure_counts`; grouped in generator by `(hand, n)` filtered to `scale_type` & `figure_lengths` |
 | **BaseDurationDistribution** `base_durations.py` | `base_durations.parquet` | `weights_by_group[(scale,hand,n)] → [(Fraction,count)]` | `candidates(...)` returns per-group `(base_duration, count)` list |
 | **Chord expansion** `harmony/expansion.py` | `Chord`, `scale_type`, `ChordVocabularyConfig` | `frozenset[int]` pitch classes | generic-third stacking `d_m=((d_r−1+2m) mod s)+1`, signed residue accidental |
-| **Substitution sampler** `substitution/sampling.py` + `scoring.py` | `entries`, `anchor`, `target_slope`, `chord_pcs`, `envelope_value`, `metrical_position`, `grid_count_per_bar`, `config` | one `FigureVocabularyEntry` | `tilted_log_probabilities` (4 terms; harm + accent now chord-/metric-aware, §3b) → `softmax` → `rng.choice` |
+| **Substitution sampler** `substitution/sampling.py` + `scoring.py` | `entries`, `anchor`, `target_slope`, `chord_pcs`, `chord`, `figure_by_chord_model`, `envelope_value`, `metrical_position`, `grid_count_per_bar`, `config` | one `FigureVocabularyEntry` | `tilted_log_probabilities` (5 terms; harm + accent chord-/metric-aware §3b, plus the empirical `λ_chord_figure·log p(figure∣C)` term) → `softmax` → `rng.choice` |
 | **Emission** `substitution/emission.py` | `figure`, `anchor`, `base_duration`, `scale_type`, `DurationVocabulary` | `list[Token]` (NoteToken + JoinWithPreviousToken for chord onsets) | anchors relative degrees to absolute, scales normalized durations by `base_duration` |
 | **Constraint gate** `generation/constraints.py` | token + current state | next state, or `GenerationConstraintError` | immutable `GenerationConstraintState.apply`; reject → resample |
-| **ViterbiChordDecoder** `harmony/decoding/` *(offline, not wired in — D5)* | `Segment` | `tuple[ChordWindow]` | sounding windows → spellable candidates → Viterbi with non-chord penalty |
+| **ViterbiChordDecoder** `harmony/decoding/` *(run in the corpus fitting pass — §6)* | `Segment` | `tuple[ChordWindow]` | sounding windows → spellable candidates → Viterbi with non-chord penalty |
 | **Calibration sweep** `calibration/` | `CalibrationConfig`, reference counts | `SweepResult[]` → CSV | grid over (λ_curve,λ_harm,λ_accent); TV distance vs reference |
 
 ---
@@ -300,14 +300,13 @@ structural rules (Bar requires both cursors filled; End requires all bars comple
 
 ---
 
-## 4. Level 2c — Offline chord decoding (present but not wired into generation)
+## 4. Level 2c — Chord decoding (corpus fitting input)
 
-The package ships a Viterbi chord decoder that recovers a chord-per-window labelling from a segment.
-Its purpose (per the design) is to *fit* the chord transition matrix and the chord-conditioned
-figure distribution — but **no code path feeds its output into `ChordTrackSampler` (which uses the
-functional/uniform prior) or into `harm_fit` (which uses the chord pitch-class set)**. It runs standalone.
-This chord-decode→generate seam is the one remaining open piece of the fitting loop (D5); the register and
-accent halves are now closed and wired (§6).
+The package ships a Viterbi chord decoder (`musak_model/harmony/decoding/`, a neutral package importable by
+both the n-grams figure pass and synthetic) that recovers a chord-per-window labelling from a segment. It is
+**run over the corpus in the figure-profile pass** to fit the empirical chord transition matrix and the
+chord-conditioned figure distribution `p(figure | C)` — see §6, which now covers all three fitting halves
+(register, accent, chord). It is not used at generation time itself; generation consumes the *baked* fit.
 
 ```mermaid
 flowchart LR
@@ -334,7 +333,9 @@ Produced by figure extraction over the training corpus
 | `all/base_durations.parquet` | `(scale_type, hand, n, base_duration-ratio, count)` | `BaseDurationDistribution.weights_by_group` | reconstructing absolute time from normalized figure rhythm |
 | `rhythm/counts.parquet` (`onset_position`, `bar_total` kinds) | `(scale_type, time_signature, hand, kind, parameter=grid-denominator, value=cell, count)` | `RhythmCountCounter` | **accent fitting** — per-cell occupancy + bar denominator (§6) |
 | `register/statistics.parquet` (+ `register/metadata.json`) | `(scale_type, hand)` → `(trend²-sum, residual²-sum, residual·lag-sum, n)`; metadata `arch_basis_count` | `RegisterStatistics` | **register fitting** — sufficient sums (§6) |
-| `all/fitted_generator.json` | `FittedGeneratorConfig` (register + accent overrides) | `FittedGeneratorConfig` | per-`(scale,hand)` overrides into the samplers (§6) |
+| `chord/transitions.parquet` | `(scale_type, source_chord, destination_chord, count)` (initial = sentinel source) | `ChordTransitionCounts` | **chord fitting** — empirical transition matrix (§6) |
+| `chord/figure_by_chord.parquet` (+ `chord/metadata.json`) | `(scale_type, hand, n, chord, figure-json, count)`; metadata = `ChordDecoderConfig` | `FigureByChordCounts` | **chord fitting** — `p(figure ∣ C)` (§6) |
+| `all/fitted_generator.json` | `FittedGeneratorConfig` (register + accent overrides, per-scale-type chord transitions, figure-by-chord log-probs) | `FittedGeneratorConfig` | per-`(scale,hand)` overrides + baked chord models into the samplers/tilt (§6) |
 
 The canonical micro unit is **`FigureNGram`** (`n_grams/figure/schema.py`):
 `onsets: tuple[(degrees, normalized_duration)]`, where `degrees = tuple[(relative_position,
@@ -379,8 +380,8 @@ accidental)]`. It is **anchor-relative** (first onset's lowest position subtract
 
 ## 6. The fitting loop (corpus statistics → `FittedGeneratorConfig`)
 
-The register and accent process parameters are **fit from persisted corpus statistics**, not hand-set and
-not recomputed at fit time. Three stages:
+The register, accent **and chord** process parameters are **fit from persisted corpus statistics**, not
+hand-set and not recomputed at fit time. Three stages:
 
 **(a) Persisted statistics — produced once by the figure-profile corpus pass.** The same streaming pass that
 counts figures also accumulates, per batch and additively-merged:
@@ -393,10 +394,17 @@ counts figures also accumulates, per batch and additively-merged:
   `(scale_type, time_signature, hand)` and grid denominator, the **binary occupancy** of each within-bar cell
   (how many bars fire an onset there) plus the **bar total** (the denominator). `extract_hand_onset_runs`
   feeds both this and the register sums.
+- **Chord counts** (`chord/transitions.parquet` + `chord/figure_by_chord.parquet`): the
+  `ViterbiChordDecoder` decodes each reconstructed segment, accumulating **transition counts** keyed by
+  `(scale_type, source_chord, destination_chord)` (the initial chord folded in under a sentinel source) and
+  **figure-by-chord counts** keyed by `(scale_type, hand, n, chord, figure)` (the chord covering each
+  figure's first onset). The decode is confined to the durable reference pass (the transient split pass stays
+  decode-free) and `chord/metadata.json` records the `ChordDecoderConfig`.
 
 The streaming pipeline (`profile/streaming/`) carries these through `FigureBatchTask`/`FigureBatchResult`,
 sums them in SQLite (additive upserts), and exports the parquet/metadata. The work-store **state key**
-includes `register_arch_basis_count`, so changing it forces a fresh build.
+includes `register_arch_basis_count`, the `ChordDecoderConfig` and the chord vocabulary, so changing any of
+them forces a fresh build.
 
 **(b) Fitters (`synthetic/fitting/`) — read statistics, emit overrides.**
 - `register.py:register_moments_from_statistics` reduces the sums → `RegisterMoments` (trend std, residual
@@ -408,34 +416,40 @@ includes `register_arch_basis_count`, so changing it forces a fresh build.
   `logit(rate)` on `indispensability^exponent` → `baseline_logit`, `metric_gain`, and a **fitted
   `metric_exponent`** (chosen by a small exponent search). The accent **envelope** parameters
   (`envelope_*`) stay pass-through (fitting deferred).
+- `chord.py:fit_chord_transition_model` Dirichlet-smooths each empirical transition row toward the functional
+  prior (`prior_count`; an unobserved source backs off exactly to the prior), per scale type;
+  `fit_figure_by_chord` normalizes the figure-by-chord counts to per-`(scale, hand, n, chord)`
+  `log p(figure | C)`. Both fit-time knobs (`prior_count`, the prior's `functional_strength` /
+  `self_transition_bias`) come from `ChordFitConfig` (`chord_fit.yml`).
 
 **(c) Persist + load.** `fit.py:fit_generator_config(figure_root, register_default, accent_default,
-grid_denominator)` reads the register + rhythm artifacts (validating `arch_basis_count`) and returns a
-`FittedGeneratorConfig`. `scripts/fit_generator.py` (`make fit-generator`) writes it as
-`fitted_generator.json` into the **`all/`** directory (next to the figure vocabulary). At generation,
-`notebooks/utils/synthetic.py:load_synthetic_inputs` finds it via
+chord_fit, chord_vocabulary, grid_denominator)` reads the register + rhythm + chord artifacts (validating
+`arch_basis_count`) and returns a `FittedGeneratorConfig`. `scripts/fit_generator.py` (`make fit-generator`)
+writes it as `fitted_generator.json` into the **`all/`** directory (next to the figure vocabulary). The chord
+models are **baked into that JSON** with string chord keys (`Chord.model_dump_json`, since pydantic does not
+round-trip model-keyed dicts): per-scale-type `FittedChordTransitions` and a `FittedFigureByChord`. At
+generation, `notebooks/utils/synthetic.py:load_synthetic_inputs` finds the artifact via
 `artifacts.py:resolve_fitted_generator_config_path` — which probes `path/`, `path/all/`, and
-`path/figure/all/`, exactly like the figure-counts resolver — and passes the overrides to
-`build_segment_generator`; absent the artifact it falls back to empty overrides (default config).
+`path/figure/all/`, exactly like the figure-counts resolver — and passes the register/accent overrides, the
+`figure_by_chord_model`, and (when `chord_model="empirical"`) the per-scale-type transition model to
+`build_segment_generator`; absent the artifact it falls back to empty overrides / the functional prior
+(default config).
 
 ---
 
 ## 7. Where the code diverges from `generator.md`
 
 The model body above describes the code as-built; most earlier divergences are now closed and folded into
-the body. Two genuine divergences from the design remain:
+the body. One genuine divergence from the design remains:
 
-- **D5 (partial) — the empirical chord-decode loop is open.** Register and accent moment-matching are closed
-  and wired (§6). But the chord transition matrix and the chord-conditioned figure distribution
-  `p(figure | C)` (design §5.1/§9) are *not* fit from the corpus: `ChordTrackSampler` uses the functional
-  prior (generation) / uniform (calibration), and `harm_fit` uses the chord pitch-class set, not
-  `p(figure | C)`. `ViterbiChordDecoder` exists but its output is never consumed. (See `generator-followups.md`
-  #11.)
 - **D7 — Figure length is uniform, not empirical.** `_place_one_figure` picks `figure_length` via
   `rng.choice(figure_lengths)` uniformly. `FigureVocabulary.length_distribution` exists but is unused on the
   hot path. (See `generator-followups.md` #7.)
 
-(The previously-tracked D1–D4, D6, D8–D10 are closed; their current behavior is described in §2–§3b and §6.)
+(The previously-tracked D1–D6 and D8–D10 are closed; their current behavior is described in §2–§3b and §6.
+D5's last piece — the empirical chord loop — is now closed and wired: the decoder runs in the corpus pass,
+its transition + figure-by-chord counts are persisted and fit into the baked chord models, and generation
+consumes them via the `chord_model` selector and the `lambda_chord_figure` tilt, §6.)
 
 ---
 

@@ -41,7 +41,7 @@ def chord_statistics(
         if not windows:
             continue
 
-        _accumulate_transitions(transition_counts, windows)
+        _accumulate_transitions(transition_counts, windows, scale_type=segment.scale_type.value)
         _accumulate_figure_by_chord(
             figure_by_chord_counts,
             segment,
@@ -57,12 +57,14 @@ def chord_statistics(
 def _accumulate_transitions(
     transition_counts: ChordTransitionCounts,
     windows: Sequence[ChordWindow],
+    *,
+    scale_type: str,
 ) -> None:
-    transition_counts[ChordTransitionKey(INITIAL_CHORD_SOURCE, chord_to_key(windows[0].chord))] += 1
+    transition_counts[ChordTransitionKey(scale_type, INITIAL_CHORD_SOURCE, chord_to_key(windows[0].chord))] += 1
     for previous_window, current_window in zip(windows, windows[1:], strict=False):
         source = chord_to_key(previous_window.chord)
         destination = chord_to_key(current_window.chord)
-        transition_counts[ChordTransitionKey(source, destination)] += 1
+        transition_counts[ChordTransitionKey(scale_type, source, destination)] += 1
 
 
 def _accumulate_figure_by_chord(

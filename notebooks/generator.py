@@ -189,6 +189,9 @@ def _(
     functional_strength = mo.ui.slider(
         start=0.0, stop=1.0, step=0.05, value=0.7, label="Functional harmony strength", show_value=True
     )
+    chord_model = mo.ui.dropdown(
+        options=["functional", "uniform", "empirical"], value="functional", label="Chord model"
+    )
 
     use_constraints = mo.ui.checkbox(value=True, label="Hard constraints")
     minimum_duration = mo.ui.dropdown(
@@ -240,6 +243,7 @@ def _(
                 sync_strength=float(sync_strength.value),
                 self_transition_bias=float(self_transition_bias.value),
                 functional_strength=float(functional_strength.value),
+                chord_model=chord_model.value,
                 use_constraints=use_constraints.value,
                 minimum_duration=minimum_duration.value,
                 allow_dotted=allow_dotted.value,
@@ -309,6 +313,7 @@ def _(
                     sync_strength,
                     self_transition_bias,
                     functional_strength,
+                    chord_model,
                 ],
                 gap=2,
                 wrap=True,

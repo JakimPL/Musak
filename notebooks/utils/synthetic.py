@@ -11,6 +11,7 @@ from numpy.random import default_rng
 from musak_model.data.schema import Segment
 from musak_model.generation.constraints import GenerationConstraintError, GenerationConstraints
 from musak_model.harmony.decoding.candidates import spellable_candidates
+from musak_model.harmony.schema import Chord
 from musak_model.harmony.vocabulary import ChordVocabularyConfig
 from musak_model.synthetic.base_durations import BaseDurationDistribution, load_base_duration_distribution
 from musak_model.synthetic.builder import build_segment_generator
@@ -22,7 +23,11 @@ from musak_model.synthetic.figures import (
 )
 from musak_model.synthetic.fitting.artifacts import FittedGeneratorConfig, resolve_fitted_generator_config_path
 from musak_model.synthetic.processes.accent import AccentFieldConfig
-from musak_model.synthetic.processes.chord_track import functional_transition_model
+from musak_model.synthetic.processes.chord_track import (
+    ChordTransitionModel,
+    functional_transition_model,
+    uniform_transition_model,
+)
 from musak_model.synthetic.processes.hand_coupling import HandCouplingConfig
 from musak_model.synthetic.processes.pitch import RegisterCurveConfig
 from musak_model.synthetic.substitution import GenerationTrace, SubstitutionConfig
@@ -94,6 +99,7 @@ class SyntheticGenerationRequest:
     sync_strength: float
     self_transition_bias: float
     functional_strength: float
+    chord_model: str
     use_constraints: bool
     minimum_duration: str
     allow_dotted: bool
@@ -157,15 +163,11 @@ def generate_synthetic_segment(
             activity_left=request.activity_left,
             sync_strength=request.sync_strength,
         ),
-        chord_transition_model=functional_transition_model(
-            chords,
-            scale_type=scale_type,
-            strength=request.functional_strength,
-            self_transition_bias=request.self_transition_bias,
-        ),
+        chord_transition_model=_chord_transition_model(request, inputs, chords=chords, scale_type=scale_type),
         chord_vocabulary=chord_vocabulary,
         figure_vocabulary=inputs.figure_vocabulary,
         anchored_figure_vocabulary=inputs.anchored_figure_vocabulary,
+        figure_by_chord_model=inputs.fitted.figure_by_chord_model(),
         base_duration_distribution=inputs.base_duration_distribution,
         duration_vocabulary=duration_vocabulary,
         figure_lengths=tuple(range(request.min_n, request.max_n + 1)),
@@ -200,6 +202,29 @@ def generate_synthetic_segment(
         error=None,
         status_message=status_message,
         status_kind="success" if decode_error is None else "warn",
+    )
+
+
+def _chord_transition_model(
+    request: SyntheticGenerationRequest,
+    inputs: SyntheticInputs,
+    *,
+    chords: tuple[Chord, ...],
+    scale_type: ScaleType,
+) -> ChordTransitionModel:
+    if request.chord_model == "uniform":
+        return uniform_transition_model(chords, self_transition_bias=request.self_transition_bias)
+
+    if request.chord_model == "empirical":
+        empirical = inputs.fitted.chord_transition_model(scale_type)
+        if empirical is not None:
+            return empirical
+
+    return functional_transition_model(
+        chords,
+        scale_type=scale_type,
+        strength=request.functional_strength,
+        self_transition_bias=request.self_transition_bias,
     )
 
 

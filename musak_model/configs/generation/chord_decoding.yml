@@ -1,4 +1,3 @@
-# resolution is a power-of-two note value: 1 whole (≈ one chord per bar), 2 half, 4 quarter, 8 eighth.
 resolution: 1
 self_transition_bias: 0.25
 non_chord_penalty: 1.0

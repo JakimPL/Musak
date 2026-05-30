@@ -4,9 +4,11 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Final
 
+from musak_model.harmony.vocabulary import ChordVocabularyConfig
 from musak_model.n_grams.profile.artifacts import figure_artifact_paths, figure_artifact_paths_from_root
 from musak_model.paths import DEFAULT_PROCESSED_ROOT
 from musak_model.synthetic.fitting.artifacts import FITTED_GENERATOR_CONFIG_NAME
+from musak_model.synthetic.fitting.chord import ChordFitConfig
 from musak_model.synthetic.fitting.fit import fit_generator_config
 from musak_model.synthetic.processes.accent import AccentFieldConfig
 from musak_model.synthetic.processes.pitch import RegisterCurveConfig
@@ -29,6 +31,8 @@ def main() -> None:
         figure_directory = _resolve_figure_directory(args)
         register_default = _load_register_config(args.register_config)
         accent_default = _load_accent_config(args.accent_config)
+        chord_fit = _load_chord_fit_config(args.chord_fit_config)
+        chord_vocabulary = ChordVocabularyConfig.load()
     except (FileNotFoundError, ValueError) as exception:
         _LOGGER.error("Generator fitting input is invalid: %s", exception)
         raise SystemExit(_EXIT_FAILURE) from exception
@@ -45,6 +49,8 @@ def main() -> None:
             figure_directory,
             register_default=register_default,
             accent_default=accent_default,
+            chord_fit=chord_fit,
+            chord_vocabulary=chord_vocabulary,
             grid_denominator=args.grid_denominator,
         )
     except (FileNotFoundError, ValueError) as exception:
@@ -55,6 +61,8 @@ def main() -> None:
     fitted.write(output_path)
     _LOGGER.info("Register overrides fitted: %s", len(fitted.register_overrides))
     _LOGGER.info("Accent overrides fitted: %s", len(fitted.accent_overrides))
+    _LOGGER.info("Chord transition models fitted: %s", len(fitted.chord_transitions))
+    _LOGGER.info("Figure-by-chord entries fitted: %s", len(fitted.chord_figure.entries))
     _LOGGER.info("Fitted generator config written to %s", output_path)
 
 
@@ -77,6 +85,10 @@ def _load_register_config(path: Path | None) -> RegisterCurveConfig:
 
 def _load_accent_config(path: Path | None) -> AccentFieldConfig:
     return AccentFieldConfig.load() if path is None else AccentFieldConfig.load(path)
+
+
+def _load_chord_fit_config(path: Path | None) -> ChordFitConfig:
+    return ChordFitConfig.load() if path is None else ChordFitConfig.load(path)
 
 
 def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -120,6 +132,12 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "--accent-config",
         type=Path,
         help="Accent-field YAML config providing fit defaults (envelope parameters).",
+    )
+    parser.add_argument(
+        "--chord-fit-config",
+        type=Path,
+        help="Chord-fit YAML config (prior_count, functional_strength, self_transition_bias) for the empirical "
+        "transition smoothing prior.",
     )
     parser.add_argument(
         "--log-level",

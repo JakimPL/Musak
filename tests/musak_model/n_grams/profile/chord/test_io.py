@@ -25,9 +25,10 @@ _DOMINANT = chord_to_key(Chord(root_degree=5, root_accidental=0, quality=ChordQu
 def test_chord_transitions_round_trip(tmp_path: Path) -> None:
     counts = Counter(
         {
-            ChordTransitionKey(INITIAL_CHORD_SOURCE, _TONIC): 3,
-            ChordTransitionKey(_TONIC, _DOMINANT): 5,
-            ChordTransitionKey(_DOMINANT, _TONIC): 4,
+            ChordTransitionKey("major", INITIAL_CHORD_SOURCE, _TONIC): 3,
+            ChordTransitionKey("major", _TONIC, _DOMINANT): 5,
+            ChordTransitionKey("major", _DOMINANT, _TONIC): 4,
+            ChordTransitionKey("harmonic_minor", _DOMINANT, _TONIC): 2,
         }
     )
     path = tmp_path / "transitions.parquet"
