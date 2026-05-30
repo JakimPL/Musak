@@ -12,7 +12,7 @@ from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import Hand, HandToken, NoteToken, ScaleType
 from musak_model.tokens.vocabulary import TokenVocabulary
 from musak_model.training.ingestion.schema import EncodedExercise
-from notebooks.utils.encoded import load_encoded_manifest_selection
+from notebooks.utils.encoded import load_encoded_manifest_selection, load_encoded_manifest_selections
 
 
 def test_load_encoded_manifest_selection_decodes_selected_manifest_row(tmp_path: Path) -> None:
@@ -73,6 +73,37 @@ def test_load_encoded_manifest_selection_uses_encoded_directory_when_row_has_no_
     )
 
     assert selection.segment.tokens == sample.to_segment(token_vocabulary=token_vocabulary).tokens
+
+
+def test_load_encoded_manifest_selections_reuses_shard_for_multiple_rows(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    encoded_directory, sample, token_vocabulary = _write_encoded_run(tmp_path)
+    load_calls = 0
+    original_load_encoded_shard = load_encoded_manifest_selections.__globals__["load_encoded_shard"]
+
+    def counting_load_encoded_shard(path: Path):
+        nonlocal load_calls
+        load_calls += 1
+        return original_load_encoded_shard(path)
+
+    monkeypatch.setitem(load_encoded_manifest_selections.__globals__, "load_encoded_shard", counting_load_encoded_shard)
+
+    selections = load_encoded_manifest_selections(
+        [
+            {EncodedManifestField.ENCODED_LINE.value: 0},
+            {EncodedManifestField.ENCODED_LINE.value: 0},
+        ],
+        dataset_dir=tmp_path,
+        encoded_directory=encoded_directory,
+    )
+
+    assert load_calls == 1
+    assert [selection.segment.tokens for selection in selections] == [
+        sample.to_segment(token_vocabulary=token_vocabulary).tokens,
+        sample.to_segment(token_vocabulary=token_vocabulary).tokens,
+    ]
 
 
 def test_load_encoded_manifest_selection_rejects_rows_without_encoded_sample(tmp_path: Path) -> None:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping
@@ -97,6 +98,60 @@ def load_encoded_manifest_selection(
         token_vocabulary=token_vocabulary,
         segment=segment,
     )
+
+
+def load_encoded_manifest_selections(
+    rows: Sequence[Mapping[str, object]],
+    *,
+    dataset_dir: Path,
+    encoded_directory: Path | None = None,
+) -> list[EncodedManifestSelection]:
+    shard_cache: dict[Path, EncodedShard] = {}
+    selections: list[EncodedManifestSelection] = []
+    fallback_vocabularies: tuple[DurationVocabulary, TokenVocabulary] | None = None
+    for row in rows:
+        if (encoded_line := _optional_encoded_line(row)) is not None:
+            encoded_shard_path = _encoded_shard_path(
+                row,
+                dataset_directory=dataset_dir,
+                encoded_directory=encoded_directory,
+            )
+            shard = shard_cache.get(encoded_shard_path)
+            if shard is None:
+                shard = load_encoded_shard(encoded_shard_path)
+                shard_cache[encoded_shard_path] = shard
+            if encoded_line >= len(shard.samples):
+                raise IndexError(f"encoded line {encoded_line} is outside shard with {len(shard.samples)} sample(s)")
+
+            selections.append(
+                EncodedManifestSelection(
+                    row=row,
+                    duration_vocabulary=shard.duration_vocabulary,
+                    token_vocabulary=shard.token_vocabulary,
+                    segment=encoded_sample_to_segment(shard.samples[encoded_line], shard=shard),
+                    shard=shard,
+                    encoded_line=encoded_line,
+                )
+            )
+            continue
+
+        if fallback_vocabularies is None:
+            fallback_vocabularies = _vocabularies_from_encoded_directory(encoded_directory)
+        duration_vocabulary, token_vocabulary = fallback_vocabularies
+        selections.append(
+            EncodedManifestSelection(
+                row=row,
+                duration_vocabulary=duration_vocabulary,
+                token_vocabulary=token_vocabulary,
+                segment=_segment_from_manifest_row(
+                    row,
+                    dataset_dir=dataset_dir,
+                    duration_vocabulary=duration_vocabulary,
+                ),
+            )
+        )
+
+    return selections
 
 
 def _vocabularies_from_encoded_directory(encoded_directory: Path | None) -> tuple[DurationVocabulary, TokenVocabulary]:

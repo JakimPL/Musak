@@ -24,6 +24,7 @@ from notebooks.utils.encoded import (
     default_encoded_browser_root,
     encoded_sample_to_segment,
     load_encoded_manifest_selection,
+    load_encoded_manifest_selections,
     load_encoded_shard,
 )
 from notebooks.utils.file_browser import FileSelection, selected_directory, selected_file, selected_musicxml_file
@@ -193,6 +194,7 @@ __all__ = [
     "scale_root_distribution",
     "load_encoded_shard",
     "load_encoded_manifest_selection",
+    "load_encoded_manifest_selections",
     "load_dataset_statistics",
     "load_figure_reference_counts",
     "load_rhythm_reference_counts",
