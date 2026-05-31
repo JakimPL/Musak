@@ -2,8 +2,15 @@ from typing import Final
 
 from musak_model.data.scale_matcher.schema import ScaleMatch
 from musak_model.data.schema import ParsedScore, SpellingContextSource, TokenizationContext
+from musak_model.tokens.schema import ScaleType
+from musak_shared.elements import PITCHES_PER_OCTAVE, key_fifths_from_pitch_class
 
 _DEFAULT_SPELLING_KEY_FIFTHS: Final[int] = 0
+_PARENT_MAJOR_OFFSET_BY_SCALE_TYPE: Final[dict[ScaleType, int]] = {
+    ScaleType.MAJOR: 0,
+    ScaleType.HARMONIC_MINOR: -9,
+    ScaleType.MELODIC_MINOR: -9,
+}
 
 
 def tokenization_context_from_scale_match(scale_match: ScaleMatch) -> TokenizationContext:
@@ -28,6 +35,25 @@ def tokenization_context_from_score(score: ParsedScore) -> TokenizationContext:
         spelling_key_fifths=spelling_key_fifths,
         spelling_context_source=spelling_source,
     )
+
+
+def tokenization_context_from_scale(
+    *,
+    scale_root: int,
+    scale_type: ScaleType,
+) -> TokenizationContext:
+    return TokenizationContext(
+        pitch_set_scale_root=scale_root,
+        pitch_set_scale_type=scale_type,
+        declared_key_fifths=None,
+        spelling_key_fifths=key_fifths_for_scale_basis(scale_root=scale_root, scale_type=scale_type),
+        spelling_context_source=SpellingContextSource.PITCH_SET_BASIS,
+    )
+
+
+def key_fifths_for_scale_basis(*, scale_root: int, scale_type: ScaleType) -> int:
+    parent_major_root = (scale_root + _PARENT_MAJOR_OFFSET_BY_SCALE_TYPE[scale_type]) % PITCHES_PER_OCTAVE
+    return key_fifths_from_pitch_class(parent_major_root)
 
 
 def _spelling_context_from_score(score: ParsedScore) -> tuple[int, SpellingContextSource]:

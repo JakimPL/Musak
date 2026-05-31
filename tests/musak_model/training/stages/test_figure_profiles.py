@@ -2,6 +2,7 @@ from fractions import Fraction
 from pathlib import Path
 
 from musak_model.data.schema import SegmentMetadata
+from musak_model.data.tokenization_context import tokenization_context_from_scale
 from musak_model.tokens.config import TokenizationConfig
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import Hand, HandToken, NoteToken, ScaleType
@@ -136,6 +137,7 @@ def _sample(token_vocabulary: TokenVocabulary, *, accidental: int) -> EncodedExe
         metadata=SegmentMetadata(
             scale_root=0,
             scale_type=ScaleType.MAJOR,
+            tokenization_context=tokenization_context_from_scale(scale_root=0, scale_type=ScaleType.MAJOR),
             time_numerator=4,
             time_denominator=4,
             bar_count=1,

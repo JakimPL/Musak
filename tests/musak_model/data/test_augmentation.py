@@ -5,6 +5,7 @@ import pytest
 
 from musak_model.data.augmentation import double_durations, shift_register
 from musak_model.data.schema import Segment, SegmentMetadata
+from musak_model.data.tokenization_context import tokenization_context_from_scale
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import BarToken, EndToken, Hand, HandToken, NoteToken, ScaleType
 
@@ -13,6 +14,7 @@ def _metadata() -> SegmentMetadata:
     return SegmentMetadata(
         scale_root=0,
         scale_type=ScaleType.MAJOR,
+        tokenization_context=tokenization_context_from_scale(scale_root=0, scale_type=ScaleType.MAJOR),
         time_numerator=4,
         time_denominator=4,
         bar_count=1,

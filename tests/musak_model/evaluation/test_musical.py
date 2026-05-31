@@ -2,6 +2,7 @@ from fractions import Fraction
 from pathlib import Path
 
 from musak_model.data.schema import Segment, SegmentMetadata
+from musak_model.data.tokenization_context import tokenization_context_from_scale
 from musak_model.evaluation.musical import musical_metrics
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import (
@@ -22,6 +23,7 @@ def _segment(tokens: list[Token], *, bar_count: int) -> Segment:
         metadata=SegmentMetadata(
             scale_root=0,
             scale_type=ScaleType.MAJOR,
+            tokenization_context=tokenization_context_from_scale(scale_root=0, scale_type=ScaleType.MAJOR),
             time_numerator=4,
             time_denominator=4,
             bar_count=bar_count,

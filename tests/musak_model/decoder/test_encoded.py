@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from musak_model.data.schema import SegmentMetadata
+from musak_model.data.tokenization_context import tokenization_context_from_scale
 from musak_model.decoder import encoded_exercise_to_segment
 from musak_model.tokens.schema import EndToken, Hand, HandToken, NoteToken, ScaleType
 from musak_model.tokens.vocabulary import TokenVocabulary
@@ -19,6 +20,7 @@ def test_encoded_exercise_to_segment_decodes_token_ids(token_vocabulary: TokenVo
         metadata=SegmentMetadata(
             scale_root=0,
             scale_type=ScaleType.MAJOR,
+            tokenization_context=tokenization_context_from_scale(scale_root=0, scale_type=ScaleType.MAJOR),
             time_numerator=4,
             time_denominator=4,
             bar_count=1,

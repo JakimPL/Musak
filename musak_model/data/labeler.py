@@ -169,13 +169,7 @@ def _has_accidentals(
 
 
 def _segment_key_fifths(segment: Segment) -> int:
-    if segment.metadata.tokenization_context is not None:
-        return segment.metadata.tokenization_context.spelling_key_fifths
-
-    if segment.metadata.scale_match is not None and segment.metadata.scale_match.declared_key_fifths is not None:
-        return segment.metadata.scale_match.declared_key_fifths
-
-    return 0
+    return segment.metadata.tokenization_context.spelling_key_fifths
 
 
 def _has_dotted_notes(

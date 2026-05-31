@@ -21,6 +21,7 @@ from musak_model.data.schema import (
     Segment,
     SegmentMetadata,
 )
+from musak_model.data.tokenization_context import tokenization_context_from_scale
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import BarToken, EndToken, Hand, HandToken, NoteToken, ScaleType, Token
 from musak_shared.elements import DOTTED_LIKE_DURATIONS
@@ -54,6 +55,7 @@ def _segment_with_tokens(
         metadata=SegmentMetadata(
             scale_root=0,
             scale_type=ScaleType.MAJOR,
+            tokenization_context=tokenization_context_from_scale(scale_root=0, scale_type=ScaleType.MAJOR),
             time_numerator=4,
             time_denominator=4,
             bar_count=1,
@@ -278,6 +280,7 @@ class TestHasAccidentals:
             metadata=SegmentMetadata(
                 scale_root=0,
                 scale_type=ScaleType.MAJOR,
+                tokenization_context=tokenization_context_from_scale(scale_root=0, scale_type=ScaleType.MAJOR),
                 time_numerator=4,
                 time_denominator=4,
                 bar_count=1,
@@ -305,6 +308,7 @@ class TestHasAccidentals:
             metadata=SegmentMetadata(
                 scale_root=0,
                 scale_type=ScaleType.MAJOR,
+                tokenization_context=tokenization_context_from_scale(scale_root=0, scale_type=ScaleType.MAJOR),
                 time_numerator=4,
                 time_denominator=4,
                 bar_count=1,

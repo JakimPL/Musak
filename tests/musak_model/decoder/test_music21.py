@@ -1,9 +1,10 @@
 from fractions import Fraction
 from pathlib import Path
 
-from music21 import chord, note, stream
+from music21 import chord, key, note, stream
 
-from musak_model.data.schema import Segment, SegmentMetadata
+from musak_model.data.schema import Segment, SegmentMetadata, SpellingContextSource, TokenizationContext
+from musak_model.data.tokenization_context import tokenization_context_from_scale
 from musak_model.decoder.music21 import segment_to_music21_score
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import (
@@ -18,10 +19,31 @@ from musak_model.tokens.schema import (
 )
 
 
-def _metadata(*, bar_count: int = 2) -> SegmentMetadata:
+def _metadata(
+    *,
+    bar_count: int = 2,
+    scale_root: int = 0,
+    scale_type: ScaleType = ScaleType.MAJOR,
+) -> SegmentMetadata:
+    return _metadata_with_tokenization_context(
+        bar_count=bar_count,
+        scale_root=scale_root,
+        scale_type=scale_type,
+        tokenization_context=tokenization_context_from_scale(scale_root=scale_root, scale_type=scale_type),
+    )
+
+
+def _metadata_with_tokenization_context(
+    *,
+    bar_count: int,
+    scale_root: int,
+    scale_type: ScaleType,
+    tokenization_context: TokenizationContext,
+) -> SegmentMetadata:
     return SegmentMetadata(
-        scale_root=0,
-        scale_type=ScaleType.MAJOR,
+        scale_root=scale_root,
+        scale_type=scale_type,
+        tokenization_context=tokenization_context,
         time_numerator=4,
         time_denominator=4,
         bar_count=bar_count,
@@ -37,6 +59,12 @@ def _part(score: stream.Score, hand: Hand) -> stream.Part:
             return part
 
     raise AssertionError(f"{hand.value} hand part not found")
+
+
+def _key_signature(score: stream.Score, hand: Hand) -> key.KeySignature:
+    key_signatures = list(_part(score, hand).flatten().getElementsByClass(key.KeySignature))
+    assert len(key_signatures) == 1
+    return key_signatures[0]
 
 
 def test_segment_to_music21_score_exports_cross_bar_hold_as_tied_notes(
@@ -113,6 +141,50 @@ def test_segment_to_music21_score_leaves_in_bar_notes_untied(
     assert len(right_notes) == 1
     assert right_notes[0].duration.quarterLength == 1
     assert right_notes[0].tie is None
+
+
+def test_segment_to_music21_score_exports_spelling_context_key_signature(
+    duration_vocabulary: DurationVocabulary,
+) -> None:
+    quarter_id = duration_vocabulary.fraction_to_id(Fraction(1, 4))
+    segment = Segment(
+        tokens=[HandToken(hand=Hand.RIGHT), NoteToken(degree=7, accidental=0, octave_offset=0, duration_id=quarter_id)],
+        metadata=_metadata(bar_count=1, scale_root=9, scale_type=ScaleType.HARMONIC_MINOR),
+    )
+
+    score = segment_to_music21_score(segment, duration_vocabulary=duration_vocabulary)
+    right_notes = list(_part(score, Hand.RIGHT).flatten().notes)
+
+    assert _key_signature(score, Hand.RIGHT).sharps == 0
+    assert right_notes[0].pitch.nameWithOctave == "G#5"
+
+
+def test_segment_to_music21_score_preserves_modal_spelling_context(
+    duration_vocabulary: DurationVocabulary,
+) -> None:
+    quarter_id = duration_vocabulary.fraction_to_id(Fraction(1, 4))
+    tokenization_context = TokenizationContext(
+        pitch_set_scale_root=5,
+        pitch_set_scale_type=ScaleType.MAJOR,
+        declared_key_fifths=0,
+        spelling_key_fifths=0,
+        spelling_context_source=SpellingContextSource.DECLARED_KEY_SIGNATURE,
+    )
+    segment = Segment(
+        tokens=[HandToken(hand=Hand.RIGHT), NoteToken(degree=4, accidental=0, octave_offset=0, duration_id=quarter_id)],
+        metadata=_metadata_with_tokenization_context(
+            bar_count=1,
+            scale_root=5,
+            scale_type=ScaleType.MAJOR,
+            tokenization_context=tokenization_context,
+        ),
+    )
+
+    score = segment_to_music21_score(segment, duration_vocabulary=duration_vocabulary)
+    right_notes = list(_part(score, Hand.RIGHT).flatten().notes)
+
+    assert _key_signature(score, Hand.RIGHT).sharps == 0
+    assert right_notes[0].pitch.nameWithOctave == "B-5"
 
 
 def test_segment_to_music21_score_groups_same_onset_notes_as_chord(duration_vocabulary: DurationVocabulary) -> None:

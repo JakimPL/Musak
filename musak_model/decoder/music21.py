@@ -4,10 +4,11 @@ from pathlib import Path
 
 from music21 import chord, note, stream, tie
 from music21.base import Music21Object
+from music21.key import KeySignature
 from music21.meter.base import TimeSignature
 
 from musak_model.data.schema import Segment
-from musak_model.decoder.piano_roll import PianoRollEvent, segment_to_piano_roll_events
+from musak_model.decoder.notation import DecodedNotationEvent, segment_spelling_key_fifths, segment_to_notation_events
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import Hand
 from musak_shared.elements import QUARTER_NOTE_DURATION
@@ -19,10 +20,10 @@ def segment_to_music21_score(
     *,
     duration_vocabulary: DurationVocabulary,
 ) -> stream.Score:
-    events = segment_to_piano_roll_events(segment, duration_vocabulary=duration_vocabulary)
+    events = segment_to_notation_events(segment, duration_vocabulary=duration_vocabulary)
     score = stream.Score()
-    score.insert(0, _part_from_events(events, hand=Hand.RIGHT, segment=segment))  # type: ignore[no-untyped-call]
-    score.insert(0, _part_from_events(events, hand=Hand.LEFT, segment=segment))  # type: ignore[no-untyped-call]
+    score.insert(0, _part_from_events(events, hand=Hand.RIGHT, segment=segment))
+    score.insert(0, _part_from_events(events, hand=Hand.LEFT, segment=segment))
     return score
 
 
@@ -38,10 +39,11 @@ def write_segment(
     return Path(written)
 
 
-def _part_from_events(events: list[PianoRollEvent], *, hand: Hand, segment: Segment) -> stream.Part:
+def _part_from_events(events: list[DecodedNotationEvent], *, hand: Hand, segment: Segment) -> stream.Part:
     part = stream.Part(id=hand.value)  # type: ignore[no-untyped-call]
     time_signature_text = format_ratio((segment.time_numerator, segment.time_denominator))
-    part.insert(0, TimeSignature(time_signature_text))  # type: ignore[no-untyped-call]
+    part.insert(0, KeySignature(segment_spelling_key_fifths(segment)))
+    part.insert(0, TimeSignature(time_signature_text))
     measure_duration = Fraction(segment.time_numerator, segment.time_denominator)
     hand_events = [event for event in events if event.hand == hand]
     grouped = _group_events_by_start(hand_events)
@@ -56,13 +58,13 @@ def _part_from_events(events: list[PianoRollEvent], *, hand: Hand, segment: Segm
             element = _element_from_onset_events(onset_events)
             element.duration.quarterLength = _fraction_to_quarter_length(fragment_duration)
             _apply_tie(element, tie_type)
-            part.insert(_fraction_to_quarter_length(fragment_start), element)  # type: ignore[no-untyped-call]
+            part.insert(_fraction_to_quarter_length(fragment_start), element)
 
     return part
 
 
-def _group_events_by_start(events: list[PianoRollEvent]) -> dict[Fraction, list[PianoRollEvent]]:
-    grouped: dict[Fraction, list[PianoRollEvent]] = defaultdict(list)
+def _group_events_by_start(events: list[DecodedNotationEvent]) -> dict[Fraction, list[DecodedNotationEvent]]:
+    grouped: dict[Fraction, list[DecodedNotationEvent]] = defaultdict(list)
     for event in events:
         grouped[event.start].append(event)
 
@@ -107,11 +109,18 @@ def _split_at_barlines(
     return tied_fragments
 
 
-def _element_from_onset_events(onset_events: list[PianoRollEvent]) -> Music21Object:
+def _element_from_onset_events(onset_events: list[DecodedNotationEvent]) -> Music21Object:
     if len(onset_events) == 1:
-        return note.Note(onset_events[0].midi_pitch)
+        return note.Note(_music21_pitch_name(onset_events[0].vexflow_key))
 
-    return chord.Chord([event.midi_pitch for event in onset_events])
+    return chord.Chord([_music21_pitch_name(event.vexflow_key) for event in onset_events])
+
+
+def _music21_pitch_name(vexflow_key: str) -> str:
+    pitch_name, octave = vexflow_key.split("/")
+    letter = pitch_name[0].upper()
+    accidental = pitch_name[1:].replace("b", "-")
+    return f"{letter}{accidental}{octave}"
 
 
 def _apply_tie(element: Music21Object, tie_type: str | None) -> None:

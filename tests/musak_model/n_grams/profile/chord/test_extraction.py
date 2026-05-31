@@ -2,6 +2,7 @@ from fractions import Fraction
 from pathlib import Path
 
 from musak_model.data.schema import Segment, SegmentMetadata
+from musak_model.data.tokenization_context import tokenization_context_from_scale
 from musak_model.harmony.decoding.config import ChordDecoderConfig
 from musak_model.harmony.decoding.decoder import ViterbiChordDecoder
 from musak_model.harmony.schema import Chord, ChordQuality
@@ -49,6 +50,7 @@ def _progression_segment(duration_vocabulary: DurationVocabulary) -> Segment:
         metadata=SegmentMetadata(
             scale_root=0,
             scale_type=ScaleType.MAJOR,
+            tokenization_context=tokenization_context_from_scale(scale_root=0, scale_type=ScaleType.MAJOR),
             time_numerator=4,
             time_denominator=4,
             bar_count=len(bars),
@@ -76,6 +78,7 @@ def _melodic_segment(duration_vocabulary: DurationVocabulary) -> Segment:
         metadata=SegmentMetadata(
             scale_root=0,
             scale_type=ScaleType.MAJOR,
+            tokenization_context=tokenization_context_from_scale(scale_root=0, scale_type=ScaleType.MAJOR),
             time_numerator=4,
             time_denominator=4,
             bar_count=len(bars),

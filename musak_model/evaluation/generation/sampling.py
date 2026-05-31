@@ -7,6 +7,7 @@ import torch
 from torch import Tensor
 
 from musak_model.data.schema import Segment, SegmentMetadata
+from musak_model.data.tokenization_context import tokenization_context_from_scale
 from musak_model.evaluation.generation.protocols import GenerationEvaluationOptions
 from musak_model.evaluation.generation.schema import ConstraintReport
 from musak_model.generation.constraints import (
@@ -41,6 +42,10 @@ def segment_from_tokens(tokens: list[Token], *, config: GenerationEvaluationOpti
         metadata=SegmentMetadata(
             scale_root=config.scale_root,
             scale_type=config.scale_type,
+            tokenization_context=tokenization_context_from_scale(
+                scale_root=config.scale_root,
+                scale_type=config.scale_type,
+            ),
             time_numerator=config.time_numerator,
             time_denominator=config.time_denominator,
             bar_count=config.bar_count,

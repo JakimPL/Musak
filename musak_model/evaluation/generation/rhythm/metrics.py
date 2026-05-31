@@ -4,6 +4,7 @@ from pathlib import Path
 from time import perf_counter
 
 from musak_model.data.schema import Segment, SegmentMetadata
+from musak_model.data.tokenization_context import tokenization_context_from_scale
 from musak_model.evaluation.generation.protocols import GenerationEvaluationOptions
 from musak_model.evaluation.generation.schema import GenerationSample
 from musak_model.n_grams.config import RhythmAnalysisConfig
@@ -102,6 +103,10 @@ def _sample_segment(sample: GenerationSample, *, config: GenerationEvaluationOpt
         metadata=SegmentMetadata(
             scale_root=config.scale_root,
             scale_type=config.scale_type,
+            tokenization_context=tokenization_context_from_scale(
+                scale_root=config.scale_root,
+                scale_type=config.scale_type,
+            ),
             time_numerator=config.time_numerator,
             time_denominator=config.time_denominator,
             bar_count=sample.completed_bars,

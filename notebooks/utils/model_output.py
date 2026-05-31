@@ -13,6 +13,7 @@ from musak_model.conditioning.structural.schema import StructuralControlFeatures
 from musak_model.conditioning.structural.vocabulary import StructuralControlVocabulary
 from musak_model.conditioning.time_signature import TimeSignatureVocabulary
 from musak_model.data.schema import Segment, SegmentMetadata
+from musak_model.data.tokenization_context import tokenization_context_from_scale
 from musak_model.decoder import segment_to_piano_roll_events
 from musak_model.evaluation import diagnose_segment
 from musak_model.evaluation.generation import (
@@ -380,6 +381,10 @@ def sampling_result_to_segment(
         metadata=SegmentMetadata(
             scale_root=scale_root,
             scale_type=scale_type,
+            tokenization_context=tokenization_context_from_scale(
+                scale_root=scale_root,
+                scale_type=scale_type,
+            ),
             time_numerator=time_numerator,
             time_denominator=time_denominator,
             bar_count=_display_bar_count(result.tokens),

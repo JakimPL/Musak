@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 from musak_model.data.schema import ParsedBar, ParsedChord, ParsedNote, ParsedScore, Segment, SegmentMetadata
+from musak_model.data.tokenization_context import tokenization_context_from_scale
 from musak_model.decoder.piano_roll import (
     parsed_score_to_piano_roll_events,
     segment_to_piano_roll_events,
@@ -27,6 +28,7 @@ def _metadata() -> SegmentMetadata:
     return SegmentMetadata(
         scale_root=0,
         scale_type=ScaleType.MAJOR,
+        tokenization_context=tokenization_context_from_scale(scale_root=0, scale_type=ScaleType.MAJOR),
         time_numerator=4,
         time_denominator=4,
         bar_count=1,

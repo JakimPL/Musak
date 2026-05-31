@@ -6,6 +6,7 @@ import pytest
 
 from musak_model.data.scale_matcher.config import ScaleMatcherConfig
 from musak_model.data.schema import SegmentMetadata
+from musak_model.data.tokenization_context import tokenization_context_from_scale
 from musak_model.n_grams.profile.artifacts import FigureArtifactPaths
 from musak_model.n_grams.profile.extraction import FigureExtractionResult
 from musak_model.processing.dataset import ProcessDatasetResult
@@ -300,6 +301,7 @@ def _encoded_sample(source_file: str, token_ids: list[int]) -> EncodedExercise:
         metadata=SegmentMetadata(
             scale_root=0,
             scale_type=ScaleType.MAJOR,
+            tokenization_context=tokenization_context_from_scale(scale_root=0, scale_type=ScaleType.MAJOR),
             time_numerator=4,
             time_denominator=4,
             bar_count=1,

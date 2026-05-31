@@ -9,6 +9,7 @@ import torch.nn as nn
 from torch import Tensor
 
 from musak_model.data.schema import Segment, SegmentMetadata
+from musak_model.data.tokenization_context import tokenization_context_from_scale
 from musak_model.n_grams.config import (
     ExecutionConfig,
     FigureAnalysisConfig,
@@ -121,6 +122,7 @@ def test_prompt_from_encoded_sample_uses_sample_ids(
         metadata=SegmentMetadata(
             scale_root=0,
             scale_type=ScaleType.MAJOR,
+            tokenization_context=tokenization_context_from_scale(scale_root=0, scale_type=ScaleType.MAJOR),
             time_numerator=4,
             time_denominator=4,
             bar_count=1,
@@ -149,6 +151,7 @@ def test_segment_decode_error_reports_invalid_generated_token_stream(
         metadata=SegmentMetadata(
             scale_root=0,
             scale_type=ScaleType.MAJOR,
+            tokenization_context=tokenization_context_from_scale(scale_root=0, scale_type=ScaleType.MAJOR),
             time_numerator=4,
             time_denominator=4,
             bar_count=1,
@@ -201,6 +204,7 @@ def test_generation_summary_metric_rows_uses_shared_generation_metrics(
         metadata=SegmentMetadata(
             scale_root=0,
             scale_type=ScaleType.MAJOR,
+            tokenization_context=tokenization_context_from_scale(scale_root=0, scale_type=ScaleType.MAJOR),
             time_numerator=4,
             time_denominator=4,
             bar_count=1,
@@ -234,6 +238,7 @@ def test_figure_pattern_metric_rows_summarizes_generated_figures(
         metadata=SegmentMetadata(
             scale_root=0,
             scale_type=ScaleType.MAJOR,
+            tokenization_context=tokenization_context_from_scale(scale_root=0, scale_type=ScaleType.MAJOR),
             time_numerator=4,
             time_denominator=4,
             bar_count=1,
@@ -269,6 +274,7 @@ def test_figure_reference_alignment_metric_rows_compare_alignment_and_novelty(
         metadata=SegmentMetadata(
             scale_root=0,
             scale_type=ScaleType.MAJOR,
+            tokenization_context=tokenization_context_from_scale(scale_root=0, scale_type=ScaleType.MAJOR),
             time_numerator=4,
             time_denominator=4,
             bar_count=1,
@@ -312,6 +318,7 @@ def test_rhythm_grid_metric_rows_describe_grid_alignment(
         metadata=SegmentMetadata(
             scale_root=0,
             scale_type=ScaleType.MAJOR,
+            tokenization_context=tokenization_context_from_scale(scale_root=0, scale_type=ScaleType.MAJOR),
             time_numerator=4,
             time_denominator=4,
             bar_count=1,
@@ -345,6 +352,7 @@ def test_rhythm_reference_alignment_metric_rows_compare_reference_distributions(
         metadata=SegmentMetadata(
             scale_root=0,
             scale_type=ScaleType.MAJOR,
+            tokenization_context=tokenization_context_from_scale(scale_root=0, scale_type=ScaleType.MAJOR),
             time_numerator=4,
             time_denominator=4,
             bar_count=1,

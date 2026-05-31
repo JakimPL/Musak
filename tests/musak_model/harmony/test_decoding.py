@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 from musak_model.data.schema import Segment, SegmentMetadata
+from musak_model.data.tokenization_context import tokenization_context_from_scale
 from musak_model.harmony.decoding import (
     ChordDecoderConfig,
     ViterbiChordDecoder,
@@ -77,6 +78,7 @@ def _segment(
         metadata=SegmentMetadata(
             scale_root=0,
             scale_type=scale_type,
+            tokenization_context=tokenization_context_from_scale(scale_root=0, scale_type=scale_type),
             time_numerator=time_numerator,
             time_denominator=time_denominator,
             bar_count=len(bars),

@@ -4,6 +4,7 @@ from pathlib import Path
 import altair as alt
 
 from musak_model.data.schema import ParsedBar, ParsedNote, ParsedScore, Segment, SegmentMetadata
+from musak_model.data.tokenization_context import tokenization_context_from_scale
 from musak_model.decoder import encoded_exercise_to_segment
 from musak_model.processing.io import append_jsonl, write_json_model
 from musak_model.processing.snapshot import build_tokenizer_snapshot
@@ -70,6 +71,7 @@ def test_segment_piano_roll_dataframe_includes_axis_and_token_fields(duration_vo
         metadata=SegmentMetadata(
             scale_root=0,
             scale_type=ScaleType.MAJOR,
+            tokenization_context=tokenization_context_from_scale(scale_root=0, scale_type=ScaleType.MAJOR),
             time_numerator=4,
             time_denominator=4,
             bar_count=1,
@@ -109,6 +111,7 @@ def test_segment_piano_roll_view_data_includes_events_domains_and_frame(
         metadata=SegmentMetadata(
             scale_root=0,
             scale_type=ScaleType.MAJOR,
+            tokenization_context=tokenization_context_from_scale(scale_root=0, scale_type=ScaleType.MAJOR),
             time_numerator=4,
             time_denominator=4,
             bar_count=2,
@@ -289,6 +292,7 @@ def test_load_encoded_shard_rebuilds_token_vocabulary(
         metadata=SegmentMetadata(
             scale_root=0,
             scale_type=ScaleType.MAJOR,
+            tokenization_context=tokenization_context_from_scale(scale_root=0, scale_type=ScaleType.MAJOR),
             time_numerator=4,
             time_denominator=4,
             bar_count=1,

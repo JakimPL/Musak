@@ -163,6 +163,7 @@ class ScaleMatchDiagnostics(BaseModel):
 class SpellingContextSource(StrEnum):
     DECLARED_KEY_SIGNATURE = "declared_key_signature"
     SCORE_KEY_FIFTHS = "score_key_fifths"
+    PITCH_SET_BASIS = "pitch_set_basis"
     DEFAULT_C_MAJOR = "default_c_major"
 
 
@@ -181,7 +182,7 @@ class SegmentMetadata(BaseModel):
 
     scale_root: int = Field(ge=0, lt=PITCHES_PER_OCTAVE)
     scale_type: ScaleType
-    tokenization_context: TokenizationContext | None = None
+    tokenization_context: TokenizationContext
     time_numerator: int = Field(gt=0)
     time_denominator: int
     bar_count: int = Field(ge=0)

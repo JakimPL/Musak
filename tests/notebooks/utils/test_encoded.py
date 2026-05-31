@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 from musak_model.data.schema import ParsedBar, ParsedNote, ParsedScore, SegmentMetadata
+from musak_model.data.tokenization_context import tokenization_context_from_scale
 from musak_model.processing.io import append_jsonl, write_json_model
 from musak_model.processing.manifest import EncodedManifestField
 from musak_model.processing.snapshot import build_tokenizer_snapshot
@@ -43,6 +44,7 @@ def test_load_encoded_manifest_selection_decodes_selected_manifest_row(tmp_path:
         metadata=SegmentMetadata(
             scale_root=0,
             scale_type=ScaleType.MAJOR,
+            tokenization_context=tokenization_context_from_scale(scale_root=0, scale_type=ScaleType.MAJOR),
             time_numerator=4,
             time_denominator=4,
             bar_count=1,
@@ -200,6 +202,7 @@ def _write_encoded_run(tmp_path: Path) -> tuple[Path, EncodedExercise, TokenVoca
         metadata=SegmentMetadata(
             scale_root=0,
             scale_type=ScaleType.MAJOR,
+            tokenization_context=tokenization_context_from_scale(scale_root=0, scale_type=ScaleType.MAJOR),
             time_numerator=4,
             time_denominator=4,
             bar_count=1,

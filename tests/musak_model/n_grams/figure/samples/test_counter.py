@@ -2,6 +2,7 @@ from fractions import Fraction
 from pathlib import Path
 
 from musak_model.data.schema import SegmentMetadata
+from musak_model.data.tokenization_context import tokenization_context_from_scale
 from musak_model.n_grams.figure.samples.counter import (
     count_encoded_exercises_figure_n_grams,
     count_encoded_exercises_figure_ngrams_with_samples,
@@ -149,6 +150,7 @@ def _sample(token_ids: list[int], *, scale_type: ScaleType) -> EncodedExercise:
         metadata=SegmentMetadata(
             scale_root=0,
             scale_type=scale_type,
+            tokenization_context=tokenization_context_from_scale(scale_root=0, scale_type=scale_type),
             time_numerator=4,
             time_denominator=4,
             bar_count=1,

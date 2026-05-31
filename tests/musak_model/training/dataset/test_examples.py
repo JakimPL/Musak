@@ -8,6 +8,7 @@ from musak_model.conditioning.structural.constants import UNKNOWN_CONTROL_ID, St
 from musak_model.conditioning.structural.vocabulary import StructuralControlVocabulary
 from musak_model.conditioning.time_signature import TimeSignatureVocabulary, TimeSignatureVocabularyConfig
 from musak_model.data.schema import SegmentMetadata
+from musak_model.data.tokenization_context import tokenization_context_from_scale
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import Hand, HandToken, NoteToken, ScaleType
 from musak_model.tokens.vocabulary import TokenVocabulary
@@ -54,6 +55,7 @@ def _sample(
         metadata=SegmentMetadata(
             scale_root=0,
             scale_type=ScaleType.MAJOR,
+            tokenization_context=tokenization_context_from_scale(scale_root=0, scale_type=ScaleType.MAJOR),
             time_numerator=time_signature[0],
             time_denominator=time_signature[1],
             bar_count=bar_count,

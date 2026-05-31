@@ -6,6 +6,7 @@ from typing import Final, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from musak_model.data.schema import Segment
+from musak_model.data.tokenization_context import key_fifths_for_scale_basis
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.pitch import note_token_to_midi_pitch
 from musak_model.tokens.schema import (
@@ -20,7 +21,7 @@ from musak_model.tokens.schema import (
     ScaleType,
     StartToken,
 )
-from musak_shared.elements import MIDI_MAX_PITCH, PITCHES_PER_OCTAVE, key_fifths_from_pitch_class
+from musak_shared.elements import MIDI_MAX_PITCH, PITCHES_PER_OCTAVE
 from musak_shared.notation.schema import (
     EIGHTH,
     HALF,
@@ -80,11 +81,6 @@ _MAJOR_KEY_SIGNATURES_BY_FIFTHS: Final[dict[int, str]] = {
     5: "B",
     6: "F#",
     7: "C#",
-}
-_PARENT_MAJOR_OFFSET_BY_SCALE_TYPE: Final[dict[ScaleType, int]] = {
-    ScaleType.MAJOR: 0,
-    ScaleType.HARMONIC_MINOR: -9,
-    ScaleType.MELODIC_MINOR: -9,
 }
 _REPRESENTABLE_DURATIONS: Final[tuple[Fraction, ...]] = tuple(
     sorted(
@@ -271,15 +267,11 @@ def key_signature_name_from_fifths(*, key_fifths: int) -> str:
 
 
 def segment_spelling_key_fifths(segment: Segment) -> int:
-    if segment.metadata.tokenization_context is not None:
-        return segment.metadata.tokenization_context.spelling_key_fifths
-
-    return key_fifths_for_scale(scale_root=segment.scale_root, scale_type=segment.scale_type)
+    return segment.metadata.tokenization_context.spelling_key_fifths
 
 
 def key_fifths_for_scale(*, scale_root: int, scale_type: ScaleType) -> int:
-    parent_major_root = (scale_root + _PARENT_MAJOR_OFFSET_BY_SCALE_TYPE[scale_type]) % PITCHES_PER_OCTAVE
-    return key_fifths_from_pitch_class(parent_major_root)
+    return key_fifths_for_scale_basis(scale_root=scale_root, scale_type=scale_type)
 
 
 class VexflowSpelling(BaseModel):

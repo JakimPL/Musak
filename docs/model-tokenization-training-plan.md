@@ -96,6 +96,24 @@ keeps the model honest: if a term improves samples, we can see which musical pro
 7. Treat tokenizer schema changes as artifact-version changes. Rebuild processed datasets rather than preserving stale
    encoded artifacts.
 
+## Progress Log
+
+This section is the durable resumption point if work continues after context compaction.
+
+- Completed: Phase 0 diagnostic reporting exists for processed datasets, encoded manifests, token distributions,
+  reference comparisons, MLflow summaries, and tonal probes.
+- Completed: Phase 1A introduced `metadata.tokenization_context` with separate pitch-set basis, declared key hint,
+  spelling key fifths, and spelling-context source. Encoded manifests and diagnostics expose spelling context.
+- Completed: Phase 1B made notation decoding use pitch-set metadata for MIDI recovery and `spelling_key_fifths` for
+  displayed key signatures and visible accidentals.
+- Completed: Phase 1C made `metadata.tokenization_context` required, removed internal compatibility fallbacks, and
+  invalidates stale encoded artifacts by bumping the tokenizer schema version after the tokenization-context metadata
+  change.
+- Completed: Phase 1D added focused notation and MusicXML spelling fixtures for harmonic minor, melodic minor,
+  borrowed tones, and modal spelling.
+- Next: Phase 2 should introduce a compact multidimensional token representation and explicit legality masks before
+  changing the training objective.
+
 ## Phase 0: Baseline Audit
 
 Goal: make the current failure modes visible before changing schemas.

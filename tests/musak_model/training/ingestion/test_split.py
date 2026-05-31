@@ -11,6 +11,7 @@ from musak_model.conditioning.time_signature import TimeSignatureVocabulary, Tim
 from musak_model.data.config import SegmentationConfig, SegmentationMode
 from musak_model.data.scale_matcher.config import ScaleMatcherConfig
 from musak_model.data.schema import Segment, SegmentIneligibilityReason, SegmentMetadata
+from musak_model.data.tokenization_context import tokenization_context_from_scale
 from musak_model.processing.config import ParsingProcessingConfig, ProcessingConfig, TokenizationProcessingConfig
 from musak_model.processing.dataset import process_dataset
 from musak_model.tokens.config import TokenizationConfig
@@ -81,6 +82,7 @@ def _segment(source_file: Path, *, duration_vocabulary: DurationVocabulary) -> S
         metadata=SegmentMetadata(
             scale_root=0,
             scale_type=ScaleType.MAJOR,
+            tokenization_context=tokenization_context_from_scale(scale_root=0, scale_type=ScaleType.MAJOR),
             time_numerator=4,
             time_denominator=4,
             bar_count=2,

@@ -7,6 +7,7 @@ from pathlib import Path
 from numpy.random import Generator
 
 from musak_model.data.schema import Segment, SegmentMetadata
+from musak_model.data.tokenization_context import tokenization_context_from_scale
 from musak_model.generation.constraints import (
     GenerationConstraintError,
     GenerationConstraints,
@@ -243,6 +244,10 @@ class SegmentGenerator:
             metadata=SegmentMetadata(
                 scale_root=scale_root,
                 scale_type=scale_type,
+                tokenization_context=tokenization_context_from_scale(
+                    scale_root=scale_root,
+                    scale_type=scale_type,
+                ),
                 time_numerator=time_numerator,
                 time_denominator=time_denominator,
                 bar_count=bar_count,
