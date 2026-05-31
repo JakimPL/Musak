@@ -81,7 +81,7 @@ def test_view_data_chord_windows_columns_when_absent() -> None:
     view_data = baseline_overlay_view_data(_trace())
 
     assert view_data.chord_windows.empty
-    assert list(view_data.chord_windows.columns) == ["start_in_bars", "end_in_bars", "mid_in_bars", "label"]
+    assert list(view_data.chord_windows.columns) == ["start_in_bars", "end_in_bars", "mid_in_bars", "band", "label"]
 
 
 def test_view_data_chord_windows_labels_and_midpoints() -> None:

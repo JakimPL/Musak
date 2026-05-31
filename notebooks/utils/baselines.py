@@ -10,9 +10,11 @@ from notebooks.utils.piano_roll import PitchSpelling, midi_pitch_name, pitch_lab
 
 _LEFT_HAND_COLOR = "#1f77b4"
 _RIGHT_HAND_COLOR = "#ff7f0e"
-_CHORD_COLOR = "#555555"
+_CHORD_LABEL_COLOR = "#1a237e"
+_CHORD_RULE_COLOR = "#9aa0b4"
+_CHORD_BAND_FILLS: Final[tuple[str, str]] = ("#dfe3ee", "#eef1f8")
 _ACCENT_WEIGHT_DOMAIN = (0.0, 1.0)
-_CHORD_WINDOW_COLUMNS: Final[tuple[str, ...]] = ("start_in_bars", "end_in_bars", "mid_in_bars", "label")
+_CHORD_WINDOW_COLUMNS: Final[tuple[str, ...]] = ("start_in_bars", "end_in_bars", "mid_in_bars", "band", "label")
 _ROMAN_NUMERALS: Final[tuple[str, ...]] = ("I", "II", "III", "IV", "V", "VI", "VII")
 _ACCIDENTAL_PREFIX: Final[dict[int, str]] = {-1: "♭", 0: "", 1: "♯"}
 _QUALITY_SUFFIX: Final[dict[ChordQuality, str]] = {ChordQuality.DIMINISHED: "°", ChordQuality.AUGMENTED: "+"}
@@ -69,9 +71,10 @@ def baseline_overlay_view_data(
             "start_in_bars": window.start_in_bars,
             "end_in_bars": window.end_in_bars,
             "mid_in_bars": (window.start_in_bars + window.end_in_bars) / 2,
+            "band": str(index % 2),
             "label": chord_label(window.chord),
         }
-        for window in trace.chord_windows
+        for index, window in enumerate(trace.chord_windows)
     ]
 
     pitch_curve = pd.DataFrame(pitch_rows)
@@ -155,29 +158,43 @@ def baseline_overlay_chart(
             ],
         )
     )
+    chord_band_x = alt.X("start_in_bars:Q", scale=alt.Scale(domain=list(view_data.bar_domain)))
+    chord_tooltip = [
+        alt.Tooltip("label:N", title="Chord"),
+        alt.Tooltip("start_in_bars:Q", title="From bar", format=".3f"),
+        alt.Tooltip("end_in_bars:Q", title="To bar", format=".3f"),
+    ]
+    chord_bands = (
+        alt.Chart(view_data.chord_windows)
+        .mark_rect(opacity=0.55)
+        .encode(
+            x=chord_band_x,
+            x2="end_in_bars:Q",
+            fill=alt.Fill(
+                "band:N",
+                scale=alt.Scale(domain=["0", "1"], range=list(_CHORD_BAND_FILLS)),
+                legend=None,
+            ),
+            tooltip=chord_tooltip,
+        )
+    )
     chord_rules = (
         alt.Chart(view_data.chord_windows)
-        .mark_rule(color=_CHORD_COLOR, strokeDash=[2, 2], opacity=0.5)
-        .encode(
-            x=alt.X("start_in_bars:Q", scale=alt.Scale(domain=list(view_data.bar_domain))),
-            tooltip=[
-                alt.Tooltip("label:N", title="Chord"),
-                alt.Tooltip("start_in_bars:Q", title="Bar", format=".3f"),
-            ],
-        )
+        .mark_rule(color=_CHORD_RULE_COLOR, strokeDash=[3, 3], opacity=0.8)
+        .encode(x=chord_band_x, tooltip=chord_tooltip)
     )
     chord_labels = (
         alt.Chart(view_data.chord_windows)
-        .mark_text(baseline="top", dy=2, fontWeight="bold", color=_CHORD_COLOR)
+        .mark_text(baseline="top", dy=4, fontSize=14, fontWeight="bold", color=_CHORD_LABEL_COLOR)
         .encode(
             x=alt.X("mid_in_bars:Q", scale=alt.Scale(domain=list(view_data.bar_domain))),
             y=alt.value(0),
             text=alt.Text("label:N"),
-            tooltip=[alt.Tooltip("label:N", title="Chord")],
+            tooltip=chord_tooltip,
         )
     )
     return (
-        alt.layer(pitch_curve, impulse_grid, chord_rules, chord_labels)
+        alt.layer(chord_bands, chord_rules, pitch_curve, impulse_grid, chord_labels)
         .resolve_scale(y="independent")
         .properties(width="container", height=height, title="Baseline overlay (register, accent, chord track)")
     )
