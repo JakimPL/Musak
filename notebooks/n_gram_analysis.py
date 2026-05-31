@@ -80,10 +80,10 @@ def _(mo):
 
 
 @app.cell
-def _(DEFAULT_ANALYSIS_DIR, DEFAULT_TRAINING_FIGURE_DIR, mo):
+def _(DEFAULT_ANALYSIS_DIR, DEFAULT_TRAINING_FIGURE_DIRECTORY, mo):
     initial_path = (
-        DEFAULT_TRAINING_FIGURE_DIR
-        if DEFAULT_TRAINING_FIGURE_DIR.exists()
+        DEFAULT_TRAINING_FIGURE_DIRECTORY
+        if DEFAULT_TRAINING_FIGURE_DIRECTORY.exists()
         else DEFAULT_ANALYSIS_DIR if DEFAULT_ANALYSIS_DIR.exists() else "."
     )
     vocabulary_browser = mo.ui.file_browser(

@@ -117,12 +117,21 @@ class GenerationSuiteEvaluator:
         finally:
             model.train(was_training)
 
-        metrics = self._evaluation_metrics(suites)
+        try:
+            metrics = self._evaluation_metrics(suites)
+        except ValueError as exception:
+            _LOGGER.error(
+                "Error during generation evaluation metrics computation: %s",
+                exception,
+                exc_info=True,
+            )
+
         _LOGGER.info(
             "Finished generation evaluation in %.1fs: metrics=%s",
             perf_counter() - started_at,
             len(metrics),
         )
+
         return metrics
 
     def _sample_suites(self, model: GenerationModel, *, device: torch.device) -> _SampleSuites:

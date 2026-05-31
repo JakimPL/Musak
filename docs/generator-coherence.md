@@ -22,6 +22,15 @@ never enters. Hand-coded structure is minimised: where a low-bias **data-derived
 learn it; we hand-specify only rule *sets* that are the grammar of the idiom (not stylistic taxonomies) and fit
 their *probabilities*.
 
+**Inductive-bias policy.** Provide inductive bias sparingly and, wherever possible, *learn it from the corpus*
+rather than impose arbitrary Western-European music-theory categories (much of music theory is unprincipled
+convention). The guiding tension: every classical construct we bake in (the tonic/subdominant/dominant functional
+division, named cadences, diatonic-triad realization) narrows the model toward the rigid tonal idiom and away from
+arbitrary music — so prefer to *measure* a phenomenon from data over *naming* it, and keep any classical construct
+**isolated and swappable**. We accept such constructs **only where the target — classical sight-reading exercises
+— justifies them**. The T/S/D division is itself over-constraining in a broad musical sense and is justified here
+only by the target repertoire.
+
 ## 3. Methods and what each supplies (sources at end)
 
 | Need (user point) | Method | Status in this design |
@@ -180,8 +189,8 @@ audio).
 ## 9. Decisions locked
 - **Form:** learned low-bias **repetition-structure prior** (metric-grid segmentation + figure-similarity +
   corpus histogram); named templates deferred. **Minimal 2-level grouping (§15 Fix 1):** parallelism (`restates`)
-  at the segment level, harmony-rooting + cadence at the phrase level; phrase-length & per-position cadence
-  `P(cadence_target | phrase position, count)` learned from the corpus.
+  at the segment level, harmony-rooting + cadence at the phrase level; phrase-length & per-position
+  `P(closing pattern | phrase position)` learned from the corpus (§19).
 - **Harmony:** **compact single-key GSM rule set fixed; probabilities learned** (inside-outside + Dirichlet).
   Modulation a later switch.
 - **Rhythm/meter:** probabilistic metrical tree; metrical weight = tree rank; held/whole/multi-bar structural.
@@ -321,10 +330,11 @@ exactly `m` leaves (standard length-`m` PCFG generation; trivial for `m ≤ 16`)
 - Production probabilities `θ` learned (§13.5). Modulation (`X_key→T_key′`) deferred behind a switch.
 
 ### 13.4 Cadence & opening (closure as a feature, not an `if`)
-The form's positional bias sets each segment's `cadence_target ∈ {PAC, IAC, HC, DC}`, which **constrains the
-rightmost derivation path**: `PAC ⇒ …d→t` with root-position V and tonic-soprano (voicer flag); `HC ⇒ ends on d`;
-`IAC ⇒ weaker d→t`; `DC ⇒ d→vi`. The first segment is biased to open on `t`; the terminal segment's
-`cadence_target = PAC`. All carried as node features from the form — never `if last_bar`.
+The form supplies each phrase a **closing pattern** (§19) — a functional suffix that **constrains the rightmost
+derivation path** (e.g. `(D, T)` authentic, `(S, D)` / `(D,)` half, `(S, T)` plagal); the closing chords come
+from the realization distribution, so deceptive (closing tonic realized as `vi`) emerges rather than being a named
+type. The first phrase opens on the tonic; the terminal phrase closes to the tonic. All carried as node features
+from the form — never `if last_bar`.
 
 ### 13.5 Fitting `θ` (inside-outside + Dirichlet)
 Decode each corpus piece's chords (the **kept** Viterbi decoder), map scale-degree chords → functions
@@ -549,6 +559,54 @@ compound meters. `MetricalGrammarConfig` loads from `configs/generation/metrical
 - **Asymmetric / odd meters** fall back to a flat prime split (5/4 → five beats, 7/8 → seven); idiomatic groupings
   (5/4 as 2+3, 7/8 as 2+2+3) await corpus evidence. The meter is consulted at the bar level by necessity — bar
   duration alone cannot separate 6/8 from 3/4 (both span 3/4).
+
+## 19. Cadence — a measured closing pattern (data → stochastic model)
+
+*Supersedes the `CadenceType` enum and the `PAC/IAC/HC/DC` labels referenced in §9 / §13.4 / §16.1: those names
+are descriptive, not generative primitives.*
+
+**Cadence is a measured pattern, not a category.** A cadence is the **harmonic closing pattern observed at a
+phrase boundary** — a short *functional suffix* landing on a metrically strong, rhythmically articulated beat:
+`ClosingPattern = (functional suffix f(t*−k … t*), metrical level of t*)`. "PAC / half / deceptive / plagal" are
+just frequent suffixes (`…D→T`, `…→D`, `…D→` tonic-realized-as-`vi`, `…S→T`) — descriptions of patterns we count,
+never an enumerated primitive. This mirrors the form layer (count repetition strings, don't name AABA).
+
+**Perfect vs imperfect is excluded for now** — it is a *voicing* axis (root-position bass, tonic in soprano), and
+the Viterbi chord track is decoded from pitch-class content with no register. It is recoverable later from the raw
+notes via a bass/soprano pass, as an additive `strength` field; it is not a generative primitive.
+
+**Retrieval from data (non-circular).** Detecting cadences *by* assuming `D→T`, then "discovering" cadences are
+`D→T`, is circular. Separate the cue from the payload:
+- **Boundary cue (non-harmonic):** metrical strength (metrical-tree weight at `t*`), rhythmic articulation (a long
+  note / rest / large IOI at `t*`), and repetition structure (a returning/new segment tends to start a phrase).
+- **Harmonic-arrival cue (general relaxation, not a `D→T` rule):** tonal tension *drops* onto a stable chord at
+  `t*`. Tension is gradient — **tonic-triad pitch-class overlap** (locked choice) — so it fires for `D→T`, `S→T`
+  (plagal) and others without presupposing the progression.
+- A **cadence** = a metrically-strong, rhythmically-articulated boundary co-located with harmonic relaxation onto
+  a stable chord. High *precision*, modest recall (only confident cadences are needed to estimate distributions).
+- At each detected cadence, **record the payload** — the closing functional suffix and the metrical level. The
+  harmonic content of cadences is thus *measured*, not assumed (plagal closes are discovered if present).
+
+**The stochastic model.** Counting detected cadences yields exactly two distributions:
+- `P(phrase_length)` — bar distances between cadences;
+- `P(ClosingPattern | phrase_position)` — antecedents close open (`…→D`), final phrases close to tonic (`…D→T`).
+At generation: sample a phrase partition, then per-phrase a closing pattern; the harmony grammar (§13) forces the
+rightmost leaves to the suffix's functions, and the closing **chords come from the realization distribution** — so
+*deceptive* (closing tonic realized as `vi`) emerges rather than being a named type.
+
+**Merge with the neural model (the shared skeleton).** `ClosingPattern` — with the metrical tree, the
+harmonic-function track, and the phrase boundaries — is the CAST-style **skeleton**. Annotate the corpus once with
+this skeleton; the **stochastic** generator then turns the annotations into *counted distributions* and renders
+texture via the grammar + figure surface, while the **neural** model *conditions on / trains against* the same
+skeleton labels. They are two interchangeable texture-renderers over one shared skeleton vocabulary — the merge is
+"share the skeleton annotation, swap the renderer," and `ClosingPattern` is part of that contract. (This is why
+its measurable, learnable shape matters now, before data structures harden.)
+
+**Locked decisions.** (1) `ClosingPattern` = a functional suffix of **terminal + one approach** function (`(D, T)`
+authentic, `(S, T)` plagal, `(S, D)` / `(D,)` half), length extensible. (2) **Purely functional** — the closing
+chord is drawn from the realization distribution, so authentic vs deceptive differ only by the realized tonic
+chord, not by type. (3) Harmonic-arrival tension = **tonic-triad pitch-class overlap**. (4) **Voicing /
+perfect-imperfect deferred** to a later bass/soprano pass.
 
 ## Sources
 Form/segmentation & repetition: Cambouropoulos LBDM (ICMC 2001); Pearce/Müllensiefen/Wiggins segmentation

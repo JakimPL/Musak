@@ -38,6 +38,7 @@ HARMONIC_FUNCTION_BY_DEGREE: Final[dict[int, HarmonicFunction]] = {
     7: HarmonicFunction.DOMINANT,
 }
 
+
 QUARTER_NOTE_DURATION: Final[Fraction] = Fraction(1, 4)
 QUARTERS_PER_WHOLE: Final[int] = 4
 DEFAULT_TICKS_PER_BEAT: Final[int] = 480
@@ -83,3 +84,15 @@ def key_fifths_from_pitch_class(pitch_class: int) -> int:
         return min(candidates, key=lambda key_fifths: (abs(key_fifths), key_fifths))
 
     raise ValueError(f"cannot derive key fifths for pitch class {pitch_class}")
+
+
+def degrees_for_function(
+    function: HarmonicFunction,
+    *,
+    scale_size: int,
+) -> tuple[int, ...]:
+    return tuple(
+        degree
+        for degree, degree_function in HARMONIC_FUNCTION_BY_DEGREE.items()
+        if degree_function == function and degree <= scale_size
+    )

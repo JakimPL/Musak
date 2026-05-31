@@ -110,13 +110,13 @@ def _(mo):
 
 @app.cell
 def _(
-    DEFAULT_CHECKPOINT_DIR,
-    DEFAULT_TRAINING_FIGURE_DIR,
+    DEFAULT_CHECKPOINT_DIRECTORY,
+    DEFAULT_TRAINING_FIGURE_DIRECTORY,
     TOKENIZATION_CONFIG_PATH,
     mo,
 ):
     checkpoint_browser = mo.ui.file_browser(
-        initial_path=DEFAULT_CHECKPOINT_DIR if DEFAULT_CHECKPOINT_DIR.exists() else ".",
+        initial_path=DEFAULT_CHECKPOINT_DIRECTORY if DEFAULT_CHECKPOINT_DIRECTORY.exists() else ".",
         filetypes=[".pt"],
         selection_mode="file",
         multiple=False,
@@ -130,7 +130,7 @@ def _(
         label="Tokenization config",
     )
     reference_counts_browser = mo.ui.file_browser(
-        initial_path=DEFAULT_TRAINING_FIGURE_DIR if DEFAULT_TRAINING_FIGURE_DIR.exists() else ".",
+        initial_path=DEFAULT_TRAINING_FIGURE_DIRECTORY if DEFAULT_TRAINING_FIGURE_DIRECTORY.exists() else ".",
         filetypes=[".parquet"],
         selection_mode="file",
         multiple=False,

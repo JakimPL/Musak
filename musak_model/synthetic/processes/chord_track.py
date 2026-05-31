@@ -8,9 +8,10 @@ import numpy as np
 from numpy.random import Generator
 from pydantic import BaseModel, ConfigDict, model_validator
 
-from musak_model.harmony.schema import TRIAD_QUALITY_BY_INTERVALS, Chord
+from musak_model.harmony.diatonic import natural_triad
+from musak_model.harmony.schema import Chord
 from musak_model.tokens.schema import SCALE_INTERVALS, ScaleType
-from musak_shared.elements import HARMONIC_FUNCTION_BY_DEGREE, PITCHES_PER_OCTAVE, HarmonicFunction
+from musak_shared.elements import HARMONIC_FUNCTION_BY_DEGREE, HarmonicFunction
 
 _PROBABILITY_SUM_TOLERANCE: Final[float] = 1e-9
 
@@ -156,21 +157,11 @@ def _function_by_chord(chords: Sequence[Chord], *, scale_type: ScaleType) -> dic
         if degree > scale_size:
             continue
 
-        triad = _natural_triad(scale_type, degree)
+        triad = natural_triad(scale_type, degree)
         if triad in chord_set:
             function_by_chord[triad] = function
 
     return function_by_chord
-
-
-def _natural_triad(scale_type: ScaleType, degree: int) -> Chord:
-    intervals = SCALE_INTERVALS[scale_type]
-    scale_size = len(intervals)
-    root_index = degree - 1
-    root_semitone = intervals[root_index]
-    third = (intervals[(root_index + 2) % scale_size] - root_semitone) % PITCHES_PER_OCTAVE
-    fifth = (intervals[(root_index + 4) % scale_size] - root_semitone) % PITCHES_PER_OCTAVE
-    return Chord(root_degree=degree, root_accidental=0, quality=TRIAD_QUALITY_BY_INTERVALS[(third, fifth)])
 
 
 def _tonic_weighted_distribution(

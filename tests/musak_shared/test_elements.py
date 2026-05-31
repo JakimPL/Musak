@@ -2,7 +2,19 @@ from fractions import Fraction
 
 import pytest
 
-from musak_shared.elements import is_dotted_duration, key_fifths_from_pitch_class, pitch_class_from_key_fifths
+from musak_shared.elements import (
+    HarmonicFunction,
+    degrees_for_function,
+    is_dotted_duration,
+    key_fifths_from_pitch_class,
+    pitch_class_from_key_fifths,
+)
+
+
+def test_degrees_for_function_filters_by_scale_size() -> None:
+    assert degrees_for_function(HarmonicFunction.TONIC, scale_size=7) == (1, 3, 6)
+    assert degrees_for_function(HarmonicFunction.PREDOMINANT, scale_size=7) == (2, 4)
+    assert degrees_for_function(HarmonicFunction.DOMINANT, scale_size=7) == (5, 7)
 
 
 def test_is_dotted_duration_detects_binary_dotted_durations() -> None:

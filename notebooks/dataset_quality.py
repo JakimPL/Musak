@@ -126,8 +126,8 @@ def _(Path, dataset_selector):
 
 
 @app.cell
-def _(DEFAULT_DATASET_QUALITY_DATABASE_PATH, DEFAULT_DATA_DIR, dataset_name, mo):
-    default_dataset_root = DEFAULT_DATA_DIR / dataset_name if dataset_name else DEFAULT_DATA_DIR
+def _(DEFAULT_DATASET_QUALITY_DATABASE_PATH, DEFAULT_DATA_DIRECTORY, dataset_name, mo):
+    default_dataset_root = DEFAULT_DATA_DIRECTORY / dataset_name if dataset_name else DEFAULT_DATA_DIRECTORY
     dataset_root_text = mo.ui.text(value=default_dataset_root.as_posix(), label="Original dataset root")
     database_path_text = mo.ui.text(
         value=DEFAULT_DATASET_QUALITY_DATABASE_PATH.as_posix(),
