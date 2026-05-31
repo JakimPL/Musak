@@ -19,6 +19,7 @@ musical_auxiliary_targets:
 musical_auxiliary_objective:
   enabled: true
   weight: 0.1
+  bar_weight: 1.0
   note_density_weight: 1.0
   rhythmic_diversity_weight: 1.0
   voice_independence_weight: 1.0

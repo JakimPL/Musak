@@ -168,6 +168,7 @@ def test_train_finetuning_loads_pretraining_checkpoint_and_runs_epoch(
             musical_auxiliary_objective=MusicalAuxiliaryObjectiveConfig(
                 enabled=True,
                 weight=0.1,
+                bar_weight=1.0,
                 note_density_weight=1.0,
                 rhythmic_diversity_weight=1.0,
                 voice_independence_weight=1.0,

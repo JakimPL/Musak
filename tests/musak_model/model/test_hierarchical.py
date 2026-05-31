@@ -87,6 +87,14 @@ def _coordinate_kwargs(token_ids: Tensor) -> dict[str, Tensor]:
     }
 
 
+def _training_logits_kwargs(token_ids: Tensor, *, bar_positions: Tensor) -> dict[str, Tensor]:
+    return {
+        **_coordinate_kwargs(token_ids),
+        "target_bar_positions": bar_positions,
+        "bar_counts": bar_positions.max(dim=1).values + 1,
+    }
+
+
 def _musical_auxiliary_logits_sum(logits: MusicalAuxiliaryLogits) -> Tensor:
     return (
         logits.note_density.sum()
@@ -95,6 +103,12 @@ def _musical_auxiliary_logits_sum(logits: MusicalAuxiliaryLogits) -> Tensor:
         + logits.uses_accidentals.sum()
         + logits.dotted_duration.sum()
         + logits.hand_span.sum()
+        + logits.bar.note_density.sum()
+        + logits.bar.rhythmic_diversity.sum()
+        + logits.bar.voice_independence.sum()
+        + logits.bar.uses_accidentals.sum()
+        + logits.bar.dotted_duration.sum()
+        + logits.bar.hand_span.sum()
     )
 
 
@@ -178,13 +192,18 @@ class TestForwardOutputShape:
             bar_positions=bar_positions,
             **_coordinate_kwargs(token_ids),
         )
-        training_logits = model.training_logits(token_ids, bar_positions=bar_positions, **_coordinate_kwargs(token_ids))
+        training_logits = model.training_logits(
+            token_ids,
+            bar_positions=bar_positions,
+            **_training_logits_kwargs(token_ids, bar_positions=bar_positions),
+        )
 
         assert flat_scores.shape == (2, 8, FACTORIZED_VOCAB)
         assert training_logits.flat_logits.shape == (2, 8, FACTORIZED_VOCAB)
         assert training_logits.factorized_logits is not None
         assert factorized_logits.kind.shape == (2, 8, TOKEN_KIND_COUNT)
         assert factorized_logits.duration.shape == (2, 8, FACTORIZED_DURATION_VOCAB)
+        assert training_logits.musical_auxiliary_logits.bar.note_density.shape == (2, 2, 7)
 
 
 class TestForwardBarLayouts:
@@ -332,7 +351,7 @@ class TestForwardBehaviour:
         logits = model.training_logits(
             token_ids,
             bar_positions=bar_positions,
-            **_coordinate_kwargs(token_ids),
+            **_training_logits_kwargs(token_ids, bar_positions=bar_positions),
             difficulty_ids=torch.zeros(2, dtype=torch.long),
             scale_type_ids=torch.zeros(2, dtype=torch.long),
             time_signature_ids=torch.zeros(2, dtype=torch.long),
@@ -448,7 +467,7 @@ class TestEncoderBypass:
         logits = model.training_logits(
             token_ids,
             bar_positions=bar_positions,
-            **_coordinate_kwargs(token_ids),
+            **_training_logits_kwargs(token_ids, bar_positions=bar_positions),
             difficulty_ids=torch.zeros(2, dtype=torch.long),
             scale_type_ids=torch.zeros(2, dtype=torch.long),
             time_signature_ids=torch.zeros(2, dtype=torch.long),

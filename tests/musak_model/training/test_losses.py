@@ -6,6 +6,8 @@ from musak_model.auxiliary.schema import (
     MUSICAL_AUXILIARY_TARGET_IGNORE_ID,
     MusicalAuxiliaryLogits,
     MusicalAuxiliaryTargetTensors,
+    MusicalBarAuxiliaryLogits,
+    MusicalBarAuxiliaryTargetTensors,
 )
 from musak_model.model.config import ModelOutputMode
 from musak_model.model.output import FactorizedTokenLogits
@@ -40,6 +42,7 @@ def _auxiliary_objective_config() -> MusicalAuxiliaryObjectiveConfig:
     return MusicalAuxiliaryObjectiveConfig(
         enabled=True,
         weight=0.1,
+        bar_weight=1.0,
         note_density_weight=1.0,
         rhythmic_diversity_weight=1.0,
         voice_independence_weight=1.0,
@@ -87,6 +90,14 @@ def test_musical_auxiliary_loss_masks_missing_targets_and_counts_matches() -> No
         uses_accidentals=torch.tensor([[0.0, 6.0], [1.0, 0.0]]),
         dotted_duration=torch.tensor([[0.0, 7.0], [1.0, 0.0]]),
         hand_span=torch.tensor([[0.0, 8.0], [0.0, 1.0]]),
+        bar=MusicalBarAuxiliaryLogits(
+            note_density=torch.tensor([[[0.0, 3.0], [2.0, 0.0]], [[1.0, 0.0], [0.0, 1.0]]]),
+            rhythmic_diversity=torch.tensor([[[0.0, 3.0], [2.0, 0.0]], [[1.0, 0.0], [0.0, 1.0]]]),
+            voice_independence=torch.tensor([[[0.0, 3.0], [2.0, 0.0]], [[1.0, 0.0], [0.0, 1.0]]]),
+            uses_accidentals=torch.tensor([[[0.0, 3.0], [2.0, 0.0]], [[1.0, 0.0], [0.0, 1.0]]]),
+            dotted_duration=torch.tensor([[[0.0, 3.0], [2.0, 0.0]], [[1.0, 0.0], [0.0, 1.0]]]),
+            hand_span=torch.tensor([[[0.0, 3.0], [2.0, 0.0]], [[1.0, 0.0], [0.0, 1.0]]]),
+        ),
     )
     targets = MusicalAuxiliaryTargetTensors(
         note_density_ids=torch.tensor([1, MUSICAL_AUXILIARY_TARGET_IGNORE_ID]),
@@ -95,6 +106,14 @@ def test_musical_auxiliary_loss_masks_missing_targets_and_counts_matches() -> No
         uses_accidentals_ids=torch.tensor([1, 0]),
         dotted_duration_ids=torch.tensor([1, 0]),
         hand_span_ids=torch.tensor([1, 1]),
+        bar_targets=MusicalBarAuxiliaryTargetTensors(
+            note_density_ids=torch.tensor([[1, MUSICAL_AUXILIARY_TARGET_IGNORE_ID], [0, 1]]),
+            rhythmic_diversity_ids=torch.tensor([[1, 0], [0, 1]]),
+            voice_independence_ids=torch.tensor([[1, 0], [0, 1]]),
+            uses_accidentals_ids=torch.tensor([[1, 0], [0, 1]]),
+            dotted_duration_ids=torch.tensor([[1, 0], [0, 1]]),
+            hand_span_ids=torch.tensor([[1, 0], [0, 1]]),
+        ),
     )
 
     loss = musical_auxiliary_loss(logits, targets=targets, config=_auxiliary_objective_config())
@@ -104,4 +123,8 @@ def test_musical_auxiliary_loss_masks_missing_targets_and_counts_matches() -> No
     assert loss.rhythmic_diversity_target_count == 2
     assert loss.rhythmic_diversity_match_count == 2
     assert loss.voice_independence_match_count == 2
+    assert loss.bar_note_density_target_count == 3
+    assert loss.bar_note_density_match_count == 3
+    assert loss.bar_rhythmic_diversity_target_count == 4
+    assert loss.bar_rhythmic_diversity_match_count == 4
     assert loss.loss.item() > 0.0

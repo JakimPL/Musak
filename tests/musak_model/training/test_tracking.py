@@ -156,6 +156,7 @@ def _musical_auxiliary_objective_config() -> MusicalAuxiliaryObjectiveConfig:
     return MusicalAuxiliaryObjectiveConfig(
         enabled=True,
         weight=0.1,
+        bar_weight=1.0,
         note_density_weight=1.0,
         rhythmic_diversity_weight=1.0,
         voice_independence_weight=1.0,
@@ -225,6 +226,7 @@ def test_mlflow_tracker_logs_setup_metrics_artifacts_and_invalid_files(
                 train_token_kind_accuracy=0.75,
                 train_musical_auxiliary_loss=2.5,
                 train_note_density_accuracy=0.8,
+                train_bar_note_density_accuracy=0.7,
                 train_cnn_gradient_norm=0.1,
                 train_gru_gradient_norm=0.2,
                 train_transformer_gradient_norm=0.3,
@@ -252,6 +254,7 @@ def test_mlflow_tracker_logs_setup_metrics_artifacts_and_invalid_files(
     assert ("model/train/rate/token_kind_accuracy", 0.75, 3) in fake_mlflow.metrics
     assert ("model/train/mean/musical_auxiliary_loss", 2.5, 3) in fake_mlflow.metrics
     assert ("model/train/rate/note_density_accuracy", 0.8, 3) in fake_mlflow.metrics
+    assert ("model/train/rate/bar_note_density_accuracy", 0.7, 3) in fake_mlflow.metrics
     assert ("model/train/mean/cnn_gradient_norm", 0.1, 3) in fake_mlflow.metrics
     assert ("model/train/mean/gru_gradient_norm", 0.2, 3) in fake_mlflow.metrics
     assert ("model/train/mean/transformer_gradient_norm", 0.3, 3) in fake_mlflow.metrics

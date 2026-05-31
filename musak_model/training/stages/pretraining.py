@@ -201,6 +201,18 @@ class PretrainingTrainer:
             train_dotted_duration_accuracy=train_metrics.dotted_duration_accuracy,
             train_hand_span_loss=train_metrics.hand_span_loss,
             train_hand_span_accuracy=train_metrics.hand_span_accuracy,
+            train_bar_note_density_loss=train_metrics.bar_note_density_loss,
+            train_bar_note_density_accuracy=train_metrics.bar_note_density_accuracy,
+            train_bar_rhythmic_diversity_loss=train_metrics.bar_rhythmic_diversity_loss,
+            train_bar_rhythmic_diversity_accuracy=train_metrics.bar_rhythmic_diversity_accuracy,
+            train_bar_voice_independence_loss=train_metrics.bar_voice_independence_loss,
+            train_bar_voice_independence_accuracy=train_metrics.bar_voice_independence_accuracy,
+            train_bar_uses_accidentals_loss=train_metrics.bar_uses_accidentals_loss,
+            train_bar_uses_accidentals_accuracy=train_metrics.bar_uses_accidentals_accuracy,
+            train_bar_dotted_duration_loss=train_metrics.bar_dotted_duration_loss,
+            train_bar_dotted_duration_accuracy=train_metrics.bar_dotted_duration_accuracy,
+            train_bar_hand_span_loss=train_metrics.bar_hand_span_loss,
+            train_bar_hand_span_accuracy=train_metrics.bar_hand_span_accuracy,
             train_validity_penalty_loss=train_metrics.validity_penalty_loss,
             train_invalid_probability_mass=train_metrics.invalid_probability_mass,
             train_invalid_target_rate=train_metrics.invalid_target_rate,
@@ -268,6 +280,42 @@ class PretrainingTrainer:
             validation_hand_span_loss=validation_metrics.hand_span_loss if validation_metrics is not None else None,
             validation_hand_span_accuracy=(
                 validation_metrics.hand_span_accuracy if validation_metrics is not None else None
+            ),
+            validation_bar_note_density_loss=(
+                validation_metrics.bar_note_density_loss if validation_metrics is not None else None
+            ),
+            validation_bar_note_density_accuracy=(
+                validation_metrics.bar_note_density_accuracy if validation_metrics is not None else None
+            ),
+            validation_bar_rhythmic_diversity_loss=(
+                validation_metrics.bar_rhythmic_diversity_loss if validation_metrics is not None else None
+            ),
+            validation_bar_rhythmic_diversity_accuracy=(
+                validation_metrics.bar_rhythmic_diversity_accuracy if validation_metrics is not None else None
+            ),
+            validation_bar_voice_independence_loss=(
+                validation_metrics.bar_voice_independence_loss if validation_metrics is not None else None
+            ),
+            validation_bar_voice_independence_accuracy=(
+                validation_metrics.bar_voice_independence_accuracy if validation_metrics is not None else None
+            ),
+            validation_bar_uses_accidentals_loss=(
+                validation_metrics.bar_uses_accidentals_loss if validation_metrics is not None else None
+            ),
+            validation_bar_uses_accidentals_accuracy=(
+                validation_metrics.bar_uses_accidentals_accuracy if validation_metrics is not None else None
+            ),
+            validation_bar_dotted_duration_loss=(
+                validation_metrics.bar_dotted_duration_loss if validation_metrics is not None else None
+            ),
+            validation_bar_dotted_duration_accuracy=(
+                validation_metrics.bar_dotted_duration_accuracy if validation_metrics is not None else None
+            ),
+            validation_bar_hand_span_loss=(
+                validation_metrics.bar_hand_span_loss if validation_metrics is not None else None
+            ),
+            validation_bar_hand_span_accuracy=(
+                validation_metrics.bar_hand_span_accuracy if validation_metrics is not None else None
             ),
             validation_validity_penalty_loss=(
                 validation_metrics.validity_penalty_loss if validation_metrics is not None else None
@@ -522,6 +570,8 @@ class PretrainingTrainer:
             bar_relative_ticks=batch.bar_relative_ticks,
             bar_duration_ticks=batch.bar_duration_ticks,
             active_hand_ids=batch.active_hand_ids,
+            target_bar_positions=batch.target_bar_positions,
+            bar_counts=batch.bar_counts,
             difficulty_ids=batch.difficulty_ids if self._config.conditioning.use_difficulty else None,
             scale_type_ids=batch.conditioning_scale_type_ids if self._config.conditioning.use_scale_type else None,
             time_signature_ids=(
@@ -635,6 +685,12 @@ class PretrainingTrainer:
             + auxiliary_loss.uses_accidentals_target_count
             + auxiliary_loss.dotted_duration_target_count
             + auxiliary_loss.hand_span_target_count
+            + auxiliary_loss.bar_note_density_target_count
+            + auxiliary_loss.bar_rhythmic_diversity_target_count
+            + auxiliary_loss.bar_voice_independence_target_count
+            + auxiliary_loss.bar_uses_accidentals_target_count
+            + auxiliary_loss.bar_dotted_duration_target_count
+            + auxiliary_loss.bar_hand_span_target_count
         )
         return batch_metrics.model_copy(
             update={
@@ -658,6 +714,24 @@ class PretrainingTrainer:
                 "hand_span_loss": float(auxiliary_loss.hand_span_loss.detach().item()),
                 "hand_span_match_count": auxiliary_loss.hand_span_match_count,
                 "hand_span_target_count": auxiliary_loss.hand_span_target_count,
+                "bar_note_density_loss": float(auxiliary_loss.bar_note_density_loss.detach().item()),
+                "bar_note_density_match_count": auxiliary_loss.bar_note_density_match_count,
+                "bar_note_density_target_count": auxiliary_loss.bar_note_density_target_count,
+                "bar_rhythmic_diversity_loss": float(auxiliary_loss.bar_rhythmic_diversity_loss.detach().item()),
+                "bar_rhythmic_diversity_match_count": auxiliary_loss.bar_rhythmic_diversity_match_count,
+                "bar_rhythmic_diversity_target_count": auxiliary_loss.bar_rhythmic_diversity_target_count,
+                "bar_voice_independence_loss": float(auxiliary_loss.bar_voice_independence_loss.detach().item()),
+                "bar_voice_independence_match_count": auxiliary_loss.bar_voice_independence_match_count,
+                "bar_voice_independence_target_count": auxiliary_loss.bar_voice_independence_target_count,
+                "bar_uses_accidentals_loss": float(auxiliary_loss.bar_uses_accidentals_loss.detach().item()),
+                "bar_uses_accidentals_match_count": auxiliary_loss.bar_uses_accidentals_match_count,
+                "bar_uses_accidentals_target_count": auxiliary_loss.bar_uses_accidentals_target_count,
+                "bar_dotted_duration_loss": float(auxiliary_loss.bar_dotted_duration_loss.detach().item()),
+                "bar_dotted_duration_match_count": auxiliary_loss.bar_dotted_duration_match_count,
+                "bar_dotted_duration_target_count": auxiliary_loss.bar_dotted_duration_target_count,
+                "bar_hand_span_loss": float(auxiliary_loss.bar_hand_span_loss.detach().item()),
+                "bar_hand_span_match_count": auxiliary_loss.bar_hand_span_match_count,
+                "bar_hand_span_target_count": auxiliary_loss.bar_hand_span_target_count,
             }
         )
 
@@ -804,6 +878,7 @@ def _move_batch_to_device(batch: TrainingBatch, *, device: torch.device) -> Trai
         target_token_attributes=batch.target_token_attributes.to(device),
         musical_auxiliary_targets=batch.musical_auxiliary_targets.to(device),
         bar_positions=batch.bar_positions.to(device),
+        target_bar_positions=batch.target_bar_positions.to(device),
         bar_relative_ticks=batch.bar_relative_ticks.to(device),
         bar_duration_ticks=batch.bar_duration_ticks.to(device),
         active_hand_ids=batch.active_hand_ids.to(device),

@@ -124,6 +124,7 @@ def _musical_auxiliary_objective_config() -> MusicalAuxiliaryObjectiveConfig:
     return MusicalAuxiliaryObjectiveConfig(
         enabled=True,
         weight=0.1,
+        bar_weight=1.0,
         note_density_weight=1.0,
         rhythmic_diversity_weight=1.0,
         voice_independence_weight=1.0,

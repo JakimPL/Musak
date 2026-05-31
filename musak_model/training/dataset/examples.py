@@ -7,6 +7,7 @@ from torch.utils.data import Dataset
 
 from musak_model.auxiliary.config import MusicalAuxiliaryTargetConfig
 from musak_model.auxiliary.targets import (
+    bar_musical_auxiliary_target_ids_from_segment,
     musical_auxiliary_target_ids_from_difficulty_features,
     musical_auxiliary_target_tensors_from_ids,
 )
@@ -127,6 +128,7 @@ def _to_training_example(
         if conditioning.use_time_signature
         else 0
     )
+    segment = sample.to_segment(token_vocabulary=token_vocabulary)
     return TrainingExample(
         input_token_ids=input_token_ids,
         target_token_ids=token_ids,
@@ -135,8 +137,14 @@ def _to_training_example(
             musical_auxiliary_target_ids_from_difficulty_features(
                 sample.metadata.difficulty_features,
                 config=musical_auxiliary_targets,
-            )
+            ),
+            bar_target_ids=bar_musical_auxiliary_target_ids_from_segment(
+                segment,
+                duration_vocabulary=token_vocabulary.duration_vocabulary,
+                config=musical_auxiliary_targets,
+            ),
         ),
+        target_bar_positions=bar_positions,
         bar_positions=input_bar_positions,
         bar_relative_ticks=torch.tensor(input_coordinates.bar_relative_ticks, dtype=torch.long),
         bar_duration_ticks=torch.tensor(input_coordinates.bar_duration_ticks, dtype=torch.long),

@@ -13,7 +13,7 @@ from musak_model.data.schema import DifficultyFeatures, SegmentMetadata
 from musak_model.data.tokenization_context import tokenization_context_from_scale
 from musak_model.tokens.duration import DurationVocabulary, duration_fraction_to_ticks, duration_tick_denominator
 from musak_model.tokens.factorized import ABSENT_ATTRIBUTE_ID, TokenKindId
-from musak_model.tokens.schema import Hand, HandToken, NoteToken, RestToken, ScaleType
+from musak_model.tokens.schema import BarToken, EndToken, Hand, HandToken, NoteToken, RestToken, ScaleType
 from musak_model.tokens.vocabulary import TokenVocabulary
 from musak_model.training.conditioning import difficulty_level_to_id, scale_type_to_id, time_signature_to_id
 from musak_model.training.config import TrainingConditioningConfig
@@ -93,6 +93,7 @@ def test_dataset_builds_teacher_forcing_examples_with_start_token(token_vocabula
 
     assert example.input_token_ids.tolist() == [token_vocabulary.start_token_id, 1, 2]
     assert example.target_token_ids.tolist() == [1, 2, 3]
+    assert example.target_bar_positions.tolist() == [0, 0, 0]
     assert example.bar_positions.tolist() == [0, 0, 0]
 
 
@@ -158,6 +159,33 @@ def test_dataset_builds_musical_auxiliary_targets(token_vocabulary: TokenVocabul
     assert targets.uses_accidentals_ids.item() == 1
     assert targets.dotted_duration_ids.item() == 0
     assert targets.hand_span_ids.item() == 3
+    assert targets.bar_targets.note_density_ids.shape == (1,)
+
+
+def test_dataset_bar_auxiliary_targets_do_not_add_bar_after_trailing_barline(
+    duration_vocabulary: DurationVocabulary,
+    token_vocabulary: TokenVocabulary,
+) -> None:
+    quarter_id = duration_vocabulary.fraction_to_id(Fraction(1, 4))
+    token_ids = token_vocabulary.encode(
+        [
+            HandToken(hand=Hand.RIGHT),
+            NoteToken(degree=1, accidental=0, octave_offset=0, duration_id=quarter_id),
+            BarToken(),
+            EndToken(),
+        ]
+    )
+    dataset = EncodedExerciseDataset(
+        [_sample(token_ids, [0, 0, 0, 0], bar_count=1)],
+        time_signature_vocabulary=_time_signature_vocabulary(),
+        token_vocabulary=token_vocabulary,
+        musical_auxiliary_targets=_musical_auxiliary_target_config(),
+        conditioning=_conditioning_config(),
+    )
+
+    targets = dataset[0].musical_auxiliary_targets.bar_targets
+
+    assert targets.note_density_ids.shape == (1,)
 
 
 def test_dataset_ignores_missing_musical_auxiliary_targets(token_vocabulary: TokenVocabulary) -> None:
@@ -177,6 +205,7 @@ def test_dataset_ignores_missing_musical_auxiliary_targets(token_vocabulary: Tok
     assert targets.uses_accidentals_ids.item() == MUSICAL_AUXILIARY_TARGET_IGNORE_ID
     assert targets.dotted_duration_ids.item() == MUSICAL_AUXILIARY_TARGET_IGNORE_ID
     assert targets.hand_span_ids.item() == MUSICAL_AUXILIARY_TARGET_IGNORE_ID
+    assert targets.bar_targets.note_density_ids.tolist() != [MUSICAL_AUXILIARY_TARGET_IGNORE_ID]
 
 
 def test_dataset_builds_decoder_coordinate_features(
@@ -366,7 +395,7 @@ def test_collate_pads_tokens_and_bar_positions(token_vocabulary: TokenVocabulary
     dataset = EncodedExerciseDataset(
         [
             _sample([1, 2, 3], [0, 0, 0]),
-            _sample([4, 5], [0, 0]),
+            _sample([4, 5], [0, 1], bar_count=2),
         ],
         time_signature_vocabulary=_time_signature_vocabulary(),
         token_vocabulary=token_vocabulary,
@@ -381,6 +410,7 @@ def test_collate_pads_tokens_and_bar_positions(token_vocabulary: TokenVocabulary
         [token_vocabulary.start_token_id, 4, 0],
     ]
     assert batch.target_token_ids.tolist() == [[1, 2, 3], [4, 5, 0]]
+    assert batch.target_bar_positions.tolist() == [[0, 0, 0], [0, 1, -1]]
     assert batch.bar_positions.tolist() == [[0, 0, 0], [0, 0, -1]]
     assert batch.bar_relative_ticks.shape == batch.input_token_ids.shape
     assert batch.bar_relative_ticks.tolist()[1][-1] == -1
@@ -389,6 +419,8 @@ def test_collate_pads_tokens_and_bar_positions(token_vocabulary: TokenVocabulary
     assert batch.target_token_attributes.kind_ids.tolist()[1][-1] == ABSENT_ATTRIBUTE_ID
     assert batch.target_token_attributes.duration_ids.tolist()[1][-1] == ABSENT_ATTRIBUTE_ID
     assert batch.musical_auxiliary_targets.note_density_ids.tolist() == [-1, -1]
+    assert batch.musical_auxiliary_targets.bar_targets.note_density_ids.shape == (2, 2)
+    assert batch.musical_auxiliary_targets.bar_targets.note_density_ids.tolist()[0][1] == -1
     assert batch.structural_control_ids.tolist() == [[], []]
     assert batch.token_padding_mask.tolist() == [[False, False, False], [False, False, True]]
 

@@ -13,6 +13,7 @@ class TrainingExample:
     target_token_ids: Tensor
     target_token_attributes: TokenAttributeTargetTensors
     musical_auxiliary_targets: MusicalAuxiliaryTargetTensors
+    target_bar_positions: Tensor
     bar_positions: Tensor
     bar_relative_ticks: Tensor
     bar_duration_ticks: Tensor
@@ -35,6 +36,7 @@ class TrainingBatch:
     target_token_ids: Tensor
     target_token_attributes: TokenAttributeTargetTensors
     musical_auxiliary_targets: MusicalAuxiliaryTargetTensors
+    target_bar_positions: Tensor
     bar_positions: Tensor
     bar_relative_ticks: Tensor
     bar_duration_ticks: Tensor

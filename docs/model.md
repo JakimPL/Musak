@@ -65,8 +65,9 @@ baseline by setting `event_objective.mode: flat`; normal CLI construction will c
 
 Training also has a musical auxiliary objective. Target bucket boundaries are controlled by
 `musical_auxiliary_targets`, and the loss weights are controlled by `musical_auxiliary_objective`. The objective is
-enabled by default with a small overall weight. The current auxiliary heads are sequence-level classifiers over
-deterministic buckets derived from `metadata.difficulty_features`:
+enabled by default with a small overall weight. The current auxiliary heads predict the same target families at two
+resolutions: sequence-level classifiers over deterministic buckets derived from `metadata.difficulty_features`, and
+bar-level classifiers over token-derived bar features:
 
 - note density per beat;
 - rhythmic diversity;
@@ -77,8 +78,11 @@ deterministic buckets derived from `metadata.difficulty_features`:
 
 The model head sizes are derived from the configured target bucket boundaries, so boundary changes are architecture
 changes and should be treated like other checkpoint-shape changes. Missing `difficulty_features` produce ignored
-auxiliary targets, so older or raw fallback samples can still train the event objective. Each auxiliary target logs its
-own loss and accuracy; the combined auxiliary loss is not used as a standalone musicality score.
+sequence-level auxiliary targets, so older or raw fallback samples can still train the event objective. Bar-level
+targets are derived from the decoded token stream and are padded per batch with the auxiliary ignore id. Each
+sequence-level and bar-level auxiliary target logs its own loss and accuracy; the combined auxiliary loss is not used
+as a standalone musicality score. Generation evaluation logs bucket distributions for these auxiliary target families
+under `generation/musical_auxiliary/*` so sampled material can be compared against the intended exercise domain.
 
 Each encoded JSONL row is an `EncodedExercise`:
 
@@ -97,6 +101,8 @@ are model inputs, not persisted encoded artifact fields yet:
 - `bar_duration_ticks`: current bar duration in the same tick basis, using per-bar durations for pickup or short final
   bars when available.
 - `active_hand_ids`: active hand at that decoder step.
+- `target_bar_positions`: unshifted target-token bar positions, used to pool decoder states for bar-level auxiliary
+  heads.
 
 For a musical prefix of length `k`, the coordinate sequence has length `k + 1`: the initial decoder state before the
 first musical token, then the state after each prefix token. Dataset construction uses `token_ids[:-1]` so the

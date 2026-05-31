@@ -94,9 +94,16 @@ Every entry lists the two entities being bridged and the package that owns the c
 
 | Function | File | Input → Output |
 | --- | --- | --- |
+| `musical_auxiliary_features_from_segment` | `auxiliary/features.py` | `Segment` → sequence-level auxiliary feature values |
+| `bar_musical_auxiliary_features_from_segment` | `auxiliary/features.py` | `Segment` → per-bar auxiliary feature values |
 | `musical_auxiliary_target_ids_from_difficulty_features` | `auxiliary/targets.py` | `DifficultyFeatures` / missing features + configured bucket boundaries → auxiliary target ids |
-| `musical_auxiliary_target_tensors_from_ids` | `auxiliary/targets.py` | auxiliary target ids → scalar target tensors |
+| `musical_auxiliary_target_ids_from_features` | `auxiliary/targets.py` | auxiliary feature values + configured bucket boundaries → auxiliary target ids |
+| `musical_auxiliary_target_ids_from_segment` | `auxiliary/targets.py` | `Segment` + configured bucket boundaries → sequence-level auxiliary target ids |
+| `bar_musical_auxiliary_target_ids_from_segment` | `auxiliary/targets.py` | `Segment` + configured bucket boundaries → per-bar auxiliary target ids |
+| `musical_auxiliary_target_tensors_from_ids` | `auxiliary/targets.py` | sequence and per-bar auxiliary target ids → target tensors |
+| `bar_musical_auxiliary_target_tensors_from_ids` | `auxiliary/targets.py` | per-bar auxiliary target ids → target tensors |
 | `stack_musical_auxiliary_targets` | `auxiliary/targets.py` | per-example auxiliary target tensors → batched target tensors |
+| `stack_musical_bar_auxiliary_targets` | `auxiliary/targets.py` | per-example bar auxiliary target tensors → padded batched target tensors |
 
 ### Decoding to notation / piano-roll (`musak_model/decoder`)
 

@@ -127,8 +127,11 @@ This section is the durable resumption point if work continues after context com
   and hand-span bucket. Target bucket boundaries live in `musical_auxiliary_targets`, the hierarchical model derives
   pooled head sizes from that config, training adds a configurable weighted auxiliary loss, and MLflow logs per-target
   auxiliary losses and accuracies.
-- Next: Phase 5B should add bar-level auxiliary targets and explicit generated-sample bucket reports for the same
-  target families.
+- Completed: Phase 5B adds token-derived bar-level auxiliary targets for the same target families, bar-pooled model
+  heads, configurable bar auxiliary loss weight, per-target bar loss/accuracy metrics, and generated-sample bucket
+  reports under `generation/musical_auxiliary/*`.
+- Next: inspect Phase 5B metrics on one short pretraining run before broadening the auxiliary target set beyond the
+  current density, rhythm, texture, chromaticity, dotted-duration, and span targets.
 
 Early non-unit validation for Phase 2A:
 

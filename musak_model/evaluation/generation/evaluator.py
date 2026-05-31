@@ -12,6 +12,7 @@ from musak_model.conditioning.structural.schema import StructuralControlFeatures
 from musak_model.conditioning.structural.vocabulary import StructuralControlVocabulary
 from musak_model.conditioning.time_signature import TimeSignatureVocabulary
 from musak_model.evaluation.diagnostics import SegmentDiagnostics, diagnose_segment
+from musak_model.evaluation.generation.auxiliary_metrics import musical_auxiliary_bucket_metrics
 from musak_model.evaluation.generation.figure_metrics import figure_profile_metrics
 from musak_model.evaluation.generation.musical_metrics import musical_profile_metrics
 from musak_model.evaluation.generation.protocols import (
@@ -173,6 +174,12 @@ class GenerationSuiteEvaluator:
             **musical_profile_metrics(
                 samples=samples,
                 config=self._config,
+                duration_vocabulary=self._duration_vocabulary,
+            ),
+            **musical_auxiliary_bucket_metrics(
+                samples=samples,
+                config=self._config,
+                target_config=self._model_config.musical_auxiliary_targets,
                 duration_vocabulary=self._duration_vocabulary,
             ),
         }

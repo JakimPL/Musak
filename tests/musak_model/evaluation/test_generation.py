@@ -160,6 +160,7 @@ def test_generation_suite_logs_soft_and_hard_constraint_metrics() -> None:
     assert metrics["generation/soft/rate/has_dotted_notes"] == 0.0
     assert metrics["generation/soft/mean/max_notes_per_onset"] == 0.0
     assert metrics["generation/hard/mean/constraint_valid_token_fraction"] == 1.0
+    assert metrics["generation/musical_auxiliary/count/samples"] == 2.0
 
 
 def test_generation_suite_includes_loaded_figure_profile_context_metrics(tmp_path: Path) -> None:

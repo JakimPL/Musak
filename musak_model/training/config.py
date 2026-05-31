@@ -40,6 +40,7 @@ class MusicalAuxiliaryObjectiveConfig(BaseModel):
 
     enabled: bool
     weight: float = Field(ge=0.0)
+    bar_weight: float = Field(ge=0.0)
     note_density_weight: float = Field(ge=0.0)
     rhythmic_diversity_weight: float = Field(ge=0.0)
     voice_independence_weight: float = Field(ge=0.0)

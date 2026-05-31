@@ -54,6 +54,24 @@ class MetricsAccumulator:
     hand_span_loss_sum: float | None = None
     hand_span_match_count: int | None = None
     hand_span_target_count: int | None = None
+    bar_note_density_loss_sum: float | None = None
+    bar_note_density_match_count: int | None = None
+    bar_note_density_target_count: int | None = None
+    bar_rhythmic_diversity_loss_sum: float | None = None
+    bar_rhythmic_diversity_match_count: int | None = None
+    bar_rhythmic_diversity_target_count: int | None = None
+    bar_voice_independence_loss_sum: float | None = None
+    bar_voice_independence_match_count: int | None = None
+    bar_voice_independence_target_count: int | None = None
+    bar_uses_accidentals_loss_sum: float | None = None
+    bar_uses_accidentals_match_count: int | None = None
+    bar_uses_accidentals_target_count: int | None = None
+    bar_dotted_duration_loss_sum: float | None = None
+    bar_dotted_duration_match_count: int | None = None
+    bar_dotted_duration_target_count: int | None = None
+    bar_hand_span_loss_sum: float | None = None
+    bar_hand_span_match_count: int | None = None
+    bar_hand_span_target_count: int | None = None
     validity_penalty_loss_sum: float | None = None
     invalid_probability_mass_sum: float | None = None
     invalid_target_count: int | None = None
@@ -204,6 +222,78 @@ class MetricsAccumulator:
                 target_count=batch_metrics.hand_span_target_count,
             )
         )
+        (
+            self.bar_note_density_loss_sum,
+            self.bar_note_density_match_count,
+            self.bar_note_density_target_count,
+        ) = _add_optional_auxiliary_metric(
+            self.bar_note_density_loss_sum,
+            self.bar_note_density_match_count,
+            self.bar_note_density_target_count,
+            value=batch_metrics.bar_note_density_loss,
+            match_count=batch_metrics.bar_note_density_match_count,
+            target_count=batch_metrics.bar_note_density_target_count,
+        )
+        (
+            self.bar_rhythmic_diversity_loss_sum,
+            self.bar_rhythmic_diversity_match_count,
+            self.bar_rhythmic_diversity_target_count,
+        ) = _add_optional_auxiliary_metric(
+            self.bar_rhythmic_diversity_loss_sum,
+            self.bar_rhythmic_diversity_match_count,
+            self.bar_rhythmic_diversity_target_count,
+            value=batch_metrics.bar_rhythmic_diversity_loss,
+            match_count=batch_metrics.bar_rhythmic_diversity_match_count,
+            target_count=batch_metrics.bar_rhythmic_diversity_target_count,
+        )
+        (
+            self.bar_voice_independence_loss_sum,
+            self.bar_voice_independence_match_count,
+            self.bar_voice_independence_target_count,
+        ) = _add_optional_auxiliary_metric(
+            self.bar_voice_independence_loss_sum,
+            self.bar_voice_independence_match_count,
+            self.bar_voice_independence_target_count,
+            value=batch_metrics.bar_voice_independence_loss,
+            match_count=batch_metrics.bar_voice_independence_match_count,
+            target_count=batch_metrics.bar_voice_independence_target_count,
+        )
+        (
+            self.bar_uses_accidentals_loss_sum,
+            self.bar_uses_accidentals_match_count,
+            self.bar_uses_accidentals_target_count,
+        ) = _add_optional_auxiliary_metric(
+            self.bar_uses_accidentals_loss_sum,
+            self.bar_uses_accidentals_match_count,
+            self.bar_uses_accidentals_target_count,
+            value=batch_metrics.bar_uses_accidentals_loss,
+            match_count=batch_metrics.bar_uses_accidentals_match_count,
+            target_count=batch_metrics.bar_uses_accidentals_target_count,
+        )
+        (
+            self.bar_dotted_duration_loss_sum,
+            self.bar_dotted_duration_match_count,
+            self.bar_dotted_duration_target_count,
+        ) = _add_optional_auxiliary_metric(
+            self.bar_dotted_duration_loss_sum,
+            self.bar_dotted_duration_match_count,
+            self.bar_dotted_duration_target_count,
+            value=batch_metrics.bar_dotted_duration_loss,
+            match_count=batch_metrics.bar_dotted_duration_match_count,
+            target_count=batch_metrics.bar_dotted_duration_target_count,
+        )
+        (
+            self.bar_hand_span_loss_sum,
+            self.bar_hand_span_match_count,
+            self.bar_hand_span_target_count,
+        ) = _add_optional_auxiliary_metric(
+            self.bar_hand_span_loss_sum,
+            self.bar_hand_span_match_count,
+            self.bar_hand_span_target_count,
+            value=batch_metrics.bar_hand_span_loss,
+            match_count=batch_metrics.bar_hand_span_match_count,
+            target_count=batch_metrics.bar_hand_span_target_count,
+        )
         if batch_metrics.validity_penalty_token_count is not None:
             if self.validity_penalty_token_count is None:
                 self.validity_penalty_token_count = 0
@@ -319,6 +409,54 @@ class MetricsAccumulator:
             ),
             hand_span_loss=_weighted_optional_average(self.hand_span_loss_sum, weight=self.hand_span_target_count),
             hand_span_accuracy=_optional_rate(self.hand_span_match_count, target_count=self.hand_span_target_count),
+            bar_note_density_loss=_weighted_optional_average(
+                self.bar_note_density_loss_sum,
+                weight=self.bar_note_density_target_count,
+            ),
+            bar_note_density_accuracy=_optional_rate(
+                self.bar_note_density_match_count,
+                target_count=self.bar_note_density_target_count,
+            ),
+            bar_rhythmic_diversity_loss=_weighted_optional_average(
+                self.bar_rhythmic_diversity_loss_sum,
+                weight=self.bar_rhythmic_diversity_target_count,
+            ),
+            bar_rhythmic_diversity_accuracy=_optional_rate(
+                self.bar_rhythmic_diversity_match_count,
+                target_count=self.bar_rhythmic_diversity_target_count,
+            ),
+            bar_voice_independence_loss=_weighted_optional_average(
+                self.bar_voice_independence_loss_sum,
+                weight=self.bar_voice_independence_target_count,
+            ),
+            bar_voice_independence_accuracy=_optional_rate(
+                self.bar_voice_independence_match_count,
+                target_count=self.bar_voice_independence_target_count,
+            ),
+            bar_uses_accidentals_loss=_weighted_optional_average(
+                self.bar_uses_accidentals_loss_sum,
+                weight=self.bar_uses_accidentals_target_count,
+            ),
+            bar_uses_accidentals_accuracy=_optional_rate(
+                self.bar_uses_accidentals_match_count,
+                target_count=self.bar_uses_accidentals_target_count,
+            ),
+            bar_dotted_duration_loss=_weighted_optional_average(
+                self.bar_dotted_duration_loss_sum,
+                weight=self.bar_dotted_duration_target_count,
+            ),
+            bar_dotted_duration_accuracy=_optional_rate(
+                self.bar_dotted_duration_match_count,
+                target_count=self.bar_dotted_duration_target_count,
+            ),
+            bar_hand_span_loss=_weighted_optional_average(
+                self.bar_hand_span_loss_sum,
+                weight=self.bar_hand_span_target_count,
+            ),
+            bar_hand_span_accuracy=_optional_rate(
+                self.bar_hand_span_match_count,
+                target_count=self.bar_hand_span_target_count,
+            ),
             validity_penalty_loss=_optional_validity_average(
                 self.validity_penalty_loss_sum,
                 token_count=self.validity_penalty_token_count,

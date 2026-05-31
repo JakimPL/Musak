@@ -21,6 +21,7 @@ def collate_training_examples(examples: list[TrainingExample]) -> TrainingBatch:
     max_length = max(example.input_token_ids.size(0) for example in examples)
     input_token_ids = torch.full((len(examples), max_length), _PADDING_TOKEN_ID, dtype=torch.long)
     target_token_ids = torch.full((len(examples), max_length), _PADDING_TOKEN_ID, dtype=torch.long)
+    target_bar_positions = torch.full((len(examples), max_length), _PADDING_BAR_POSITION, dtype=torch.long)
     bar_positions = torch.full((len(examples), max_length), _PADDING_BAR_POSITION, dtype=torch.long)
     bar_relative_ticks = torch.full((len(examples), max_length), _PADDING_BAR_RELATIVE_TICKS, dtype=torch.long)
     bar_duration_ticks = torch.full((len(examples), max_length), _PADDING_BAR_DURATION_TICKS, dtype=torch.long)
@@ -39,6 +40,7 @@ def collate_training_examples(examples: list[TrainingExample]) -> TrainingBatch:
         length = example.input_token_ids.size(0)
         input_token_ids[row_index, :length] = example.input_token_ids
         target_token_ids[row_index, :length] = example.target_token_ids
+        target_bar_positions[row_index, :length] = example.target_bar_positions
         bar_positions[row_index, :length] = example.bar_positions
         bar_relative_ticks[row_index, :length] = example.bar_relative_ticks
         bar_duration_ticks[row_index, :length] = example.bar_duration_ticks
@@ -69,6 +71,7 @@ def collate_training_examples(examples: list[TrainingExample]) -> TrainingBatch:
         musical_auxiliary_targets=stack_musical_auxiliary_targets(
             [example.musical_auxiliary_targets for example in examples]
         ),
+        target_bar_positions=target_bar_positions,
         bar_positions=bar_positions,
         bar_relative_ticks=bar_relative_ticks,
         bar_duration_ticks=bar_duration_ticks,
