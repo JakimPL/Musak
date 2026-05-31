@@ -54,6 +54,7 @@ def test_write_dataset_diagnostic_report_outputs_summary_and_tables(tmp_path: Pa
     assert summary["tokens"]["token_kind_distribution"]["rest"] == 1
     assert summary["tonal_probes"][0]["probe"] == "A natural minor"
     assert summary["tonal_probes"][0]["reference_pitch_maps_to_degree_1"] is False
+    assert summary["encoded"]["spelling_context_source_distribution"]["declared_key_signature"] == 2
     assert summary["reference"]["name"] == "exercises"
 
 
@@ -111,6 +112,8 @@ def _write_encoded_manifest(path: Path, *, token_counts: tuple[int, ...]) -> Non
                 "scale_root": "0",
                 "scale_type": "major",
                 "declared_key_fifths": "0",
+                "spelling_key_fifths": "0",
+                "spelling_context_source": "declared_key_signature",
                 "scale_match_in_scale_weight_fraction": "1.0",
                 "scale_match_out_of_scale_weight_fraction": "0.0",
                 "scale_match_best_margin": "0.05",

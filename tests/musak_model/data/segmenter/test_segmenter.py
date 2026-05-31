@@ -14,6 +14,7 @@ from musak_model.data.schema import (
     ParsedRest,
     ParsedScore,
     SegmentIneligibilityReason,
+    SpellingContextSource,
     TieType,
 )
 from musak_model.data.segmenter.segmenter import segment_score as _segment_score
@@ -62,6 +63,18 @@ def _note_bar() -> ParsedBar:
     )
 
 
+def _pitch_bar(midi_pitches: list[int], *, key_fifths: int | None) -> ParsedBar:
+    return ParsedBar(
+        time_numerator=4,
+        time_denominator=4,
+        declared_key_fifths=key_fifths,
+        events=[
+            ParsedNote(midi_pitch=midi_pitch, duration=Fraction(1, 8), beat_offset=Fraction(index, 8))
+            for index, midi_pitch in enumerate(midi_pitches)
+        ],
+    )
+
+
 def _score(*, bars: list[ParsedBar]) -> ParsedScore:
     return ParsedScore(
         scale_root=0,
@@ -106,6 +119,66 @@ def test_whole_file_segmentation_creates_one_segment_with_full_bar_count(
     assert len(segments) == 1
     assert segments[0].metadata.bar_count == 5
     assert segments[0].metadata.window_start_bar == 0
+
+
+def test_segment_metadata_separates_modal_pitch_set_basis_from_declared_spelling(
+    duration_vocabulary: DurationVocabulary,
+) -> None:
+    c_mixolydian_pitch_set = [60, 62, 64, 65, 67, 69, 70]
+    score = ParsedScore(
+        declared_key_fifths=0,
+        scale_root=0,
+        key_fifths=0,
+        scale_type=ScaleType.MAJOR,
+        time_numerator=4,
+        time_denominator=4,
+        right_hand_bars=[_pitch_bar(c_mixolydian_pitch_set, key_fifths=0)],
+        left_hand_bars=[_bar(key_fifths=0)],
+    )
+
+    segments = segment_score(
+        score,
+        Path("piece.mxl"),
+        duration_vocabulary=duration_vocabulary,
+        segmentation=SegmentationConfig(window_bars=1, stride_bars=1),
+    )
+
+    context = segments[0].metadata.tokenization_context
+    assert context is not None
+    assert context.pitch_set_scale_root == 5
+    assert context.pitch_set_scale_type == ScaleType.MAJOR
+    assert context.declared_key_fifths == 0
+    assert context.spelling_key_fifths == 0
+    assert context.spelling_context_source == SpellingContextSource.DECLARED_KEY_SIGNATURE
+
+
+def test_segment_metadata_keeps_natural_minor_as_relative_major_pitch_set(
+    duration_vocabulary: DurationVocabulary,
+) -> None:
+    a_natural_minor_pitch_set = [69, 71, 72, 74, 76, 77, 79]
+    score = ParsedScore(
+        declared_key_fifths=0,
+        scale_root=0,
+        key_fifths=0,
+        scale_type=ScaleType.MAJOR,
+        time_numerator=4,
+        time_denominator=4,
+        right_hand_bars=[_pitch_bar(a_natural_minor_pitch_set, key_fifths=0)],
+        left_hand_bars=[_bar(key_fifths=0)],
+    )
+
+    segments = segment_score(
+        score,
+        Path("piece.mxl"),
+        duration_vocabulary=duration_vocabulary,
+        segmentation=SegmentationConfig(window_bars=1, stride_bars=1),
+    )
+
+    context = segments[0].metadata.tokenization_context
+    assert context is not None
+    assert context.pitch_set_scale_root == 0
+    assert context.pitch_set_scale_type == ScaleType.MAJOR
+    assert context.spelling_key_fifths == 0
 
 
 def test_segment_crossing_time_signature_change_is_not_training_eligible(

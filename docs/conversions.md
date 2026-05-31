@@ -49,7 +49,7 @@ Every entry lists the two entities being bridged and the package that owns the c
 
 | Function | File | Input → Output |
 | --- | --- | --- |
-| `pitch_to_degree` | `data/converter.py` | MIDI + `scale_root` + `key_fifths` + `scale_type` + `hand` → `PitchDegree` |
+| `pitch_to_degree` | `data/converter.py` | MIDI + pitch-set `scale_root` + spelling `key_fifths` + `scale_type` + `hand` → `PitchDegree` |
 | `note_to_token` | `data/segmenter/bar.py` | `ParsedNote` → `NoteToken` |
 | `chord_to_tokens` | `data/segmenter/bar.py` | `ParsedChord` → `list[Token]` |
 | `tokens_from_bar_groups` | `data/segmenter/bar.py` | `list[TimedTokenGroup]` → `list[Token]` |

@@ -15,7 +15,7 @@ from musak_model.tokens.schema import (
     ScaleType,
     Token,
 )
-from musak_shared.elements import MIDI_MAX_PITCH, PITCHES_PER_OCTAVE
+from musak_shared.elements import KEY_FIFTHS_MAX, KEY_FIFTHS_MIN, MIDI_MAX_PITCH, PITCHES_PER_OCTAVE
 from musak_shared.time_signature import validate_time_denominator
 
 
@@ -70,8 +70,8 @@ class ParsedBar(BaseModel):
     measure_duration: Fraction | None = Field(default=None, ge=0)
     declared_key_fifths: int | None = Field(
         default=None,
-        ge=-7,
-        le=7,
+        ge=KEY_FIFTHS_MIN,
+        le=KEY_FIFTHS_MAX,
         validation_alias=AliasChoices("declared_key_fifths", "key_fifths"),
     )
     events: list[ParsedEvent]
@@ -86,9 +86,9 @@ class ParsedBar(BaseModel):
 class ParsedScore(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid", frozen=True)
 
-    declared_key_fifths: int | None = Field(default=None, ge=-7, le=7)
+    declared_key_fifths: int | None = Field(default=None, ge=KEY_FIFTHS_MIN, le=KEY_FIFTHS_MAX)
     scale_root: int = Field(ge=0, lt=PITCHES_PER_OCTAVE)
-    key_fifths: int = Field(ge=-7, le=7)
+    key_fifths: int = Field(ge=KEY_FIFTHS_MIN, le=KEY_FIFTHS_MAX)
     scale_type: ScaleType
     time_numerator: int = Field(gt=0)
     time_denominator: int
@@ -144,7 +144,7 @@ class SegmentIneligibilityReason(StrEnum):
 class ScaleMatchDiagnostics(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    declared_key_fifths: int | None = Field(default=None, ge=-7, le=7)
+    declared_key_fifths: int | None = Field(default=None, ge=KEY_FIFTHS_MIN, le=KEY_FIFTHS_MAX)
     in_scale_weight_fraction: float = Field(ge=0, le=1)
     out_of_scale_weight_fraction: float = Field(ge=0, le=1)
     explained_out_of_scale_weight_fraction: float = Field(ge=0, le=1)
@@ -160,11 +160,28 @@ class ScaleMatchDiagnostics(BaseModel):
     no_pitches: bool
 
 
+class SpellingContextSource(StrEnum):
+    DECLARED_KEY_SIGNATURE = "declared_key_signature"
+    SCORE_KEY_FIFTHS = "score_key_fifths"
+    DEFAULT_C_MAJOR = "default_c_major"
+
+
+class TokenizationContext(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    pitch_set_scale_root: int = Field(ge=0, lt=PITCHES_PER_OCTAVE)
+    pitch_set_scale_type: ScaleType
+    declared_key_fifths: int | None = Field(default=None, ge=KEY_FIFTHS_MIN, le=KEY_FIFTHS_MAX)
+    spelling_key_fifths: int = Field(ge=KEY_FIFTHS_MIN, le=KEY_FIFTHS_MAX)
+    spelling_context_source: SpellingContextSource
+
+
 class SegmentMetadata(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True, frozen=True)
 
     scale_root: int = Field(ge=0, lt=PITCHES_PER_OCTAVE)
     scale_type: ScaleType
+    tokenization_context: TokenizationContext | None = None
     time_numerator: int = Field(gt=0)
     time_denominator: int
     bar_count: int = Field(ge=0)

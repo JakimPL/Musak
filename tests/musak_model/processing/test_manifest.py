@@ -2,7 +2,7 @@ from fractions import Fraction
 from pathlib import Path
 
 from musak_model.data.config import SegmentationMode
-from musak_model.data.schema import Segment, SegmentMetadata
+from musak_model.data.schema import Segment, SegmentMetadata, SpellingContextSource, TokenizationContext
 from musak_model.evaluation.diagnostics import diagnose_segment
 from musak_model.processing.manifest import EncodedManifestField, encoded_row
 from musak_model.tokens.duration import DurationVocabulary
@@ -28,6 +28,13 @@ def test_encoded_row_includes_segment_diagnostics(duration_vocabulary: DurationV
         metadata=SegmentMetadata(
             scale_root=0,
             scale_type=ScaleType.MAJOR,
+            tokenization_context=TokenizationContext(
+                pitch_set_scale_root=0,
+                pitch_set_scale_type=ScaleType.MAJOR,
+                declared_key_fifths=0,
+                spelling_key_fifths=0,
+                spelling_context_source=SpellingContextSource.DECLARED_KEY_SIGNATURE,
+            ),
             time_numerator=4,
             time_denominator=4,
             bar_count=1,
@@ -53,7 +60,9 @@ def test_encoded_row_includes_segment_diagnostics(duration_vocabulary: DurationV
     assert row[EncodedManifestField.RIGHT_SILENCE_FRACTION] == 0.5
     assert row[EncodedManifestField.LEFT_SILENCE_FRACTION] == 1.0
     assert row[EncodedManifestField.ONE_HAND_ONLY] is True
-    assert row[EncodedManifestField.DECLARED_KEY_FIFTHS] == ""
+    assert row[EncodedManifestField.DECLARED_KEY_FIFTHS] == 0
+    assert row[EncodedManifestField.SPELLING_KEY_FIFTHS] == 0
+    assert row[EncodedManifestField.SPELLING_CONTEXT_SOURCE] == "declared_key_signature"
     assert row[EncodedManifestField.SILENT_BAR_COUNT] == 0
     assert row[EncodedManifestField.SILENT_BAR_FRACTION] == 0.0
     assert row[EncodedManifestField.SILENT_EDGE_BAR_COUNT] == 0

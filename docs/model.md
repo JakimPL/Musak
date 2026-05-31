@@ -56,7 +56,7 @@ Each encoded JSONL row is an `EncodedExercise`:
 - `token_ids`: unified two-hand token sequence.
 - `bar_positions`: one bar index per token for hierarchical model context.
 - `metadata`: scale root, scale type, time signature, source file, segment window, per-bar durations, optional
-  difficulty label, and extracted difficulty features.
+  tokenization context, difficulty label, and extracted difficulty features.
 
 Encoded datasets use a unified two-hand stream. They are not split into separate right-hand and left-hand samples.
 
@@ -117,6 +117,19 @@ Because pitches are stored as scale degrees, the same token stream can be decode
 
 Scale type is also metadata, but it affects pitch-class decoding. The supported scale families are `major`,
 `harmonic_minor`, and `melodic_minor`. Modes are intentionally collapsed into the `major` pitch-set family.
+
+`metadata.tokenization_context` makes the tokenization decision explicit:
+
+- `pitch_set_scale_root` and `pitch_set_scale_type` are the basis used for scale-relative token coordinates.
+- `declared_key_fifths` is the local key-signature hint from the score when one is available.
+- `spelling_key_fifths` is the key-signature coordinate used to choose chromatic spelling preference during
+  tokenization.
+- `spelling_context_source` records whether the spelling context came from a declared key signature, an explicit score
+  key-fifths value, or the C-major default.
+
+This context is intentionally separate from tonal or modal analysis. A C mixolydian segment may still use an F-major
+pitch-set basis while retaining a C-major spelling context, and A natural minor may still use a C-major pitch-set
+basis.
 
 During processing, raw parsed windows are matched to `scale_root` and `scale_type` before tokenization. The matcher
 uses duration-weighted pitch-class distributions over the segment. MusicXML key signatures are retained as declared

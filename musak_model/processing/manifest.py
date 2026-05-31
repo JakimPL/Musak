@@ -47,6 +47,8 @@ class EncodedManifestField(StrEnum):
     SCALE_ROOT = "scale_root"
     SCALE_TYPE = "scale_type"
     DECLARED_KEY_FIFTHS = "declared_key_fifths"
+    SPELLING_KEY_FIFTHS = "spelling_key_fifths"
+    SPELLING_CONTEXT_SOURCE = "spelling_context_source"
     SCALE_MATCH_IN_SCALE_WEIGHT_FRACTION = "scale_match_in_scale_weight_fraction"
     SCALE_MATCH_OUT_OF_SCALE_WEIGHT_FRACTION = "scale_match_out_of_scale_weight_fraction"
     SCALE_MATCH_EXPLAINED_OUT_OF_SCALE_WEIGHT_FRACTION = "scale_match_explained_out_of_scale_weight_fraction"
@@ -136,6 +138,8 @@ ENCODED_MANIFEST_FIELDS: Final[tuple[EncodedManifestField, ...]] = (
     EncodedManifestField.SCALE_ROOT,
     EncodedManifestField.SCALE_TYPE,
     EncodedManifestField.DECLARED_KEY_FIFTHS,
+    EncodedManifestField.SPELLING_KEY_FIFTHS,
+    EncodedManifestField.SPELLING_CONTEXT_SOURCE,
     EncodedManifestField.SCALE_MATCH_IN_SCALE_WEIGHT_FRACTION,
     EncodedManifestField.SCALE_MATCH_OUT_OF_SCALE_WEIGHT_FRACTION,
     EncodedManifestField.SCALE_MATCH_EXPLAINED_OUT_OF_SCALE_WEIGHT_FRACTION,
@@ -284,6 +288,8 @@ def encoded_row(
     segmentation_mode: SegmentationMode,
 ) -> dict[str, Any]:
     scale_match = segment.metadata.scale_match
+    tokenization_context = segment.metadata.tokenization_context
+    declared_key_fifths = _declared_key_fifths(segment)
     return {
         EncodedManifestField.SEGMENT_ID: segment_id(
             source_id_value,
@@ -307,10 +313,12 @@ def encoded_row(
         ),
         EncodedManifestField.SCALE_ROOT: segment.metadata.scale_root,
         EncodedManifestField.SCALE_TYPE: segment.metadata.scale_type.value,
-        EncodedManifestField.DECLARED_KEY_FIFTHS: (
-            scale_match.declared_key_fifths
-            if scale_match is not None and scale_match.declared_key_fifths is not None
-            else ""
+        EncodedManifestField.DECLARED_KEY_FIFTHS: declared_key_fifths if declared_key_fifths is not None else "",
+        EncodedManifestField.SPELLING_KEY_FIFTHS: (
+            tokenization_context.spelling_key_fifths if tokenization_context is not None else ""
+        ),
+        EncodedManifestField.SPELLING_CONTEXT_SOURCE: (
+            tokenization_context.spelling_context_source.value if tokenization_context is not None else ""
         ),
         EncodedManifestField.SCALE_MATCH_IN_SCALE_WEIGHT_FRACTION: (
             scale_match.in_scale_weight_fraction if scale_match is not None else ""
@@ -385,6 +393,19 @@ def encoded_row(
         EncodedManifestField.SYNCHRONIZED_ONSET_FRACTION: diagnostics.synchronized_onset_fraction,
         EncodedManifestField.INDEPENDENT_ONSET_FRACTION: diagnostics.independent_onset_fraction,
     }
+
+
+def _declared_key_fifths(segment: Segment) -> int | None:
+    if segment.metadata.scale_match is not None and segment.metadata.scale_match.declared_key_fifths is not None:
+        return segment.metadata.scale_match.declared_key_fifths
+
+    if (
+        segment.metadata.tokenization_context is not None
+        and segment.metadata.tokenization_context.declared_key_fifths is not None
+    ):
+        return segment.metadata.tokenization_context.declared_key_fifths
+
+    return None
 
 
 def _field_values(fields: tuple[StrEnum, ...]) -> tuple[str, ...]:

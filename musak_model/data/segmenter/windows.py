@@ -4,10 +4,28 @@ from pathlib import Path
 from musak_model.data.cleaning import is_silent_bar_pair
 from musak_model.data.config import SegmentationConfig
 from musak_model.data.scale_matcher.schema import ScaleMatch
-from musak_model.data.schema import ParsedScore, Segment, SegmentIneligibilityReason, SegmentMetadata
+from musak_model.data.schema import (
+    ParsedScore,
+    Segment,
+    SegmentIneligibilityReason,
+    SegmentMetadata,
+    TokenizationContext,
+)
 from musak_model.data.segmenter.bar import paired_bar_measure_duration
 from musak_model.data.segmenter.types import BarTokenization
-from musak_model.tokens.schema import BarToken, EndToken, Hand, HandToken, HoldToken, NoteToken, Token
+from musak_model.data.tokenization_context import (
+    tokenization_context_from_scale_match,
+    tokenization_context_from_score,
+)
+from musak_model.tokens.schema import (
+    BarToken,
+    EndToken,
+    Hand,
+    HandToken,
+    HoldToken,
+    NoteToken,
+    Token,
+)
 
 _BAR_TOKEN: BarToken = BarToken()
 _END_TOKEN: EndToken = EndToken()
@@ -36,6 +54,7 @@ def create_windows(
                 start=start,
                 end=end,
                 scale_match=None,
+                tokenization_context=None,
                 difficulty_level=difficulty_level,
             )
         )
@@ -52,10 +71,16 @@ def create_window(
     start: int,
     end: int,
     scale_match: ScaleMatch | None,
+    tokenization_context: TokenizationContext | None = None,
     difficulty_level: int | None = None,
 ) -> Segment:
     unified_window = _flatten_bars([bar.tokens for bar in unified_window_bars])
     first_bar = score.right_hand_bars[start]
+    resolved_tokenization_context = _resolve_tokenization_context(
+        score=score,
+        scale_match=scale_match,
+        tokenization_context=tokenization_context,
+    )
     ineligibility_reasons = _merge_ineligibility_reasons(
         _segment_ineligibility_reasons(
             score=score,
@@ -74,6 +99,7 @@ def create_window(
         metadata=SegmentMetadata(
             scale_root=scale_match.scale_root if scale_match is not None else score.scale_root,
             scale_type=scale_match.scale_type if scale_match is not None else score.scale_type,
+            tokenization_context=resolved_tokenization_context,
             time_numerator=first_bar.time_numerator,
             time_denominator=first_bar.time_denominator,
             bar_count=end - start,
@@ -89,7 +115,27 @@ def create_window(
     )
 
 
-def _bar_durations(*, score: ParsedScore, start: int, end: int) -> tuple[Fraction, ...]:
+def _resolve_tokenization_context(
+    *,
+    score: ParsedScore,
+    scale_match: ScaleMatch | None,
+    tokenization_context: TokenizationContext | None,
+) -> TokenizationContext:
+    if tokenization_context is not None:
+        return tokenization_context
+
+    if scale_match is not None:
+        return tokenization_context_from_scale_match(scale_match)
+
+    return tokenization_context_from_score(score)
+
+
+def _bar_durations(
+    *,
+    score: ParsedScore,
+    start: int,
+    end: int,
+) -> tuple[Fraction, ...]:
     return tuple(
         paired_bar_measure_duration(score.right_hand_bars[index], score.left_hand_bars[index])
         for index in range(start, end)

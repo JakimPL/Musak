@@ -112,6 +112,8 @@ _OUTLIER_FIELDS: Final[tuple[EncodedManifestField, ...]] = (
     EncodedManifestField.SCALE_ROOT,
     EncodedManifestField.SCALE_TYPE,
     EncodedManifestField.DECLARED_KEY_FIFTHS,
+    EncodedManifestField.SPELLING_KEY_FIFTHS,
+    EncodedManifestField.SPELLING_CONTEXT_SOURCE,
     EncodedManifestField.SCALE_MATCH_BEST_MARGIN,
     EncodedManifestField.SCALE_MATCH_TIED_BEST_CANDIDATE_COUNT,
     EncodedManifestField.SCALE_MATCH_AMBIGUOUS,
@@ -463,6 +465,8 @@ class _EncodedManifestAccumulator:
             "scale_type_distribution": Counter(),
             "scale_root_distribution": Counter(),
             "declared_key_fifths_distribution": Counter(),
+            "spelling_key_fifths_distribution": Counter(),
+            "spelling_context_source_distribution": Counter(),
         }
         self._scale_selection_counts: Counter[str] = Counter()
         self._ineligibility_counts: Counter[str] = Counter()
@@ -501,6 +505,8 @@ class _EncodedManifestAccumulator:
             (EncodedManifestField.SCALE_TYPE, "scale_type_distribution"),
             (EncodedManifestField.SCALE_ROOT, "scale_root_distribution"),
             (EncodedManifestField.DECLARED_KEY_FIFTHS, "declared_key_fifths_distribution"),
+            (EncodedManifestField.SPELLING_KEY_FIFTHS, "spelling_key_fifths_distribution"),
+            (EncodedManifestField.SPELLING_CONTEXT_SOURCE, "spelling_context_source_distribution"),
         ):
             text = _text_value(row, field)
             if text:
@@ -564,6 +570,14 @@ class _EncodedManifestAccumulator:
             ),
             "declared_key_fifths": _counter_rows(
                 self._categorical_counts["declared_key_fifths_distribution"],
+                denominator=self._segments,
+            ),
+            "spelling_key_fifths": _counter_rows(
+                self._categorical_counts["spelling_key_fifths_distribution"],
+                denominator=self._segments,
+            ),
+            "spelling_context_sources": _counter_rows(
+                self._categorical_counts["spelling_context_source_distribution"],
                 denominator=self._segments,
             ),
             "declared_key_vs_selected_scale": _counter_rows(

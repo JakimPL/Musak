@@ -10,6 +10,7 @@ from musak_model.data.scale_matcher.matcher import match_scale
 from musak_model.data.schema import ParsedScore, Segment
 from musak_model.data.segmenter.streams import tokenize_unified_stream_safely
 from musak_model.data.segmenter.windows import create_window
+from musak_model.data.tokenization_context import tokenization_context_from_scale_match
 from musak_model.tokens.duration import DurationVocabulary
 from musak_shared.profiling import NULL_PROFILER, ProfilerProtocol
 
@@ -101,15 +102,12 @@ def _segment_ranges(
                 score.left_hand_bars[start:end],
                 config=scale_matcher_config,
             )
+            tokenization_context = tokenization_context_from_scale_match(scale_match)
         with profiler.measure("score_copy", source_file=source_file):
             tokenization_score = score.model_copy(
                 update={
                     "scale_root": scale_match.scale_root,
-                    "key_fifths": (
-                        scale_match.diagnostics.declared_key_fifths
-                        if scale_match.diagnostics.declared_key_fifths is not None
-                        else 0
-                    ),
+                    "key_fifths": tokenization_context.spelling_key_fifths,
                     "scale_type": scale_match.scale_type,
                     "right_hand_bars": score.right_hand_bars[:end],
                     "left_hand_bars": score.left_hand_bars[:end],
@@ -129,5 +127,6 @@ def _segment_ranges(
                 start=start,
                 end=end,
                 scale_match=scale_match,
+                tokenization_context=tokenization_context,
                 difficulty_level=difficulty_level,
             )
