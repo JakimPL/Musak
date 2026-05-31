@@ -66,7 +66,7 @@ loss = event_loss
 Where:
 
 - `event_loss` is the masked factorized cross-entropy from Phase 3.
-- `musical_attribute_loss` is the sum of supervised sequence-level and bar-level targets from Phase 4.
+- `musical_attribute_loss` is the sum of supervised sequence-level and bar-level targets from Phase 5.
 - `context_validity_loss` is optional and should only penalize probability mass assigned to impossible continuations
   under the current grammar and teacher-forced prefix. It is not a proxy for musicality.
 
@@ -111,8 +111,26 @@ This section is the durable resumption point if work continues after context com
   change.
 - Completed: Phase 1D added focused notation and MusicXML spelling fixtures for harmonic minor, melodic minor,
   borrowed tones, and modal spelling.
-- Next: Phase 2 should introduce a compact multidimensional token representation and explicit legality masks before
-  changing the training objective.
+- Completed: Phase 2A added a lossless factorized token representation, derived factorized target tensors during
+  dataset example construction, and logs flat-logit attribute accuracies for duration, degree, accidental, register,
+  and hand.
+- Next: Phase 2B should add factorized model heads and masked per-attribute losses while keeping the flat objective
+  runnable as a baseline.
+
+Early non-unit validation for Phase 2A:
+
+```bash
+DATA_DIR=data/exercises PROCESS_DISABLE_MLFLOW=1 PROCESS_SKIP_FIGURE_ANALYSIS=1 \
+  PROCESS_WHOLE_FILE_SEGMENTS=1 PROCESS_TOKENIZATION_WORKERS=1 PROCESS_TOKENIZATION_BATCH_SIZE=1 \
+  PROCESS_OVERWRITE=1 make process
+
+uv run python scripts/pretrain.py --data-dir data/exercises --whole-file-segments \
+  --epochs 1 --batch-size 2 --device cpu --num-workers 0 \
+  --checkpoint-dir /tmp/musak-factorized-pretrain --disable-mlflow --overwrite --no-progress
+```
+
+The one-epoch run should emit non-null duration, degree, accidental, octave-offset, and hand accuracies from the flat
+token logits. With MLflow enabled, these appear under `model/<train|validation>/rate/*_accuracy`.
 
 ## Phase 0: Baseline Audit
 
@@ -183,35 +201,44 @@ Likely code areas:
 - `tests/musak_model/decoder/`
 - `tests/musak_model/validation/`
 
-## Phase 2: Bar-Relative Musical Coordinates
+## Phase 2: Factorized Token Representation And Diagnostics
 
-Goal: stop requiring the model to infer musical time only by accumulating previous duration tokens.
+Goal: make the current flat vocabulary decomposable into musical attributes before changing the model objective.
 
 Implementation tasks:
 
-- Add per-token bar-relative position metadata for training. Start by deriving it from token streams during dataset
-  example construction; persist it in encoded artifacts only after the shape is stable.
-- Represent the coordinate as integer ticks over the duration vocabulary denominator, with a no-position bucket for
-  tokens that do not advance musical time.
-- Add embeddings for bar-relative position and active hand state, or feed these as a compact structured input alongside
-  token embeddings.
-- Keep hard generation constraints as the authority for exact measure validity.
+- Add a lossless `TokenAttributes` representation derived from existing `Token` objects:
+  - token kind;
+  - note degree;
+  - accidental;
+  - octave offset;
+  - duration;
+  - hand where applicable.
+- Reconstruct tokens and flat token ids from strict factorized targets.
+- Reconstruct tokens and flat token ids from model-style factorized predictions by using the predicted kind to select
+  active attributes.
+- Derive factorized target tensors during dataset example construction without changing encoded artifact shape.
+- Add flat-logit diagnostics that report attribute accuracies before the factorized objective exists.
 
 Acceptance criteria:
 
-- The model input has explicit bar position information for note, rest, and hold decisions.
-- Validation metrics separate timing/duration failures from pitch/register failures.
-- Generation does not regress on hard-constrained bar completion.
+- Every current flat vocabulary id factorizes and reconstructs exactly.
+- Malformed strict targets fail fast.
+- Dataset examples and batches carry factorized targets with an explicit absent-attribute id for inactive heads and
+  padding.
+- Training metrics separate duration, degree, accidental, octave-offset, and hand failures even when the model still
+  trains with the flat softmax objective.
 
 Likely code areas:
 
+- `musak_model/tokens/factorized.py`
 - `musak_model/training/dataset/examples.py`
 - `musak_model/training/dataset/collate.py`
 - `musak_model/training/dataset/schema.py`
-- `musak_model/model/hierarchical.py`
-- `musak_model/model/config.py`
+- `musak_model/training/metrics/`
+- `tests/musak_model/tokens/`
 - `tests/musak_model/training/dataset/`
-- `tests/musak_model/model/`
+- `tests/musak_model/training/metrics/`
 
 ## Phase 3: Factorized Event Objective
 
@@ -277,7 +304,37 @@ Likely code areas:
 - `tests/musak_model/training/`
 - `tests/musak_model/evaluation/`
 
-## Phase 4: Musical Auxiliary Objectives
+## Phase 4: Bar-Relative Musical Coordinates
+
+Goal: stop requiring the model to infer musical time only by accumulating previous duration tokens.
+
+Implementation tasks:
+
+- Add per-token bar-relative position metadata for training. Start by deriving it from token streams during dataset
+  example construction; persist it in encoded artifacts only after the shape is stable.
+- Represent the coordinate as integer ticks over the duration vocabulary denominator, with a no-position bucket for
+  tokens that do not advance musical time.
+- Add embeddings for bar-relative position and active hand state, or feed these as a compact structured input alongside
+  token embeddings.
+- Keep hard generation constraints as the authority for exact measure validity.
+
+Acceptance criteria:
+
+- The model input has explicit bar position information for note, rest, and hold decisions.
+- Validation metrics separate timing/duration failures from pitch/register failures.
+- Generation does not regress on hard-constrained bar completion.
+
+Likely code areas:
+
+- `musak_model/training/dataset/examples.py`
+- `musak_model/training/dataset/collate.py`
+- `musak_model/training/dataset/schema.py`
+- `musak_model/model/hierarchical.py`
+- `musak_model/model/config.py`
+- `tests/musak_model/training/dataset/`
+- `tests/musak_model/model/`
+
+## Phase 5: Musical Auxiliary Objectives
 
 Goal: make the model predict exercise-level musical properties that are not visible in token perplexity.
 
@@ -328,7 +385,7 @@ Likely code areas:
 - `tests/musak_model/training/`
 - `tests/musak_model/processing/`
 
-## Phase 5: Reference Priors And Reranking
+## Phase 6: Reference Priors And Reranking
 
 Goal: steer samples toward exercise-like local structure without turning exact n-grams into model tokens.
 
@@ -376,7 +433,7 @@ Likely code areas:
 - `tests/musak_model/n_grams/`
 - `tests/musak_model/training/stages/`
 
-## Phase 6: Planner And Plan-Conditioned Generation
+## Phase 7: Planner And Plan-Conditioned Generation
 
 Goal: move exercise structure out of raw next-token prediction.
 
@@ -405,7 +462,7 @@ Likely code areas:
 - `musak_model/model/`
 - `musak_model/training/`
 
-## Phase 7: Small-Data Training Hygiene
+## Phase 8: Small-Data Training Hygiene
 
 Goal: improve training efficiency after representation and objective terms are measurable.
 
@@ -446,12 +503,12 @@ Likely code areas:
 
 1. Finish Phase 0 diagnostic fixtures and baseline reporting, including generated-sample reports where possible.
 2. Implement Phase 1 tokenization-context and spelling semantics with tests and docs.
-3. Add Phase 3 factorized targets, reconstruction helpers, and metrics without changing model training.
-4. Add Phase 4 auxiliary musical target extraction and dataset reports without changing generation.
-5. Add factorized model heads, per-head losses, and auxiliary heads behind config.
-6. Add Phase 2 bar-relative coordinates if timing metrics show accumulation errors, or earlier if the target schemas need
+3. Finish Phase 2 factorized targets, reconstruction helpers, and metrics without changing model training.
+4. Add Phase 3 factorized model heads and per-head losses behind config.
+5. Add Phase 5 auxiliary musical target extraction and dataset reports without changing generation.
+6. Add Phase 4 bar-relative coordinates if timing metrics show accumulation errors, or earlier if the target schemas need
    bar pooling.
-7. Add Phase 5 reference-prior scoring and reranking for generated samples.
+7. Add Phase 6 reference-prior scoring and reranking for generated samples.
 8. Only then run serious PDMX/exercise training comparisons.
 
 ## Non-Goals For This Cycle

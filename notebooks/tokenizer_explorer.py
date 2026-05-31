@@ -20,6 +20,7 @@ def _():
     from notebooks.utils import (
         PitchSpelling,
         default_duration_vocabulary,
+        default_scale_matcher_config,
         encoded_sample_to_segment,
         encoded_segments_result,
         hand_controls,
@@ -45,6 +46,7 @@ def _():
         alt,
         build_default_token_vocabulary,
         default_duration_vocabulary,
+        default_scale_matcher_config,
         encoded_sample_to_segment,
         encoded_segments_result,
         hand_controls,
@@ -230,6 +232,7 @@ def _(
     encoded_sample_to_segment,
     encoded_segments_result,
     duration_vocabulary,
+    default_scale_matcher_config,
     load_encoded_shard,
     load_parsed_score_json,
     mo,
@@ -248,12 +251,14 @@ def _(
 
     elif source_mode.value == "raw":
         encoded_shard = None
+        scale_matcher_config = default_scale_matcher_config()
         with mo.status.spinner(title="Parsing and tokenizing selected file..."):
             processing_result = process_score_safely(
                 selected_path,
                 duration_vocabulary,
                 window_bars=window_slider.value,
                 stride_bars=stride_slider.value,
+                scale_matcher_config=scale_matcher_config,
             )
 
         if processing_result.succeeded:
@@ -284,6 +289,7 @@ def _(
                 duration_vocabulary,
                 window_bars=window_slider.value,
                 stride_bars=stride_slider.value,
+                scale_matcher_config=default_scale_matcher_config(),
                 parse_diagnostics=parse_diagnostics,
             )
         if processing_result.succeeded:

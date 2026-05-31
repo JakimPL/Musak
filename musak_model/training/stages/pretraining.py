@@ -21,6 +21,7 @@ from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.vocabulary import TokenVocabulary
 from musak_model.training.checkpoint import load_checkpoint, save_checkpoint
 from musak_model.training.config import TrainingConfig
+from musak_model.training.dataset.factorized import TokenAttributeTargetTensors
 from musak_model.training.dataset.loaders import build_dataloaders
 from musak_model.training.dataset.schema import TrainingBatch
 from musak_model.training.ingestion.config import IngestionConfig
@@ -32,6 +33,7 @@ from musak_model.training.metrics import (
     EpochSplitMetrics,
     MetricsAccumulator,
     batch_metrics_from_logits,
+    build_token_attribute_lookup,
     build_token_kind_ids,
     module_gradient_norm_metrics,
 )
@@ -66,6 +68,7 @@ class PretrainingTrainer:
         tracker: TrainingTracker | None = None,
         show_progress: bool = False,
         token_kind_ids: Tensor | None = None,
+        token_attribute_lookup: TokenAttributeTargetTensors | None = None,
         validity_mask_builder: TrainingValidityMaskBuilder | None = None,
         generation_evaluator: GenerationSuiteEvaluator | None = None,
     ) -> None:
@@ -83,6 +86,9 @@ class PretrainingTrainer:
         self._tracker = tracker or NoOpTrainingTracker()
         self._show_progress = show_progress
         self._token_kind_ids = token_kind_ids.to(self._device) if token_kind_ids is not None else None
+        self._token_attribute_lookup = (
+            token_attribute_lookup.to(self._device) if token_attribute_lookup is not None else None
+        )
         if config.conditioning.use_validity_penalty and validity_mask_builder is None:
             raise ValueError("validity_mask_builder is required when use_validity_penalty is true")
 
@@ -158,6 +164,11 @@ class PretrainingTrainer:
             train_perplexity=train_metrics.perplexity,
             train_token_accuracy=train_metrics.token_accuracy,
             train_token_kind_accuracy=train_metrics.token_kind_accuracy,
+            train_duration_accuracy=train_metrics.duration_accuracy,
+            train_degree_accuracy=train_metrics.degree_accuracy,
+            train_accidental_accuracy=train_metrics.accidental_accuracy,
+            train_octave_offset_accuracy=train_metrics.octave_offset_accuracy,
+            train_hand_accuracy=train_metrics.hand_accuracy,
             train_validity_penalty_loss=train_metrics.validity_penalty_loss,
             train_invalid_probability_mass=train_metrics.invalid_probability_mass,
             train_invalid_target_rate=train_metrics.invalid_target_rate,
@@ -170,6 +181,17 @@ class PretrainingTrainer:
             validation_token_kind_accuracy=(
                 validation_metrics.token_kind_accuracy if validation_metrics is not None else None
             ),
+            validation_duration_accuracy=(
+                validation_metrics.duration_accuracy if validation_metrics is not None else None
+            ),
+            validation_degree_accuracy=validation_metrics.degree_accuracy if validation_metrics is not None else None,
+            validation_accidental_accuracy=(
+                validation_metrics.accidental_accuracy if validation_metrics is not None else None
+            ),
+            validation_octave_offset_accuracy=(
+                validation_metrics.octave_offset_accuracy if validation_metrics is not None else None
+            ),
+            validation_hand_accuracy=validation_metrics.hand_accuracy if validation_metrics is not None else None,
             validation_validity_penalty_loss=(
                 validation_metrics.validity_penalty_loss if validation_metrics is not None else None
             ),
@@ -185,10 +207,14 @@ class PretrainingTrainer:
         _LOGGER.info(
             (
                 "Epoch %s/%s finished: train_loss=%.6f train_perplexity=%.6f "
-                "train_token_accuracy=%.6f train_token_kind_accuracy=%s train_validity_penalty_loss=%s "
+                "train_token_accuracy=%.6f train_token_kind_accuracy=%s train_duration_accuracy=%s "
+                "train_degree_accuracy=%s train_accidental_accuracy=%s train_octave_offset_accuracy=%s "
+                "train_hand_accuracy=%s train_validity_penalty_loss=%s "
                 "train_invalid_probability_mass=%s train_invalid_target_rate=%s train_cnn_gradient_norm=%s "
                 "train_gru_gradient_norm=%s train_transformer_gradient_norm=%s validation_loss=%s "
                 "validation_perplexity=%s validation_token_accuracy=%s validation_token_kind_accuracy=%s "
+                "validation_duration_accuracy=%s validation_degree_accuracy=%s validation_accidental_accuracy=%s "
+                "validation_octave_offset_accuracy=%s validation_hand_accuracy=%s "
                 "validation_validity_penalty_loss=%s validation_invalid_probability_mass=%s "
                 "validation_invalid_target_rate=%s"
             ),
@@ -198,6 +224,11 @@ class PretrainingTrainer:
             metric.train_perplexity,
             metric.train_token_accuracy,
             metric.train_token_kind_accuracy,
+            metric.train_duration_accuracy,
+            metric.train_degree_accuracy,
+            metric.train_accidental_accuracy,
+            metric.train_octave_offset_accuracy,
+            metric.train_hand_accuracy,
             metric.train_validity_penalty_loss,
             metric.train_invalid_probability_mass,
             metric.train_invalid_target_rate,
@@ -208,6 +239,11 @@ class PretrainingTrainer:
             metric.validation_perplexity,
             metric.validation_token_accuracy,
             metric.validation_token_kind_accuracy,
+            metric.validation_duration_accuracy,
+            metric.validation_degree_accuracy,
+            metric.validation_accidental_accuracy,
+            metric.validation_octave_offset_accuracy,
+            metric.validation_hand_accuracy,
             metric.validation_validity_penalty_loss,
             metric.validation_invalid_probability_mass,
             metric.validation_invalid_target_rate,
@@ -372,6 +408,7 @@ class PretrainingTrainer:
             token_padding_mask=batch.token_padding_mask,
             loss=loss,
             token_kind_ids=self._token_kind_ids,
+            token_attribute_lookup=self._token_attribute_lookup,
         )
         if self._config.conditioning.use_validity_penalty:
             validity_metrics = self._validity_penalty_metrics(
@@ -507,6 +544,7 @@ def pretrain(
             tracker=tracker,
             show_progress=show_progress,
             token_kind_ids=build_token_kind_ids(vocabulary),
+            token_attribute_lookup=build_token_attribute_lookup(vocabulary),
             validity_mask_builder=TrainingValidityMaskBuilder(vocabulary),
             generation_evaluator=GenerationSuiteEvaluator(
                 config=training_config.generation_evaluation,
@@ -526,6 +564,7 @@ def _move_batch_to_device(batch: TrainingBatch, *, device: torch.device) -> Trai
     return TrainingBatch(
         input_token_ids=batch.input_token_ids.to(device),
         target_token_ids=batch.target_token_ids.to(device),
+        target_token_attributes=batch.target_token_attributes.to(device),
         bar_positions=batch.bar_positions.to(device),
         structural_control_ids=batch.structural_control_ids.to(device),
         scale_roots=batch.scale_roots.to(device),

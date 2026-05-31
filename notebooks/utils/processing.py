@@ -12,7 +12,9 @@ from musak_model.data.cleaning import clean_parsed_score
 from musak_model.data.config import SegmentationConfig
 from musak_model.data.parser import parse_score
 from musak_model.data.pipeline import segment_parsed_score
+from musak_model.data.scale_matcher.config import ScaleMatcherConfig
 from musak_model.data.schema import ParsedScore, Segment
+from musak_model.processing.config import ProcessingConfig
 from musak_model.processing.diagnostics import ParseDiagnosticsCapture
 from musak_model.processing.manifest import ParsedManifestField, read_parsed_manifest
 from musak_model.processing.paths import PARSED_MANIFEST_NAME
@@ -51,6 +53,7 @@ def process_score_safely(
     *,
     window_bars: int,
     stride_bars: int,
+    scale_matcher_config: ScaleMatcherConfig,
 ) -> ProcessingResult:
     parse_diagnostics = ""
     captured_diagnostics: ParseDiagnosticsCapture | None = None
@@ -77,6 +80,7 @@ def process_score_safely(
             path,
             duration_vocabulary,
             segmentation_config=SegmentationConfig(window_bars=window_bars, stride_bars=stride_bars),
+            scale_matcher_config=scale_matcher_config,
         )
     except _PROCESSING_ERRORS as exception:
         return ProcessingResult(
@@ -104,6 +108,7 @@ def segment_parsed_score_safely(
     *,
     window_bars: int,
     stride_bars: int,
+    scale_matcher_config: ScaleMatcherConfig,
     parse_diagnostics: str = "",
 ) -> ProcessingResult:
     try:
@@ -112,6 +117,7 @@ def segment_parsed_score_safely(
             path,
             duration_vocabulary,
             segmentation_config=SegmentationConfig(window_bars=window_bars, stride_bars=stride_bars),
+            scale_matcher_config=scale_matcher_config,
         )
     except _PROCESSING_ERRORS as exception:
         return ProcessingResult(
@@ -134,6 +140,10 @@ def segment_parsed_score_safely(
 
 def encoded_segments_result(path: Path, *, segments: list[Segment]) -> ProcessingResult:
     return ProcessingResult(path=path, parsed_score=None, segments=segments)
+
+
+def default_scale_matcher_config() -> ScaleMatcherConfig:
+    return ProcessingConfig.load().tokenization.scale_matcher
 
 
 def parsed_score_manifest_diagnostics(path: Path) -> str:

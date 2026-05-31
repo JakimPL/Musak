@@ -80,6 +80,14 @@ Every entry lists the two entities being bridged and the package that owns the c
 | `chord_window_grid` | `synthetic/harmony/windows.py` | `(measure_duration, total_duration, resolution)` → `tuple[(start, end), ...]` (bar-aligned, barline-truncated) |
 | `anchor_figure_to_tokens` | `synthetic/substitution/emission.py` | `FigureNGram` + anchor + `base_duration` → `list[Token]` |
 
+### Token factorization (`musak_model/tokens`)
+
+| Function | File | Input → Output |
+| --- | --- | --- |
+| `token_to_attributes`, `token_id_to_attributes` | `tokens/factorized.py` | `Token` / flat token id → `TokenAttributes` |
+| `attributes_to_token`, `predicted_attributes_to_token` | `tokens/factorized.py` | strict target attributes / model-style predicted attributes → `Token` |
+| `attributes_to_token_id`, `predicted_attributes_to_token_id` | `tokens/factorized.py` | strict target attributes / model-style predicted attributes → flat token id |
+
 ### Decoding to notation / piano-roll (`musak_model/decoder`)
 
 | Function | File | Input → Output |

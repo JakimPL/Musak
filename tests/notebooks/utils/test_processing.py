@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from musak_model.data.scale_matcher.config import ScaleMatcherConfig
 from musak_model.processing.manifest import parsed_success_row, write_parsed_manifest
 from musak_model.tokens.duration import DurationVocabulary
 from notebooks.utils.processing import (
@@ -17,6 +18,15 @@ from tests.musak_model.data.fixtures import bar, note_event, parsed_score
 
 if TYPE_CHECKING:
     from musak_model.data.schema import ParsedScore
+
+
+def _scale_matcher_config() -> ScaleMatcherConfig:
+    return ScaleMatcherConfig(
+        support_score_margin=0.08,
+        selection_score_margin=0.03,
+        maximum_unexplained_weight_fraction=0.10,
+        maximum_explanation_pitch_class_count=9,
+    )
 
 
 def _score() -> "ParsedScore":
@@ -43,7 +53,13 @@ def test_process_score_safely_captures_parse_diagnostics_without_console_noise(
     monkeypatch.setattr("notebooks.utils.processing.parse_score", noisy_parse)
     monkeypatch.setattr("notebooks.utils.processing.segment_parsed_score", lambda *args, **kwargs: [])
 
-    result = process_score_safely(source_path, duration_vocabulary, window_bars=1, stride_bars=1)
+    result = process_score_safely(
+        source_path,
+        duration_vocabulary,
+        window_bars=1,
+        stride_bars=1,
+        scale_matcher_config=_scale_matcher_config(),
+    )
     captured = capsys.readouterr()
 
     assert result.succeeded
@@ -67,7 +83,13 @@ def test_process_score_safely_preserves_parse_diagnostics_on_parse_error(
 
     monkeypatch.setattr("notebooks.utils.processing.parse_score", noisy_parse_error)
 
-    result = process_score_safely(source_path, duration_vocabulary, window_bars=1, stride_bars=1)
+    result = process_score_safely(
+        source_path,
+        duration_vocabulary,
+        window_bars=1,
+        stride_bars=1,
+        scale_matcher_config=_scale_matcher_config(),
+    )
 
     assert not result.succeeded
     assert result.error_type == "ValueError"

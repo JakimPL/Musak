@@ -16,8 +16,16 @@ from musak_model.data.converter import pitch_to_degree
 from musak_model.data.scale_matcher.config import ScaleMatcherConfig
 from musak_model.data.scale_matcher.matcher import match_scale_histogram
 from musak_model.processing.io import load_tokenizer_snapshot_json
-from musak_model.processing.manifest import EncodedManifestField, ParsedManifestField, ParsedManifestStatus
-from musak_model.processing.paths import ENCODED_JSONL_NAME, ENCODED_MANIFEST_NAME, PARSED_MANIFEST_NAME
+from musak_model.processing.manifest import (
+    EncodedManifestField,
+    ParsedManifestField,
+    ParsedManifestStatus,
+)
+from musak_model.processing.paths import (
+    ENCODED_JSONL_NAME,
+    ENCODED_MANIFEST_NAME,
+    PARSED_MANIFEST_NAME,
+)
 from musak_model.processing.snapshot import TokenizerSnapshot
 from musak_model.tokens.config import TokenizationConfig
 from musak_model.tokens.duration import DurationVocabulary
@@ -1101,7 +1109,7 @@ def _outlier_row(row: dict[str, str]) -> CsvRow:
 
 
 def _counter_json(counter: Counter[str]) -> dict[str, JsonValue]:
-    return {key: count for key, count in counter.most_common()}
+    return dict(counter.most_common())
 
 
 def _counter_rows(counter: Counter[str], *, denominator: int) -> list[CsvRow]:

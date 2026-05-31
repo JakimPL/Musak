@@ -10,7 +10,8 @@ from musak_model.conditioning.time_signature import TimeSignatureVocabulary, Tim
 from musak_model.data.schema import SegmentMetadata
 from musak_model.data.tokenization_context import tokenization_context_from_scale
 from musak_model.tokens.duration import DurationVocabulary
-from musak_model.tokens.schema import Hand, HandToken, NoteToken, ScaleType
+from musak_model.tokens.factorized import ABSENT_ATTRIBUTE_ID, TokenKindId
+from musak_model.tokens.schema import Hand, HandToken, NoteToken, RestToken, ScaleType
 from musak_model.tokens.vocabulary import TokenVocabulary
 from musak_model.training.conditioning import difficulty_level_to_id, scale_type_to_id, time_signature_to_id
 from musak_model.training.config import TrainingConditioningConfig
@@ -79,6 +80,36 @@ def test_dataset_builds_teacher_forcing_examples_with_start_token(token_vocabula
     assert example.input_token_ids.tolist() == [token_vocabulary.start_token_id, 1, 2]
     assert example.target_token_ids.tolist() == [1, 2, 3]
     assert example.bar_positions.tolist() == [0, 0, 0]
+
+
+def test_dataset_builds_factorized_target_attributes(
+    duration_vocabulary: DurationVocabulary,
+    token_vocabulary: TokenVocabulary,
+) -> None:
+    quarter_id = duration_vocabulary.fraction_to_id(Fraction(1, 4))
+    eighth_id = duration_vocabulary.fraction_to_id(Fraction(1, 8))
+    token_ids = token_vocabulary.encode(
+        [
+            HandToken(hand=Hand.RIGHT),
+            NoteToken(degree=2, accidental=1, octave_offset=-1, duration_id=quarter_id),
+            RestToken(duration_id=eighth_id),
+        ]
+    )
+    dataset = EncodedExerciseDataset(
+        [_sample(token_ids, [0, 0, 0])],
+        time_signature_vocabulary=_time_signature_vocabulary(),
+        token_vocabulary=token_vocabulary,
+        conditioning=_conditioning_config(),
+    )
+
+    attributes = dataset[0].target_token_attributes
+
+    assert attributes.kind_ids.tolist() == [TokenKindId.HAND, TokenKindId.NOTE, TokenKindId.REST]
+    assert attributes.degree_ids.tolist() == [ABSENT_ATTRIBUTE_ID, 1, ABSENT_ATTRIBUTE_ID]
+    assert attributes.accidental_ids.tolist() == [ABSENT_ATTRIBUTE_ID, 2, ABSENT_ATTRIBUTE_ID]
+    assert attributes.octave_offset_ids.tolist() == [ABSENT_ATTRIBUTE_ID, 1, ABSENT_ATTRIBUTE_ID]
+    assert attributes.duration_ids.tolist() == [ABSENT_ATTRIBUTE_ID, quarter_id, eighth_id]
+    assert attributes.hand_ids.tolist() == [0, ABSENT_ATTRIBUTE_ID, ABSENT_ATTRIBUTE_ID]
 
 
 def test_dataset_keeps_single_token_samples_for_start_token_training(token_vocabulary: TokenVocabulary) -> None:
@@ -240,6 +271,8 @@ def test_collate_pads_tokens_and_bar_positions(token_vocabulary: TokenVocabulary
     ]
     assert batch.target_token_ids.tolist() == [[1, 2, 3], [4, 5, 0]]
     assert batch.bar_positions.tolist() == [[0, 0, 0], [0, 0, -1]]
+    assert batch.target_token_attributes.kind_ids.tolist()[1][-1] == ABSENT_ATTRIBUTE_ID
+    assert batch.target_token_attributes.duration_ids.tolist()[1][-1] == ABSENT_ATTRIBUTE_ID
     assert batch.structural_control_ids.tolist() == [[], []]
     assert batch.token_padding_mask.tolist() == [[False, False, False], [False, False, True]]
 

@@ -2,12 +2,12 @@ import torch
 
 from musak_model.tokens.schema import BarToken, Hand, HandToken, NoteToken, RestToken
 from musak_model.tokens.vocabulary import TokenVocabulary
-from musak_model.training.metrics import batch_metrics_from_logits, build_token_kind_ids
+from musak_model.training.metrics import batch_metrics_from_logits, build_token_attribute_lookup, build_token_kind_ids
 
 
 def test_batch_metrics_calculates_token_and_kind_accuracy(token_vocabulary: TokenVocabulary) -> None:
     note_a = token_vocabulary.token_to_id(NoteToken(degree=1, accidental=0, octave_offset=0, duration_id=0))
-    note_b = token_vocabulary.token_to_id(NoteToken(degree=2, accidental=0, octave_offset=0, duration_id=0))
+    note_b = token_vocabulary.token_to_id(NoteToken(degree=2, accidental=0, octave_offset=0, duration_id=1))
     rest = token_vocabulary.token_to_id(RestToken(duration_id=0))
     right = token_vocabulary.token_to_id(HandToken(hand=Hand.RIGHT))
     bar = token_vocabulary.token_to_id(BarToken())
@@ -22,8 +22,19 @@ def test_batch_metrics_calculates_token_and_kind_accuracy(token_vocabulary: Toke
         token_padding_mask=torch.tensor([[False, False, False, False]]),
         loss=torch.tensor(1.0),
         token_kind_ids=build_token_kind_ids(token_vocabulary),
+        token_attribute_lookup=build_token_attribute_lookup(token_vocabulary),
     )
 
     assert metrics.token_count == 4
     assert metrics.exact_match_count == 2
     assert metrics.token_kind_match_count == 3
+    assert metrics.duration_match_count == 1
+    assert metrics.duration_target_count == 2
+    assert metrics.degree_match_count == 0
+    assert metrics.degree_target_count == 1
+    assert metrics.accidental_match_count == 1
+    assert metrics.accidental_target_count == 1
+    assert metrics.octave_offset_match_count == 1
+    assert metrics.octave_offset_target_count == 1
+    assert metrics.hand_match_count == 1
+    assert metrics.hand_target_count == 1

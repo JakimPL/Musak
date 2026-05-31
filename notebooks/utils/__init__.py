@@ -105,6 +105,7 @@ from notebooks.utils.piano_roll import (
 )
 from notebooks.utils.processing import (
     ProcessingResult,
+    default_scale_matcher_config,
     encoded_segments_result,
     parsed_score_manifest_diagnostics,
     process_score_safely,
@@ -241,6 +242,7 @@ __all__ = [
     "parsed_score_manifest_diagnostics",
     "processed_dataset_directories",
     "process_score_safely",
+    "default_scale_matcher_config",
     "quality_database_summary_rows",
     "rating_by_segment_key",
     "reason_by_column",

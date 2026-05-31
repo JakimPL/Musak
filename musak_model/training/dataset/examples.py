@@ -11,6 +11,7 @@ from musak_model.conditioning.time_signature import TimeSignatureVocabulary
 from musak_model.tokens.vocabulary import TokenVocabulary
 from musak_model.training.conditioning import difficulty_level_to_id, scale_type_to_id, time_signature_to_id
 from musak_model.training.config import TrainingConditioningConfig
+from musak_model.training.dataset.factorized import token_attribute_targets_from_token_ids
 from musak_model.training.dataset.schema import TrainingExample
 from musak_model.training.ingestion.schema import EncodedExercise
 
@@ -106,6 +107,7 @@ def _to_training_example(
     return TrainingExample(
         input_token_ids=input_token_ids,
         target_token_ids=token_ids,
+        target_token_attributes=token_attribute_targets_from_token_ids(token_ids, vocabulary=token_vocabulary),
         bar_positions=input_bar_positions,
         structural_control_ids=structural_control_ids,
         scale_root=sample.scale_root,

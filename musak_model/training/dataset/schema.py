@@ -3,11 +3,14 @@ from fractions import Fraction
 
 from torch import Tensor
 
+from musak_model.training.dataset.factorized import TokenAttributeTargetTensors
+
 
 @dataclass(frozen=True)
 class TrainingExample:
     input_token_ids: Tensor
     target_token_ids: Tensor
+    target_token_attributes: TokenAttributeTargetTensors
     bar_positions: Tensor
     structural_control_ids: Tensor
     scale_root: int
@@ -25,6 +28,7 @@ class TrainingExample:
 class TrainingBatch:
     input_token_ids: Tensor
     target_token_ids: Tensor
+    target_token_attributes: TokenAttributeTargetTensors
     bar_positions: Tensor
     structural_control_ids: Tensor
     scale_roots: Tensor

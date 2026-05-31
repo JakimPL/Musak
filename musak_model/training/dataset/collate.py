@@ -3,6 +3,7 @@ from typing import Final
 import torch
 from torch import Tensor
 
+from musak_model.training.dataset.factorized import pad_token_attribute_targets
 from musak_model.training.dataset.schema import TrainingBatch, TrainingExample
 
 _PADDING_TOKEN_ID: Final[int] = 0
@@ -51,6 +52,10 @@ def collate_training_examples(examples: list[TrainingExample]) -> TrainingBatch:
     return TrainingBatch(
         input_token_ids=input_token_ids,
         target_token_ids=target_token_ids,
+        target_token_attributes=pad_token_attribute_targets(
+            [example.target_token_attributes for example in examples],
+            max_length=max_length,
+        ),
         bar_positions=bar_positions,
         structural_control_ids=structural_control_ids,
         scale_roots=scale_roots,

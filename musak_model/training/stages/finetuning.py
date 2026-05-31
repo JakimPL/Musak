@@ -21,7 +21,7 @@ from musak_model.training.config import FinetuningTrainingConfig
 from musak_model.training.dataset.loaders import build_dataloaders
 from musak_model.training.ingestion.config import IngestionConfig
 from musak_model.training.ingestion.split import build_split
-from musak_model.training.metrics import build_token_kind_ids
+from musak_model.training.metrics import build_token_attribute_lookup, build_token_kind_ids
 from musak_model.training.progress import log_split_summary
 from musak_model.training.stages.figure_profiles import (
     load_generation_figure_profile_artifacts,
@@ -128,6 +128,7 @@ def finetune(
             tracker=tracker,
             show_progress=show_progress,
             token_kind_ids=build_token_kind_ids(token_vocabulary),
+            token_attribute_lookup=build_token_attribute_lookup(token_vocabulary),
             validity_mask_builder=TrainingValidityMaskBuilder(token_vocabulary),
             generation_evaluator=GenerationSuiteEvaluator(
                 config=training_config.generation_evaluation,

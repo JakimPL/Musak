@@ -280,6 +280,7 @@ the dataset statistics notebook.
 - dataset rows are converted to input and target token IDs;
 - `StartToken` is prepended to the model input;
 - targets remain the original musical tokens;
+- factorized target attributes are derived from the same targets for diagnostics and future factorized heads;
 - batches pad token IDs and bar positions;
 - loss ignores padded target positions.
 
@@ -377,6 +378,11 @@ Current metric families:
   - `model/train/mean/perplexity`
   - `model/train/rate/token_accuracy`
   - `model/train/rate/token_kind_accuracy`
+  - `model/train/rate/duration_accuracy`
+  - `model/train/rate/degree_accuracy`
+  - `model/train/rate/accidental_accuracy`
+  - `model/train/rate/octave_offset_accuracy`
+  - `model/train/rate/hand_accuracy`
   - `model/train/mean/validity_penalty_loss`
   - `model/train/mean/invalid_probability_mass`
   - `model/train/rate/invalid_target`

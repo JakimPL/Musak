@@ -28,6 +28,7 @@ from musak_model.training.dataset.examples import EncodedExerciseDataset
 from musak_model.training.dataset.schema import TrainingBatch
 from musak_model.training.ingestion.schema import EncodedExercise, IngestionErrorRecord, IngestionSplit
 from musak_model.training.metrics import EpochMetrics
+from musak_model.training.metrics.tokens import build_token_attribute_lookup
 from musak_model.training.stages.pretraining import PretrainingTrainer
 from musak_model.training.validity import TrainingValidityMaskBuilder
 
@@ -198,12 +199,14 @@ def _token_vocabulary() -> TokenVocabulary:
 
 def test_trainer_runs_one_epoch_and_writes_checkpoints(tmp_path: Path) -> None:
     torch.manual_seed(0)
+    token_vocabulary = _token_vocabulary()
     model = HierarchicalAutoregressiveModel(_small_model_config())
     trainer = PretrainingTrainer(
         model=model,
         config=_training_config(tmp_path),
         train_loader=_loader(),
         validation_loader=_loader(),
+        token_attribute_lookup=build_token_attribute_lookup(token_vocabulary),
     )
 
     result = trainer.train()
@@ -212,6 +215,10 @@ def test_trainer_runs_one_epoch_and_writes_checkpoints(tmp_path: Path) -> None:
     assert result.metrics[0].train_loss > 0
     assert result.metrics[0].train_perplexity > 1
     assert 0 <= result.metrics[0].train_token_accuracy <= 1
+    assert result.metrics[0].train_duration_accuracy is not None
+    assert result.metrics[0].train_degree_accuracy is not None
+    assert result.metrics[0].train_accidental_accuracy is not None
+    assert result.metrics[0].train_octave_offset_accuracy is not None
     assert result.metrics[0].validation_loss is not None
     assert result.metrics[0].validation_perplexity is not None
     assert result.metrics[0].validation_token_accuracy is not None
