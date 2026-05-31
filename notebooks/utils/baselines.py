@@ -1,12 +1,16 @@
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any, Final
 
 import pandas as pd
 
+from musak_model.harmony.expansion import chord_pitch_class_set
 from musak_model.harmony.schema import Chord, ChordQuality
-from musak_model.synthetic.substitution import GenerationTrace
-from musak_model.tokens.schema import Hand
-from notebooks.utils.piano_roll import PitchSpelling, midi_pitch_name, pitch_label_expression
+from musak_model.harmony.vocabulary import ChordVocabularyConfig
+from musak_model.synthetic.substitution import ChordWindowSample, GenerationTrace
+from musak_model.tokens.schema import Hand, ScaleType
+from musak_shared.elements import PITCHES_PER_OCTAVE
+from notebooks.utils.piano_roll import ChordHighlight, PitchSpelling, midi_pitch_name, pitch_label_expression
 
 _LEFT_HAND_COLOR = "#1f77b4"
 _RIGHT_HAND_COLOR = "#ff7f0e"
@@ -27,6 +31,30 @@ def chord_label(chord: Chord) -> str:
         numeral = numeral.lower()
 
     return f"{_ACCIDENTAL_PREFIX[chord.root_accidental]}{numeral}{_QUALITY_SUFFIX.get(chord.quality, '')}"
+
+
+def chord_note_highlights(
+    chord_windows: Sequence[ChordWindowSample],
+    *,
+    scale_root: int,
+    scale_type: ScaleType,
+    vocabulary: ChordVocabularyConfig | None = None,
+) -> tuple[ChordHighlight, ...]:
+    resolved_vocabulary = vocabulary if vocabulary is not None else ChordVocabularyConfig.load()
+    return tuple(
+        ChordHighlight(
+            start_in_bars=window.start_in_bars,
+            end_in_bars=window.end_in_bars,
+            pitch_classes=frozenset(
+                (scale_root + interval_class) % PITCHES_PER_OCTAVE
+                for interval_class in chord_pitch_class_set(
+                    window.chord, scale_type=scale_type, vocabulary=resolved_vocabulary
+                )
+            ),
+            label=chord_label(window.chord),
+        )
+        for window in chord_windows
+    )
 
 
 @dataclass(frozen=True)

@@ -14,6 +14,7 @@ from musak_model.tokens.vocabulary import TokenVocabulary
 from musak_model.training.ingestion.schema import EncodedExercise
 from notebooks.utils.encoded import load_encoded_shard
 from notebooks.utils.piano_roll import (
+    ChordHighlight,
     PitchSpelling,
     filter_piano_roll_dataframe,
     midi_pitch_name,
@@ -21,8 +22,35 @@ from notebooks.utils.piano_roll import (
     parsed_score_piano_roll_view_data,
     piano_roll_chart,
     piano_roll_dataframe,
+    scale_pitch_class_set,
     segment_piano_roll_view_data,
 )
+
+
+def _two_hand_score() -> ParsedScore:
+    return ParsedScore(
+        scale_root=0,
+        key_fifths=0,
+        scale_type=ScaleType.MAJOR,
+        time_numerator=4,
+        time_denominator=4,
+        right_hand_bars=[
+            ParsedBar(
+                time_numerator=4,
+                time_denominator=4,
+                key_fifths=0,
+                events=[ParsedNote(midi_pitch=60, duration=Fraction(1, 4), beat_offset=Fraction(0))],
+            )
+        ],
+        left_hand_bars=[
+            ParsedBar(
+                time_numerator=4,
+                time_denominator=4,
+                key_fifths=0,
+                events=[ParsedNote(midi_pitch=48, duration=Fraction(1, 4), beat_offset=Fraction(0))],
+            )
+        ],
+    )
 
 
 def test_midi_pitch_name_uses_scientific_pitch_octaves() -> None:
@@ -196,6 +224,50 @@ def test_piano_roll_chart_uses_fixed_hand_colors_and_note_outlines() -> None:
         "domain": ["left", "right"],
         "range": ["#1f77b4", "#ff7f0e"],
     }
+
+
+def test_scale_pitch_class_set_is_root_transposed_and_modal() -> None:
+    assert scale_pitch_class_set(0, ScaleType.MAJOR) == frozenset({0, 2, 4, 5, 7, 9, 11})
+    assert scale_pitch_class_set(2, ScaleType.MAJOR) == frozenset({2, 4, 6, 7, 9, 11, 1})
+    # A harmonic minor raises the seventh degree (G#).
+    assert scale_pitch_class_set(9, ScaleType.HARMONIC_MINOR) == frozenset({9, 11, 0, 2, 4, 5, 8})
+
+
+def test_piano_roll_chart_layers_scale_and_chord_highlights_behind_notes() -> None:
+    view_data = parsed_score_piano_roll_view_data(_two_hand_score())
+    chord_highlights = (
+        ChordHighlight(start_in_bars=1.0, end_in_bars=2.0, pitch_classes=frozenset({0, 4, 7}), label="I"),
+    )
+
+    layers = piano_roll_chart(
+        view_data,
+        alt=alt,
+        scale_pitch_classes=scale_pitch_class_set(0, ScaleType.MAJOR),
+        chord_highlights=chord_highlights,
+    ).to_dict()["layer"]
+
+    assert len(layers) == 4
+    scale_layer, chord_layer, note_layer = layers[0], layers[1], layers[2]
+    # Scale band: full-width (no x), one semitone tall, fixed green fill with a separating outline.
+    assert scale_layer["mark"]["type"] == "rect"
+    assert scale_layer["mark"]["fill"] == "#43a047"
+    assert scale_layer["mark"]["stroke"] == "#2e7d32"
+    assert "x" not in scale_layer["encoding"]
+    assert scale_layer["encoding"]["y"]["field"] == "pitch_low"
+    assert scale_layer["encoding"]["y2"]["field"] == "pitch_high"
+    # Chord band: windowed in time (x/x2), distinct purple fill.
+    assert chord_layer["mark"]["type"] == "rect"
+    assert chord_layer["mark"]["fill"] == "#7e57c2"
+    assert chord_layer["encoding"]["x"]["field"] == "start_in_bars"
+    assert chord_layer["encoding"]["x2"]["field"] == "end_in_bars"
+    # Notes stay drawn on top of both highlight bands.
+    assert note_layer["encoding"]["x"]["field"] == "bar_start_display"
+
+
+def test_piano_roll_chart_omits_highlight_layers_when_not_provided() -> None:
+    chart = piano_roll_chart(parsed_score_piano_roll_view_data(_two_hand_score()), alt=alt)
+
+    assert len(chart.to_dict()["layer"]) == 2
 
 
 def test_load_encoded_shard_rebuilds_token_vocabulary(

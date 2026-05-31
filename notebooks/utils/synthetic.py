@@ -129,6 +129,8 @@ class SyntheticGeneratedOutput:
     segment: Segment | None
     trace: GenerationTrace
     duration_vocabulary: DurationVocabulary
+    scale_root: int
+    scale_type: ScaleType
     decode_error: str | None
     error: str | None
     status_message: str
@@ -207,7 +209,13 @@ def generate_synthetic_segment(
             progress_callback=progress_callback,
         )
     except (GenerationConstraintError, ValueError) as exception:
-        return _failure(duration_vocabulary, f"Generation failed: {exception}", warnings=setup_warnings)
+        return _failure(
+            duration_vocabulary,
+            f"Generation failed: {exception}",
+            scale_root=request.scale_root,
+            scale_type=scale_type,
+            warnings=setup_warnings,
+        )
 
     segment = result.segment
     decode_error = segment_decode_error(segment, duration_vocabulary=duration_vocabulary)
@@ -218,6 +226,8 @@ def generate_synthetic_segment(
         segment=segment,
         trace=result.trace,
         duration_vocabulary=duration_vocabulary,
+        scale_root=request.scale_root,
+        scale_type=scale_type,
         decode_error=decode_error,
         error=None,
         status_message=_with_warnings(base_status, setup_warnings),
@@ -327,12 +337,16 @@ def _failure(
     duration_vocabulary: DurationVocabulary,
     message: str,
     *,
+    scale_root: int,
+    scale_type: ScaleType,
     warnings: list[str] | None = None,
 ) -> SyntheticGeneratedOutput:
     return SyntheticGeneratedOutput(
         segment=None,
         trace=GenerationTrace(samples=(), grid_count_per_bar=1, bar_count=0),
         duration_vocabulary=duration_vocabulary,
+        scale_root=scale_root,
+        scale_type=scale_type,
         decode_error=None,
         error=message,
         status_message=_with_warnings(message, warnings or []),

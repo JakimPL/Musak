@@ -1,7 +1,8 @@
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
 from fractions import Fraction
+from math import ceil, floor
 from typing import Any, Final
 
 import pandas as pd
@@ -9,8 +10,9 @@ import pandas as pd
 from musak_model.data.schema import ParsedScore, Segment
 from musak_model.decoder import PianoRollEvent, parsed_score_to_piano_roll_events, segment_to_piano_roll_events
 from musak_model.tokens.duration import DurationVocabulary
-from musak_model.tokens.schema import Hand
-from musak_shared.elements import MIDI_MAX_PITCH
+from musak_model.tokens.pitch import degree_pitch_class
+from musak_model.tokens.schema import Hand, ScaleType, scale_size_for_type
+from musak_shared.elements import MIDI_MAX_PITCH, PITCHES_PER_OCTAVE
 from musak_shared.ratios import format_ratio
 
 _QUARTERS_PER_WHOLE: Final[int] = 4
@@ -20,6 +22,16 @@ _RIGHT_HAND_COLOR: Final[str] = "#ff7f0e"
 _NOTE_STROKE_COLOR: Final[str] = "#ffffff"
 _NOTE_STROKE_WIDTH: Final[float] = 0.7
 _NOTE_BAR_MARGIN: Final[Fraction] = Fraction(1, 250)
+_SCALE_HIGHLIGHT_FILL: Final[str] = "#43a047"
+_SCALE_HIGHLIGHT_STROKE: Final[str] = "#2e7d32"
+_SCALE_HIGHLIGHT_FILL_OPACITY: Final[float] = 0.10
+_SCALE_HIGHLIGHT_STROKE_OPACITY: Final[float] = 0.35
+_CHORD_HIGHLIGHT_FILL: Final[str] = "#7e57c2"
+_CHORD_HIGHLIGHT_STROKE: Final[str] = "#4527a0"
+_CHORD_HIGHLIGHT_FILL_OPACITY: Final[float] = 0.22
+_CHORD_HIGHLIGHT_STROKE_OPACITY: Final[float] = 0.5
+_HIGHLIGHT_STROKE_WIDTH: Final[float] = 0.5
+_PITCH_BAND_HALF_HEIGHT: Final[float] = 0.5
 _SHARP_PITCH_NAMES: Final[tuple[str, ...]] = ("C-", "C#", "D-", "D#", "E-", "F-", "F#", "G-", "G#", "A-", "A#", "B-")
 _FLAT_PITCH_NAMES: Final[tuple[str, ...]] = ("C-", "Db", "D-", "Eb", "E-", "F-", "Gb", "G-", "Ab", "A-", "Bb", "B-")
 
@@ -27,6 +39,21 @@ _FLAT_PITCH_NAMES: Final[tuple[str, ...]] = ("C-", "Db", "D-", "Eb", "E-", "F-",
 class PitchSpelling(StrEnum):
     SHARPS = "sharps"
     FLATS = "flats"
+
+
+@dataclass(frozen=True)
+class ChordHighlight:
+    start_in_bars: float
+    end_in_bars: float
+    pitch_classes: frozenset[int]
+    label: str
+
+
+def scale_pitch_class_set(scale_root: int, scale_type: ScaleType) -> frozenset[int]:
+    return frozenset(
+        (scale_root + degree_pitch_class(degree, 0, scale_type=scale_type)) % PITCHES_PER_OCTAVE
+        for degree in range(1, scale_size_for_type(scale_type) + 1)
+    )
 
 
 @dataclass(frozen=True)
@@ -143,6 +170,8 @@ def piano_roll_chart(
     alt: Any,
     hands: frozenset[Hand] = frozenset(Hand),
     height: int = 400,
+    scale_pitch_classes: frozenset[int] | None = None,
+    chord_highlights: Sequence[ChordHighlight] = (),
 ) -> Any:
     frame = filter_piano_roll_dataframe(view_data.dataframe, hands=hands)
     label_expression = pitch_label_expression(view_data.pitch_spelling)
@@ -201,11 +230,100 @@ def piano_roll_chart(
             )
         )
     )
+    highlight_layers = _highlight_layers(
+        alt=alt,
+        y_domain=y_domain,
+        bar_domain=view_data.bar_domain,
+        pitch_spelling=view_data.pitch_spelling,
+        scale_pitch_classes=scale_pitch_classes,
+        chord_highlights=chord_highlights,
+    )
     return (
-        alt.layer(note_bars, seconds_axis)
+        alt.layer(*highlight_layers, note_bars, seconds_axis)
         .resolve_scale(x="independent")
         .properties(width="container", height=height, title=view_data.title)
     )
+
+
+def _highlight_layers(
+    *,
+    alt: Any,
+    y_domain: list[float],
+    bar_domain: tuple[float, float],
+    pitch_spelling: PitchSpelling,
+    scale_pitch_classes: frozenset[int] | None,
+    chord_highlights: Sequence[ChordHighlight],
+) -> list[Any]:
+    layers: list[Any] = []
+    if scale_pitch_classes:
+        scale_rows = _pitch_band_rows(scale_pitch_classes, y_domain=y_domain, pitch_spelling=pitch_spelling)
+        if scale_rows:
+            layers.append(
+                alt.Chart(pd.DataFrame(scale_rows))
+                .mark_rect(
+                    fill=_SCALE_HIGHLIGHT_FILL,
+                    fillOpacity=_SCALE_HIGHLIGHT_FILL_OPACITY,
+                    stroke=_SCALE_HIGHLIGHT_STROKE,
+                    strokeWidth=_HIGHLIGHT_STROKE_WIDTH,
+                    strokeOpacity=_SCALE_HIGHLIGHT_STROKE_OPACITY,
+                )
+                .encode(
+                    y=alt.Y("pitch_low:Q", axis=None, scale=alt.Scale(domain=y_domain)),
+                    y2="pitch_high:Q",
+                    tooltip=[alt.Tooltip("pitch:N", title="Scale pitch")],
+                )
+            )
+
+    chord_rows = [
+        {
+            **row,
+            "start_in_bars": highlight.start_in_bars,
+            "end_in_bars": highlight.end_in_bars,
+            "label": highlight.label,
+        }
+        for highlight in chord_highlights
+        for row in _pitch_band_rows(highlight.pitch_classes, y_domain=y_domain, pitch_spelling=pitch_spelling)
+    ]
+    if chord_rows:
+        layers.append(
+            alt.Chart(pd.DataFrame(chord_rows))
+            .mark_rect(
+                fill=_CHORD_HIGHLIGHT_FILL,
+                fillOpacity=_CHORD_HIGHLIGHT_FILL_OPACITY,
+                stroke=_CHORD_HIGHLIGHT_STROKE,
+                strokeWidth=_HIGHLIGHT_STROKE_WIDTH,
+                strokeOpacity=_CHORD_HIGHLIGHT_STROKE_OPACITY,
+            )
+            .encode(
+                x=alt.X("start_in_bars:Q", axis=None, scale=alt.Scale(domain=list(bar_domain))),
+                x2="end_in_bars:Q",
+                y=alt.Y("pitch_low:Q", axis=None, scale=alt.Scale(domain=y_domain)),
+                y2="pitch_high:Q",
+                tooltip=[
+                    alt.Tooltip("label:N", title="Chord"),
+                    alt.Tooltip("pitch:N", title="Chord pitch"),
+                ],
+            )
+        )
+
+    return layers
+
+
+def _pitch_band_rows(
+    pitch_classes: frozenset[int],
+    *,
+    y_domain: list[float],
+    pitch_spelling: PitchSpelling,
+) -> list[dict[str, Any]]:
+    return [
+        {
+            "pitch_low": midi_pitch - _PITCH_BAND_HALF_HEIGHT,
+            "pitch_high": midi_pitch + _PITCH_BAND_HALF_HEIGHT,
+            "pitch": midi_pitch_name(midi_pitch, pitch_spelling=pitch_spelling),
+        }
+        for midi_pitch in range(int(floor(y_domain[0])), int(ceil(y_domain[1])) + 1)
+        if midi_pitch % PITCHES_PER_OCTAVE in pitch_classes
+    ]
 
 
 def pitch_label_expression(pitch_spelling: PitchSpelling = PitchSpelling.SHARPS) -> str:

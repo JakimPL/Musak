@@ -3,6 +3,7 @@ from notebooks.utils.baselines import (
     BaselineOverlayViewData,
     baseline_overlay_chart,
     baseline_overlay_view_data,
+    chord_note_highlights,
 )
 from notebooks.utils.dataset_quality import (
     DEFAULT_DATASET_QUALITY_DATABASE_PATH,
@@ -92,12 +93,14 @@ from notebooks.utils.panels import (
     piano_roll_player_panel,
 )
 from notebooks.utils.piano_roll import (
+    ChordHighlight,
     PianoRollViewData,
     PitchSpelling,
     parsed_score_piano_roll_dataframe,
     parsed_score_piano_roll_view_data,
     piano_roll_chart,
     piano_roll_dataframe,
+    scale_pitch_class_set,
     segment_piano_roll_view_data,
 )
 from notebooks.utils.processing import (
@@ -140,6 +143,7 @@ from notebooks.utils.tokens import default_duration_vocabulary, token_label, tok
 
 __all__ = [
     "BaselineOverlayViewData",
+    "ChordHighlight",
     "GenerationTrace",
     "DatasetStatistics",
     "DEFAULT_DATASET_QUALITY_DATABASE_PATH",
@@ -182,6 +186,7 @@ __all__ = [
     "baseline_overlay_view_data",
     "build_encoded_jsonl_index",
     "categorical_distribution",
+    "chord_note_highlights",
     "default_duration_vocabulary",
     "default_encoded_browser_root",
     "diagnostic_bucket_distribution",
@@ -207,6 +212,7 @@ __all__ = [
     "initialize_quality_database",
     "load_synthetic_inputs",
     "ineligibility_reason_distribution",
+    "scale_pitch_class_set",
     "scale_root_distribution",
     "load_encoded_shard",
     "load_encoded_shard_context",

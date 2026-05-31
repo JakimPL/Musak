@@ -20,10 +20,12 @@ def _():
         SyntheticGenerationRequest,
         baseline_overlay_chart,
         baseline_overlay_view_data,
+        chord_note_highlights,
         generate_synthetic_segment,
         hand_controls,
         load_synthetic_inputs,
         piano_roll_player_panel,
+        scale_pitch_class_set,
         segment_piano_roll_view_data,
         selected_directory,
     )
@@ -40,11 +42,13 @@ def _():
         alt,
         baseline_overlay_chart,
         baseline_overlay_view_data,
+        chord_note_highlights,
         generate_synthetic_segment,
         hand_controls,
         load_synthetic_inputs,
         mo,
         piano_roll_player_panel,
+        scale_pitch_class_set,
         score_data_html,
         segment_piano_roll_view_data,
         segment_to_score_data,
@@ -422,10 +426,12 @@ def _(
     PitchSpelling,
     alt,
     bpm,
+    chord_note_highlights,
     mo,
     output,
     output_hand_controls,
     piano_roll_player_panel,
+    scale_pitch_class_set,
     segment_piano_roll_view_data,
 ):
     if output is None or output.segment is None:
@@ -449,6 +455,12 @@ def _(
             alt=alt,
             bpm=bpm.value,
             controls=output_hand_controls,
+            scale_pitch_classes=scale_pitch_class_set(output.scale_root, output.scale_type),
+            chord_highlights=chord_note_highlights(
+                output.trace.chord_windows,
+                scale_root=output.scale_root,
+                scale_type=output.scale_type,
+            ),
         )
 
     piano_roll_output

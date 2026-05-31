@@ -1,12 +1,18 @@
 import hashlib
 import html
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any, Protocol
 
 from musak_model.tokens.schema import Hand
 from musak_shared.exporter import AudioExportError, Exporter
 from notebooks.utils.audio import piano_roll_events_to_audio_data
-from notebooks.utils.piano_roll import PianoRollViewData, filter_piano_roll_dataframe, piano_roll_chart
+from notebooks.utils.piano_roll import (
+    ChordHighlight,
+    PianoRollViewData,
+    filter_piano_roll_dataframe,
+    piano_roll_chart,
+)
 
 
 class ValueWidget(Protocol):
@@ -63,6 +69,8 @@ def piano_roll_player_panel(
     bpm: int,
     controls: HandControls,
     exporter: Exporter | None = None,
+    scale_pitch_classes: frozenset[int] | None = None,
+    chord_highlights: Sequence[ChordHighlight] = (),
 ) -> Any:
     if view_data is None:
         return mo.md("")
@@ -100,7 +108,13 @@ def piano_roll_player_panel(
         player_output = mo.callout(f"Audio export failed: {exception}", kind="warn")
 
     chart_output = mo.ui.altair_chart(
-        piano_roll_chart(view_data, alt=alt, hands=selected_hands),
+        piano_roll_chart(
+            view_data,
+            alt=alt,
+            hands=selected_hands,
+            scale_pitch_classes=scale_pitch_classes,
+            chord_highlights=chord_highlights,
+        ),
         chart_selection=False,
         legend_selection=False,
     )
@@ -174,6 +188,8 @@ def piano_roll_chart_panel(
     mo: MarimoModule,
     alt: Any,
     controls: HandControls,
+    scale_pitch_classes: frozenset[int] | None = None,
+    chord_highlights: Sequence[ChordHighlight] = (),
 ) -> Any:
     if view_data is None:
         return mo.md("")
@@ -184,7 +200,13 @@ def piano_roll_chart_panel(
         return mo.md("")
 
     return mo.ui.altair_chart(
-        piano_roll_chart(view_data, alt=alt, hands=selected_hands),
+        piano_roll_chart(
+            view_data,
+            alt=alt,
+            hands=selected_hands,
+            scale_pitch_classes=scale_pitch_classes,
+            chord_highlights=chord_highlights,
+        ),
         chart_selection=False,
         legend_selection=False,
     )

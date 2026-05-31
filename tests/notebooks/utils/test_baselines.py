@@ -1,7 +1,7 @@
 from musak_model.harmony.schema import Chord, ChordQuality
 from musak_model.synthetic.substitution import BaselineSample, ChordWindowSample, GenerationTrace
-from musak_model.tokens.schema import Hand
-from notebooks.utils.baselines import baseline_overlay_view_data, chord_label
+from musak_model.tokens.schema import Hand, ScaleType
+from notebooks.utils.baselines import baseline_overlay_view_data, chord_label, chord_note_highlights
 
 
 def _trace() -> GenerationTrace:
@@ -103,6 +103,44 @@ def test_view_data_chord_windows_labels_and_midpoints() -> None:
 
     assert list(chord_windows["label"]) == ["I", "V"]
     assert list(chord_windows["mid_in_bars"]) == [1.5, 2.5]
+
+
+def test_chord_note_highlights_are_root_transposed_with_window_spans_and_labels() -> None:
+    windows = (
+        ChordWindowSample(
+            start_in_bars=1.0,
+            end_in_bars=2.0,
+            chord=Chord(root_degree=1, root_accidental=0, quality=ChordQuality.MAJOR),
+        ),
+        ChordWindowSample(
+            start_in_bars=2.0,
+            end_in_bars=3.0,
+            chord=Chord(root_degree=5, root_accidental=0, quality=ChordQuality.MAJOR),
+        ),
+    )
+
+    highlights = chord_note_highlights(windows, scale_root=0, scale_type=ScaleType.MAJOR)
+
+    assert [highlight.label for highlight in highlights] == ["I", "V"]
+    assert [(highlight.start_in_bars, highlight.end_in_bars) for highlight in highlights] == [(1.0, 2.0), (2.0, 3.0)]
+    # C major: I = C E G, V = G B D.
+    assert highlights[0].pitch_classes == frozenset({0, 4, 7})
+    assert highlights[1].pitch_classes == frozenset({7, 11, 2})
+
+
+def test_chord_note_highlights_transpose_by_scale_root() -> None:
+    windows = (
+        ChordWindowSample(
+            start_in_bars=1.0,
+            end_in_bars=2.0,
+            chord=Chord(root_degree=1, root_accidental=0, quality=ChordQuality.MAJOR),
+        ),
+    )
+
+    # Tonic triad in D major (root 2) is D F# A.
+    highlights = chord_note_highlights(windows, scale_root=2, scale_type=ScaleType.MAJOR)
+
+    assert highlights[0].pitch_classes == frozenset({2, 6, 9})
 
 
 def test_chord_label_quality_and_accidental_spelling() -> None:
