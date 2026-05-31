@@ -1,0 +1,5 @@
+min_leaf_duration: "1/16"
+subdivision_probability: 0.7
+subdivision_decay: 0.7
+rest_probability: 0.15
+tie_probability: 0.1
