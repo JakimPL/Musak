@@ -14,7 +14,7 @@ from musak_model.tokens.duration import DurationVocabulary
 def test_build_segment_generator_wires_components(duration_vocabulary: DurationVocabulary) -> None:
     substitution_config = SubstitutionConfig(
         lambda_curve=0.0,
-        lambda_harm=0.0,
+        lambda_harmonic=0.0,
         lambda_accent=0.0,
         lambda_chord_figure=0.0,
         commonness_bias=1.0,

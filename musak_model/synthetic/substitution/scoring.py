@@ -3,6 +3,7 @@ from fractions import Fraction
 from math import gcd
 
 from musak_model.n_grams.figure.schema import FigureNGram
+from musak_model.synthetic.processes.accent import indispensability_per_position, metrical_weight_over_span
 from musak_model.synthetic.substitution.chord_figure import FigureByChordTable
 from musak_model.tokens.pitch import degree_pitch_class, diatonic_position_to_degree_and_octave
 from musak_model.tokens.schema import ScaleType, scale_size_for_type
@@ -18,8 +19,8 @@ def chord_figure_log_probabilities(
     table: FigureByChordTable | None,
 ) -> list[float]:
     if table is None:
-        # An unobserved figure backs off to the least-likely observed one (the precomputed floor); an absent
-        # table is neutral (every entry scores 0, so the term cancels under the softmax).
+        # An unobserved figure backs off to the least-likely observed one (the precomputed floor);
+        # an absent table is neutral (every entry scores 0, so the term cancels under the softmax).
         return [0.0] * len(figures)
 
     return [table.log_probabilities.get(figure, table.floor) for figure in figures]
@@ -33,7 +34,7 @@ def slope_fit(*, figure: FigureNGram, target_slope: int) -> float:
     return float(-abs(figure_net_contour(figure) - target_slope))
 
 
-def harm_fit(
+def harmonic_fit(
     *,
     figure: FigureNGram,
     anchor: int,
@@ -43,11 +44,17 @@ def harm_fit(
     grid_count_per_bar: int,
 ) -> float:
     scale_size = scale_size_for_type(scale_type)
+    indispensability = indispensability_per_position(grid_count_per_bar)
     weighted_chord_tone = 0.0
     weight_total = 0.0
-    for onset_index, (degrees, _) in enumerate(figure.onsets):
-        position = (metrical_position + onset_index) % grid_count_per_bar
-        weight = gcd(position, grid_count_per_bar) / grid_count_per_bar
+    start_cell = Fraction(0)
+    for degrees, normalized_duration in figure.onsets:
+        weight = metrical_weight_over_span(
+            start_cell=start_cell,
+            duration_cells=normalized_duration,
+            metrical_position=metrical_position,
+            indispensability=indispensability,
+        )
         weighted_chord_tone += weight * _onset_chord_tone_fraction(
             degrees,
             anchor=anchor,
@@ -56,6 +63,7 @@ def harm_fit(
             chord_pitch_classes=chord_pitch_classes,
         )
         weight_total += weight
+        start_cell += normalized_duration
 
     if weight_total == 0.0:
         return 0.0

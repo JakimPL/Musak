@@ -1,8 +1,10 @@
 from collections import Counter
 from dataclasses import replace
 from fractions import Fraction
+from math import gcd
 from pathlib import Path
 
+import pytest
 from numpy.random import default_rng
 
 from musak_model.data.schema import Segment
@@ -36,7 +38,7 @@ from musak_model.synthetic.substitution import (
     accent_fit,
     anchor_figure_to_tokens,
     figure_net_contour,
-    harm_fit,
+    harmonic_fit,
     is_monorhythmic,
     monorhythmic_entries,
     sample_substituted_figure,
@@ -154,47 +156,71 @@ def test_slope_fit_rewards_matching_net_contour() -> None:
     assert slope_fit(figure=figure, target_slope=4) == -2.0
 
 
-def test_harm_fit_counts_chord_tone_fraction() -> None:
+def test_harmonic_fit_counts_chord_tone_fraction() -> None:
     chord_pcs = frozenset({0, 4, 7})
 
-    assert _harm_fit(_figure([0, 2]), chord_pcs) == 1.0
-    assert _harm_fit(_figure([1, 5]), chord_pcs) == 0.0
-    assert _harm_fit(_figure([0, 1]), chord_pcs) == 0.5
+    assert _harmonic_fit(_figure([0, 2]), chord_pcs) == 1.0
+    assert _harmonic_fit(_figure([1, 5]), chord_pcs) == 0.0
+    assert _harmonic_fit(_figure([0, 1]), chord_pcs) == 0.5
 
 
-def test_harm_fit_weights_chord_tones_by_metrical_position() -> None:
+def test_harmonic_fit_weights_chord_tones_by_metrical_position() -> None:
     chord_pcs = frozenset({0, 4, 7})
     chord_tone_on_strong = _figure([0, 1])  # chord tone on the downbeat, non-chord tone on the weak cell
     chord_tone_on_weak = _figure([1, 0])  # non-chord tone on the downbeat, chord tone on the weak cell
 
-    strong = harm_fit(
-        figure=chord_tone_on_strong,
-        anchor=0,
-        scale_type=ScaleType.MAJOR,
-        chord_pitch_classes=chord_pcs,
-        metrical_position=0,
-        grid_count_per_bar=4,
-    )
-    weak = harm_fit(
-        figure=chord_tone_on_weak,
-        anchor=0,
-        scale_type=ScaleType.MAJOR,
-        chord_pitch_classes=chord_pcs,
-        metrical_position=0,
-        grid_count_per_bar=4,
-    )
+    strong = _harmonic_fit(chord_tone_on_strong, chord_pcs, grid_count_per_bar=4)
+    weak = _harmonic_fit(chord_tone_on_weak, chord_pcs, grid_count_per_bar=4)
 
     assert strong > weak
 
 
-def _harm_fit(figure: FigureNGram, chord_pitch_classes: frozenset[int]) -> float:
-    return harm_fit(
+def test_harmonic_fit_held_non_chord_tone_accrues_the_strong_beat_it_sustains_through() -> None:
+    chord_pcs = frozenset({0, 4, 7})
+    # anchor degree (chord tone) struck short, then a held non-chord tone sustaining across the strong half-bar.
+    clashing = _figure([0, 1], durations=[Fraction(1), Fraction(2)])
+
+    assert _harmonic_fit(clashing, chord_pcs, grid_count_per_bar=4) == pytest.approx(4 / 7)
+
+
+def test_harmonic_fit_is_one_when_every_sounding_moment_is_a_chord_tone() -> None:
+    chord_pcs = frozenset({0, 4, 7})
+    consonant = _figure([0, 2], durations=[Fraction(1), Fraction(2)])
+
+    assert _harmonic_fit(consonant, chord_pcs, grid_count_per_bar=4) == 1.0
+    assert _harmonic_fit(consonant, chord_pcs, grid_count_per_bar=1) == 1.0
+
+
+def test_harmonic_fit_uniform_rhythm_reduces_to_per_onset_weighting() -> None:
+    chord_pcs = frozenset({0, 4, 7})
+    figure = _figure([0, 1, 2, 1, 0])  # alternating chord / non-chord tones, all equal durations
+    grid_count_per_bar = 4
+    metrical_position = 1
+
+    fitted = _harmonic_fit(
+        figure, chord_pcs, grid_count_per_bar=grid_count_per_bar, metrical_position=metrical_position
+    )
+
+    weights = [gcd((metrical_position + index) % grid_count_per_bar, grid_count_per_bar) for index in range(5)]
+    fractions = [1.0, 0.0, 1.0, 0.0, 1.0]  # positions 0,2 are chord tones; 1 is not
+    expected = sum(weight * fraction for weight, fraction in zip(weights, fractions, strict=True)) / sum(weights)
+    assert fitted == pytest.approx(expected)
+
+
+def _harmonic_fit(
+    figure: FigureNGram,
+    chord_pitch_classes: frozenset[int],
+    *,
+    grid_count_per_bar: int = 1,
+    metrical_position: int = 0,
+) -> float:
+    return harmonic_fit(
         figure=figure,
         anchor=0,
         scale_type=ScaleType.MAJOR,
         chord_pitch_classes=chord_pitch_classes,
-        metrical_position=0,
-        grid_count_per_bar=1,
+        metrical_position=metrical_position,
+        grid_count_per_bar=grid_count_per_bar,
     )
 
 
@@ -293,7 +319,7 @@ def test_sample_substituted_figure_is_deterministic_for_a_given_seed() -> None:
     )
     config = SubstitutionConfig(
         lambda_curve=1.0,
-        lambda_harm=1.0,
+        lambda_harmonic=1.0,
         lambda_accent=0.0,
         lambda_chord_figure=0.0,
         commonness_bias=1.0,
@@ -340,7 +366,7 @@ def test_high_lambda_curve_selects_the_slope_matching_figure() -> None:
     )
     config = SubstitutionConfig(
         lambda_curve=50.0,
-        lambda_harm=0.0,
+        lambda_harmonic=0.0,
         lambda_accent=0.0,
         lambda_chord_figure=0.0,
         commonness_bias=0.0,
@@ -371,7 +397,7 @@ def test_high_lambda_accent_selects_front_loaded_figure_under_high_envelope() ->
     entries = vocabulary.filter(scale_type=ScaleType.MAJOR, hand=Hand.RIGHT, n=2).entries
     config = SubstitutionConfig(
         lambda_curve=0.0,
-        lambda_harm=0.0,
+        lambda_harmonic=0.0,
         lambda_accent=50.0,
         lambda_chord_figure=0.0,
         commonness_bias=0.0,
@@ -419,7 +445,7 @@ def test_segment_generator_produces_constraint_valid_segment(
     generator = SegmentGenerator(
         substitution_config=SubstitutionConfig(
             lambda_curve=0.0,
-            lambda_harm=0.0,
+            lambda_harmonic=0.0,
             lambda_accent=0.0,
             lambda_chord_figure=0.0,
             commonness_bias=1.0,
@@ -478,7 +504,7 @@ def test_sub_bar_chord_resolution_conditions_each_half_bar(
     generator = SegmentGenerator(
         substitution_config=SubstitutionConfig(
             lambda_curve=0.0,
-            lambda_harm=50.0,
+            lambda_harmonic=50.0,
             lambda_accent=0.0,
             lambda_chord_figure=0.0,
             commonness_bias=0.0,
@@ -527,7 +553,7 @@ def test_monophonic_config_excludes_chord_figures(duration_vocabulary: DurationV
     generator = SegmentGenerator(
         substitution_config=SubstitutionConfig(
             lambda_curve=0.0,
-            lambda_harm=0.0,
+            lambda_harmonic=0.0,
             lambda_accent=0.0,
             lambda_chord_figure=0.0,
             commonness_bias=1.0,
@@ -594,7 +620,7 @@ def test_silenced_hand_emits_rest_filled_bars(
     generator = SegmentGenerator(
         substitution_config=SubstitutionConfig(
             lambda_curve=0.0,
-            lambda_harm=0.0,
+            lambda_harmonic=0.0,
             lambda_accent=0.0,
             lambda_chord_figure=0.0,
             commonness_bias=1.0,
@@ -661,7 +687,7 @@ def test_segment_generator_is_deterministic_for_a_given_seed(
     generator = SegmentGenerator(
         substitution_config=SubstitutionConfig(
             lambda_curve=0.0,
-            lambda_harm=0.0,
+            lambda_harmonic=0.0,
             lambda_accent=0.0,
             lambda_chord_figure=0.0,
             commonness_bias=1.0,
@@ -730,7 +756,7 @@ def test_segment_generator_places_multiple_figures_per_bar(
     generator = SegmentGenerator(
         substitution_config=SubstitutionConfig(
             lambda_curve=0.0,
-            lambda_harm=0.0,
+            lambda_harmonic=0.0,
             lambda_accent=0.0,
             lambda_chord_figure=0.0,
             commonness_bias=1.0,
@@ -792,7 +818,7 @@ def test_segment_generator_rests_the_trailing_gap_when_no_figure_fits(
     generator = SegmentGenerator(
         substitution_config=SubstitutionConfig(
             lambda_curve=0.0,
-            lambda_harm=0.0,
+            lambda_harmonic=0.0,
             lambda_accent=0.0,
             lambda_chord_figure=0.0,
             commonness_bias=1.0,
@@ -859,7 +885,7 @@ def _grid_generator(
     return SegmentGenerator(
         substitution_config=SubstitutionConfig(
             lambda_curve=0.0,
-            lambda_harm=0.0,
+            lambda_harmonic=0.0,
             lambda_accent=0.0,
             lambda_chord_figure=0.0,
             commonness_bias=1.0,
@@ -1105,7 +1131,7 @@ def _degree_generator(
     return SegmentGenerator(
         substitution_config=SubstitutionConfig(
             lambda_curve=0.0,
-            lambda_harm=0.0,
+            lambda_harmonic=0.0,
             lambda_accent=0.0,
             lambda_chord_figure=0.0,
             commonness_bias=1.0,

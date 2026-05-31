@@ -16,7 +16,7 @@ def calibrate(config: CalibrationConfig) -> list[SweepResult]:
     selection = select_tilts(
         results,
         lambda_curve=config.lambda_curve,
-        lambda_harm=config.lambda_harm,
+        lambda_harmonic=config.lambda_harmonic,
         lambda_accent=config.lambda_accent,
         threshold=config.target_total_variation_distance,
     )

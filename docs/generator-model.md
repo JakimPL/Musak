@@ -157,7 +157,7 @@ flowchart TB
 | **FigureVocabulary** `figures.py` | `counts.parquet` | `entries: (group=(scale,hand,n), figure, count)` | loaded via `read_figure_counts`; grouped in generator by `(hand, n)` filtered to `scale_type` & `figure_lengths` |
 | **BaseDurationDistribution** `base_durations.py` | `base_durations.parquet` | `weights_by_group[(scale,hand,n)] → [(Fraction,count)]` | `candidates(...)` returns per-group `(base_duration, count)` list |
 | **Chord expansion** `harmony/expansion.py` | `Chord`, `scale_type`, `ChordVocabularyConfig` | `frozenset[int]` pitch classes | generic-third stacking `d_m=((d_r−1+2m) mod s)+1`, signed residue accidental |
-| **Substitution sampler** `substitution/sampling.py` + `scoring.py` | `entries`, `anchor`, `target_slope`, `chord_pcs`, `chord`, `figure_by_chord_model`, `envelope_value`, `metrical_position`, `grid_count_per_bar`, `config` | one `FigureVocabularyEntry` | `tilted_log_probabilities` (5 terms; harm + accent chord-/metric-aware §3b, plus the empirical `λ_chord_figure·log p(figure∣C)` term) → `softmax` → `rng.choice` |
+| **Substitution sampler** `substitution/sampling.py` + `scoring.py` | `entries`, `anchor`, `target_slope`, `chord_pcs`, `chord`, `figure_by_chord_model`, `envelope_value`, `metrical_position`, `grid_count_per_bar`, `config` | one `FigureVocabularyEntry` | `tilted_log_probabilities` (5 terms; harmonic + accent chord-/metric-aware §3b, plus the empirical `λ_chord_figure·log p(figure∣C)` term) → `softmax` → `rng.choice` |
 | **Emission** `substitution/emission.py` | `figure`, `anchor`, `base_duration`, `scale_type`, `DurationVocabulary` | `list[Token]` (NoteToken + JoinWithPreviousToken for chord onsets) | anchors relative degrees to absolute, scales normalized durations by `base_duration` |
 | **Constraint gate** `generation/constraints.py` | token + current state | next state, or `GenerationConstraintError` | immutable `GenerationConstraintState.apply`; reject → resample |
 | **ViterbiChordDecoder** `harmony/decoding/` *(run in the corpus fitting pass — §6)* | `Segment` | `tuple[ChordWindow]` | sounding windows → spellable candidates → Viterbi with non-chord penalty |
@@ -195,8 +195,8 @@ flowchart TB
   subgraph barloop["Per-bar token emission"]
     direction TB
     cpcs["per-cell chord pitch classes from chord_track at each cell's window<br/>(bisect over chord_windows)"]
-    cpcs --> hr["emit HandToken(RIGHT); _emit_hand_bar(RIGHT, ...)"]
-    hr --> hl["emit HandToken(LEFT);  _emit_hand_bar(LEFT, ...)"]
+    cpcs --> hr["emit HandToken(RIGHT); melodic? _emit_hand_bar : _emit_accompaniment_bar (RIGHT)"]
+    hr --> hl["emit HandToken(LEFT);  melodic? _emit_hand_bar : _emit_accompaniment_bar (LEFT)"]
     hl --> bar["apply BarToken (requires both cursors == bar_end)"]
     bar --> prog["progress_callback(bar_index+1, bar_count)"]
   end
@@ -232,9 +232,18 @@ flowchart TB
   ok -- no --> append["tokens += placed_tokens<br/>state = trial_state"] --> w
 ```
 
-`_fill_with_rest` (`generator.py:410`) maps a leftover `Fraction` to rest tokens: a direct
+`_fill_with_rest` (`generator.py`) maps a leftover `Fraction` to rest tokens via `_duration_pieces`: a direct
 duration-vocabulary id if one exists, else a greedy largest-first decomposition; if it cannot sum
 exactly it raises `GenerationConstraintError` (surfaced as a generation failure upstream).
+
+**Accompaniment textures.** When `SubstitutionConfig.texture` marks a hand non-melodic
+(`substitution/texture.py`: `BLOCK_CHORD` / `SUSTAINED_BASS`), that hand runs `_emit_accompaniment_bar` instead:
+the bar is split into maximal runs of one decoded chord, and per run the chord is voiced in close position from
+the register-curve anchor (`emission.chord_window_tokens`, reusing `expand_chord_to_tones`) and held for the run
+(`BLOCK_PER_WINDOW`, decomposing odd windows into a chord attack + `HoldToken`s via `_duration_pieces`) or
+re-attacked on the run's accent onsets (`ACCENT_GATED`); `SUSTAINED_BASS` voices the root only. Each voicing is
+pushed through the constraint engine, dropping the top tone then resting on rejection. The default
+`ALL_MELODIC_TEXTURE` leaves both hands on the figure path, so this is inert unless opted into at generation.
 
 ---
 
@@ -260,7 +269,7 @@ flowchart TB
     t0["counts = [entry.count]"]
     t0 --> t1["log_p_emp = commonness_bias · log(counts)"]
     t1 --> t2["slope_scores = −|figure_net_contour(f) − target_slope|"]
-    t2 --> t3["harm_scores  = indispensability-weighted chord-tone fraction<br/>(per onset at (metrical_position+i) mod M)"]
+    t2 --> t3["harmonic_scores  = chord-tone fraction weighted by metrically-weighted sounding span<br/>(indispensability integrated over each onset's sustained cells)"]
     t3 --> t4["accent_scores = stress(duration ⊕ chord-tone) · envelope_value"]
     t4 --> t5["logits = log_p_emp + λ_curve·slope + λ_harm·harm + λ_accent·accent"]
     t5 --> t6["p = softmax(logits); entry = rng.choice(entries, p)"]
@@ -284,10 +293,13 @@ flowchart TB
   figure's **lowest voice** (anchor-relative), compared to the register curve's change over the figure's
   **multi-cell span** `target_slope = curve[min(fired+figure_length−1, last)] − anchor` (one cell per onset),
   so the two live on the same scale.
-- `harm_fit` — the **indispensability-weighted** mean of the per-onset chord-tone fraction: onset `i` sits at
-  bar position `(metrical_position + i) mod grid_count_per_bar`, weighted by `gcd(position, M)/M`, so chord
-  membership matters most on strong cells and barely off-beat. Reduces to the flat fraction at
-  `grid_count_per_bar = 1`. Threads `metrical_position` + `grid_count_per_bar` from `_place_one_figure`.
+- `harmonic_fit` — the chord-tone fraction weighted by each onset's **metrically-weighted sounding span**: the
+  figure is laid on cells proportional to its normalized durations (cumulative `start_cell`), and each onset's
+  weight is `gcd(position, M)/M` **integrated over every cell it sustains through** (`metrical_weight_over_span`
+  in `processes/accent.py`, reusing `indispensability_per_position`), so a long note struck on a weak cell but
+  held across a strong beat accrues that beat's weight. Reduces to the old per-onset weighting when all
+  durations are equal, and to the flat fraction at `grid_count_per_bar = 1`. Threads `metrical_position` +
+  `grid_count_per_bar` from `_place_one_figure`.
 - `accent_fit = stress · envelope_value`, where `stress` blends two emphases at the figure's internal strong
   points `gcd(i, n)/n`: the duration weight and a chord-tone-onset weight (falling back to duration-only when
   the figure has no chord tones). `envelope_value` remains a flat per-cell multiplier (the design's envelope
@@ -351,7 +363,7 @@ accidental)]`. It is **anchor-relative** (first onset's lowest position subtract
   melodic minor `(0,2,3,5,7,9,11)`). Conversions: `note_diatonic_position`,
   `diatonic_position_to_degree_and_octave` (`tokens/pitch.py`).
 - **Pitch class** `degree_pitch_class(degree, accidental) = (SCALE_INTERVALS[scale][degree−1] +
-  accidental) mod 12` — used only for chord-membership tests in `harm_fit` and chord expansion.
+  accidental) mod 12` — used only for chord-membership tests in `harmonic_fit` and chord expansion.
 - **Home register applied late**: the register curve is centered on 0; the hand home octave
   (`HAND_HOME_OCTAVES = {RIGHT: 5, LEFT: 3}`) is added only at `note_token_to_midi_pitch`.
 
@@ -364,7 +376,7 @@ accidental)]`. It is **anchor-relative** (first onset's lowest position subtract
 | `HandCouplingConfig` | `hand_coupling.yml` / request | `co_activity_strength, activity_right, activity_left, sync_strength` | `0.7, 0.9, 0.9, 0.0` |
 | `ChordVocabularyConfig` | `chords.yml` | qualities (4 triads), extensions (triad only enabled) | seventh+ disabled (v1 triads) |
 | `ChordDecoderConfig` | `chord_decoding.yml` | `resolution, self_transition_bias, non_chord_penalty` | `1 (per-bar), 0.25, 1.0` |
-| `SubstitutionConfig` | request / sweep | `lambda_curve, lambda_harm, lambda_accent, commonness_bias, max_resample_retries, monophonic` | request-driven (notebook default `monophonic=True`; calibration `False`) |
+| `SubstitutionConfig` | request / sweep | `lambda_curve, lambda_harmonic, lambda_accent, commonness_bias, max_resample_retries, monophonic` | request-driven (notebook default `monophonic=True`; calibration `False`) |
 | `GenerationConstraints` | request | meter, bars, + optional `minimum_duration, allow_dotted, max_notes_per_hand, max_onset_span, max_gap, max_static_span, scale_root/type` | — |
 | `CalibrationConfig` | `calibration.yml` | figure_root, meter, bars, samples, min_n/max_n, `chord_resolution`, `self_transition_bias`, λ grids, `target_total_variation_distance`, seed | major 4/4, 16 bars, 64 samples, n∈[2,4], chord_resolution 1, λ∈{0,.1,.25,.5,1}, TV target 0.1 |
 | `NGramAnalysisConfig` *(corpus pass)* | `analysis/n_grams.yml` | sub-configs `figure{min_n,max_n,limit_per_group,common_mass_threshold}`, `rhythm{min_n,max_n,grid_alignment_denominators,strong_beat_offsets}`, `register{arch_basis_count}`, `execution{workers,batch_size}` — all required | `arch_basis_count` matches `register_curve.yml` (3) |
@@ -463,8 +475,9 @@ consumes them via the `chord_model` selector and the `lambda_chord_figure` tilt,
 | Base-duration fit | `SegmentGenerator._fitting_base_durations` — `generator.py` |
 | Assembly factory | `build_segment_generator` — `synthetic/builder.py` |
 | Tilt / softmax sampler | `sample_substituted_figure`, `tilted_log_probabilities` — `substitution/sampling.py` |
-| Tilt terms | `slope_fit`, `harm_fit`, `accent_fit`, `figure_net_contour` — `substitution/scoring.py` |
-| Token emission | `anchor_figure_to_tokens` — `substitution/emission.py` |
+| Tilt terms | `slope_fit`, `harmonic_fit`, `accent_fit`, `figure_net_contour` — `substitution/scoring.py` |
+| Token emission | `anchor_figure_to_tokens`, `chord_window_tokens` — `substitution/emission.py` |
+| Texture mode | `HandTexture`, `AccompanimentRhythm`, `HandTextureConfig`, `ALL_MELODIC_TEXTURE` — `substitution/texture.py`; `_emit_accompaniment_bar` — `substitution/generator.py` |
 | Register curve | `RegisterCurveSampler`, `RegisterCurveOverride` — `processes/pitch.py`; `band_limited_random` — `processes/_basis.py` |
 | Accent field | `AccentFieldSampler`, `AccentFieldOverride`, `indispensability_per_position` — `processes/accent.py` |
 | Hand coupling | `HandCouplingSampler` (`sample_gates`, `sample_onsets`) — `processes/hand_coupling.py` |

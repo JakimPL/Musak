@@ -11,17 +11,35 @@ from musak_model.synthetic.substitution.scoring import (
     accent_fit,
     chord_figure_log_probabilities,
     figure_net_contour,
-    harm_fit,
+    harmonic_fit,
     is_monorhythmic,
     slope_fit,
 )
-from musak_model.synthetic.substitution.trace import BaselineSample, GenerationTrace, SegmentGenerationResult
+from musak_model.synthetic.substitution.texture import (
+    ALL_MELODIC_TEXTURE,
+    AccompanimentConfig,
+    AccompanimentRhythm,
+    HandTexture,
+    HandTextureConfig,
+)
+from musak_model.synthetic.substitution.trace import (
+    BaselineSample,
+    ChordWindowSample,
+    GenerationTrace,
+    SegmentGenerationResult,
+)
 
 __all__ = [
+    "ALL_MELODIC_TEXTURE",
+    "AccompanimentConfig",
+    "AccompanimentRhythm",
     "BaselineSample",
+    "ChordWindowSample",
     "FigureByChordModel",
     "FigureByChordTable",
     "GenerationTrace",
+    "HandTexture",
+    "HandTextureConfig",
     "SegmentGenerationResult",
     "SegmentGenerator",
     "SubstitutionConfig",
@@ -29,7 +47,7 @@ __all__ = [
     "anchor_figure_to_tokens",
     "chord_figure_log_probabilities",
     "figure_net_contour",
-    "harm_fit",
+    "harmonic_fit",
     "is_monorhythmic",
     "monorhythmic_entries",
     "sample_substituted_figure",

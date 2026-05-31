@@ -12,7 +12,7 @@ from musak_model.generation.constraints import (
     GenerationConstraints,
     GenerationConstraintState,
 )
-from musak_model.harmony.expansion import chord_pitch_class_set
+from musak_model.harmony.expansion import ChordTone, chord_pitch_class_set, expand_chord_to_tones
 from musak_model.harmony.schema import Chord
 from musak_model.harmony.vocabulary import ChordVocabularyConfig
 from musak_model.harmony.windows import chord_window_grid
@@ -29,9 +29,15 @@ from musak_model.synthetic.processes.hand_coupling import HandCouplingSampler
 from musak_model.synthetic.processes.pitch import RegisterCurveSampler
 from musak_model.synthetic.substitution.chord_figure import FigureByChordModel
 from musak_model.synthetic.substitution.config import SubstitutionConfig
-from musak_model.synthetic.substitution.emission import anchor_figure_to_tokens
+from musak_model.synthetic.substitution.emission import anchor_figure_to_tokens, chord_window_tokens
 from musak_model.synthetic.substitution.sampling import sample_substituted_figure
-from musak_model.synthetic.substitution.trace import BaselineSample, GenerationTrace, SegmentGenerationResult
+from musak_model.synthetic.substitution.texture import AccompanimentRhythm, HandTexture
+from musak_model.synthetic.substitution.trace import (
+    BaselineSample,
+    ChordWindowSample,
+    GenerationTrace,
+    SegmentGenerationResult,
+)
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.pitch import diatonic_position_to_degree_and_octave, note_token_to_midi_pitch
 from musak_model.tokens.schema import (
@@ -40,6 +46,7 @@ from musak_model.tokens.schema import (
     EndToken,
     Hand,
     HandToken,
+    HoldToken,
     NoteToken,
     RestToken,
     ScaleType,
@@ -193,24 +200,39 @@ class SegmentGenerator:
                 (Hand.LEFT, left_curve, left_weights),
             ):
                 state, tokens = self._append(state, tokens, HandToken(hand=hand))
-                state, tokens = self._emit_hand_bar(
-                    state=state,
-                    tokens=tokens,
-                    hand=hand,
-                    bar_index=bar_index,
-                    grid_count_per_bar=grid_count_per_bar,
-                    cell_duration=cell_duration,
-                    curve=curve,
-                    weights=weights,
-                    onsets=onsets,
-                    gates=gates,
-                    entries_by_group=entries_by_group,
-                    degree_entries_by_group=degree_entries_by_group,
-                    scale_type=scale_type,
-                    cell_chord_pitch_classes=cell_chord_pitch_classes,
-                    cell_chords=cell_chords,
-                    rng=rng,
-                )
+                if self.substitution_config.texture.texture(hand) is HandTexture.MELODIC:
+                    state, tokens = self._emit_hand_bar(
+                        state=state,
+                        tokens=tokens,
+                        hand=hand,
+                        bar_index=bar_index,
+                        grid_count_per_bar=grid_count_per_bar,
+                        cell_duration=cell_duration,
+                        curve=curve,
+                        weights=weights,
+                        onsets=onsets,
+                        gates=gates,
+                        entries_by_group=entries_by_group,
+                        degree_entries_by_group=degree_entries_by_group,
+                        scale_type=scale_type,
+                        cell_chord_pitch_classes=cell_chord_pitch_classes,
+                        cell_chords=cell_chords,
+                        rng=rng,
+                    )
+                else:
+                    state, tokens = self._emit_accompaniment_bar(
+                        state=state,
+                        tokens=tokens,
+                        hand=hand,
+                        bar_index=bar_index,
+                        grid_count_per_bar=grid_count_per_bar,
+                        cell_duration=cell_duration,
+                        curve=curve,
+                        onsets=onsets,
+                        gates=gates,
+                        scale_type=scale_type,
+                        cell_chords=cell_chords,
+                    )
             state, tokens = self._append(state, tokens, BarToken())
             if progress_callback is not None:
                 progress_callback(bar_index + 1, bar_count)
@@ -233,6 +255,14 @@ class SegmentGenerator:
             samples=tuple(baseline_samples),
             grid_count_per_bar=grid_count_per_bar,
             bar_count=bar_count,
+            chord_windows=tuple(
+                ChordWindowSample(
+                    start_in_bars=1.0 + float(window_start / bar_duration),
+                    end_in_bars=1.0 + float(window_end / bar_duration),
+                    chord=chord,
+                )
+                for (window_start, window_end), chord in zip(chord_windows, chord_track, strict=True)
+            ),
         )
         return SegmentGenerationResult(segment=segment, trace=trace)
 
@@ -493,6 +523,200 @@ class SegmentGenerator:
 
         return None
 
+    def _hand_texture(self, hand: Hand) -> HandTexture:
+        return self.substitution_config.texture.texture(hand)
+
+    def _emit_accompaniment_bar(
+        self,
+        *,
+        state: GenerationConstraintState,
+        tokens: list[Token],
+        hand: Hand,
+        bar_index: int,
+        grid_count_per_bar: int,
+        cell_duration: Fraction,
+        curve: tuple[int, ...],
+        onsets: tuple[Mapping[Hand, bool], ...],
+        gates: tuple[Mapping[Hand, bool], ...],
+        scale_type: ScaleType,
+        cell_chords: tuple[Chord, ...],
+    ) -> tuple[GenerationConstraintState, list[Token]]:
+        """Realize the shared chord track in one hand as held block chords / a sustained bass.
+
+        The bar is split into maximal runs of a single decoded chord (the chord windows intersected with the
+        bar). BLOCK_PER_WINDOW holds one voicing per run; ACCENT_GATED re-attacks it on the run's onset cells.
+        SUSTAINED_BASS voices the root only. Every voicing is pushed through the constraint engine, dropping the
+        top tone (then resting) on rejection.
+        """
+        bar_end = state.constraints.bar_end(bar_index)
+        first_cell = bar_index * grid_count_per_bar
+        accompaniment = self.substitution_config.texture.accompaniment
+        max_notes = 1 if self._hand_texture(hand) is HandTexture.SUSTAINED_BASS else accompaniment.max_chord_notes
+        cell = 0
+        while cell < grid_count_per_bar:
+            chord = cell_chords[first_cell + cell]
+            run_end = cell + 1
+            while run_end < grid_count_per_bar and cell_chords[first_cell + run_end] == chord:
+                run_end += 1
+
+            if accompaniment.rhythm is AccompanimentRhythm.ACCENT_GATED:
+                state, tokens = self._emit_gated_chord_run(
+                    state=state,
+                    tokens=tokens,
+                    hand=hand,
+                    chord=chord,
+                    first_cell=first_cell,
+                    run_start=cell,
+                    run_end=run_end,
+                    cell_duration=cell_duration,
+                    curve=curve,
+                    onsets=onsets,
+                    gates=gates,
+                    scale_type=scale_type,
+                    max_notes=max_notes,
+                )
+            else:
+                state, tokens = self._emit_chord_span(
+                    state=state,
+                    tokens=tokens,
+                    hand=hand,
+                    chord=chord,
+                    anchor=int(curve[first_cell + cell]),
+                    duration=(run_end - cell) * cell_duration,
+                    scale_type=scale_type,
+                    max_notes=max_notes,
+                )
+
+            cell = run_end
+
+        if state.cursor(hand) < bar_end:
+            state, tokens = self._fill_with_rest(
+                state=state, tokens=tokens, hand=hand, duration=bar_end - state.cursor(hand)
+            )
+
+        return state, tokens
+
+    def _emit_gated_chord_run(
+        self,
+        *,
+        state: GenerationConstraintState,
+        tokens: list[Token],
+        hand: Hand,
+        chord: Chord,
+        first_cell: int,
+        run_start: int,
+        run_end: int,
+        cell_duration: Fraction,
+        curve: tuple[int, ...],
+        onsets: tuple[Mapping[Hand, bool], ...],
+        gates: tuple[Mapping[Hand, bool], ...],
+        scale_type: ScaleType,
+        max_notes: int,
+    ) -> tuple[GenerationConstraintState, list[Token]]:
+        fired = [
+            cell
+            for cell in range(run_start, run_end)
+            if onsets[first_cell + cell][hand] and gates[first_cell + cell][hand]
+        ]
+        if not fired:
+            return self._fill_with_rest(
+                state=state, tokens=tokens, hand=hand, duration=(run_end - run_start) * cell_duration
+            )
+
+        if fired[0] > run_start:
+            state, tokens = self._fill_with_rest(
+                state=state, tokens=tokens, hand=hand, duration=(fired[0] - run_start) * cell_duration
+            )
+
+        for index, attack_cell in enumerate(fired):
+            next_cell = fired[index + 1] if index + 1 < len(fired) else run_end
+            state, tokens = self._emit_chord_span(
+                state=state,
+                tokens=tokens,
+                hand=hand,
+                chord=chord,
+                anchor=int(curve[first_cell + attack_cell]),
+                duration=(next_cell - attack_cell) * cell_duration,
+                scale_type=scale_type,
+                max_notes=max_notes,
+            )
+
+        return state, tokens
+
+    def _emit_chord_span(
+        self,
+        *,
+        state: GenerationConstraintState,
+        tokens: list[Token],
+        hand: Hand,
+        chord: Chord,
+        anchor: int,
+        duration: Fraction,
+        scale_type: ScaleType,
+        max_notes: int,
+    ) -> tuple[GenerationConstraintState, list[Token]]:
+        placement = self._place_accompaniment(
+            state=state, chord=chord, anchor=anchor, duration=duration, scale_type=scale_type, max_notes=max_notes
+        )
+        if placement is None:
+            return self._fill_with_rest(state=state, tokens=tokens, hand=hand, duration=duration)
+
+        trial_state, placed_tokens = placement
+        return trial_state, tokens + placed_tokens
+
+    def _place_accompaniment(
+        self,
+        *,
+        state: GenerationConstraintState,
+        chord: Chord,
+        anchor: int,
+        duration: Fraction,
+        scale_type: ScaleType,
+        max_notes: int,
+    ) -> tuple[GenerationConstraintState, list[Token]] | None:
+        tones = expand_chord_to_tones(chord, scale_type=scale_type, vocabulary=self.chord_vocabulary)
+        for count in range(min(max_notes, len(tones)), 0, -1):
+            candidate_tokens = self._accompaniment_tokens(
+                tones=tones[:count], anchor=anchor, duration=duration, scale_type=scale_type
+            )
+            if candidate_tokens is None:
+                continue
+
+            trial_state = state
+            try:
+                for token in candidate_tokens:
+                    trial_state = trial_state.apply(token, duration_vocabulary=self.duration_vocabulary)
+            except GenerationConstraintError:
+                continue
+
+            return trial_state, candidate_tokens
+
+        return None
+
+    def _accompaniment_tokens(
+        self,
+        *,
+        tones: tuple[ChordTone, ...],
+        anchor: int,
+        duration: Fraction,
+        scale_type: ScaleType,
+    ) -> list[Token] | None:
+        pieces = self._duration_pieces(duration)
+        if pieces is None:
+            return None
+
+        tokens: list[Token] = []
+        for index, piece in enumerate(pieces):
+            duration_id = self.duration_vocabulary.require_duration_id(piece)
+            if index == 0:
+                tokens.extend(
+                    chord_window_tokens(tones=tones, anchor=anchor, duration_id=duration_id, scale_type=scale_type)
+                )
+            else:
+                tokens.append(HoldToken(duration_id=duration_id))
+
+        return tokens
+
     def _fitting_base_durations(
         self,
         figure: FigureNGram,
@@ -535,21 +759,28 @@ class SegmentGenerator:
         return state, tokens
 
     def _rest_tokens_for_duration(self, duration: Fraction) -> list[Token] | None:
+        pieces = self._duration_pieces(duration)
+        if pieces is None:
+            return None
+
+        return [RestToken(duration_id=self.duration_vocabulary.require_duration_id(piece)) for piece in pieces]
+
+    def _duration_pieces(self, duration: Fraction) -> list[Fraction] | None:
         direct_id = self.duration_vocabulary.duration_id_or_none(duration)
         if direct_id is not None:
-            return [RestToken(duration_id=direct_id)]
+            return [duration]
 
-        rest_tokens: list[Token] = []
+        pieces: list[Fraction] = []
         remaining = duration
         for fraction in sorted(self.duration_vocabulary.all_fractions(), reverse=True):
             while fraction <= remaining:
-                rest_tokens.append(RestToken(duration_id=self.duration_vocabulary.require_duration_id(fraction)))
+                pieces.append(fraction)
                 remaining -= fraction
 
         if remaining != 0:
             return None
 
-        return rest_tokens
+        return pieces
 
     def _append(
         self,

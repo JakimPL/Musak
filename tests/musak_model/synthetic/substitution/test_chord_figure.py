@@ -32,7 +32,7 @@ def _entries(figures: list[FigureNGram]) -> tuple[FigureVocabularyEntry, ...]:
 def _config(lambda_chord_figure: float) -> SubstitutionConfig:
     return SubstitutionConfig(
         lambda_curve=0.0,
-        lambda_harm=0.0,
+        lambda_harmonic=0.0,
         lambda_accent=0.0,
         lambda_chord_figure=lambda_chord_figure,
         commonness_bias=0.0,

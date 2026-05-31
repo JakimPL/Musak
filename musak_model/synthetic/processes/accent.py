@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
+from fractions import Fraction
 from pathlib import Path
 
 import numpy as np
@@ -88,6 +90,27 @@ class AccentFieldSampler:
 def indispensability_per_position(grid_count_per_bar: int) -> NDArray[np.float64]:
     positions = np.arange(grid_count_per_bar)
     return np.gcd(positions, grid_count_per_bar).astype(np.float64) / grid_count_per_bar
+
+
+def metrical_weight_over_span(
+    *,
+    start_cell: Fraction,
+    duration_cells: Fraction,
+    metrical_position: int,
+    indispensability: NDArray[np.float64],
+) -> float:
+    grid_count_per_bar = len(indispensability)
+    span_end = start_cell + duration_cells
+    position = start_cell
+    weight = 0.0
+    while position < span_end:
+        cell = math.floor(position)
+        segment_end = min(span_end, Fraction(cell + 1))
+        bar_position = (metrical_position + cell) % grid_count_per_bar
+        weight += float(indispensability[bar_position]) * float(segment_end - position)
+        position = segment_end
+
+    return weight
 
 
 def _logits(

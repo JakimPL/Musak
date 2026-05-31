@@ -48,7 +48,7 @@ def _generator(duration_vocabulary: DurationVocabulary) -> SegmentGenerator:
     return SegmentGenerator(
         substitution_config=SubstitutionConfig(
             lambda_curve=0.0,
-            lambda_harm=0.0,
+            lambda_harmonic=0.0,
             lambda_accent=0.0,
             lambda_chord_figure=0.0,
             commonness_bias=1.0,

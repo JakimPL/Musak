@@ -35,15 +35,15 @@ def run_sweep(
         bar_count=config.bar_count,
     )
     results: list[SweepResult] = []
-    for lambda_curve, lambda_harm, lambda_accent in product(
-        config.lambda_curve, config.lambda_harm, config.lambda_accent
+    for lambda_curve, lambda_harmonic, lambda_accent in product(
+        config.lambda_curve, config.lambda_harmonic, config.lambda_accent
     ):
         cell_generator = replace(
             generator,
             substitution_config=generator.substitution_config.model_copy(
                 update={
                     "lambda_curve": lambda_curve,
-                    "lambda_harm": lambda_harm,
+                    "lambda_harmonic": lambda_harmonic,
                     "lambda_accent": lambda_accent,
                 }
             ),
@@ -62,7 +62,7 @@ def run_sweep(
         results.append(
             SweepResult(
                 lambda_curve=lambda_curve,
-                lambda_harm=lambda_harm,
+                lambda_harmonic=lambda_harmonic,
                 lambda_accent=lambda_accent,
                 distribution_groups=int(metrics[_DISTRIBUTION_GROUPS_KEY]),
                 mean_total_variation_distance=metrics.get(_MEAN_TV_KEY),

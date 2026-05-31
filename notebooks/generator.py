@@ -151,13 +151,13 @@ def _(
     max_n = mo.ui.number(start=1, stop=8, step=1, value=3, label="Max figure length")
     monophonic = mo.ui.checkbox(value=True, label="Monophonic")
 
-    lambda_curve = mo.ui.slider(start=0.0, stop=5.0, step=0.05, value=1.0, label="λ curve", show_value=True)
-    lambda_harm = mo.ui.slider(start=0.0, stop=5.0, step=0.05, value=1.0, label="λ harmony", show_value=True)
-    lambda_accent = mo.ui.slider(start=0.0, stop=5.0, step=0.05, value=1.0, label="λ accent", show_value=True)
+    lambda_curve = mo.ui.slider(start=0.0, stop=5.0, step=0.05, value=2.0, label="λ curve", show_value=True)
+    lambda_harmonic = mo.ui.slider(start=0.0, stop=5.0, step=0.05, value=4.0, label="λ harmony", show_value=True)
+    lambda_accent = mo.ui.slider(start=0.0, stop=5.0, step=0.05, value=0.5, label="λ accent", show_value=True)
     lambda_chord_figure = mo.ui.slider(
         start=0.0, stop=5.0, step=0.05, value=0.0, label="λ chord figure", show_value=True
     )
-    commonness_bias = mo.ui.slider(start=0.0, stop=3.0, step=0.05, value=1.0, label="Commonness bias", show_value=True)
+    commonness_bias = mo.ui.slider(start=0.0, stop=3.0, step=0.05, value=0.5, label="Commonness bias", show_value=True)
     max_resample_retries = mo.ui.number(start=1, stop=64, step=1, value=8, label="Max resample retries")
 
     arch_basis_count = mo.ui.number(start=1, stop=16, step=1, value=3, label="Arch basis count")
@@ -184,14 +184,24 @@ def _(
     activity_left = mo.ui.slider(start=0.0, stop=1.0, step=0.05, value=0.9, label="Left-hand activity", show_value=True)
     sync_strength = mo.ui.slider(start=0.0, stop=1.0, step=0.05, value=0.0, label="Sync strength", show_value=True)
     self_transition_bias = mo.ui.slider(
-        start=0.0, stop=1.0, step=0.05, value=0.25, label="Chord self-transition bias", show_value=True
+        start=0.0, stop=1.0, step=0.05, value=0.5, label="Chord self-transition bias", show_value=True
     )
     functional_strength = mo.ui.slider(
-        start=0.0, stop=1.0, step=0.05, value=0.7, label="Functional harmony strength", show_value=True
+        start=0.0, stop=1.0, step=0.05, value=0.85, label="Functional harmony strength", show_value=True
     )
     chord_model = mo.ui.dropdown(
         options=["functional", "uniform", "empirical"], value="functional", label="Chord model"
     )
+    right_texture = mo.ui.dropdown(
+        options=["melodic", "block_chord", "sustained_bass"], value="melodic", label="Right-hand texture"
+    )
+    left_texture = mo.ui.dropdown(
+        options=["melodic", "block_chord", "sustained_bass"], value="melodic", label="Left-hand texture"
+    )
+    accompaniment_rhythm = mo.ui.dropdown(
+        options=["block_per_window", "accent_gated"], value="block_per_window", label="Accompaniment rhythm"
+    )
+    accompaniment_max_notes = mo.ui.number(start=1, stop=5, step=1, value=3, label="Accompaniment max notes")
 
     use_constraints = mo.ui.checkbox(value=True, label="Hard constraints")
     minimum_duration = mo.ui.dropdown(
@@ -221,7 +231,7 @@ def _(
                 max_n=int(max_n.value),
                 monophonic=monophonic.value,
                 lambda_curve=float(lambda_curve.value),
-                lambda_harm=float(lambda_harm.value),
+                lambda_harmonic=float(lambda_harmonic.value),
                 lambda_accent=float(lambda_accent.value),
                 lambda_chord_figure=float(lambda_chord_figure.value),
                 commonness_bias=float(commonness_bias.value),
@@ -244,6 +254,10 @@ def _(
                 self_transition_bias=float(self_transition_bias.value),
                 functional_strength=float(functional_strength.value),
                 chord_model=chord_model.value,
+                right_texture=right_texture.value,
+                left_texture=left_texture.value,
+                accompaniment_rhythm=accompaniment_rhythm.value,
+                accompaniment_max_notes=int(accompaniment_max_notes.value),
                 use_constraints=use_constraints.value,
                 minimum_duration=minimum_duration.value,
                 allow_dotted=allow_dotted.value,
@@ -280,7 +294,7 @@ def _(
                     max_n,
                     monophonic,
                     lambda_curve,
-                    lambda_harm,
+                    lambda_harmonic,
                     lambda_accent,
                     lambda_chord_figure,
                     commonness_bias,
@@ -315,6 +329,12 @@ def _(
                     functional_strength,
                     chord_model,
                 ],
+                gap=2,
+                wrap=True,
+            ),
+            mo.md("### Texture"),
+            mo.hstack(
+                [right_texture, left_texture, accompaniment_rhythm, accompaniment_max_notes],
                 gap=2,
                 wrap=True,
             ),

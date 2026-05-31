@@ -12,7 +12,7 @@ from musak_model.synthetic.substitution.config import SubstitutionConfig
 from musak_model.synthetic.substitution.scoring import (
     accent_fit,
     chord_figure_log_probabilities,
-    harm_fit,
+    harmonic_fit,
     is_monorhythmic,
     slope_fit,
 )
@@ -51,9 +51,9 @@ def tilted_log_probabilities(
         dtype=np.float64,
         count=len(entries),
     )
-    harm_scores = np.fromiter(
+    harmonic_scores = np.fromiter(
         (
-            harm_fit(
+            harmonic_fit(
                 figure=entry.figure,
                 anchor=anchor,
                 scale_type=scale_type,
@@ -90,11 +90,11 @@ def tilted_log_probabilities(
     return _combine_log_terms(
         log_p_emp=log_p_emp,
         slope_scores=slope_scores,
-        harm_scores=harm_scores,
+        harmonic_scores=harmonic_scores,
         accent_scores=accent_scores,
         chord_figure_scores=chord_figure_scores,
         lambda_curve=config.lambda_curve,
-        lambda_harm=config.lambda_harm,
+        lambda_harmonic=config.lambda_harmonic,
         lambda_accent=config.lambda_accent,
         lambda_chord_figure=config.lambda_chord_figure,
     )
@@ -153,18 +153,18 @@ def _combine_log_terms(
     *,
     log_p_emp: NDArray[np.float64],
     slope_scores: NDArray[np.float64],
-    harm_scores: NDArray[np.float64],
+    harmonic_scores: NDArray[np.float64],
     accent_scores: NDArray[np.float64],
     chord_figure_scores: NDArray[np.float64],
     lambda_curve: float,
-    lambda_harm: float,
+    lambda_harmonic: float,
     lambda_accent: float,
     lambda_chord_figure: float,
 ) -> NDArray[np.float64]:
     return (
         log_p_emp
         + lambda_curve * slope_scores
-        + lambda_harm * harm_scores
+        + lambda_harmonic * harmonic_scores
         + lambda_accent * accent_scores
         + lambda_chord_figure * chord_figure_scores
     )

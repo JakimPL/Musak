@@ -30,7 +30,7 @@ class CalibrationConfig(BaseModel):
     max_resample_retries: int = Field(gt=0)
     seed: int = Field(ge=0)
     lambda_curve: tuple[float, ...]
-    lambda_harm: tuple[float, ...]
+    lambda_harmonic: tuple[float, ...]
     lambda_accent: tuple[float, ...]
     target_total_variation_distance: float = Field(ge=0.0, le=1.0)
 
@@ -49,7 +49,7 @@ class CalibrationConfig(BaseModel):
 
         for name, values in (
             ("lambda_curve", self.lambda_curve),
-            ("lambda_harm", self.lambda_harm),
+            ("lambda_harmonic", self.lambda_harmonic),
             ("lambda_accent", self.lambda_accent),
         ):
             if not values:

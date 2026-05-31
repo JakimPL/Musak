@@ -45,7 +45,7 @@ def _generator(duration_vocabulary: DurationVocabulary) -> SegmentGenerator:
     return SegmentGenerator(
         substitution_config=SubstitutionConfig(
             lambda_curve=0.0,
-            lambda_harm=0.0,
+            lambda_harmonic=0.0,
             lambda_accent=0.0,
             lambda_chord_figure=0.0,
             commonness_bias=1.0,
@@ -90,7 +90,7 @@ def _reference_counts() -> FigureNGramCountsByScale:
 def _config(
     *,
     lambda_curve: tuple[float, ...] = (0.0, 1.0),
-    lambda_harm: tuple[float, ...] = (0.0, 1.0),
+    lambda_harmonic: tuple[float, ...] = (0.0, 1.0),
     lambda_accent: tuple[float, ...] = (0.0, 1.0),
     samples_per_config: int = 4,
 ) -> CalibrationConfig:
@@ -112,7 +112,7 @@ def _config(
         seed=0,
         target_total_variation_distance=0.1,
         lambda_curve=lambda_curve,
-        lambda_harm=lambda_harm,
+        lambda_harmonic=lambda_harmonic,
         lambda_accent=lambda_accent,
     )
 
@@ -125,10 +125,10 @@ def test_run_sweep_covers_full_grid(duration_vocabulary: DurationVocabulary) -> 
     )
 
     assert len(results) == 8
-    assert {(result.lambda_curve, result.lambda_harm, result.lambda_accent) for result in results} == {
-        (lambda_curve, lambda_harm, lambda_accent)
+    assert {(result.lambda_curve, result.lambda_harmonic, result.lambda_accent) for result in results} == {
+        (lambda_curve, lambda_harmonic, lambda_accent)
         for lambda_curve in (0.0, 1.0)
-        for lambda_harm in (0.0, 1.0)
+        for lambda_harmonic in (0.0, 1.0)
         for lambda_accent in (0.0, 1.0)
     }
     for result in results:
@@ -138,7 +138,7 @@ def test_run_sweep_covers_full_grid(duration_vocabulary: DurationVocabulary) -> 
 
 
 def test_run_sweep_is_deterministic(duration_vocabulary: DurationVocabulary) -> None:
-    config = _config(lambda_curve=(0.0,), lambda_harm=(0.0,), lambda_accent=(0.0,))
+    config = _config(lambda_curve=(0.0,), lambda_harmonic=(0.0,), lambda_accent=(0.0,))
 
     first = run_sweep(generator=_generator(duration_vocabulary), reference_counts=_reference_counts(), config=config)
     second = run_sweep(generator=_generator(duration_vocabulary), reference_counts=_reference_counts(), config=config)
@@ -170,7 +170,7 @@ def test_write_sweep_results_writes_sortable_csv(tmp_path: Path, duration_vocabu
         rows = list(csv.reader(file))
     assert rows[0] == [
         "lambda_curve",
-        "lambda_harm",
+        "lambda_harmonic",
         "lambda_accent",
         "distribution_groups",
         "mean_total_variation_distance",
@@ -198,6 +198,6 @@ def _config_with_n_range(*, min_n: int, max_n: int) -> CalibrationConfig:
         seed=0,
         target_total_variation_distance=0.1,
         lambda_curve=(0.0,),
-        lambda_harm=(0.0,),
+        lambda_harmonic=(0.0,),
         lambda_accent=(0.0,),
     )

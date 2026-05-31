@@ -31,7 +31,15 @@ from musak_model.synthetic.processes.chord_track import (
 )
 from musak_model.synthetic.processes.hand_coupling import HandCouplingConfig
 from musak_model.synthetic.processes.pitch import RegisterCurveConfig
-from musak_model.synthetic.substitution import FigureByChordModel, GenerationTrace, SubstitutionConfig
+from musak_model.synthetic.substitution import (
+    AccompanimentConfig,
+    AccompanimentRhythm,
+    FigureByChordModel,
+    GenerationTrace,
+    HandTexture,
+    HandTextureConfig,
+    SubstitutionConfig,
+)
 from musak_model.tokens.config import TokenizationConfig
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import ScaleType
@@ -80,7 +88,7 @@ class SyntheticGenerationRequest:
     max_n: int
     monophonic: bool
     lambda_curve: float
-    lambda_harm: float
+    lambda_harmonic: float
     lambda_accent: float
     lambda_chord_figure: float
     commonness_bias: float
@@ -103,6 +111,10 @@ class SyntheticGenerationRequest:
     self_transition_bias: float
     functional_strength: float
     chord_model: str
+    right_texture: str
+    left_texture: str
+    accompaniment_rhythm: str
+    accompaniment_max_notes: int
     use_constraints: bool
     minimum_duration: str
     allow_dotted: bool
@@ -133,15 +145,20 @@ def generate_synthetic_segment(
     scale_type = ScaleType(request.scale_type)
     chord_vocabulary = ChordVocabularyConfig.load()
     chords = tuple(candidate.chord for candidate in spellable_candidates(chord_vocabulary, scale_type=scale_type))
+    chord_transition_model, chord_model_warning = _chord_transition_model(
+        request, inputs, chords=chords, scale_type=scale_type
+    )
+    setup_warnings = _setup_warnings(request, inputs, chord_model_warning=chord_model_warning)
     generator = build_segment_generator(
         substitution_config=SubstitutionConfig(
             lambda_curve=request.lambda_curve,
-            lambda_harm=request.lambda_harm,
+            lambda_harmonic=request.lambda_harmonic,
             lambda_accent=request.lambda_accent,
             lambda_chord_figure=request.lambda_chord_figure,
             commonness_bias=request.commonness_bias,
             max_resample_retries=request.max_resample_retries,
             monophonic=request.monophonic,
+            texture=_hand_texture_config(request),
         ),
         register_curve_config=RegisterCurveConfig(
             arch_basis_count=request.arch_basis_count,
@@ -166,7 +183,7 @@ def generate_synthetic_segment(
             activity_left=request.activity_left,
             sync_strength=request.sync_strength,
         ),
-        chord_transition_model=_chord_transition_model(request, inputs, chords=chords, scale_type=scale_type),
+        chord_transition_model=chord_transition_model,
         chord_vocabulary=chord_vocabulary,
         figure_vocabulary=inputs.figure_vocabulary,
         anchored_figure_vocabulary=inputs.anchored_figure_vocabulary,
@@ -190,11 +207,11 @@ def generate_synthetic_segment(
             progress_callback=progress_callback,
         )
     except (GenerationConstraintError, ValueError) as exception:
-        return _failure(duration_vocabulary, f"Generation failed: {exception}")
+        return _failure(duration_vocabulary, f"Generation failed: {exception}", warnings=setup_warnings)
 
     segment = result.segment
     decode_error = segment_decode_error(segment, duration_vocabulary=duration_vocabulary)
-    status_message = (
+    base_status = (
         f"Generated {segment.bar_count} bar(s), {len(segment.tokens)} tokens | decode error: {decode_error or '-'}"
     )
     return SyntheticGeneratedOutput(
@@ -203,9 +220,35 @@ def generate_synthetic_segment(
         duration_vocabulary=duration_vocabulary,
         decode_error=decode_error,
         error=None,
-        status_message=status_message,
-        status_kind="success" if decode_error is None else "warn",
+        status_message=_with_warnings(base_status, setup_warnings),
+        status_kind="success" if decode_error is None and not setup_warnings else "warn",
     )
+
+
+def _setup_warnings(
+    request: SyntheticGenerationRequest,
+    inputs: SyntheticInputs,
+    *,
+    chord_model_warning: str | None,
+) -> list[str]:
+    warnings: list[str] = []
+    if chord_model_warning is not None:
+        warnings.append(chord_model_warning)
+
+    if request.lambda_chord_figure > 0.0 and not inputs.figure_by_chord_model.tables:
+        warnings.append(
+            "λ chord-figure > 0 but no fitted p(figure | chord) table is loaded; the term is inert — "
+            "run `make fit-generator` on a chord-decoded build."
+        )
+
+    return warnings
+
+
+def _with_warnings(message: str, warnings: list[str]) -> str:
+    if not warnings:
+        return message
+
+    return message + "".join(f"\n⚠ {warning}" for warning in warnings)
 
 
 def _chord_transition_model(
@@ -214,20 +257,46 @@ def _chord_transition_model(
     *,
     chords: tuple[Chord, ...],
     scale_type: ScaleType,
-) -> ChordTransitionModel:
+) -> tuple[ChordTransitionModel, str | None]:
     if request.chord_model == "uniform":
-        return uniform_transition_model(chords, self_transition_bias=request.self_transition_bias)
+        return uniform_transition_model(chords, self_transition_bias=request.self_transition_bias), None
 
     if request.chord_model == "empirical":
         empirical = inputs.fitted.chord_transition_model(scale_type)
         if empirical is not None:
-            return empirical
+            return empirical, None
 
+        warning = (
+            f"chord_model='empirical' requested but no fitted chord transitions for {scale_type.value}; "
+            "using the functional prior instead — run `make fit-generator` on a chord-decoded build."
+        )
+        return _functional_transition_model(request, chords=chords, scale_type=scale_type), warning
+
+    return _functional_transition_model(request, chords=chords, scale_type=scale_type), None
+
+
+def _functional_transition_model(
+    request: SyntheticGenerationRequest,
+    *,
+    chords: tuple[Chord, ...],
+    scale_type: ScaleType,
+) -> ChordTransitionModel:
     return functional_transition_model(
         chords,
         scale_type=scale_type,
         strength=request.functional_strength,
         self_transition_bias=request.self_transition_bias,
+    )
+
+
+def _hand_texture_config(request: SyntheticGenerationRequest) -> HandTextureConfig:
+    return HandTextureConfig(
+        right=HandTexture(request.right_texture),
+        left=HandTexture(request.left_texture),
+        accompaniment=AccompanimentConfig(
+            rhythm=AccompanimentRhythm(request.accompaniment_rhythm),
+            max_chord_notes=request.accompaniment_max_notes,
+        ),
     )
 
 
@@ -254,13 +323,18 @@ def _build_constraints(request: SyntheticGenerationRequest, *, scale_type: Scale
     )
 
 
-def _failure(duration_vocabulary: DurationVocabulary, message: str) -> SyntheticGeneratedOutput:
+def _failure(
+    duration_vocabulary: DurationVocabulary,
+    message: str,
+    *,
+    warnings: list[str] | None = None,
+) -> SyntheticGeneratedOutput:
     return SyntheticGeneratedOutput(
         segment=None,
         trace=GenerationTrace(samples=(), grid_count_per_bar=1, bar_count=0),
         duration_vocabulary=duration_vocabulary,
         decode_error=None,
         error=message,
-        status_message=message,
+        status_message=_with_warnings(message, warnings or []),
         status_kind="warn",
     )

@@ -14,6 +14,6 @@ commonness_bias: 1.0
 max_resample_retries: 8
 seed: 0
 lambda_curve: [0.0, 0.1, 0.25, 0.5, 1.0]
-lambda_harm: [0.0, 0.1, 0.25, 0.5, 1.0]
+lambda_harmonic: [0.0, 0.1, 0.25, 0.5, 1.0]
 lambda_accent: [0.0, 0.1, 0.25, 0.5, 1.0]
 target_total_variation_distance: 0.1

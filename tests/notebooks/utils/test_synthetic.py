@@ -56,7 +56,7 @@ def _request(chord_model: str) -> SyntheticGenerationRequest:
         max_n=2,
         monophonic=True,
         lambda_curve=0.0,
-        lambda_harm=0.0,
+        lambda_harmonic=0.0,
         lambda_accent=0.0,
         lambda_chord_figure=0.0,
         commonness_bias=1.0,
@@ -79,6 +79,10 @@ def _request(chord_model: str) -> SyntheticGenerationRequest:
         self_transition_bias=0.25,
         functional_strength=0.7,
         chord_model=chord_model,
+        right_texture="melodic",
+        left_texture="melodic",
+        accompaniment_rhythm="block_per_window",
+        accompaniment_max_notes=3,
         use_constraints=False,
         minimum_duration="None",
         allow_dotted=True,
@@ -95,29 +99,35 @@ def test_empirical_chord_model_uses_the_baked_transition_model() -> None:
         FittedGeneratorConfig(chord_transitions={ScaleType.MAJOR: FittedChordTransitions.from_model(model)})
     )
 
-    selected = _chord_transition_model(
+    selected, warning = _chord_transition_model(
         _request("empirical"), inputs, chords=_major_chords(), scale_type=ScaleType.MAJOR
     )
 
     assert selected == model
+    assert warning is None
 
 
-def test_empirical_chord_model_falls_back_to_functional_when_unfitted() -> None:
+def test_empirical_chord_model_falls_back_to_functional_with_a_warning_when_unfitted() -> None:
     chords = _major_chords()
     inputs = _inputs(FittedGeneratorConfig())
 
-    selected = _chord_transition_model(_request("empirical"), inputs, chords=chords, scale_type=ScaleType.MAJOR)
+    selected, warning = _chord_transition_model(
+        _request("empirical"), inputs, chords=chords, scale_type=ScaleType.MAJOR
+    )
 
     assert selected == functional_transition_model(
         chords, scale_type=ScaleType.MAJOR, strength=0.7, self_transition_bias=0.25
     )
+    assert warning is not None
+    assert "empirical" in warning and "fit-generator" in warning
 
 
 def test_uniform_chord_model_uses_uniform_transitions() -> None:
     chords = _major_chords()
 
-    selected = _chord_transition_model(
+    selected, warning = _chord_transition_model(
         _request("uniform"), _inputs(FittedGeneratorConfig()), chords=chords, scale_type=ScaleType.MAJOR
     )
 
     assert selected == uniform_transition_model(chords, self_transition_bias=0.25)
+    assert warning is None

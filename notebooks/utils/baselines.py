@@ -1,21 +1,37 @@
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Final
 
 import pandas as pd
 
+from musak_model.harmony.schema import Chord, ChordQuality
 from musak_model.synthetic.substitution import GenerationTrace
 from musak_model.tokens.schema import Hand
 from notebooks.utils.piano_roll import PitchSpelling, midi_pitch_name, pitch_label_expression
 
 _LEFT_HAND_COLOR = "#1f77b4"
 _RIGHT_HAND_COLOR = "#ff7f0e"
+_CHORD_COLOR = "#555555"
 _ACCENT_WEIGHT_DOMAIN = (0.0, 1.0)
+_CHORD_WINDOW_COLUMNS: Final[tuple[str, ...]] = ("start_in_bars", "end_in_bars", "mid_in_bars", "label")
+_ROMAN_NUMERALS: Final[tuple[str, ...]] = ("I", "II", "III", "IV", "V", "VI", "VII")
+_ACCIDENTAL_PREFIX: Final[dict[int, str]] = {-1: "♭", 0: "", 1: "♯"}
+_QUALITY_SUFFIX: Final[dict[ChordQuality, str]] = {ChordQuality.DIMINISHED: "°", ChordQuality.AUGMENTED: "+"}
+_MINOR_QUALITIES: Final[frozenset[ChordQuality]] = frozenset({ChordQuality.MINOR, ChordQuality.DIMINISHED})
+
+
+def chord_label(chord: Chord) -> str:
+    numeral = _ROMAN_NUMERALS[(chord.root_degree - 1) % len(_ROMAN_NUMERALS)]
+    if chord.quality in _MINOR_QUALITIES:
+        numeral = numeral.lower()
+
+    return f"{_ACCIDENTAL_PREFIX[chord.root_accidental]}{numeral}{_QUALITY_SUFFIX.get(chord.quality, '')}"
 
 
 @dataclass(frozen=True)
 class BaselineOverlayViewData:
     pitch_curve: pd.DataFrame
     impulse_grid: pd.DataFrame
+    chord_windows: pd.DataFrame
     bar_domain: tuple[float, float]
     pitch_domain: tuple[float, float]
     pitch_spelling: PitchSpelling
@@ -48,8 +64,19 @@ def baseline_overlay_view_data(
             }
         )
 
+    chord_rows = [
+        {
+            "start_in_bars": window.start_in_bars,
+            "end_in_bars": window.end_in_bars,
+            "mid_in_bars": (window.start_in_bars + window.end_in_bars) / 2,
+            "label": chord_label(window.chord),
+        }
+        for window in trace.chord_windows
+    ]
+
     pitch_curve = pd.DataFrame(pitch_rows)
     impulse_grid = pd.DataFrame(impulse_rows)
+    chord_windows = pd.DataFrame(chord_rows, columns=list(_CHORD_WINDOW_COLUMNS))
     bar_domain = (1.0, float(trace.bar_count + 1))
     if pitch_curve.empty:
         pitch_domain = (0.0, 0.0)
@@ -62,6 +89,7 @@ def baseline_overlay_view_data(
     return BaselineOverlayViewData(
         pitch_curve=pitch_curve,
         impulse_grid=impulse_grid,
+        chord_windows=chord_windows,
         bar_domain=bar_domain,
         pitch_domain=pitch_domain,
         pitch_spelling=pitch_spelling,
@@ -127,8 +155,29 @@ def baseline_overlay_chart(
             ],
         )
     )
+    chord_rules = (
+        alt.Chart(view_data.chord_windows)
+        .mark_rule(color=_CHORD_COLOR, strokeDash=[2, 2], opacity=0.5)
+        .encode(
+            x=alt.X("start_in_bars:Q", scale=alt.Scale(domain=list(view_data.bar_domain))),
+            tooltip=[
+                alt.Tooltip("label:N", title="Chord"),
+                alt.Tooltip("start_in_bars:Q", title="Bar", format=".3f"),
+            ],
+        )
+    )
+    chord_labels = (
+        alt.Chart(view_data.chord_windows)
+        .mark_text(baseline="top", dy=2, fontWeight="bold", color=_CHORD_COLOR)
+        .encode(
+            x=alt.X("mid_in_bars:Q", scale=alt.Scale(domain=list(view_data.bar_domain))),
+            y=alt.value(0),
+            text=alt.Text("label:N"),
+            tooltip=[alt.Tooltip("label:N", title="Chord")],
+        )
+    )
     return (
-        alt.layer(pitch_curve, impulse_grid)
+        alt.layer(pitch_curve, impulse_grid, chord_rules, chord_labels)
         .resolve_scale(y="independent")
-        .properties(width="container", height=height, title="Baseline overlay")
+        .properties(width="container", height=height, title="Baseline overlay (register, accent, chord track)")
     )

@@ -89,16 +89,16 @@ register motion and per-cell accent shaping are modelled.
 **Design (§6).** The harmonic-fit score is $H(f, C, m)$: chord tones are rewarded on strong beats and
 non-chord tones are permitted on weak beats, at a weight that depends on the figure's metrical position $m$.
 
-**Code before.** `harm_fit` returned the plain chord-tone fraction over all note instances; no metrical
+**Code before.** `harmonic_fit` returned the plain chord-tone fraction over all note instances; no metrical
 weighting.
 
-**Resolution.** `harm_fit` now returns a **metrical-strength-weighted** mean of the per-onset chord-tone
+**Resolution.** `harmonic_fit` now returns a **metrical-strength-weighted** mean of the per-onset chord-tone
 fraction: onset $i$ sits at bar position `(metrical_position + i) % grid_count_per_bar` (the one-cell-per-onset
 proxy, consistent with the slope-fit span in #5), weighted by its indispensability `gcd(position, M)/M`. Chord
 membership therefore matters most on strong cells and barely on weak ones, so non-chord passing tones are
 tolerated off the beat. The firing cell's `metrical_position` and `grid_count_per_bar` are threaded from
 `_place_one_figure` through `sample_substituted_figure`. At `grid_count_per_bar = 1` it reduces to the plain
-chord-tone fraction. (Effective only when `lambda_harm > 0`.)
+chord-tone fraction. (Effective only when `lambda_harmonic > 0`.)
 
 ## 5. Slope-fit uses an endpoint proxy compared against a one-cell slope — `D2` — CLOSED
 
@@ -224,7 +224,7 @@ V→I / vii°→I cadential weighting and a tonic-favoured initial distribution,
 `strength` knob (`strength=0` reduces exactly to `uniform_transition_model`). This replaces the
 uniform-random chord walk that was the dominant cause of incoherent harmony, *without* needing the corpus.
 Calibration stays on `uniform_transition_model` (deferred coupling). `ViterbiChordDecoder` is still
-unconsumed, and `harm_fit` still uses the chord pitch-class set, not $p(\text{figure} \mid C)$.
+unconsumed, and `harmonic_fit` still uses the chord pitch-class set, not $p(\text{figure} \mid C)$.
 
 **Moment-matching done (register + accent), DB-backed.** Both global processes are now fit from persisted
 corpus sufficient statistics (no on-the-fly recomputation). Register: see #10. Accent: the `config + overrides`
@@ -261,7 +261,7 @@ back to functional when a scale type was never fitted; calibration stays uniform
 `lambda_chord_figure` tilt term adds $\log p(\text{figure} \mid C)$ to the substitution score — backing off
 to `0` when the table or pair is unseen (an unobserved figure floors to the least-likely observed one, never
 rewarded), so at `lambda_chord_figure = 0` output is byte-identical to before. The metrical chord-tone
-`harm_fit` (#4) is unchanged; the new term **sharpens** it rather than replacing it.
+`harmonic_fit` (#4) is unchanged; the new term **sharpens** it rather than replacing it.
 
 ## 12. λ-tilt selection is manual — `D6` — CLOSED
 

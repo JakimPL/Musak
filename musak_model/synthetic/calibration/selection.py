@@ -9,13 +9,13 @@ from musak_model.synthetic.calibration.config import CalibrationConfig
 from musak_model.synthetic.calibration.schema import SweepResult
 from musak_model.synthetic.substitution import SubstitutionConfig
 
-_DIRECTIONS: Final = ("lambda_curve", "lambda_harm", "lambda_accent")
+_DIRECTIONS: Final = ("lambda_curve", "lambda_harmonic", "lambda_accent")
 
 
 @dataclass(frozen=True)
 class TiltSelection:
     lambda_curve: float
-    lambda_harm: float
+    lambda_harmonic: float
     lambda_accent: float
     threshold_met: bool
 
@@ -24,11 +24,11 @@ def select_tilts(
     results: Sequence[SweepResult],
     *,
     lambda_curve: tuple[float, ...],
-    lambda_harm: tuple[float, ...],
+    lambda_harmonic: tuple[float, ...],
     lambda_accent: tuple[float, ...],
     threshold: float,
 ) -> TiltSelection:
-    grids = {"lambda_curve": lambda_curve, "lambda_harm": lambda_harm, "lambda_accent": lambda_accent}
+    grids = {"lambda_curve": lambda_curve, "lambda_harmonic": lambda_harmonic, "lambda_accent": lambda_accent}
     baselines = {direction: _baseline(grids[direction]) for direction in _DIRECTIONS}
     selected: dict[str, float] = {}
     threshold_met = True
@@ -39,7 +39,7 @@ def select_tilts(
 
     return TiltSelection(
         lambda_curve=selected["lambda_curve"],
-        lambda_harm=selected["lambda_harm"],
+        lambda_harmonic=selected["lambda_harmonic"],
         lambda_accent=selected["lambda_accent"],
         threshold_met=threshold_met,
     )
@@ -48,7 +48,7 @@ def select_tilts(
 def selected_substitution_config(selection: TiltSelection, config: CalibrationConfig) -> SubstitutionConfig:
     return SubstitutionConfig(
         lambda_curve=selection.lambda_curve,
-        lambda_harm=selection.lambda_harm,
+        lambda_harmonic=selection.lambda_harmonic,
         lambda_accent=selection.lambda_accent,
         lambda_chord_figure=0.0,
         commonness_bias=config.commonness_bias,

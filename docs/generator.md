@@ -283,23 +283,29 @@ The three global processes meet the empirical figure vocabulary in one substitut
 substitution chooses a figure $f$ given the local global state — register-curve value $P_i(k)$, accent weight
 $\lambda_i(k)$, current chord $C(t)$ — from the conditional
 
-$$p\bigl(f \mid \text{group},\, P_i,\, \lambda,\, C\bigr) \;\propto\; \underbrace{p_{\text{emp}}\bigl(f \mid \text{group}\bigr)}_{\text{empirical figure prior}} \,\cdot\, \exp\!\Bigl(\lambda_{\text{curve}} \, S(f, P_i) \,+\, \lambda_{\text{harm}} \, H(f, C, m) \,+\, \lambda_{\text{accent}} \, A\bigl(f, \lambda_i(k)\bigr)\Bigr),$$
+$$p\bigl(f \mid \text{group},\, P_i,\, \lambda,\, C\bigr) \;\propto\; \underbrace{p_{\text{emp}}\bigl(f \mid \text{group}\bigr)}_{\text{empirical figure prior}} \,\cdot\, \exp\!\Bigl(\lambda_{\text{curve}} \, S(f, P_i) \,+\, \lambda_{\text{harmonic}} \, H(f, C, m) \,+\, \lambda_{\text{accent}} \, A\bigl(f, \lambda_i(k)\bigr)\Bigr),$$
 
 where $p_{\text{emp}}(f \mid \text{group})$ is the empirical figure distribution at the group
 $(\text{scale}, \text{hand}, n)$, $S(f, P_i)$ is a slope-fit score comparing the figure's net contour
 — the net diatonic displacement of its lowest voice from first onset to last — to the register curve's
-change over the figure's span (one grid cell per onset), $H(f, C, m)$
+change over the figure's span (a coarse one-grid-cell-per-onset footprint, used here because the figure's
+concrete durations are not yet sampled when the slope target is read), $H(f, C, m)$
 is a harmonic-fit score comparing the figure's concrete pitches (after anchoring to $P_i$) to the chord
-tones of $C$ at a weight that depends on the figure's metrical position $m$ in the bar — chord tones
-rewarded on strong beats, non-chord tones permitted and indeed favoured on weak beats *between* chord
-tones — and $A(f, \lambda_i(k))$ is an accent-fit score comparing the figure's internal accent shape
+tones of $C$, weighted by each note's **metrically-weighted sounding span**: the chosen figure is laid on
+the bar grid with cells proportional to its normalized onset durations (one grid cell per normalized unit),
+and each onset's weight is the metrical indispensability $\gcd(\text{position}, M)/M$ **integrated over every
+cell the note sustains through**, so a long note struck on a weak cell but held across a strong beat correctly
+accrues that strong beat's weight. $H$ is the span-weight-weighted mean of the per-onset chord-tone fraction —
+chord tones rewarded where metrical weight (struck or sustained) is high, non-chord tones permitted and indeed
+favoured at weak, short, off-beat positions *between* chord tones — and $A(f, \lambda_i(k))$ is an accent-fit
+score comparing the figure's internal accent shape
 (longer notes and chord-tone onsets aligned with the figure's strong points) to the LGCP envelope value
 $\lambda_i(k)$ at the current cell, with the envelope reading from §4.
 
 The construction is an exponential-family tilt of the empirical distribution, and that is the point. Geometrically the
 tilted distribution is the **I-projection** of $p_{\text{emp}}$ onto the constraint manifold defined by the curve,
 harmonic and accent targets — the distribution closest in Kullback–Leibler divergence to the reference that still
-respects the local conditioning. Operationally, each coefficient $\lambda_{\text{curve}}$, $\lambda_{\text{harm}}$
+respects the local conditioning. Operationally, each coefficient $\lambda_{\text{curve}}$, $\lambda_{\text{harmonic}}$
 and $\lambda_{\text{accent}}$ is an independent stability ↔ fidelity dial: setting any of them to zero recovers the
 reference marginal exactly along that direction; increasing it sharpens the control at the cost of moving away
 from the reference. This is the precise sense in which the design is *data-based yet stable, close to reference*:
@@ -376,7 +382,7 @@ transition matrix is the empirical transition count between adjacent Viterbi-dec
 corpus, learned once during the chord-segmentation pass; the chord-conditioned figure distribution that drives the
 harmonic-fit score is accumulated in the same pass.
 
-The substitution tilts $\lambda_{\text{curve}}$, $\lambda_{\text{harm}}$ and $\lambda_{\text{accent}}$ are
+The substitution tilts $\lambda_{\text{curve}}$, $\lambda_{\text{harmonic}}$ and $\lambda_{\text{accent}}$ are
 not moment-matched in the same way; they are calibrated against the project's existing reference metric. The
 generator is run at several values of each, the resulting figure distribution is scored by `figure_distribution_metrics`
 — the mean total-variation distance per group against the reference — and the largest tilt is chosen that keeps the
@@ -399,11 +405,17 @@ generator gives the LLM a source of training and evaluation data whose propertie
 style knobs that should be interpretable, wander out of register without a cap, and re-learn what the figure vocabulary
 already encodes. The figure-substitution architecture sidesteps all four problems by construction.
 
-**Forcing chord tones for harmony is rejected.** Passing and neighbor tones are characteristic of sight-reading
-material and must be permitted; the soft harmonic tilt of §6 provides tonal gravity without eliminating them. The
-functional-bass / figured-bass alternative — where the left hand defines harmony and the right hand conditions on it —
-is asymmetric and weak for two-melodic-line textures; it is retained only as an optional texture mode for Alberti and
-block-chord settings.
+**Forcing chord tones for harmony is rejected** for the *melodic* texture. Passing and neighbor tones are
+characteristic of sight-reading material and must be permitted; the soft harmonic tilt of §6 provides tonal gravity
+without eliminating them. The functional-bass / block-chord alternative — where a hand realizes the chord track
+directly rather than drawing melodic figures — is asymmetric and weak for two-melodic-line textures, so it is an
+**opt-in per-hand texture mode**, not the default. A hand set to `BLOCK_CHORD` or `SUSTAINED_BASS`
+(`substitution/texture.py`) realizes `C(t)` directly: per chord window it voices the chord tones (or just the root)
+in close position from its register-curve anchor and holds them for the window (`BLOCK_PER_WINDOW`) or re-attacks
+them on the accent grid (`ACCENT_GATED`), through the same playability gate, falling back to fewer tones or a rest on
+rejection. Because such a hand emits no figures, it is *outside* the figure TV-distance metric — which is why the
+default and all calibration runs stay all-melodic (`ALL_MELODIC_TEXTURE`), and the texture mode is used only at
+generation. Alberti and broken-chord patterns are a future `AccompanimentRhythm` variant.
 
 **The chord vocabulary in v1 is small by choice.** The chord-representation machinery covers any tertian chord that can
 be spelled with single accidentals; the YAML vocabulary turns extensions on and off so that the v1 generator runs over

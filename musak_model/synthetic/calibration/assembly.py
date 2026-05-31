@@ -23,7 +23,7 @@ def build_calibration_generator(config: CalibrationConfig) -> SegmentGenerator:
     return build_segment_generator(
         substitution_config=SubstitutionConfig(
             lambda_curve=0.0,
-            lambda_harm=0.0,
+            lambda_harmonic=0.0,
             lambda_accent=0.0,
             lambda_chord_figure=0.0,
             commonness_bias=config.commonness_bias,
