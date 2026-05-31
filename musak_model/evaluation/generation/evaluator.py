@@ -37,10 +37,11 @@ from musak_model.generation.constraints import (
     allowed_next_token_ids,
     mask_disallowed_logits,
 )
+from musak_model.generation.coordinates import decoder_input_coordinates_from_token_ids
 from musak_model.model.config import ModelConfig
 from musak_model.n_grams.config import NGramAnalysisConfig
 from musak_model.n_grams.profile.loading import FigureProfileArtifacts
-from musak_model.tokens.duration import DurationVocabulary
+from musak_model.tokens.duration import DurationVocabulary, duration_tick_denominator
 from musak_model.tokens.schema import BarToken, EndToken, Token
 from musak_model.tokens.vocabulary import TokenVocabulary
 
@@ -92,6 +93,7 @@ class GenerationSuiteEvaluator:
         self._model_config = model_config
         self._token_vocabulary = token_vocabulary
         self._duration_vocabulary = duration_vocabulary
+        self._duration_tick_denominator = duration_tick_denominator(duration_vocabulary)
         self._include_bar_count_control = include_bar_count_control
         self._figure_profile_artifacts = figure_profile_artifacts
 
@@ -236,9 +238,18 @@ class GenerationSuiteEvaluator:
             if self._prefix_exceeds_model_context(token_ids):
                 break
 
-            logits = self._next_token_logits(model, token_ids=token_ids, device=device)
+            logits = self._next_token_logits(
+                model,
+                token_ids=token_ids,
+                constraints=constraints,
+                device=device,
+            )
             if hard_constraints:
-                constrained_logits = self._constrained_logits(token_ids, logits=logits, constraints=constraints)
+                constrained_logits = self._constrained_logits(
+                    token_ids,
+                    logits=logits,
+                    constraints=constraints,
+                )
                 if constrained_logits.constraint_error is not None:
                     constraint_error = constrained_logits.constraint_error
                     break
@@ -266,9 +277,17 @@ class GenerationSuiteEvaluator:
         model: GenerationModel,
         *,
         token_ids: list[int],
+        constraints: GenerationConstraints,
         device: torch.device,
     ) -> Tensor:
         model_input_ids = [self._token_vocabulary.start_token_id, *token_ids]
+        coordinates = decoder_input_coordinates_from_token_ids(
+            token_ids,
+            constraints=constraints,
+            token_vocabulary=self._token_vocabulary,
+            duration_vocabulary=self._duration_vocabulary,
+            duration_tick_denominator=self._duration_tick_denominator,
+        )
         return model(
             torch.tensor([model_input_ids], dtype=torch.long, device=device),
             bar_positions=torch.tensor(
@@ -276,6 +295,9 @@ class GenerationSuiteEvaluator:
                 dtype=torch.long,
                 device=device,
             ),
+            bar_relative_ticks=torch.tensor([coordinates.bar_relative_ticks], dtype=torch.long, device=device),
+            bar_duration_ticks=torch.tensor([coordinates.bar_duration_ticks], dtype=torch.long, device=device),
+            active_hand_ids=torch.tensor([coordinates.active_hand_ids], dtype=torch.long, device=device),
             scale_type_ids=self._scale_type_tensor(device=device),
             time_signature_ids=self._time_signature_tensor(device=device),
             structural_control_ids=self._structural_control_tensor(device=device),

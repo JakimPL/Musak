@@ -118,8 +118,11 @@ This section is the durable resumption point if work continues after context com
   degree, accidental, octave-offset, and hand heads with masked per-attribute cross-entropy and logs each loss term
   separately. The model composes factorized head log-probabilities back into flat token scores so existing validity
   penalties and generation evaluation can keep using the flat-token interface.
-- Next: Phase 5 should add deterministic exercise-level musical auxiliary targets, with Phase 4 bar-relative
-  coordinates pulled earlier if duration/timing diagnostics show accumulation errors.
+- Completed: Phase 4 was pulled forward and adds decoder-step coordinate features without changing encoded artifact
+  shape. Dataset construction and generation derive `bar_relative_ticks`, `bar_duration_ticks`, and `active_hand_ids`
+  from the musical prefix, then feed them into the hierarchical model alongside token embeddings. Hard generation
+  constraints remain separate and authoritative for exact legality.
+- Next: Phase 5 should add deterministic exercise-level musical auxiliary targets.
 
 Early non-unit validation for Phase 2A:
 
@@ -513,9 +516,9 @@ Likely code areas:
 2. Implement Phase 1 tokenization-context and spelling semantics with tests and docs.
 3. Finish Phase 2 factorized targets, reconstruction helpers, and metrics without changing model training.
 4. Add Phase 3 factorized model heads and per-head losses behind config.
-5. Add Phase 5 auxiliary musical target extraction and dataset reports without changing generation.
-6. Add Phase 4 bar-relative coordinates if timing metrics show accumulation errors, or earlier if the target schemas need
+5. Add Phase 4 bar-relative coordinates if timing metrics show accumulation errors, or earlier if the target schemas need
    bar pooling.
+6. Add Phase 5 auxiliary musical target extraction and dataset reports without changing generation.
 7. Add Phase 6 reference-prior scoring and reranking for generated samples.
 8. Only then run serious PDMX/exercise training comparisons.
 

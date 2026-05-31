@@ -9,7 +9,7 @@ from musak_model.conditioning.structural.vocabulary import StructuralControlVoca
 from musak_model.conditioning.time_signature import TimeSignatureVocabulary, TimeSignatureVocabularyConfig
 from musak_model.data.schema import SegmentMetadata
 from musak_model.data.tokenization_context import tokenization_context_from_scale
-from musak_model.tokens.duration import DurationVocabulary
+from musak_model.tokens.duration import DurationVocabulary, duration_fraction_to_ticks, duration_tick_denominator
 from musak_model.tokens.factorized import ABSENT_ATTRIBUTE_ID, TokenKindId
 from musak_model.tokens.schema import Hand, HandToken, NoteToken, RestToken, ScaleType
 from musak_model.tokens.vocabulary import TokenVocabulary
@@ -110,6 +110,39 @@ def test_dataset_builds_factorized_target_attributes(
     assert attributes.octave_offset_ids.tolist() == [ABSENT_ATTRIBUTE_ID, 1, ABSENT_ATTRIBUTE_ID]
     assert attributes.duration_ids.tolist() == [ABSENT_ATTRIBUTE_ID, quarter_id, eighth_id]
     assert attributes.hand_ids.tolist() == [0, ABSENT_ATTRIBUTE_ID, ABSENT_ATTRIBUTE_ID]
+
+
+def test_dataset_builds_decoder_coordinate_features(
+    duration_vocabulary: DurationVocabulary,
+    token_vocabulary: TokenVocabulary,
+) -> None:
+    quarter_id = duration_vocabulary.fraction_to_id(Fraction(1, 4))
+    eighth_id = duration_vocabulary.fraction_to_id(Fraction(1, 8))
+    denominator = duration_tick_denominator(duration_vocabulary)
+    quarter_ticks = duration_fraction_to_ticks(Fraction(1, 4), denominator=denominator)
+    eighth_ticks = duration_fraction_to_ticks(Fraction(1, 8), denominator=denominator)
+    whole_ticks = duration_fraction_to_ticks(Fraction(1, 1), denominator=denominator)
+    token_ids = token_vocabulary.encode(
+        [
+            HandToken(hand=Hand.RIGHT),
+            NoteToken(degree=1, accidental=0, octave_offset=0, duration_id=quarter_id),
+            RestToken(duration_id=eighth_id),
+            HandToken(hand=Hand.LEFT),
+            RestToken(duration_id=quarter_id),
+        ]
+    )
+    dataset = EncodedExerciseDataset(
+        [_sample(token_ids, [0, 0, 0, 0, 0])],
+        time_signature_vocabulary=_time_signature_vocabulary(),
+        token_vocabulary=token_vocabulary,
+        conditioning=_conditioning_config(),
+    )
+
+    example = dataset[0]
+
+    assert example.bar_relative_ticks.tolist() == [0, 0, quarter_ticks, quarter_ticks + eighth_ticks, 0]
+    assert example.bar_duration_ticks.tolist() == [whole_ticks] * 5
+    assert example.active_hand_ids.tolist() == [0, 0, 0, 0, 1]
 
 
 def test_dataset_keeps_single_token_samples_for_start_token_training(token_vocabulary: TokenVocabulary) -> None:
@@ -271,6 +304,10 @@ def test_collate_pads_tokens_and_bar_positions(token_vocabulary: TokenVocabulary
     ]
     assert batch.target_token_ids.tolist() == [[1, 2, 3], [4, 5, 0]]
     assert batch.bar_positions.tolist() == [[0, 0, 0], [0, 0, -1]]
+    assert batch.bar_relative_ticks.shape == batch.input_token_ids.shape
+    assert batch.bar_relative_ticks.tolist()[1][-1] == -1
+    assert batch.bar_duration_ticks.tolist()[1][-1] == 1
+    assert batch.active_hand_ids.tolist()[1][-1] == -1
     assert batch.target_token_attributes.kind_ids.tolist()[1][-1] == ABSENT_ATTRIBUTE_ID
     assert batch.target_token_attributes.duration_ids.tolist()[1][-1] == ABSENT_ATTRIBUTE_ID
     assert batch.structural_control_ids.tolist() == [[], []]

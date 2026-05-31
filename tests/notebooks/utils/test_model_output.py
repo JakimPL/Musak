@@ -59,6 +59,9 @@ class LogitStreamModel(nn.Module):
         token_ids: Tensor,
         *,
         bar_positions: Tensor,
+        bar_relative_ticks: Tensor,
+        bar_duration_ticks: Tensor,
+        active_hand_ids: Tensor,
         difficulty_ids: Tensor | None = None,
         scale_type_ids: Tensor | None = None,
         time_signature_ids: Tensor | None = None,
@@ -94,7 +97,7 @@ def test_sampler_uses_mock_logit_stream(
     result = sample_autoregressive(
         model,
         empty_prompt(token_vocabulary=token_vocabulary, duration_vocabulary=duration_vocabulary),
-        options=SamplingOptions(max_new_tokens=4, greedy=True),
+        options=SamplingOptions(max_new_tokens=4, greedy=True, time_signature=(4, 4)),
         token_vocabulary=token_vocabulary,
         duration_vocabulary=duration_vocabulary,
     )

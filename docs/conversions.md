@@ -39,6 +39,8 @@ Operations on the model's token coordinates (`degree`, `accidental`, `octave_off
 | `TokenVocabulary.encode` / `.decode` | `tokens/vocabulary.py` | `list[Token]` ↔ `list[int]` |
 | `DurationVocabulary.fraction_to_id` / `.id_to_fraction` | `tokens/duration.py` | `Fraction` ↔ duration id |
 | `DurationVocabulary.duration_id_or_none` / `.require_duration_id` / `.find_closest` | `tokens/duration.py` | `Fraction` → duration id (variants) |
+| `duration_tick_denominator` | `tokens/duration.py` | duration vocabulary → shared integer tick denominator |
+| `duration_fraction_to_ticks` | `tokens/duration.py` | `Fraction` + denominator → integer ticks |
 | `tokens_to_text` / `tokens_from_text` / `token_from_text` | `tokens/text.py` | `Token` sequence ↔ string |
 
 ## Composite conversions in their downstream domains
@@ -106,6 +108,7 @@ Every entry lists the two entities being bridged and the package that owns the c
 | --- | --- | --- |
 | `EncodedExercise.to_segment`, `encoded_exercise_to_segment` | `training/ingestion/schema.py`, `decoder/encoded.py` | `EncodedExercise` → `Segment` |
 | `state_from_tokens`, `state_from_token_ids` | `generation/constraints.py` | `list[Token]` / `list[int]` → `GenerationConstraintState` |
+| `decoder_input_coordinates_from_tokens`, `decoder_input_coordinates_from_token_ids` | `generation/coordinates.py` | token prefix / token-id prefix + generation constraints → `DecoderInputCoordinates` |
 | `segment_from_tokens`, `constraints_from_config`, `scale_type_to_id`, `bar_positions` | `evaluation/generation/sampling.py` | evaluation-side conversions |
 
 ## When in doubt

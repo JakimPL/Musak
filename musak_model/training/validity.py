@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from fractions import Fraction
-from math import lcm
 from typing import Final
 
 import torch
@@ -13,6 +12,7 @@ from musak_model.generation.constraints import (
     GenerationConstraints,
     GenerationConstraintState,
 )
+from musak_model.tokens.duration import duration_fraction_to_ticks, duration_tick_denominator
 from musak_model.tokens.pitch import note_token_to_midi_pitch
 from musak_model.tokens.schema import Hand, HoldToken, NoteToken, RestToken, ScaleType, StartToken
 from musak_model.tokens.vocabulary import TokenVocabulary
@@ -31,7 +31,7 @@ class ValidityPenaltyMasks:
 class TrainingValidityMaskBuilder:
     def __init__(self, token_vocabulary: TokenVocabulary) -> None:
         self._token_vocabulary = token_vocabulary
-        self._duration_tick_denominator = _duration_tick_denominator(token_vocabulary)
+        self._duration_tick_denominator = duration_tick_denominator(token_vocabulary.duration_vocabulary)
         self._metadata = _TokenValidityMetadata.build(
             token_vocabulary,
             duration_tick_denominator=self._duration_tick_denominator,
@@ -183,11 +183,7 @@ class TrainingValidityMaskBuilder:
         return state.right_cursor == next_bar_start and state.left_cursor == next_bar_start
 
     def _fraction_to_ticks(self, value: Fraction) -> int:
-        ticks = value * self._duration_tick_denominator
-        if ticks.denominator != 1:
-            raise ValueError(f"duration {value} cannot be represented as integer ticks")
-
-        return ticks.numerator
+        return duration_fraction_to_ticks(value, denominator=self._duration_tick_denominator)
 
 
 @dataclass(frozen=True)
@@ -224,7 +220,7 @@ class _TokenValidityMetadata:
             match token:
                 case NoteToken():
                     is_note[token_id] = True
-                    duration_ticks[token_id] = _duration_ticks(
+                    duration_ticks[token_id] = duration_fraction_to_ticks(
                         token_vocabulary.duration_vocabulary.id_to_fraction(token.duration_id),
                         denominator=duration_tick_denominator,
                     )
@@ -239,13 +235,13 @@ class _TokenValidityMetadata:
                                 )
                 case RestToken():
                     is_rest[token_id] = True
-                    duration_ticks[token_id] = _duration_ticks(
+                    duration_ticks[token_id] = duration_fraction_to_ticks(
                         token_vocabulary.duration_vocabulary.id_to_fraction(token.duration_id),
                         denominator=duration_tick_denominator,
                     )
                 case HoldToken():
                     is_hold[token_id] = True
-                    duration_ticks[token_id] = _duration_ticks(
+                    duration_ticks[token_id] = duration_fraction_to_ticks(
                         token_vocabulary.duration_vocabulary.id_to_fraction(token.duration_id),
                         denominator=duration_tick_denominator,
                     )
@@ -268,22 +264,6 @@ class _TokenValidityMetadata:
             duration_ticks=duration_ticks,
             midi_pitches=midi_pitches,
         )
-
-
-def _duration_tick_denominator(token_vocabulary: TokenVocabulary) -> int:
-    denominators = [
-        token_vocabulary.duration_vocabulary.id_to_fraction(duration_id).denominator
-        for duration_id in range(token_vocabulary.duration_vocabulary.vocabulary_size())
-    ]
-    return lcm(*denominators)
-
-
-def _duration_ticks(value: Fraction, *, denominator: int) -> int:
-    ticks = value * denominator
-    if ticks.denominator != 1:
-        raise ValueError(f"duration {value} cannot be represented as integer ticks")
-
-    return ticks.numerator
 
 
 def _hand_index(hand: Hand) -> int:

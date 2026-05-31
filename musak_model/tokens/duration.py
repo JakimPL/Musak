@@ -1,4 +1,5 @@
 from fractions import Fraction
+from math import lcm
 
 from musak_model.tokens.config import TokenizationConfig
 
@@ -82,3 +83,23 @@ class DurationVocabulary:
             f"allowed_tuplets={config.allowed_tuplets}, dots={config.max_dots}, "
             f"size={self.vocabulary_size()})"
         )
+
+
+def duration_tick_denominator(duration_vocabulary: DurationVocabulary) -> int:
+    denominators = [
+        duration_vocabulary.id_to_fraction(duration_id).denominator
+        for duration_id in range(duration_vocabulary.vocabulary_size())
+    ]
+    return lcm(*denominators)
+
+
+def duration_fraction_to_ticks(
+    value: Fraction,
+    *,
+    denominator: int,
+) -> int:
+    ticks = value * denominator
+    if ticks.denominator != 1:
+        raise ValueError(f"duration {value} cannot be represented as integer ticks")
+
+    return ticks.numerator

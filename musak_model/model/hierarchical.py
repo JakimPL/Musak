@@ -26,6 +26,8 @@ class HierarchicalAutoregressiveModel(nn.Module):
         self._config = config
 
         self._token_embedding = nn.Embedding(config.vocabulary_size, config.transformer.hidden_size)
+        self._bar_position_projection = nn.Linear(2, config.transformer.hidden_size)
+        self._active_hand_embedding = nn.Embedding(HAND_ATTRIBUTE_COUNT, config.transformer.hidden_size)
         local_hidden_size = config.cnn.out_channels if config.cnn.enabled else config.transformer.hidden_size
         if config.cnn.enabled:
             self._to_local_hidden = nn.Linear(config.transformer.hidden_size, config.cnn.out_channels)
@@ -71,6 +73,9 @@ class HierarchicalAutoregressiveModel(nn.Module):
         token_ids: Tensor,
         *,
         bar_positions: Tensor,
+        bar_relative_ticks: Tensor,
+        bar_duration_ticks: Tensor,
+        active_hand_ids: Tensor,
         difficulty_ids: Tensor | None = None,
         scale_type_ids: Tensor | None = None,
         time_signature_ids: Tensor | None = None,
@@ -80,6 +85,9 @@ class HierarchicalAutoregressiveModel(nn.Module):
         decoded_embeddings = self._decoded_embeddings(
             token_ids,
             bar_positions=bar_positions,
+            bar_relative_ticks=bar_relative_ticks,
+            bar_duration_ticks=bar_duration_ticks,
+            active_hand_ids=active_hand_ids,
             difficulty_ids=difficulty_ids,
             scale_type_ids=scale_type_ids,
             time_signature_ids=time_signature_ids,
@@ -101,6 +109,9 @@ class HierarchicalAutoregressiveModel(nn.Module):
         token_ids: Tensor,
         *,
         bar_positions: Tensor,
+        bar_relative_ticks: Tensor,
+        bar_duration_ticks: Tensor,
+        active_hand_ids: Tensor,
         difficulty_ids: Tensor | None = None,
         scale_type_ids: Tensor | None = None,
         time_signature_ids: Tensor | None = None,
@@ -113,6 +124,9 @@ class HierarchicalAutoregressiveModel(nn.Module):
         decoded_embeddings = self._decoded_embeddings(
             token_ids,
             bar_positions=bar_positions,
+            bar_relative_ticks=bar_relative_ticks,
+            bar_duration_ticks=bar_duration_ticks,
+            active_hand_ids=active_hand_ids,
             difficulty_ids=difficulty_ids,
             scale_type_ids=scale_type_ids,
             time_signature_ids=time_signature_ids,
@@ -132,6 +146,9 @@ class HierarchicalAutoregressiveModel(nn.Module):
         token_ids: Tensor,
         *,
         bar_positions: Tensor,
+        bar_relative_ticks: Tensor,
+        bar_duration_ticks: Tensor,
+        active_hand_ids: Tensor,
         difficulty_ids: Tensor | None,
         scale_type_ids: Tensor | None,
         time_signature_ids: Tensor | None,
@@ -140,6 +157,15 @@ class HierarchicalAutoregressiveModel(nn.Module):
     ) -> Tensor:
         token_embeddings = self._token_embedding(token_ids)
         self._validate_bar_input_shapes(bar_embeddings=token_embeddings, bar_positions=bar_positions)
+        self._validate_bar_input_shapes(bar_embeddings=token_embeddings, bar_positions=bar_relative_ticks)
+        self._validate_bar_input_shapes(bar_embeddings=token_embeddings, bar_positions=bar_duration_ticks)
+        self._validate_bar_input_shapes(bar_embeddings=token_embeddings, bar_positions=active_hand_ids)
+        token_embeddings = token_embeddings + self._decoder_coordinate_embeddings(
+            bar_relative_ticks=bar_relative_ticks,
+            bar_duration_ticks=bar_duration_ticks,
+            active_hand_ids=active_hand_ids,
+            dtype=token_embeddings.dtype,
+        )
         conditioning_prefix = self._build_conditioning_prefix(
             batch_size=token_ids.size(0),
             device=token_ids.device,
@@ -168,6 +194,26 @@ class HierarchicalAutoregressiveModel(nn.Module):
             memory_attention_mask=memory_attention_mask,
         )
         return cast(Tensor, decoded_embeddings)
+
+    def _decoder_coordinate_embeddings(
+        self,
+        *,
+        bar_relative_ticks: Tensor,
+        bar_duration_ticks: Tensor,
+        active_hand_ids: Tensor,
+        dtype: torch.dtype,
+    ) -> Tensor:
+        safe_bar_duration_ticks = bar_duration_ticks.clamp_min(1).to(dtype=dtype)
+        safe_bar_relative_ticks = bar_relative_ticks.clamp_min(0).to(dtype=dtype)
+        bar_position_fraction = safe_bar_relative_ticks / safe_bar_duration_ticks
+        has_bar_position = (bar_relative_ticks >= 0).to(dtype=dtype)
+        bar_position_features = torch.stack((bar_position_fraction, has_bar_position), dim=-1)
+        bar_position_embeddings = self._bar_position_projection(bar_position_features)
+
+        safe_active_hand_ids = active_hand_ids.clamp_min(0)
+        active_hand_embeddings = self._active_hand_embedding(safe_active_hand_ids)
+        active_hand_mask = (active_hand_ids >= 0).to(dtype=dtype).unsqueeze(-1)
+        return cast(Tensor, bar_position_embeddings + active_hand_embeddings * active_hand_mask)
 
     def _factorized_logits_from_embeddings(self, decoded_embeddings: Tensor) -> FactorizedTokenLogits:
         return FactorizedTokenLogits(

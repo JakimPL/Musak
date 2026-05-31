@@ -465,6 +465,9 @@ class PretrainingTrainer:
         logits = self._model(
             batch.input_token_ids,
             bar_positions=batch.bar_positions,
+            bar_relative_ticks=batch.bar_relative_ticks,
+            bar_duration_ticks=batch.bar_duration_ticks,
+            active_hand_ids=batch.active_hand_ids,
             difficulty_ids=batch.difficulty_ids if self._config.conditioning.use_difficulty else None,
             scale_type_ids=batch.conditioning_scale_type_ids if self._config.conditioning.use_scale_type else None,
             time_signature_ids=(
@@ -486,6 +489,9 @@ class PretrainingTrainer:
         factorized_logits = self._model.factorized_logits(
             batch.input_token_ids,
             bar_positions=batch.bar_positions,
+            bar_relative_ticks=batch.bar_relative_ticks,
+            bar_duration_ticks=batch.bar_duration_ticks,
+            active_hand_ids=batch.active_hand_ids,
             difficulty_ids=batch.difficulty_ids if self._config.conditioning.use_difficulty else None,
             scale_type_ids=batch.conditioning_scale_type_ids if self._config.conditioning.use_scale_type else None,
             time_signature_ids=(
@@ -669,6 +675,9 @@ def _move_batch_to_device(batch: TrainingBatch, *, device: torch.device) -> Trai
         target_token_ids=batch.target_token_ids.to(device),
         target_token_attributes=batch.target_token_attributes.to(device),
         bar_positions=batch.bar_positions.to(device),
+        bar_relative_ticks=batch.bar_relative_ticks.to(device),
+        bar_duration_ticks=batch.bar_duration_ticks.to(device),
+        active_hand_ids=batch.active_hand_ids.to(device),
         structural_control_ids=batch.structural_control_ids.to(device),
         scale_roots=batch.scale_roots.to(device),
         scale_type_ids=batch.scale_type_ids.to(device),

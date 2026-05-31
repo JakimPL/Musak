@@ -26,8 +26,9 @@ from musak_model.generation.constraints import (
     allowed_next_token_ids,
     mask_disallowed_logits,
 )
+from musak_model.generation.coordinates import decoder_input_coordinates_from_token_ids
 from musak_model.model import HierarchicalAutoregressiveModel
-from musak_model.model.config import ModelConfig
+from musak_model.model.config import ModelConfig, ModelOutputMode
 from musak_model.n_grams.config import FigureAnalysisConfig, RhythmAnalysisConfig
 from musak_model.n_grams.figure.counter import count_hand_figure_ngrams
 from musak_model.n_grams.figure.parser import extract_hand_onset_runs
@@ -51,7 +52,7 @@ from musak_model.n_grams.profile.rhythm.schema import (
 )
 from musak_model.paths import MODEL_CONFIG_DIRECTORY
 from musak_model.tokens.config import TokenizationConfig
-from musak_model.tokens.duration import DurationVocabulary
+from musak_model.tokens.duration import DurationVocabulary, duration_tick_denominator
 from musak_model.tokens.schema import (
     BarToken,
     EndToken,
@@ -75,6 +76,7 @@ _FIGURE_PATTERN_MIN_N: Final = 1
 _FIGURE_PATTERN_MAX_N: Final = 2
 _REFERENCE_METRIC_PREFIX: Final = "notebook/figure_reference"
 _RHYTHM_REFERENCE_METRIC_PREFIX: Final = "notebook/rhythm_reference"
+_UNCONSTRAINED_COORDINATE_BAR_COUNT: Final = 1024
 
 
 class AutoregressiveModel(Protocol):
@@ -85,6 +87,9 @@ class AutoregressiveModel(Protocol):
         token_ids: Tensor,
         *,
         bar_positions: Tensor,
+        bar_relative_ticks: Tensor,
+        bar_duration_ticks: Tensor,
+        active_hand_ids: Tensor,
         difficulty_ids: Tensor | None = None,
         scale_type_ids: Tensor | None = None,
         time_signature_ids: Tensor | None = None,
@@ -201,13 +206,16 @@ def load_trained_model(
     )
     duration_vocabulary = DurationVocabulary(tokenization_config)
     token_vocabulary = TokenVocabulary(duration_vocabulary)
+    state = cast(dict[str, object], torch.load(checkpoint_path, map_location=resolved_device))
+    model_state_dict = cast(dict[str, Tensor], state["model_state_dict"])
     model_config = ModelConfig.load(
         vocabulary_size=token_vocabulary.vocabulary_size,
+        duration_vocabulary_size=duration_vocabulary.vocabulary_size(),
+        output_mode=_checkpoint_output_mode(model_state_dict),
         config_directory=model_config_directory or MODEL_CONFIG_DIRECTORY,
     )
     model = HierarchicalAutoregressiveModel(model_config)
-    state = cast(dict[str, object], torch.load(checkpoint_path, map_location=resolved_device))
-    model.load_state_dict(cast(dict[str, Tensor], state["model_state_dict"]))
+    model.load_state_dict(model_state_dict)
     model.to(resolved_device)
     model.eval()
     return LoadedModel(
@@ -219,6 +227,16 @@ def load_trained_model(
         token_vocabulary=token_vocabulary,
         duration_vocabulary=duration_vocabulary,
     )
+
+
+def _checkpoint_output_mode(model_state_dict: dict[str, Tensor]) -> ModelOutputMode:
+    if "_lm_head.weight" in model_state_dict:
+        return ModelOutputMode.FLAT
+
+    if "_kind_head.weight" in model_state_dict:
+        return ModelOutputMode.FACTORIZED
+
+    raise ValueError("checkpoint does not contain a recognized output head")
 
 
 def empty_prompt(*, token_vocabulary: TokenVocabulary, duration_vocabulary: DurationVocabulary) -> PromptData:
@@ -305,9 +323,31 @@ def sample_autoregressive(
                 dtype=torch.long,
                 device=resolved_device,
             )
+            coordinates = decoder_input_coordinates_from_token_ids(
+                musical_token_ids,
+                constraints=_coordinate_constraints(options),
+                token_vocabulary=token_vocabulary,
+                duration_vocabulary=duration_vocabulary,
+                duration_tick_denominator=duration_tick_denominator(duration_vocabulary),
+            )
             logits = model(
                 input_tensor,
                 bar_positions=bar_positions,
+                bar_relative_ticks=torch.tensor(
+                    [coordinates.bar_relative_ticks],
+                    dtype=torch.long,
+                    device=resolved_device,
+                ),
+                bar_duration_ticks=torch.tensor(
+                    [coordinates.bar_duration_ticks],
+                    dtype=torch.long,
+                    device=resolved_device,
+                ),
+                active_hand_ids=torch.tensor(
+                    [coordinates.active_hand_ids],
+                    dtype=torch.long,
+                    device=resolved_device,
+                ),
                 scale_type_ids=_scale_type_tensor(options, model_config=model_config, device=resolved_device),
                 time_signature_ids=_time_signature_tensor(options, model_config=model_config, device=resolved_device),
                 structural_control_ids=_structural_control_tensor(
@@ -977,6 +1017,20 @@ def _model_bar_positions(tokens: list[Token]) -> list[int]:
 
 def _model_bar_positions_from_ids(token_ids: list[int], *, token_vocabulary: TokenVocabulary) -> list[int]:
     return _model_bar_positions(token_vocabulary.decode(token_ids))
+
+
+def _coordinate_constraints(options: SamplingOptions) -> GenerationConstraints:
+    if options.constraints is not None:
+        return options.constraints
+
+    if options.time_signature is None:
+        raise ValueError("time_signature is required for model coordinate features when constraints are disabled")
+
+    return GenerationConstraints(
+        time_numerator=options.time_signature[0],
+        time_denominator=options.time_signature[1],
+        bar_count=_UNCONSTRAINED_COORDINATE_BAR_COUNT,
+    )
 
 
 def _select_next_token_id(

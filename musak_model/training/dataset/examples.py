@@ -8,6 +8,9 @@ from torch.utils.data import Dataset
 from musak_model.conditioning.structural.features import extract_structural_control_features
 from musak_model.conditioning.structural.vocabulary import StructuralControlVocabulary
 from musak_model.conditioning.time_signature import TimeSignatureVocabulary
+from musak_model.generation.constraints import GenerationConstraints
+from musak_model.generation.coordinates import decoder_input_coordinates_from_token_ids
+from musak_model.tokens.duration import duration_tick_denominator
 from musak_model.tokens.vocabulary import TokenVocabulary
 from musak_model.training.conditioning import difficulty_level_to_id, scale_type_to_id, time_signature_to_id
 from musak_model.training.config import TrainingConditioningConfig
@@ -87,6 +90,18 @@ def _to_training_example(
 
     input_token_ids = _prepend_start_token(token_ids, token_vocabulary=token_vocabulary)
     input_bar_positions = _prepend_start_bar_position(bar_positions)
+    input_coordinates = decoder_input_coordinates_from_token_ids(
+        sample.token_ids[:-1],
+        constraints=GenerationConstraints(
+            time_numerator=sample.time_numerator,
+            time_denominator=sample.time_denominator,
+            bar_count=sample.metadata.bar_count,
+            bar_durations=sample.metadata.bar_durations,
+        ),
+        token_vocabulary=token_vocabulary,
+        duration_vocabulary=token_vocabulary.duration_vocabulary,
+        duration_tick_denominator=duration_tick_denominator(token_vocabulary.duration_vocabulary),
+    )
     structural_control_ids = _structural_control_ids(
         sample,
         include_structural_controls=include_structural_controls,
@@ -109,6 +124,9 @@ def _to_training_example(
         target_token_ids=token_ids,
         target_token_attributes=token_attribute_targets_from_token_ids(token_ids, vocabulary=token_vocabulary),
         bar_positions=input_bar_positions,
+        bar_relative_ticks=torch.tensor(input_coordinates.bar_relative_ticks, dtype=torch.long),
+        bar_duration_ticks=torch.tensor(input_coordinates.bar_duration_ticks, dtype=torch.long),
+        active_hand_ids=torch.tensor(input_coordinates.active_hand_ids, dtype=torch.long),
         structural_control_ids=structural_control_ids,
         scale_root=sample.scale_root,
         scale_type_id=scale_type_to_id(sample.scale_type),

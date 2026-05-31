@@ -67,6 +67,14 @@ def _uniform_bar_positions(batch: int, seq_len: int, num_bars: int) -> Tensor:
     return torch.arange(seq_len).div(tokens_per_bar, rounding_mode="floor").clamp(max=num_bars - 1).expand(batch, -1)
 
 
+def _coordinate_kwargs(token_ids: Tensor) -> dict[str, Tensor]:
+    return {
+        "bar_relative_ticks": torch.zeros_like(token_ids),
+        "bar_duration_ticks": torch.ones_like(token_ids),
+        "active_hand_ids": torch.zeros_like(token_ids),
+    }
+
+
 @dataclass(frozen=True)
 class ForwardShapeCase:
     label: str
@@ -128,7 +136,7 @@ class TestForwardOutputShape:
                 (case.batch,), config.conditioning.num_time_signatures - 1, dtype=torch.long
             )
 
-        logits = model(token_ids, bar_positions=bar_positions, **kwargs)
+        logits = model(token_ids, bar_positions=bar_positions, **_coordinate_kwargs(token_ids), **kwargs)
         assert logits.shape == (case.batch, case.seq_len, VOCAB)
 
     def test_factorized_output_mode_returns_flat_token_scores_and_factorized_heads(self) -> None:
@@ -141,8 +149,12 @@ class TestForwardOutputShape:
         token_ids = torch.randint(0, FACTORIZED_VOCAB, (2, 8))
         bar_positions = _uniform_bar_positions(2, 8, 2)
 
-        flat_scores = model(token_ids, bar_positions=bar_positions)
-        factorized_logits = model.factorized_logits(token_ids, bar_positions=bar_positions)
+        flat_scores = model(token_ids, bar_positions=bar_positions, **_coordinate_kwargs(token_ids))
+        factorized_logits = model.factorized_logits(
+            token_ids,
+            bar_positions=bar_positions,
+            **_coordinate_kwargs(token_ids),
+        )
 
         assert flat_scores.shape == (2, 8, FACTORIZED_VOCAB)
         assert factorized_logits.kind.shape == (2, 8, TOKEN_KIND_COUNT)
@@ -177,7 +189,7 @@ class TestForwardBarLayouts:
         model = HierarchicalAutoregressiveModel(config)
         token_ids = torch.randint(0, VOCAB, case.token_shape)
         bar_positions = torch.tensor(list(case.bar_positions_rows))
-        logits = model(token_ids, bar_positions=bar_positions)
+        logits = model(token_ids, bar_positions=bar_positions, **_coordinate_kwargs(token_ids))
         assert logits.shape == (*case.token_shape, VOCAB)
 
 
@@ -262,7 +274,7 @@ class TestForwardValidation:
         kwargs = self._build_forward_kwargs(case)
 
         with pytest.raises(ValueError, match=case.match):
-            model(token_ids, bar_positions=bar_positions, **kwargs)
+            model(token_ids, bar_positions=bar_positions, **_coordinate_kwargs(token_ids), **kwargs)
 
 
 class TestForwardBehaviour:
@@ -274,8 +286,8 @@ class TestForwardBehaviour:
         token_ids = torch.randint(0, VOCAB, (2, 16))
         bar_positions = _uniform_bar_positions(2, 16, 2)
         with torch.no_grad():
-            out1 = model(token_ids, bar_positions=bar_positions)
-            out2 = model(token_ids, bar_positions=bar_positions)
+            out1 = model(token_ids, bar_positions=bar_positions, **_coordinate_kwargs(token_ids))
+            out2 = model(token_ids, bar_positions=bar_positions, **_coordinate_kwargs(token_ids))
 
         assert torch.equal(out1, out2)
 
@@ -294,6 +306,7 @@ class TestForwardBehaviour:
         logits = model(
             token_ids,
             bar_positions=bar_positions,
+            **_coordinate_kwargs(token_ids),
             difficulty_ids=torch.zeros(2, dtype=torch.long),
             scale_type_ids=torch.zeros(2, dtype=torch.long),
             time_signature_ids=torch.zeros(2, dtype=torch.long),
@@ -317,8 +330,12 @@ class TestForwardBehaviour:
         bar_positions = _uniform_bar_positions(2, 16, 2)
 
         with torch.no_grad():
-            original_logits = model(token_ids, bar_positions=bar_positions)
-            changed_logits = model(changed_token_ids, bar_positions=bar_positions)
+            original_logits = model(token_ids, bar_positions=bar_positions, **_coordinate_kwargs(token_ids))
+            changed_logits = model(
+                changed_token_ids,
+                bar_positions=bar_positions,
+                **_coordinate_kwargs(changed_token_ids),
+            )
 
         assert torch.allclose(original_logits[:, :13], changed_logits[:, :13], atol=1e-6)
 
@@ -405,6 +422,7 @@ class TestEncoderBypass:
         logits = model(
             token_ids,
             bar_positions=bar_positions,
+            **_coordinate_kwargs(token_ids),
             difficulty_ids=torch.zeros(2, dtype=torch.long),
             scale_type_ids=torch.zeros(2, dtype=torch.long),
             time_signature_ids=torch.zeros(2, dtype=torch.long),

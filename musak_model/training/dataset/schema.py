@@ -12,6 +12,9 @@ class TrainingExample:
     target_token_ids: Tensor
     target_token_attributes: TokenAttributeTargetTensors
     bar_positions: Tensor
+    bar_relative_ticks: Tensor
+    bar_duration_ticks: Tensor
+    active_hand_ids: Tensor
     structural_control_ids: Tensor
     scale_root: int
     scale_type_id: int
@@ -30,6 +33,9 @@ class TrainingBatch:
     target_token_ids: Tensor
     target_token_attributes: TokenAttributeTargetTensors
     bar_positions: Tensor
+    bar_relative_ticks: Tensor
+    bar_duration_ticks: Tensor
+    active_hand_ids: Tensor
     structural_control_ids: Tensor
     scale_roots: Tensor
     scale_type_ids: Tensor

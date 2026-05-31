@@ -8,6 +8,9 @@ from musak_model.training.dataset.schema import TrainingBatch, TrainingExample
 
 _PADDING_TOKEN_ID: Final[int] = 0
 _PADDING_BAR_POSITION: Final[int] = -1
+_PADDING_BAR_RELATIVE_TICKS: Final[int] = -1
+_PADDING_BAR_DURATION_TICKS: Final[int] = 1
+_PADDING_ACTIVE_HAND_ID: Final[int] = -1
 
 
 def collate_training_examples(examples: list[TrainingExample]) -> TrainingBatch:
@@ -18,6 +21,9 @@ def collate_training_examples(examples: list[TrainingExample]) -> TrainingBatch:
     input_token_ids = torch.full((len(examples), max_length), _PADDING_TOKEN_ID, dtype=torch.long)
     target_token_ids = torch.full((len(examples), max_length), _PADDING_TOKEN_ID, dtype=torch.long)
     bar_positions = torch.full((len(examples), max_length), _PADDING_BAR_POSITION, dtype=torch.long)
+    bar_relative_ticks = torch.full((len(examples), max_length), _PADDING_BAR_RELATIVE_TICKS, dtype=torch.long)
+    bar_duration_ticks = torch.full((len(examples), max_length), _PADDING_BAR_DURATION_TICKS, dtype=torch.long)
+    active_hand_ids = torch.full((len(examples), max_length), _PADDING_ACTIVE_HAND_ID, dtype=torch.long)
     token_padding_mask = torch.ones((len(examples), max_length), dtype=torch.bool)
     structural_control_count = examples[0].structural_control_ids.size(0)
     structural_control_ids = torch.zeros((len(examples), structural_control_count), dtype=torch.long)
@@ -33,6 +39,9 @@ def collate_training_examples(examples: list[TrainingExample]) -> TrainingBatch:
         input_token_ids[row_index, :length] = example.input_token_ids
         target_token_ids[row_index, :length] = example.target_token_ids
         bar_positions[row_index, :length] = example.bar_positions
+        bar_relative_ticks[row_index, :length] = example.bar_relative_ticks
+        bar_duration_ticks[row_index, :length] = example.bar_duration_ticks
+        active_hand_ids[row_index, :length] = example.active_hand_ids
         token_padding_mask[row_index, :length] = False
         if example.structural_control_ids.size(0) != structural_control_count:
             raise ValueError("all examples must have the same number of structural controls")
@@ -57,6 +66,9 @@ def collate_training_examples(examples: list[TrainingExample]) -> TrainingBatch:
             max_length=max_length,
         ),
         bar_positions=bar_positions,
+        bar_relative_ticks=bar_relative_ticks,
+        bar_duration_ticks=bar_duration_ticks,
+        active_hand_ids=active_hand_ids,
         structural_control_ids=structural_control_ids,
         scale_roots=scale_roots,
         scale_type_ids=scale_type_ids,
