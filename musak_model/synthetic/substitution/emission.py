@@ -14,6 +14,7 @@ from musak_model.tokens.schema import (
     Token,
     scale_size_for_type,
 )
+from musak_shared.misc import congruent_at_or_above, congruent_at_or_below
 
 
 def anchor_figure_to_tokens(
@@ -55,19 +56,17 @@ def chord_window_tokens(
     duration_id: int,
     scale_type: ScaleType,
 ) -> list[Token]:
-    # Voice the chord in close position from the register anchor: the root sits at the highest diatonic
-    # position at or below the anchor, and each further tone is stacked at the next higher position of its
-    # degree. All notes share one attack (NoteToken + JoinWithPreviousToken), held for duration_id.
     scale_size = scale_size_for_type(scale_type)
     tokens: list[Token] = []
     previous_position: int | None = None
     for note_index, tone in enumerate(tones):
         degree_index = tone.degree - 1
         if previous_position is None:
-            position = anchor - ((anchor - degree_index) % scale_size)
+            position = congruent_at_or_below(anchor, degree_index, scale_size)
         else:
-            position = previous_position + 1 + ((degree_index - (previous_position + 1)) % scale_size)
-        octave_offset = (position - degree_index) // scale_size
+            position = congruent_at_or_above(previous_position + 1, degree_index, scale_size)
+
+        _, octave_offset = diatonic_position_to_degree_and_octave(position, scale_size=scale_size)
         tokens.append(
             NoteToken(
                 degree=tone.degree,

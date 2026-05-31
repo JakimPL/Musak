@@ -22,6 +22,20 @@ def is_power_of_two(value: int) -> bool:
     return value > 0 and (value & (value - 1)) == 0
 
 
+def congruent_at_or_below(value: int, residue: int, modulus: int) -> int:
+    if modulus <= 0:
+        raise ValueError("modulus must be positive")
+
+    return value - ((value - residue) % modulus)
+
+
+def congruent_at_or_above(value: int, residue: int, modulus: int) -> int:
+    if modulus <= 0:
+        raise ValueError("modulus must be positive")
+
+    return value + ((residue - value) % modulus)
+
+
 def prime_factors(value: int) -> tuple[int, ...]:
     if value < 1:
         raise ValueError("value must be positive")

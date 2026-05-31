@@ -10,19 +10,19 @@ from musak_model.n_grams.figure.schema import FigureNGram
 from musak_model.synthetic.figures import FigureVocabulary, FigureVocabularyEntry, FigureVocabularyGroup
 from musak_model.synthetic.processes.pitch import RegisterCurveConfig, RegisterCurveSampler
 from musak_model.synthetic.render.config import RenderConfig
-from musak_model.synthetic.render.renderer import SurfaceRenderer
-from musak_model.synthetic.structure.harmony_grammar import (
-    ClosingPattern,
-    HarmonyGrammarConfig,
-    HarmonyGrammarSampler,
-)
+from musak_model.synthetic.render.renderer import SurfaceRenderer, phrase_harmony
+from musak_model.synthetic.structure.form import ClosingChoice, FormPrior, FormSampler, FormTree, WeightedSpan
+from musak_model.synthetic.structure.harmony_grammar import HarmonyGrammarConfig, HarmonyGrammarSampler
 from musak_model.synthetic.structure.meter import MetricalGrammarConfig, MetricalTreeSampler
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import Hand, HoldToken, NoteToken, ScaleType
-from musak_shared.elements import HarmonicFunction
+from musak_shared.elements import HarmonicFunction, degrees_for_function
 
-_AUTHENTIC = ClosingPattern((HarmonicFunction.DOMINANT, HarmonicFunction.TONIC))
+_HALF = (HarmonicFunction.PREDOMINANT, HarmonicFunction.DOMINANT)
+_AUTHENTIC = (HarmonicFunction.DOMINANT, HarmonicFunction.TONIC)
 _SOURCE_FILE = Path("synthetic.mxl")
+_TONIC_DEGREES = degrees_for_function(HarmonicFunction.TONIC, scale_size=7)
+_DOMINANT_DEGREES = degrees_for_function(HarmonicFunction.DOMINANT, scale_size=7)
 
 
 def _ngram(*steps: int) -> FigureNGram:
@@ -38,6 +38,23 @@ def _figure_vocabulary() -> FigureVocabulary:
     return FigureVocabulary(entries=tuple(entries))
 
 
+def _period_prior() -> FormPrior:
+    return FormPrior(
+        phrase_lengths=(WeightedSpan(bars=4, weight=1.0),),
+        segment_lengths=(WeightedSpan(bars=2, weight=1.0),),
+        closings=(
+            ClosingChoice(is_final=False, functions=_HALF, weight=1.0),
+            ClosingChoice(is_final=True, functions=_AUTHENTIC, weight=1.0),
+        ),
+        repeat_probability=0.0,
+        variation_probability=0.0,
+    )
+
+
+def _harmony_sampler() -> HarmonyGrammarSampler:
+    return HarmonyGrammarSampler(config=HarmonyGrammarConfig.load(), vocabulary=ChordVocabularyConfig.load())
+
+
 def _renderer(
     duration_vocabulary: DurationVocabulary,
     *,
@@ -49,14 +66,16 @@ def _renderer(
     return SurfaceRenderer(
         config=RenderConfig.load(),
         metrical_sampler=MetricalTreeSampler(config=metrical_config),
-        harmony_sampler=HarmonyGrammarSampler(
-            config=HarmonyGrammarConfig.load(), vocabulary=ChordVocabularyConfig.load()
-        ),
+        harmony_sampler=_harmony_sampler(),
         register_curve_sampler=RegisterCurveSampler(config=RegisterCurveConfig.load()),
         figure_vocabulary=_figure_vocabulary(),
         duration_vocabulary=duration_vocabulary,
         chord_vocabulary=ChordVocabularyConfig.load(),
     )
+
+
+def _form(bar_count: int, seed: int) -> FormTree:
+    return FormSampler(_period_prior()).sample(bar_count=bar_count, rng=default_rng(seed))
 
 
 def _constraints(bar_count: int) -> GenerationConstraints:
@@ -65,12 +84,11 @@ def _constraints(bar_count: int) -> GenerationConstraints:
 
 def _render(renderer: SurfaceRenderer, *, bar_count: int, seed: int) -> Segment:
     return renderer.render(
-        bar_count=bar_count,
         time_numerator=4,
         time_denominator=4,
         scale_root=0,
         scale_type=ScaleType.MAJOR,
-        closing=_AUTHENTIC,
+        form=_form(bar_count, seed),
         harmonic_slot_duration=Fraction(1),
         constraints=_constraints(bar_count),
         source_file=_SOURCE_FILE,
@@ -95,8 +113,8 @@ def test_render_produces_a_constraint_valid_segment(duration_vocabulary: Duratio
 def test_render_is_deterministic_for_a_seed(duration_vocabulary: DurationVocabulary) -> None:
     renderer = _renderer(duration_vocabulary)
 
-    first = _render(renderer, bar_count=4, seed=7)
-    second = _render(renderer, bar_count=4, seed=7)
+    first = _render(renderer, bar_count=8, seed=7)
+    second = _render(renderer, bar_count=8, seed=7)
 
     assert first.tokens == second.tokens
 
@@ -126,3 +144,25 @@ def test_tie_slots_become_held_notes(duration_vocabulary: DurationVocabulary) ->
 
     assert any(isinstance(token, HoldToken) for token in segment.tokens)
     _revalidate(segment, duration_vocabulary, bar_count=4)
+
+
+def test_phrase_harmony_reproduces_the_period() -> None:
+    tree = MetricalTreeSampler(
+        config=MetricalGrammarConfig.load().model_copy(
+            update={"subdivision_probability": 1.0, "subdivision_decay": 1.0}
+        )
+    ).sample(time_numerator=4, time_denominator=4, bar_count=8, rng=default_rng(0))
+    frontier = tree.harmonic_frontier(Fraction(1))
+
+    chords = phrase_harmony(
+        frontier,
+        _form(8, 0),
+        harmony_sampler=_harmony_sampler(),
+        scale_type=ScaleType.MAJOR,
+        bar_duration=Fraction(1),
+        rng=default_rng(0),
+    )
+
+    assert len(chords) == 8
+    assert chords[3].root_degree in _DOMINANT_DEGREES  # antecedent half cadence
+    assert chords[7].root_degree in _TONIC_DEGREES  # consequent authentic cadence

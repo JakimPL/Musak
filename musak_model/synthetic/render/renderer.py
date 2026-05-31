@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from dataclasses import dataclass
 from fractions import Fraction
 from pathlib import Path
@@ -11,19 +12,46 @@ from musak_model.generation.constraints import (
     GenerationConstraintState,
 )
 from musak_model.harmony.expansion import chord_pitch_class_set
+from musak_model.harmony.schema import Chord
 from musak_model.harmony.vocabulary import ChordVocabularyConfig
 from musak_model.synthetic.figures import FigureVocabulary, FigureVocabularyEntry
 from musak_model.synthetic.processes.pitch import RegisterCurveSampler
 from musak_model.synthetic.render.config import RenderConfig
 from musak_model.synthetic.render.figure_selection import figure_fits_slot, select_figure, slot_base_duration
 from musak_model.synthetic.render.slots import RenderSlot, render_slots
-from musak_model.synthetic.structure.harmony_grammar import ClosingPattern, HarmonyGrammarSampler
-from musak_model.synthetic.structure.meter import MetricalLeafType, MetricalTreeSampler
+from musak_model.synthetic.structure.form import FormTree
+from musak_model.synthetic.structure.harmony_grammar import HarmonyGrammarSampler
+from musak_model.synthetic.structure.meter import MetricalLeafType, MetricalNode, MetricalTreeSampler
 from musak_model.synthetic.substitution.emission import anchor_figure_to_tokens, hold_tokens, rest_tokens
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import BarToken, EndToken, Hand, HandToken, ScaleType, Token
 
 _HANDS: tuple[Hand, ...] = (Hand.RIGHT, Hand.LEFT)
+
+
+def phrase_harmony(
+    frontier: Sequence[MetricalNode],
+    form: FormTree,
+    *,
+    harmony_sampler: HarmonyGrammarSampler,
+    scale_type: ScaleType,
+    bar_duration: Fraction,
+    rng: Generator,
+) -> tuple[Chord, ...]:
+    chords: list[Chord] = []
+    for phrase in form.phrases:
+        phrase_start = phrase.start_bar * bar_duration
+        phrase_end = (phrase.start_bar + phrase.bar_span) * bar_duration
+        slot_count = sum(1 for node in frontier if phrase_start <= node.offset < phrase_end)
+        harmony = harmony_sampler.sample(
+            slot_count=slot_count,
+            scale_type=scale_type,
+            closing=phrase.closing,
+            rng=rng,
+        )
+        chords.extend(harmony.chords())
+
+    return tuple(chords)
 
 
 @dataclass(frozen=True)
@@ -39,28 +67,32 @@ class SurfaceRenderer:
     def render(
         self,
         *,
-        bar_count: int,
         time_numerator: int,
         time_denominator: int,
         scale_root: int,
         scale_type: ScaleType,
-        closing: ClosingPattern,
+        form: FormTree,
         harmonic_slot_duration: Fraction,
         constraints: GenerationConstraints,
         source_file: Path,
         rng: Generator,
     ) -> Segment:
-        if bar_count <= 0:
-            raise ValueError("bar_count must be positive")
-
+        bar_count = form.bar_count
+        bar_duration = Fraction(time_numerator, time_denominator)
         tree = self.metrical_sampler.sample(
             time_numerator=time_numerator, time_denominator=time_denominator, bar_count=bar_count, rng=rng
         )
         frontier = tree.harmonic_frontier(harmonic_slot_duration)
-        harmony = self.harmony_sampler.sample(slot_count=len(frontier), scale_type=scale_type, closing=closing, rng=rng)
-        slots = render_slots(tree, harmony.chords(), slot_duration=harmonic_slot_duration)
+        chords = phrase_harmony(
+            frontier,
+            form,
+            harmony_sampler=self.harmony_sampler,
+            scale_type=scale_type,
+            bar_duration=bar_duration,
+            rng=rng,
+        )
+        slots = render_slots(tree, chords, slot_duration=harmonic_slot_duration)
 
-        bar_duration = Fraction(time_numerator, time_denominator)
         shortest_note_duration = min(self.duration_vocabulary.all_fractions())
         chord_pitch_classes = tuple(
             chord_pitch_class_set(slot.chord, scale_type=scale_type, vocabulary=self.chord_vocabulary) for slot in slots
