@@ -10,7 +10,7 @@ from numpy.random import Generator
 
 from musak_model.n_grams.profile.artifacts import FIGURE_ALL_DIR_NAME, FIGURE_BASE_DURATIONS_NAME
 from musak_model.n_grams.profile.io import read_base_duration_counts
-from musak_model.paths import DEFAULT_TRAINING_FIGURE_DIR
+from musak_model.paths import DEFAULT_TRAINING_FIGURE_DIRECTORY
 from musak_model.tokens.schema import Hand, ScaleType
 
 type BaseDurationGroup = tuple[ScaleType, Hand, int]
@@ -71,7 +71,7 @@ def load_base_duration_split_distribution(
     *,
     split_key: str,
     split_name: str,
-    artifact_root: Path = DEFAULT_TRAINING_FIGURE_DIR,
+    artifact_root: Path = DEFAULT_TRAINING_FIGURE_DIRECTORY,
 ) -> BaseDurationDistribution:
     return load_base_duration_distribution(artifact_root / split_key / split_name)
 

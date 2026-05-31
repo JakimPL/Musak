@@ -12,10 +12,10 @@ from sqlalchemy.dialects.sqlite import insert
 from sqlalchemy.engine import Engine
 from sqlalchemy.sql import Executable
 
-from musak_model.paths import ARTIFACTS_DIR
+from musak_model.paths import ARTIFACTS_DIRECTORY
 from musak_model.processing.manifest import EncodedManifestField
 
-DEFAULT_DATASET_QUALITY_DATABASE_PATH: Final[Path] = ARTIFACTS_DIR / "quality" / "dataset_quality.sqlite3"
+DEFAULT_DATASET_QUALITY_DATABASE_PATH: Final[Path] = ARTIFACTS_DIRECTORY / "quality" / "dataset_quality.sqlite3"
 SQLITE_TRUE: Final[int] = 1
 SQLITE_FALSE: Final[int] = 0
 _DATASET_NAME_COLUMN: Final[str] = "dataset_name"

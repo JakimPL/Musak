@@ -12,11 +12,11 @@ from musak_model.processing.io import load_parsed_score_json
 from musak_model.processing.manifest import encoded_row
 from musak_model.processing.parser import ParsedScoreArtifact
 from musak_model.processing.paths import ProcessedDatasetPaths
-from musak_model.processing.profiler import ProcessingProfilerProtocol
 from musak_model.processing.tokenizer.output import EncodedManifestAppender, append_jsonl_model
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.vocabulary import TokenVocabulary
 from musak_model.training.ingestion.split import _encode_segment
+from musak_shared.profiling import ProfilerProtocol
 
 if TYPE_CHECKING:
     from musak_model.training.ingestion.schema import EncodedExercise
@@ -45,7 +45,7 @@ def tokenize_source(
     token_vocabulary: TokenVocabulary,
     difficulty_labels: dict[str, int | None] | None,
     encoded_line_count: int,
-    profiler: ProcessingProfilerProtocol,
+    profiler: ProfilerProtocol,
 ) -> tuple[int, int, int]:
     source_metadata_path = Path(artifact.source_path.resolve().relative_to(dataset_root.resolve()).as_posix())
     segments = _segment_artifact(
@@ -83,7 +83,7 @@ def _segment_artifact(
     segmentation_config: SegmentationConfig,
     tokenization_processing_config: TokenizationProcessingConfig,
     difficulty_labels: dict[str, int | None] | None,
-    profiler: ProcessingProfilerProtocol,
+    profiler: ProfilerProtocol,
 ) -> Iterator[Segment]:
     score = load_parsed_score_json(artifact.parsed_path)
     return iter_segment_parsed_score(
@@ -112,7 +112,7 @@ def _write_source_outputs(
     duration_vocabulary: DurationVocabulary,
     token_vocabulary: TokenVocabulary,
     encoded_line_count: int,
-    profiler: ProcessingProfilerProtocol,
+    profiler: ProfilerProtocol,
 ) -> tuple[int, int, int]:
     source_encoded_count = 0
     source_manifest_count = 0
@@ -161,7 +161,7 @@ def _process_segment(
     token_vocabulary: TokenVocabulary,
     tokenization_processing_config: TokenizationProcessingConfig,
     encoded_line_count: int,
-    profiler: ProcessingProfilerProtocol,
+    profiler: ProfilerProtocol,
 ) -> ProcessedSegment:
     with profiler.measure("diagnose_segment", source_file=source_metadata_path):
         diagnostics = diagnose_segment(segment, duration_vocabulary=duration_vocabulary)
@@ -207,7 +207,7 @@ def _manifest_row(
     encoded_sample: "EncodedExercise | None",
     encoded_line: int | None,
     segmentation_config: SegmentationConfig,
-    profiler: ProcessingProfilerProtocol,
+    profiler: ProfilerProtocol,
     source_metadata_path: Path,
 ) -> dict[str, object]:
     with profiler.measure("encoded_manifest_row", source_file=source_metadata_path):

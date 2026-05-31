@@ -7,7 +7,7 @@ import torch
 
 from musak_model.model import HierarchicalAutoregressiveModel
 from musak_model.model.config import ModelConfig
-from musak_model.paths import CONDITIONING_CONFIG_PATH, MODEL_CONFIG_DIR, TOKENIZATION_CONFIG_PATH
+from musak_model.paths import CONDITIONING_CONFIG_PATH, MODEL_CONFIG_DIRECTORY, TOKENIZATION_CONFIG_PATH
 from musak_model.tokens.config import TokenizationConfig
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.vocabulary import TokenVocabulary
@@ -68,7 +68,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--model-config-dir",
         type=Path,
-        default=MODEL_CONFIG_DIR,
+        default=MODEL_CONFIG_DIRECTORY,
         help="Directory containing cnn.yml, gru.yml, and transformer.yml for the target model.",
     )
     parser.add_argument(

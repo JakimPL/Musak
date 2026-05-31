@@ -1,8 +1,9 @@
-from collections.abc import Mapping, Sequence
+from collections.abc import Sequence
 from fractions import Fraction
 from math import gcd
 
 from musak_model.n_grams.figure.schema import FigureNGram
+from musak_model.synthetic.substitution.chord_figure import FigureByChordTable
 from musak_model.tokens.pitch import degree_pitch_class, diatonic_position_to_degree_and_octave
 from musak_model.tokens.schema import ScaleType, scale_size_for_type
 
@@ -14,13 +15,14 @@ def is_monorhythmic(figure: FigureNGram) -> bool:
 def chord_figure_log_probabilities(
     *,
     figures: Sequence[FigureNGram],
-    table: Mapping[FigureNGram, float] | None,
+    table: FigureByChordTable | None,
 ) -> list[float]:
-    if not table:
+    if table is None:
+        # An unobserved figure backs off to the least-likely observed one (the precomputed floor); an absent
+        # table is neutral (every entry scores 0, so the term cancels under the softmax).
         return [0.0] * len(figures)
 
-    floor = min(table.values())
-    return [table.get(figure, floor) for figure in figures]
+    return [table.log_probabilities.get(figure, table.floor) for figure in figures]
 
 
 def figure_net_contour(figure: FigureNGram) -> int:

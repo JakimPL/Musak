@@ -13,8 +13,8 @@ from musak_model.processing.parser.manifest import (
 from musak_model.processing.parser.schema import ParseDatasetResult, ParsedScoreResult, ParsedScoreTask
 from musak_model.processing.parser.worker import run_parsed_score_tasks
 from musak_model.processing.paths import ProcessedDatasetPaths
-from musak_model.processing.profiler import NULL_PROCESSING_PROFILER, ProcessingProfilerProtocol
 from musak_shared.files import collect_musicxml_files
+from musak_shared.profiling import NULL_PROFILER, ProfilerProtocol
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -39,7 +39,7 @@ def parse_dataset(
     overwrite: bool,
     workers: int,
     show_progress: bool,
-    profiler: ProcessingProfilerProtocol = NULL_PROCESSING_PROFILER,
+    profiler: ProfilerProtocol = NULL_PROFILER,
 ) -> ParseDatasetResult:
     if workers < 1:
         raise ValueError("workers must be >= 1")
@@ -65,7 +65,7 @@ def _parse_scores(
     overwrite: bool,
     workers: int,
     show_progress: bool,
-    profiler: ProcessingProfilerProtocol,
+    profiler: ProfilerProtocol,
 ) -> list[dict[str, object]]:
     return _process_parsed_scores(
         dataset_root,
@@ -84,7 +84,7 @@ def _process_parsed_scores(
     overwrite: bool,
     workers: int,
     show_progress: bool,
-    profiler: ProcessingProfilerProtocol,
+    profiler: ProfilerProtocol,
 ) -> list[dict[str, object]]:
     _LOGGER.info("Collecting MusicXML files from %s", dataset_root)
     started_at = perf_counter()
@@ -226,7 +226,7 @@ def _run_tasks_with_partial_manifest(
     paths: ProcessedDatasetPaths,
     workers: int,
     show_progress: bool,
-    profiler: ProcessingProfilerProtocol,
+    profiler: ProfilerProtocol,
 ) -> None:
     completed = False
     try:
@@ -247,7 +247,7 @@ def _write_partial_manifest(
     results: list[ParsedScoreResult | None],
     *,
     paths: ProcessedDatasetPaths,
-    profiler: ProcessingProfilerProtocol,
+    profiler: ProfilerProtocol,
 ) -> None:
     partial_rows = [result.row for result in results if result is not None]
     if not partial_rows:
@@ -263,7 +263,7 @@ def _write_manifest(
     rows: list[dict[str, object]],
     *,
     paths: ProcessedDatasetPaths,
-    profiler: ProcessingProfilerProtocol,
+    profiler: ProfilerProtocol,
 ) -> None:
     _LOGGER.info("Writing parsed manifest to %s", paths.parsed_manifest_path)
     with profiler.measure("write_parsed_manifest"):

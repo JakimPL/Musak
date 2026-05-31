@@ -10,7 +10,7 @@ def _():
     import marimo as mo
     import pandas as pd
 
-    from musak_model.paths import DEFAULT_PROCESSING_PROFILE_OUTPUT_DIR, DEFAULT_PROFILE_OUTPUT_DIR
+    from musak_model.paths import DEFAULT_PROCESSING_PROFILE_OUTPUT_DIRECTORY, DEFAULT_PROFILE_OUTPUT_DIRECTORY
     from notebooks.utils.profiling import (
         chart_frame,
         existing_directory,
@@ -26,8 +26,8 @@ def _():
     )
 
     return (
-        DEFAULT_PROCESSING_PROFILE_OUTPUT_DIR,
-        DEFAULT_PROFILE_OUTPUT_DIR,
+        DEFAULT_PROCESSING_PROFILE_OUTPUT_DIRECTORY,
+        DEFAULT_PROFILE_OUTPUT_DIRECTORY,
         alt,
         chart_frame,
         existing_directory,

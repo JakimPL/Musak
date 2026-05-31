@@ -12,7 +12,7 @@ def _():
     import marimo as mo
 
     from musak_model.decoder.notation import segment_to_score_data
-    from musak_model.paths import DEFAULT_DATA_DIR, DEFAULT_PROCESSED_ROOT
+    from musak_model.paths import DEFAULT_DATA_DIRECTORY, DEFAULT_PROCESSED_ROOT
     from musak_model.processing.io import load_parsed_score_json
     from musak_model.tokens.vocabulary import build_default_token_vocabulary
     from musak_shared.elements import MUSICXML_EXTENSIONS
@@ -37,7 +37,7 @@ def _():
     )
 
     return (
-        DEFAULT_DATA_DIR,
+        DEFAULT_DATA_DIRECTORY,
         DEFAULT_PROCESSED_ROOT,
         MUSICXML_EXTENSIONS,
         Path,

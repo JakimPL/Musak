@@ -15,7 +15,7 @@ def _():
     import marimo as mo
 
     from musak_model.n_grams.profile.io import COUNT_COLUMN, HAND_COLUMN, N_COLUMN, SCALE_TYPE_COLUMN
-    from musak_model.paths import DEFAULT_ANALYSIS_DIR, DEFAULT_TRAINING_FIGURE_DIR
+    from musak_model.paths import DEFAULT_ANALYSIS_DIRECTORY, DEFAULT_TRAINING_FIGURE_DIRECTORY
     from musak_shared.notation.html import score_data_html
     from notebooks.utils import (
         FIGURE_LABEL_COLUMN,
@@ -40,8 +40,8 @@ def _():
     n_all_option: Final[str] = "all"
     return (
         COUNT_COLUMN,
-        DEFAULT_ANALYSIS_DIR,
-        DEFAULT_TRAINING_FIGURE_DIR,
+        DEFAULT_ANALYSIS_DIRECTORY,
+        DEFAULT_TRAINING_FIGURE_DIRECTORY,
         FIGURE_LABEL_COLUMN,
         FIGURE_PERCENT_COLUMN,
         FIGURE_PROPERTY_COLUMN,

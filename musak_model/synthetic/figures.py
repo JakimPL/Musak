@@ -7,7 +7,7 @@ from musak_model.n_grams.figure.samples.schema import FigureNGramCountsByScale
 from musak_model.n_grams.figure.schema import FigureNGram
 from musak_model.n_grams.profile.artifacts import FIGURE_ALL_DIR_NAME, FIGURE_COUNTS_NAME
 from musak_model.n_grams.profile.io import AnchoredFigureCountsByGroup, read_anchor_figure_counts, read_figure_counts
-from musak_model.paths import DEFAULT_TRAINING_FIGURE_DIR
+from musak_model.paths import DEFAULT_TRAINING_FIGURE_DIRECTORY
 from musak_model.tokens.schema import Hand, ScaleType
 
 
@@ -146,7 +146,7 @@ def load_figure_split_vocabulary(
     *,
     split_key: str,
     split_name: str,
-    artifact_root: Path = DEFAULT_TRAINING_FIGURE_DIR,
+    artifact_root: Path = DEFAULT_TRAINING_FIGURE_DIRECTORY,
 ) -> FigureVocabulary:
     return load_figure_vocabulary(artifact_root / split_key / split_name)
 

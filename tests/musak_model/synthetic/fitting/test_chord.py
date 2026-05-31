@@ -1,22 +1,14 @@
 from collections import Counter
-from fractions import Fraction
-from math import log
 
 import pytest
 
 from musak_model.harmony.decoding.candidates import spellable_candidates
 from musak_model.harmony.schema import Chord, ChordQuality
 from musak_model.harmony.vocabulary import ChordVocabularyConfig
-from musak_model.n_grams.figure.schema import FigureNGram
-from musak_model.n_grams.profile.chord.schema import (
-    INITIAL_CHORD_SOURCE,
-    ChordTransitionKey,
-    FigureByChordCountKey,
-    chord_to_key,
-)
-from musak_model.synthetic.fitting.chord import fit_chord_transition_model, fit_figure_by_chord
+from musak_model.n_grams.profile.chord.schema import INITIAL_CHORD_SOURCE, ChordTransitionKey, chord_to_key
+from musak_model.synthetic.fitting.chord import fit_chord_transition_model
 from musak_model.synthetic.processes.chord_track import functional_transition_model
-from musak_model.tokens.schema import Hand, ScaleType
+from musak_model.tokens.schema import ScaleType
 
 _TONIC = Chord(root_degree=1, root_accidental=0, quality=ChordQuality.MAJOR)
 _DOMINANT = Chord(root_degree=5, root_accidental=0, quality=ChordQuality.MAJOR)
@@ -66,21 +58,3 @@ def test_fit_transition_model_ignores_other_scale_types() -> None:
     fitted_with_minor = fit_chord_transition_model(with_minor, scale_type=ScaleType.MAJOR, prior=prior, prior_count=1.0)
 
     assert fitted_with_minor.transitions[_TONIC] == pytest.approx(fitted_major_only.transitions[_TONIC])
-
-
-def test_fit_figure_by_chord_normalizes_per_group() -> None:
-    figure_a = FigureNGram(onsets=((((0, 0),), Fraction(1)), (((1, 0),), Fraction(1))))
-    figure_b = FigureNGram(onsets=((((0, 0),), Fraction(1)), (((2, 0),), Fraction(1))))
-    counts = Counter(
-        {
-            FigureByChordCountKey("major", "right", 2, chord_to_key(_TONIC), figure_a.model_dump_json()): 3,
-            FigureByChordCountKey("major", "right", 2, chord_to_key(_TONIC), figure_b.model_dump_json()): 1,
-        }
-    )
-
-    model = fit_figure_by_chord(counts)
-    table = model.table(scale_type=ScaleType.MAJOR, hand=Hand.RIGHT, figure_length=2, chord=_TONIC)
-
-    assert table is not None
-    assert table[figure_a] == pytest.approx(log(0.75))
-    assert table[figure_b] == pytest.approx(log(0.25))

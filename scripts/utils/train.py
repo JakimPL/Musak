@@ -13,9 +13,9 @@ from musak_model.data.config import SegmentationMode, load_difficulty_labels, lo
 from musak_model.mlflow import sqlite_tracking_uri
 from musak_model.paths import (
     CONDITIONING_CONFIG_PATH,
-    DEFAULT_FINETUNING_CHECKPOINT_DIR,
+    DEFAULT_FINETUNING_CHECKPOINT_DIRECTORY,
     DEFAULT_MLFLOW_DB_PATH,
-    DEFAULT_PRETRAINING_CHECKPOINT_DIR,
+    DEFAULT_PRETRAINING_CHECKPOINT_DIRECTORY,
     FINETUNING_CONFIG_PATH,
     INGESTION_CONFIG_PATH,
     PRETRAINING_CONFIG_PATH,
@@ -391,7 +391,7 @@ def build_pretraining_training_config(args: argparse.Namespace) -> TrainingConfi
         update=common_training_section_updates(
             args,
             config=config,
-            default_checkpoint_directory=DEFAULT_PRETRAINING_CHECKPOINT_DIR,
+            default_checkpoint_directory=DEFAULT_PRETRAINING_CHECKPOINT_DIRECTORY,
         )
     )
 
@@ -401,7 +401,7 @@ def build_finetuning_training_config(args: argparse.Namespace) -> FinetuningTrai
     updates = common_training_section_updates(
         args,
         config=config,
-        default_checkpoint_directory=DEFAULT_FINETUNING_CHECKPOINT_DIR,
+        default_checkpoint_directory=DEFAULT_FINETUNING_CHECKPOINT_DIRECTORY,
     )
     checkpoint_config = updates["checkpoints"]
     if not isinstance(checkpoint_config, CheckpointConfig):

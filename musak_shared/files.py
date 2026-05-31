@@ -2,11 +2,13 @@ import csv
 import shutil
 from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
-from typing import Any
+from typing import Any, Final
 
 import yaml
 
 from musak_shared.elements import MUSICXML_EXTENSIONS
+
+JSON_INDENT: Final[int] = 4
 
 
 def collect_musicxml_files(source_directory: Path) -> list[Path]:

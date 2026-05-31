@@ -5,7 +5,6 @@ from pathlib import Path
 
 from musak_model.processing.parser import ParsedScoreArtifact
 from musak_model.processing.paths import ProcessedDatasetPaths
-from musak_model.processing.profiler import ProcessingProfilerProtocol
 from musak_model.processing.snapshot import TokenizerSnapshot
 from musak_model.processing.tokenizer.output import (
     clear_tokenization_outputs,
@@ -18,6 +17,7 @@ from musak_model.processing.tokenizer.state import (
     resume_state_outputs_missing,
 )
 from musak_shared.files import truncate_text_lines
+from musak_shared.profiling import ProfilerProtocol
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -57,7 +57,7 @@ def prepare_resume_state(
     state_key: str,
     overwrite: bool,
     parsed_scores: tuple[ParsedScoreArtifact, ...],
-    profiler: ProcessingProfilerProtocol,
+    profiler: ProfilerProtocol,
 ) -> TokenizationResumeState:
     if overwrite:
         clear_outputs(output_paths)

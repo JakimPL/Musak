@@ -9,8 +9,8 @@ import polars as pl
 from musak_model.n_grams.figure.samples.schema import FigureNGramCountsByScale
 from musak_model.n_grams.figure.schema import FigureNGram
 from musak_model.n_grams.profile.schema import FigureProfile, FigureSampleCounts
-from musak_model.processing.io import JSON_INDENT
 from musak_model.tokens.schema import Hand, ScaleType
+from musak_shared.files import JSON_INDENT
 from musak_shared.ratios import parse_ratio
 from musak_shared.tables import read_table, write_table
 

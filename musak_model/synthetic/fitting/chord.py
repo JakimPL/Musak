@@ -2,23 +2,15 @@ from __future__ import annotations
 
 from collections import defaultdict
 from collections.abc import Mapping
-from math import log
 from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from musak_model.harmony.schema import Chord
-from musak_model.n_grams.figure.schema import FigureNGram
-from musak_model.n_grams.profile.chord.schema import (
-    INITIAL_CHORD_SOURCE,
-    ChordTransitionCounts,
-    FigureByChordCounts,
-    chord_from_key,
-)
+from musak_model.n_grams.profile.chord.schema import INITIAL_CHORD_SOURCE, ChordTransitionCounts, chord_from_key
 from musak_model.paths import CHORD_FIT_CONFIG_PATH
 from musak_model.synthetic.processes.chord_track import ChordTransitionModel
-from musak_model.synthetic.substitution.chord_figure import FigureByChordKey, FigureByChordModel
-from musak_model.tokens.schema import Hand, ScaleType
+from musak_model.tokens.schema import ScaleType
 from musak_shared.files import load_yaml_config
 
 
@@ -28,6 +20,7 @@ class ChordFitConfig(BaseModel):
     prior_count: float = Field(gt=0.0)
     functional_strength: float = Field(ge=0.0, le=1.0)
     self_transition_bias: float = Field(ge=0.0, le=1.0)
+    figure_by_chord_limit: int = Field(gt=0)
 
     @classmethod
     def load(cls, path: Path = CHORD_FIT_CONFIG_PATH) -> ChordFitConfig:
@@ -65,22 +58,6 @@ def fit_chord_transition_model(
         for source in chords
     }
     return ChordTransitionModel(initial_distribution=initial_distribution, transitions=transitions)
-
-
-def fit_figure_by_chord(figure_by_chord_counts: FigureByChordCounts) -> FigureByChordModel:
-    grouped: dict[FigureByChordKey, dict[FigureNGram, float]] = defaultdict(dict)
-    totals: dict[FigureByChordKey, float] = defaultdict(float)
-    for key, count in figure_by_chord_counts.items():
-        model_key = (ScaleType(key.scale_type), Hand(key.hand), key.figure_length, chord_from_key(key.chord))
-        figure = FigureNGram.model_validate_json(key.figure)
-        grouped[model_key][figure] = grouped[model_key].get(figure, 0.0) + count
-        totals[model_key] += count
-
-    log_probabilities: dict[FigureByChordKey, dict[FigureNGram, float]] = {
-        model_key: {figure: log(count / totals[model_key]) for figure, count in figures.items()}
-        for model_key, figures in grouped.items()
-    }
-    return FigureByChordModel(log_probabilities=log_probabilities)
 
 
 def _empirical_counts(

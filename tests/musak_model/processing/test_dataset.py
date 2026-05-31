@@ -21,12 +21,12 @@ from musak_model.processing.manifest import (
     read_parsed_manifest,
 )
 from musak_model.processing.paths import ProcessedDatasetPaths
-from musak_model.processing.profiler import ProcessingProfiler
 from musak_model.processing.snapshot import build_tokenizer_snapshot
 from musak_model.processing.tokenizer import dataset as tokenizer_dataset_module
 from musak_model.tokens.config import TokenizationConfig
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.vocabulary import TokenVocabulary
+from musak_shared.profiling import Profiler
 from tests.musak_model.data.fixtures import bar, note_event, parsed_score, rest_event
 
 
@@ -268,7 +268,7 @@ def test_process_dataset_records_processing_timings(
     source_path = dataset_root / "piece.mxl"
     source_path.parent.mkdir(parents=True)
     source_path.write_text("score")
-    profiler = ProcessingProfiler(output_dir=tmp_path / "profile", use_torch_profiler_labels=False)
+    profiler = Profiler(output_directory=tmp_path / "profile", backends=())
 
     monkeypatch.setattr("musak_model.processing.parser.worker.parse_score", lambda path: _score())
     monkeypatch.setattr("musak_model.processing.parser.worker.score_title", lambda path: "Piece")

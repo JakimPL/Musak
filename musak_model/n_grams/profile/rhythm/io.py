@@ -22,8 +22,8 @@ from musak_model.n_grams.profile.rhythm.schema import (
     RhythmProfileGroup,
     RhythmProfileMetadata,
 )
-from musak_model.processing.io import JSON_INDENT
 from musak_model.tokens.schema import Hand, ScaleType
+from musak_shared.files import JSON_INDENT
 from musak_shared.tables import read_table, write_table
 
 

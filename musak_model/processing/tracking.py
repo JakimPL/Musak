@@ -128,7 +128,12 @@ _BOOLEAN_METRIC_NAMES: Final[dict[EncodedManifestField, str]] = {
 
 
 class _MlflowLogger(Protocol):
-    def log_artifact(self, local_path: str, *, artifact_path: str | None = None) -> None: ...
+    def log_artifact(
+        self,
+        local_path: str,
+        *,
+        artifact_path: str | None = None,
+    ) -> None: ...
 
 
 @dataclass(frozen=True)
@@ -140,7 +145,12 @@ class ProcessingMlflowConfig:
 
 
 class ProcessingTracker:
-    def __init__(self, *, config: ProcessingMlflowConfig, tracking_root: Path | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        config: ProcessingMlflowConfig,
+        tracking_root: Path | None = None,
+    ) -> None:
         self._config = config
         self._tracking_root = tracking_root or Path.cwd()
         self._mlflow = importlib.import_module("mlflow")
@@ -174,7 +184,7 @@ class ProcessingTracker:
         self,
         *,
         result: ProcessDatasetResult,
-        data_dir: Path,
+        data_directory: Path,
         processed_root: Path,
         stage: str,
         overwrite: bool,
@@ -183,7 +193,7 @@ class ProcessingTracker:
         started_at = perf_counter()
         params = _processing_params(
             result=result,
-            data_dir=data_dir,
+            data_dir=data_directory,
             processed_root=processed_root,
             stage=stage,
             overwrite=overwrite,
@@ -229,7 +239,7 @@ class NoOpProcessingTracker:
         self,
         *,
         result: ProcessDatasetResult,
-        data_dir: Path,
+        data_directory: Path,
         processed_root: Path,
         stage: str,
         overwrite: bool,
@@ -291,7 +301,10 @@ def _processing_params(
     return params
 
 
-def _processing_metrics(*, result: ProcessDatasetResult) -> dict[str, float]:
+def _processing_metrics(
+    *,
+    result: ProcessDatasetResult,
+) -> dict[str, float]:
     parsed_count, parsed_success_count = _parsed_manifest_counts(result.parsed_manifest_path)
     metrics = {
         "dataset/overall/count/parsed_files": float(parsed_count),
@@ -382,7 +395,10 @@ def _empty_encoded_manifest_metrics() -> _EncodedManifestMetrics:
     )
 
 
-def _update_numeric_metrics(metrics: _EncodedManifestMetrics, row: dict[str, str]) -> None:
+def _update_numeric_metrics(
+    metrics: _EncodedManifestMetrics,
+    row: dict[str, str],
+) -> None:
     for field in _DIAGNOSTIC_NUMERIC_FIELDS:
         if row[field] == "":
             continue
@@ -391,13 +407,19 @@ def _update_numeric_metrics(metrics: _EncodedManifestMetrics, row: dict[str, str
         metrics.numeric_counts[field] += 1
 
 
-def _update_boolean_metrics(metrics: _EncodedManifestMetrics, row: dict[str, str]) -> None:
+def _update_boolean_metrics(
+    metrics: _EncodedManifestMetrics,
+    row: dict[str, str],
+) -> None:
     for field in _DIAGNOSTIC_BOOLEAN_FIELDS:
         if row[field] == _TRUE_TEXT:
             metrics.boolean_true_counts[field] += 1
 
 
-def _update_ineligibility_reason_counts(metrics: _EncodedManifestMetrics, row: dict[str, str]) -> None:
+def _update_ineligibility_reason_counts(
+    metrics: _EncodedManifestMetrics,
+    row: dict[str, str],
+) -> None:
     reason_text = row[EncodedManifestField.INELIGIBILITY_REASONS]
     if reason_text == "":
         return
@@ -420,7 +442,11 @@ def _rate(numerator: float, denominator: int) -> float:
     return numerator / denominator
 
 
-def _resolve_tracking_uri(*, configured_uri: str | None, tracking_root: Path) -> str:
+def _resolve_tracking_uri(
+    *,
+    configured_uri: str | None,
+    tracking_root: Path,
+) -> str:
     if configured_uri is not None:
         return configured_uri
 
@@ -428,9 +454,17 @@ def _resolve_tracking_uri(*, configured_uri: str | None, tracking_root: Path) ->
     if environment_uri:
         return environment_uri
 
-    return local_mlflow_tracking_uri(database_path=DEFAULT_MLFLOW_DB_PATH, tracking_root=tracking_root)
+    return local_mlflow_tracking_uri(
+        database_path=DEFAULT_MLFLOW_DB_PATH,
+        tracking_root=tracking_root,
+    )
 
 
-def _log_artifact_if_exists(mlflow: _MlflowLogger, path: Path | None, *, artifact_path: str) -> None:
+def _log_artifact_if_exists(
+    mlflow: _MlflowLogger,
+    path: Path | None,
+    *,
+    artifact_path: str,
+) -> None:
     if path is not None and path.exists():
         mlflow.log_artifact(str(path), artifact_path=artifact_path)

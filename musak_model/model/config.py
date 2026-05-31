@@ -5,7 +5,7 @@ from pathlib import Path
 from pydantic import BaseModel, ConfigDict, Field
 
 from musak_model.conditioning.config import ConditioningConfig
-from musak_model.paths import CONDITIONING_CONFIG_PATH, MODEL_CONFIG_DIR
+from musak_model.paths import CONDITIONING_CONFIG_PATH, MODEL_CONFIG_DIRECTORY
 from musak_shared.files import load_yaml_config
 
 
@@ -54,7 +54,7 @@ class ModelConfig(BaseModel):
         cls,
         *,
         vocabulary_size: int,
-        config_directory: Path = MODEL_CONFIG_DIR,
+        config_directory: Path = MODEL_CONFIG_DIRECTORY,
         conditioning_config_path: Path = CONDITIONING_CONFIG_PATH,
     ) -> ModelConfig:
         return cls(

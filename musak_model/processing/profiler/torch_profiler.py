@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import AbstractContextManager, contextmanager
 from pathlib import Path
 from typing import Any, Final
 
@@ -9,6 +11,30 @@ from musak_shared.files import write_csv_rows
 
 _MICROSECONDS_PER_SECOND: Final[float] = 1_000_000.0
 _TORCH_PROFILE_FUNCTIONS_NAME: Final[str] = "torch_profiler_functions.csv"
+
+
+class TorchProfilerBackend:
+    def __init__(self) -> None:
+        self._profiler: torch.profiler.profile | None = None
+
+    @contextmanager
+    def session(self) -> Iterator[None]:
+        self._profiler = create_torch_profiler()
+        with self._profiler:
+            yield
+
+    def span(self, stage: str) -> AbstractContextManager[None]:
+        return torch.profiler.record_function(stage)
+
+    def before_measure(self) -> None:
+        synchronize_cuda(True)
+
+    def after_measure(self) -> None:
+        synchronize_cuda(True)
+
+    def write_reports(self, output_directory: Path) -> None:
+        if self._profiler is not None:
+            write_torch_reports(self._profiler, output_directory)
 
 
 def create_torch_profiler() -> torch.profiler.profile:

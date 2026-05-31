@@ -14,7 +14,7 @@ def _():
     import pandas as pd
 
     from musak_model.decoder.notation import segment_to_score_data
-    from musak_model.paths import DEFAULT_DATA_DIR, DEFAULT_PROCESSED_ROOT
+    from musak_model.paths import DEFAULT_DATA_DIRECTORY, DEFAULT_PROCESSED_ROOT
     from musak_model.processing.fingerprint import file_sha256
     from musak_model.processing.manifest import EncodedManifestField
     from musak_model.tokens.schema import Hand
@@ -50,7 +50,7 @@ def _():
 
     return (
         DEFAULT_DATASET_QUALITY_DATABASE_PATH,
-        DEFAULT_DATA_DIR,
+        DEFAULT_DATA_DIRECTORY,
         DEFAULT_PROCESSED_ROOT,
         EncodedManifestField,
         Hand,

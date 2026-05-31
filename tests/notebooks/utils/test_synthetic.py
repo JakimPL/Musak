@@ -9,6 +9,7 @@ from musak_model.synthetic.processes.chord_track import (
     functional_transition_model,
     uniform_transition_model,
 )
+from musak_model.synthetic.substitution import FigureByChordModel
 from musak_model.tokens.config import TokenizationConfig
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import ScaleType
@@ -37,6 +38,7 @@ def _inputs(fitted: FittedGeneratorConfig) -> SyntheticInputs:
         base_duration_distribution=BaseDurationDistribution(weights_by_group={}),
         duration_vocabulary=DurationVocabulary(TokenizationConfig.load()),
         fitted=fitted,
+        figure_by_chord_model=FigureByChordModel(),
     )
 
 

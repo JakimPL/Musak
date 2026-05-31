@@ -114,7 +114,7 @@ def test_processing_tracker_logs_complete_manifest_metrics(
     ) as tracker:
         tracker.log_processing_result(
             result=result,
-            data_dir=dataset_dir,
+            data_directory=dataset_dir,
             processed_root=processed_root,
             stage="process",
             overwrite=False,

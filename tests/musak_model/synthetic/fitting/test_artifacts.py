@@ -1,17 +1,10 @@
-from fractions import Fraction
 from pathlib import Path
 
 from musak_model.harmony.schema import Chord, ChordQuality
-from musak_model.n_grams.figure.schema import FigureNGram
-from musak_model.synthetic.fitting.artifacts import (
-    FittedChordTransitions,
-    FittedFigureByChord,
-    FittedGeneratorConfig,
-)
+from musak_model.synthetic.fitting.artifacts import FittedChordTransitions, FittedGeneratorConfig
 from musak_model.synthetic.processes.accent import AccentFieldConfig, AccentFieldOverride
 from musak_model.synthetic.processes.chord_track import ChordTransitionModel
 from musak_model.synthetic.processes.pitch import RegisterCurveConfig, RegisterCurveOverride
-from musak_model.synthetic.substitution.chord_figure import FigureByChordModel
 from musak_model.tokens.schema import Hand, ScaleType
 
 
@@ -43,7 +36,6 @@ def test_fitted_generator_config_round_trips_through_json(tmp_path: Path) -> Non
         register_overrides=(_register_override(),),
         accent_overrides=(_accent_override(),),
         chord_transitions={ScaleType.MAJOR: FittedChordTransitions.from_model(_transition_model())},
-        chord_figure=FittedFigureByChord.from_model(_figure_by_chord_model()),
     )
     path = tmp_path / "fitted" / "generator.json"
 
@@ -52,12 +44,10 @@ def test_fitted_generator_config_round_trips_through_json(tmp_path: Path) -> Non
     assert FittedGeneratorConfig.read(path) == config
 
 
-def test_fitted_chord_models_round_trip_to_runtime_objects(tmp_path: Path) -> None:
+def test_fitted_transition_model_round_trips_to_runtime_object(tmp_path: Path) -> None:
     transition_model = _transition_model()
-    figure_model = _figure_by_chord_model()
     config = FittedGeneratorConfig(
         chord_transitions={ScaleType.MAJOR: FittedChordTransitions.from_model(transition_model)},
-        chord_figure=FittedFigureByChord.from_model(figure_model),
     )
     path = tmp_path / "fitted" / "generator.json"
 
@@ -66,7 +56,6 @@ def test_fitted_chord_models_round_trip_to_runtime_objects(tmp_path: Path) -> No
 
     assert restored.chord_transition_model(ScaleType.MAJOR) == transition_model
     assert restored.chord_transition_model(ScaleType.HARMONIC_MINOR) is None
-    assert restored.figure_by_chord_model() == figure_model
 
 
 def test_fitted_generator_config_defaults_to_no_overrides() -> None:
@@ -75,7 +64,6 @@ def test_fitted_generator_config_defaults_to_no_overrides() -> None:
     assert config.register_overrides == ()
     assert config.accent_overrides == ()
     assert config.chord_transitions == {}
-    assert config.chord_figure.entries == ()
     assert config.chord_transition_model(ScaleType.MAJOR) is None
 
 
@@ -86,9 +74,3 @@ def _transition_model() -> ChordTransitionModel:
         initial_distribution={tonic: 0.6, dominant: 0.4},
         transitions={tonic: {tonic: 0.3, dominant: 0.7}, dominant: {tonic: 0.8, dominant: 0.2}},
     )
-
-
-def _figure_by_chord_model() -> FigureByChordModel:
-    tonic = Chord(root_degree=1, root_accidental=0, quality=ChordQuality.MAJOR)
-    figure = FigureNGram(onsets=((((0, 0),), Fraction(1)), (((1, 0),), Fraction(1))))
-    return FigureByChordModel(log_probabilities={(ScaleType.MAJOR, Hand.RIGHT, 2, tonic): {figure: -0.25}})

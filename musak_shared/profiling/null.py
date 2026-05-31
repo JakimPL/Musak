@@ -6,7 +6,7 @@ from types import TracebackType
 from typing import Self
 
 
-class NullProcessingProfiler:
+class NullProfiler:
     @property
     def enabled(self) -> bool:
         return False
@@ -23,6 +23,7 @@ class NullProcessingProfiler:
         return None
 
     def measure(self, stage: str, *, source_file: Path | None = None) -> AbstractContextManager[None]:
+        _ = stage, source_file
         return nullcontext()
 
     def step(self) -> None:
@@ -32,4 +33,4 @@ class NullProcessingProfiler:
         return None
 
 
-NULL_PROCESSING_PROFILER = NullProcessingProfiler()
+NULL_PROFILER = NullProfiler()

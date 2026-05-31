@@ -8,6 +8,7 @@ from musak_model.n_grams.figure.schema import FigureNGram
 from musak_model.synthetic.figures import FigureVocabulary, FigureVocabularyEntry
 from musak_model.synthetic.substitution import (
     FigureByChordModel,
+    FigureByChordTable,
     SubstitutionConfig,
     chord_figure_log_probabilities,
     sample_substituted_figure,
@@ -40,13 +41,18 @@ def _config(lambda_chord_figure: float) -> SubstitutionConfig:
     )
 
 
+def _table(log_probabilities: dict[FigureNGram, float]) -> FigureByChordTable:
+    return FigureByChordTable(log_probabilities=log_probabilities, floor=min(log_probabilities.values()))
+
+
 def test_table_returns_none_for_absent_chord_or_key() -> None:
     figure = _figure([0, 2])
-    model = FigureByChordModel(log_probabilities={(ScaleType.MAJOR, Hand.RIGHT, 2, _TONIC): {figure: -0.5}})
+    table = _table({figure: -0.5})
+    model = FigureByChordModel(tables={(ScaleType.MAJOR, Hand.RIGHT, 2, _TONIC): table})
 
     assert model.table(scale_type=ScaleType.MAJOR, hand=Hand.RIGHT, figure_length=2, chord=None) is None
     assert model.table(scale_type=ScaleType.MAJOR, hand=Hand.LEFT, figure_length=2, chord=_TONIC) is None
-    assert model.table(scale_type=ScaleType.MAJOR, hand=Hand.RIGHT, figure_length=2, chord=_TONIC) == {figure: -0.5}
+    assert model.table(scale_type=ScaleType.MAJOR, hand=Hand.RIGHT, figure_length=2, chord=_TONIC) == table
 
 
 def test_chord_figure_log_probabilities_are_zero_without_a_table() -> None:
@@ -58,12 +64,12 @@ def test_chord_figure_log_probabilities_are_zero_without_a_table() -> None:
 def test_chord_figure_log_probabilities_floor_unobserved_figures() -> None:
     seen = _figure([0, 2])
     unseen = _figure([0, -2])
-    table = {seen: -0.25, _figure([0, 1]): -3.0}
+    table = _table({seen: -0.25, _figure([0, 1]): -3.0})
 
     scores = chord_figure_log_probabilities(figures=[seen, unseen], table=table)
 
     assert scores[0] == -0.25
-    assert scores[1] == -3.0  # the unobserved figure backs off to the least-likely observed log-probability
+    assert scores[1] == -3.0  # the unobserved figure backs off to the precomputed floor (least-likely observed)
 
 
 def test_empty_model_is_a_no_op_regardless_of_lambda() -> None:
@@ -91,7 +97,7 @@ def test_high_lambda_chord_figure_selects_the_chord_preferred_figure() -> None:
     other = _figure([0, 2])
     entries = _entries([other, preferred])
     model = FigureByChordModel(
-        log_probabilities={(ScaleType.MAJOR, Hand.RIGHT, 2, _TONIC): {preferred: 0.0, other: -10.0}}
+        tables={(ScaleType.MAJOR, Hand.RIGHT, 2, _TONIC): _table({preferred: 0.0, other: -10.0})}
     )
 
     chosen = sample_substituted_figure(

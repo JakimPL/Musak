@@ -41,7 +41,7 @@ from musak_model.n_grams.profile.rhythm.schema import (
     RhythmCountKey,
     RhythmMetricKind,
 )
-from musak_model.paths import MODEL_CONFIG_DIR
+from musak_model.paths import MODEL_CONFIG_DIRECTORY
 from musak_model.tokens.config import TokenizationConfig
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import (
@@ -195,7 +195,7 @@ def load_trained_model(
     token_vocabulary = TokenVocabulary(duration_vocabulary)
     model_config = ModelConfig.load(
         vocabulary_size=token_vocabulary.vocabulary_size,
-        config_directory=model_config_directory or MODEL_CONFIG_DIR,
+        config_directory=model_config_directory or MODEL_CONFIG_DIRECTORY,
     )
     model = HierarchicalAutoregressiveModel(model_config)
     state = cast(dict[str, object], torch.load(checkpoint_path, map_location=resolved_device))

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import cProfile
 import pstats
+from collections.abc import Iterator
+from contextlib import AbstractContextManager, contextmanager, nullcontext
 from pathlib import Path
 from typing import Final
 
@@ -13,11 +15,35 @@ _CPU_PROFILE_FUNCTIONS_NAME: Final[str] = "cpu_profile_functions.csv"
 _CPU_PROFILE_ROW_LIMIT: Final[int] = 200
 
 
-def create_cpu_profiler() -> cProfile.Profile:
-    return cProfile.Profile()
+class CProfileBackend:
+    def __init__(self) -> None:
+        self._profile: cProfile.Profile | None = None
+
+    @contextmanager
+    def session(self) -> Iterator[None]:
+        self._profile = cProfile.Profile()
+        self._profile.enable()
+        try:
+            yield
+        finally:
+            self._profile.disable()
+
+    def span(self, stage: str) -> AbstractContextManager[None]:
+        _ = stage
+        return nullcontext()
+
+    def before_measure(self) -> None:
+        return None
+
+    def after_measure(self) -> None:
+        return None
+
+    def write_reports(self, output_directory: Path) -> None:
+        if self._profile is not None:
+            _write_cpu_reports(self._profile, output_directory)
 
 
-def write_cpu_reports(profile: cProfile.Profile, output_directory: Path) -> None:
+def _write_cpu_reports(profile: cProfile.Profile, output_directory: Path) -> None:
     stats_path = output_directory / _CPU_PROFILE_STATS_NAME
     table_path = output_directory / _CPU_PROFILE_TABLE_NAME
     functions_path = output_directory / _CPU_PROFILE_FUNCTIONS_NAME

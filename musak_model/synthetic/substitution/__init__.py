@@ -1,4 +1,4 @@
-from musak_model.synthetic.substitution.chord_figure import FigureByChordModel
+from musak_model.synthetic.substitution.chord_figure import FigureByChordModel, FigureByChordTable
 from musak_model.synthetic.substitution.config import SubstitutionConfig
 from musak_model.synthetic.substitution.emission import anchor_figure_to_tokens
 from musak_model.synthetic.substitution.generator import SegmentGenerator
@@ -20,6 +20,7 @@ from musak_model.synthetic.substitution.trace import BaselineSample, GenerationT
 __all__ = [
     "BaselineSample",
     "FigureByChordModel",
+    "FigureByChordTable",
     "GenerationTrace",
     "SegmentGenerationResult",
     "SegmentGenerator",

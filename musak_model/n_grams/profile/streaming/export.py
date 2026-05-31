@@ -43,9 +43,8 @@ from musak_model.n_grams.profile.schema import FigureProfile, FigureProfileGroup
 from musak_model.n_grams.profile.streaming.schema import FigureCountKey, FigureStoreSummary
 from musak_model.n_grams.profile.streaming.store import FigureWorkStore
 from musak_model.n_grams.profile.streaming.totals import figure_group_totals
-from musak_model.processing.io import JSON_INDENT
 from musak_model.tokens.schema import Hand, ScaleType
-from musak_shared.files import write_yaml_config
+from musak_shared.files import JSON_INDENT, write_yaml_config
 from musak_shared.tables import write_table
 
 

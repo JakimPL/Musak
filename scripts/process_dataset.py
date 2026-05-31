@@ -12,11 +12,11 @@ from musak_model.data.config import (
 )
 from musak_model.n_grams.profile.extraction import FigureExtractionResult, extract_figure_artifacts
 from musak_model.paths import (
-    DEFAULT_COMBINED_PROCESSING_PROFILE_OUTPUT_DIR,
-    DEFAULT_PARSING_PROFILE_OUTPUT_DIR,
+    DEFAULT_COMBINED_PROCESSING_PROFILE_OUTPUT_DIRECTORY,
+    DEFAULT_PARSING_PROFILE_OUTPUT_DIRECTORY,
     DEFAULT_PROCESSED_ROOT,
-    DEFAULT_PROCESSING_PROFILE_OUTPUT_DIR,
-    DEFAULT_TOKENIZATION_PROFILE_OUTPUT_DIR,
+    DEFAULT_PROCESSING_PROFILE_OUTPUT_DIRECTORY,
+    DEFAULT_TOKENIZATION_PROFILE_OUTPUT_DIRECTORY,
     N_GRAM_ANALYSIS_CONFIG_PATH,
     PROCESSING_CONFIG_PATH,
     SEGMENTATION_CONFIG_PATH,
@@ -39,9 +39,9 @@ _LOG_LEVELS = {
 _EXIT_FAILURE: Final[int] = 1
 _PARSING_STAGES: Final[frozenset[str]] = frozenset({"parse", "process"})
 _DEFAULT_PROFILE_OUTPUT_DIRS: Final[dict[str, Path]] = {
-    "parse": DEFAULT_PARSING_PROFILE_OUTPUT_DIR,
-    "tokenize": DEFAULT_TOKENIZATION_PROFILE_OUTPUT_DIR,
-    "process": DEFAULT_COMBINED_PROCESSING_PROFILE_OUTPUT_DIR,
+    "parse": DEFAULT_PARSING_PROFILE_OUTPUT_DIRECTORY,
+    "tokenize": DEFAULT_TOKENIZATION_PROFILE_OUTPUT_DIRECTORY,
+    "process": DEFAULT_COMBINED_PROCESSING_PROFILE_OUTPUT_DIRECTORY,
 }
 
 
@@ -83,7 +83,7 @@ def main() -> None:
         profile_output_dir=profile_output_directory,
         source_files=source_files,
     )
-    profiler = build_processing_profiler(enabled=args.profile, output_dir=profile_output_directory)
+    profiler = build_processing_profiler(enabled=args.profile, output_directory=profile_output_directory)
     tracker = build_processing_tracker(
         config=ProcessingMlflowConfig(
             enabled=not args.disable_mlflow and not args.profile,
@@ -109,7 +109,7 @@ def main() -> None:
             profiler.step()
             tracker.log_processing_result(
                 result=result,
-                data_dir=args.data_dir,
+                data_directory=args.data_dir,
                 processed_root=args.processed_dir,
                 stage=args.stage,
                 overwrite=args.overwrite,
@@ -406,7 +406,7 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         default=None,
         help=(
             "Directory for processing timing and profiler reports. "
-            f"Defaults to stage-specific directories under {DEFAULT_PROCESSING_PROFILE_OUTPUT_DIR}."
+            f"Defaults to stage-specific directories under {DEFAULT_PROCESSING_PROFILE_OUTPUT_DIRECTORY}."
         ),
     )
     parser.add_argument("--disable-mlflow", action="store_true", help="Disable MLflow dataset metric logging.")

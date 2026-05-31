@@ -4,14 +4,14 @@ from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
-class ProcessingProfileRecord:
+class ProfileRecord:
     stage: str
     seconds: float
     source_file: str
 
 
 @dataclass(frozen=True)
-class ProcessingProfileSummary:
+class ProfileSummary:
     total_seconds: float
     stage_totals: dict[str, float]
     stage_counts: dict[str, int]
@@ -20,7 +20,7 @@ class ProcessingProfileSummary:
 
 
 @dataclass(frozen=True)
-class ProcessingProfileStageStats:
+class ProfileStageStats:
     stage: str
     count: int
     total_seconds: float

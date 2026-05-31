@@ -14,7 +14,7 @@ from musak_model.n_grams.profile.io import (
     N_COLUMN,
     SCALE_TYPE_COLUMN,
 )
-from musak_model.paths import DEFAULT_ANALYSIS_DIR
+from musak_model.paths import DEFAULT_ANALYSIS_DIRECTORY
 from musak_shared.notation.schema import (
     EIGHTH,
     HALF,
@@ -79,7 +79,7 @@ _FIGURE_PROPERTY_COLUMNS: Final[tuple[str, ...]] = (
 )
 
 
-def analysis_result_files(analysis_dir: Path = DEFAULT_ANALYSIS_DIR) -> list[Path]:
+def analysis_result_files(analysis_dir: Path = DEFAULT_ANALYSIS_DIRECTORY) -> list[Path]:
     if not analysis_dir.exists():
         return []
 

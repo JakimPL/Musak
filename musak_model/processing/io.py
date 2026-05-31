@@ -1,16 +1,14 @@
 from pathlib import Path
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING
 
 from pydantic import BaseModel
 
 from musak_model.data.schema import ParsedScore
 from musak_model.processing.snapshot import TokenizerSnapshot
-from musak_shared.files import line_count
+from musak_shared.files import JSON_INDENT, line_count
 
 if TYPE_CHECKING:
     from musak_model.training.ingestion.schema import EncodedExercise
-
-JSON_INDENT: Final[int] = 4
 
 
 def write_json_model(

@@ -2,15 +2,15 @@ from pathlib import Path
 
 from musak_model.harmony.decoding.candidates import spellable_candidates
 from musak_model.harmony.vocabulary import ChordVocabularyConfig
-from musak_model.n_grams.profile.chord.io import read_chord_transitions, read_figure_by_chord
+from musak_model.n_grams.profile.chord.io import read_chord_transitions
 from musak_model.n_grams.profile.chord.schema import ChordTransitionCounts, chord_artifact_paths_for_figure_root
 from musak_model.n_grams.profile.register.io import read_register_metadata, read_register_statistics
 from musak_model.n_grams.profile.register.schema import register_artifact_paths_for_figure_root
 from musak_model.n_grams.profile.rhythm.io import read_rhythm_counts
 from musak_model.n_grams.profile.rhythm.schema import rhythm_artifact_paths_for_figure_root
 from musak_model.synthetic.fitting.accent import fit_accent_overrides_from_rhythm_counts
-from musak_model.synthetic.fitting.artifacts import FittedChordTransitions, FittedFigureByChord, FittedGeneratorConfig
-from musak_model.synthetic.fitting.chord import ChordFitConfig, fit_chord_transition_model, fit_figure_by_chord
+from musak_model.synthetic.fitting.artifacts import FittedChordTransitions, FittedGeneratorConfig
+from musak_model.synthetic.fitting.chord import ChordFitConfig, fit_chord_transition_model
 from musak_model.synthetic.fitting.register import fit_register_overrides_from_statistics
 from musak_model.synthetic.processes.accent import AccentFieldConfig
 from musak_model.synthetic.processes.chord_track import functional_transition_model
@@ -38,34 +38,29 @@ def fit_generator_config(
     register_statistics = read_register_statistics(register_paths.statistics_path)
     rhythm_paths = rhythm_artifact_paths_for_figure_root(figure_root_directory)
     rhythm_counts = read_rhythm_counts(rhythm_paths.counts_path)
-    chord_transitions, chord_figure = _fit_chord_models(
-        figure_root_directory, chord_fit=chord_fit, chord_vocabulary=chord_vocabulary
-    )
     return FittedGeneratorConfig(
         register_overrides=fit_register_overrides_from_statistics(register_statistics, default=register_default),
         accent_overrides=fit_accent_overrides_from_rhythm_counts(
             rhythm_counts, default=accent_default, grid_denominator=grid_denominator
         ),
-        chord_transitions=chord_transitions,
-        chord_figure=chord_figure,
+        chord_transitions=_fit_chord_transitions_from_store(
+            figure_root_directory, chord_fit=chord_fit, chord_vocabulary=chord_vocabulary
+        ),
     )
 
 
-def _fit_chord_models(
+def _fit_chord_transitions_from_store(
     figure_root_directory: Path,
     *,
     chord_fit: ChordFitConfig,
     chord_vocabulary: ChordVocabularyConfig,
-) -> tuple[dict[ScaleType, FittedChordTransitions], FittedFigureByChord]:
+) -> dict[ScaleType, FittedChordTransitions]:
     chord_paths = chord_artifact_paths_for_figure_root(figure_root_directory)
-    if not (chord_paths.transitions_path.exists() and chord_paths.figure_path.exists()):
-        return {}, FittedFigureByChord()
+    if not chord_paths.transitions_path.exists():
+        return {}
 
-    transition_counts = read_chord_transitions(chord_paths.transitions_path)
-    figure_model = fit_figure_by_chord(read_figure_by_chord(chord_paths.figure_path))
-    return (
-        _fit_chord_transitions(transition_counts, chord_fit=chord_fit, chord_vocabulary=chord_vocabulary),
-        FittedFigureByChord.from_model(figure_model),
+    return _fit_chord_transitions(
+        read_chord_transitions(chord_paths.transitions_path), chord_fit=chord_fit, chord_vocabulary=chord_vocabulary
     )
 
 

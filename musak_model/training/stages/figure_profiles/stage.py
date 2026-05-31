@@ -5,7 +5,7 @@ from time import perf_counter
 from musak_model.n_grams.config import NGramAnalysisConfig
 from musak_model.n_grams.profile.loading import FigureProfileArtifacts, load_processed_figure_profile_artifacts
 from musak_model.n_grams.profile.metrics.profile_comparison import figure_profile_comparison_metrics
-from musak_model.paths import DEFAULT_TRAINING_FIGURE_DIR, N_GRAM_ANALYSIS_CONFIG_PATH
+from musak_model.paths import DEFAULT_TRAINING_FIGURE_DIRECTORY, N_GRAM_ANALYSIS_CONFIG_PATH
 from musak_model.tokens.config import TokenizationConfig
 from musak_model.tokens.vocabulary import TokenVocabulary
 from musak_model.training.ingestion.config import IngestionConfig
@@ -54,7 +54,7 @@ def split_figure_profile_metrics(
     token_vocabulary: TokenVocabulary,
     tokenization_config: TokenizationConfig,
     analysis_config_path: Path | None = None,
-    artifact_root: Path = DEFAULT_TRAINING_FIGURE_DIR,
+    artifact_root: Path = DEFAULT_TRAINING_FIGURE_DIRECTORY,
     workers: int,
     show_progress: bool = False,
 ) -> dict[str, float]:

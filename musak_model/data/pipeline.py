@@ -9,9 +9,9 @@ from musak_model.data.parser import parse_score
 from musak_model.data.scale_matcher.config import ScaleMatcherConfig
 from musak_model.data.schema import ParsedScore, Segment, SegmentIneligibilityReason
 from musak_model.data.segmenter.segmenter import iter_score_segments
-from musak_model.processing.profiler import NULL_PROCESSING_PROFILER, ProcessingProfilerProtocol
 from musak_model.tokens.duration import DurationVocabulary
 from musak_shared.files import collect_musicxml_files
+from musak_shared.profiling import NULL_PROFILER, ProfilerProtocol
 
 
 def process_directory(
@@ -21,7 +21,7 @@ def process_directory(
     segmentation_config: SegmentationConfig,
     scale_matcher_config: ScaleMatcherConfig,
     difficulty_labels: dict[str, int | None] | None = None,
-    profiler: ProcessingProfilerProtocol = NULL_PROCESSING_PROFILER,
+    profiler: ProfilerProtocol = NULL_PROFILER,
 ) -> list[Segment]:
     musicxml_files = collect_musicxml_files(source_directory)
     segments: list[Segment] = []
@@ -46,7 +46,7 @@ def process_file(
     segmentation_config: SegmentationConfig,
     scale_matcher_config: ScaleMatcherConfig,
     difficulty_labels: dict[str, int | None] | None = None,
-    profiler: ProcessingProfilerProtocol = NULL_PROCESSING_PROFILER,
+    profiler: ProfilerProtocol = NULL_PROFILER,
 ) -> list[Segment]:
     score = clean_parsed_score(parse_score(path))
     return segment_parsed_score(
@@ -68,7 +68,7 @@ def segment_parsed_score(
     segmentation_config: SegmentationConfig,
     scale_matcher_config: ScaleMatcherConfig,
     difficulty_labels: dict[str, int | None] | None = None,
-    profiler: ProcessingProfilerProtocol = NULL_PROCESSING_PROFILER,
+    profiler: ProfilerProtocol = NULL_PROFILER,
 ) -> list[Segment]:
     return list(
         iter_segment_parsed_score(
@@ -91,7 +91,7 @@ def iter_segment_parsed_score(
     segmentation_config: SegmentationConfig,
     scale_matcher_config: ScaleMatcherConfig,
     difficulty_labels: dict[str, int | None] | None = None,
-    profiler: ProcessingProfilerProtocol = NULL_PROCESSING_PROFILER,
+    profiler: ProfilerProtocol = NULL_PROFILER,
 ) -> Iterator[Segment]:
     difficulty_level = _resolve_difficulty_level(
         source_file,
@@ -123,7 +123,7 @@ def _attach_difficulty_features_to_segments(
     score: ParsedScore,
     source_file: Path,
     duration_vocabulary: DurationVocabulary,
-    profiler: ProcessingProfilerProtocol,
+    profiler: ProfilerProtocol,
 ) -> Iterator[Segment]:
     for segment in segments:
         yield _attach_difficulty_features_with_profile(
@@ -141,7 +141,7 @@ def _attach_difficulty_features_with_profile(
     score: ParsedScore,
     source_file: Path,
     duration_vocabulary: DurationVocabulary,
-    profiler: ProcessingProfilerProtocol,
+    profiler: ProfilerProtocol,
 ) -> Segment:
     with profiler.measure("difficulty_features", source_file=source_file):
         return _attach_difficulty_features(

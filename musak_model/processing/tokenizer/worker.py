@@ -1,7 +1,6 @@
 from concurrent.futures import Future, ProcessPoolExecutor, as_completed
 
 from musak_model.processing.parser import ParsedScoreArtifact
-from musak_model.processing.profiler import NULL_PROCESSING_PROFILER
 from musak_model.processing.progress import progress
 from musak_model.processing.tokenizer.output import clear_tokenized_source_temp_files
 from musak_model.processing.tokenizer.schema import (
@@ -13,6 +12,7 @@ from musak_model.processing.tokenizer.source import tokenize_source
 from musak_model.processing.workers import process_pool_context
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.vocabulary import TokenVocabulary
+from musak_shared.profiling import NULL_PROFILER
 
 
 def run_tokenization_batch_tasks(
@@ -74,7 +74,7 @@ def _process_tokenization_source(
         difficulty_labels=task.difficulty_labels,
         tokenization_processing_config=task.tokenization_processing_config,
         encoded_line_count=0,
-        profiler=NULL_PROCESSING_PROFILER,
+        profiler=NULL_PROFILER,
     )
     return TokenizedSourceResult(
         source_id_value=artifact.source_id_value,

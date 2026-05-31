@@ -15,7 +15,7 @@ from musak_model.n_grams.profile.register.schema import (
     RegisterStatisticsKey,
     RegisterSums,
 )
-from musak_model.processing.io import JSON_INDENT
+from musak_shared.files import JSON_INDENT
 from musak_shared.tables import read_table, write_table
 
 

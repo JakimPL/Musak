@@ -22,6 +22,7 @@ from musak_model.synthetic.figures import (
     load_figure_vocabulary,
 )
 from musak_model.synthetic.fitting.artifacts import FittedGeneratorConfig, resolve_fitted_generator_config_path
+from musak_model.synthetic.fitting.figure_by_chord import load_figure_by_chord_model
 from musak_model.synthetic.processes.accent import AccentFieldConfig
 from musak_model.synthetic.processes.chord_track import (
     ChordTransitionModel,
@@ -30,7 +31,7 @@ from musak_model.synthetic.processes.chord_track import (
 )
 from musak_model.synthetic.processes.hand_coupling import HandCouplingConfig
 from musak_model.synthetic.processes.pitch import RegisterCurveConfig
-from musak_model.synthetic.substitution import GenerationTrace, SubstitutionConfig
+from musak_model.synthetic.substitution import FigureByChordModel, GenerationTrace, SubstitutionConfig
 from musak_model.tokens.config import TokenizationConfig
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import ScaleType
@@ -46,6 +47,7 @@ class SyntheticInputs:
     base_duration_distribution: BaseDurationDistribution
     duration_vocabulary: DurationVocabulary
     fitted: FittedGeneratorConfig
+    figure_by_chord_model: FigureByChordModel
 
 
 def load_synthetic_inputs(figure_directory: Path) -> SyntheticInputs:
@@ -55,6 +57,7 @@ def load_synthetic_inputs(figure_directory: Path) -> SyntheticInputs:
         base_duration_distribution=load_base_duration_distribution(figure_directory),
         duration_vocabulary=DurationVocabulary(TokenizationConfig.load()),
         fitted=_load_fitted_generator_config(figure_directory),
+        figure_by_chord_model=load_figure_by_chord_model(figure_directory),
     )
 
 
@@ -167,7 +170,7 @@ def generate_synthetic_segment(
         chord_vocabulary=chord_vocabulary,
         figure_vocabulary=inputs.figure_vocabulary,
         anchored_figure_vocabulary=inputs.anchored_figure_vocabulary,
-        figure_by_chord_model=inputs.fitted.figure_by_chord_model(),
+        figure_by_chord_model=inputs.figure_by_chord_model,
         base_duration_distribution=inputs.base_duration_distribution,
         duration_vocabulary=duration_vocabulary,
         figure_lengths=tuple(range(request.min_n, request.max_n + 1)),

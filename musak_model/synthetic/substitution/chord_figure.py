@@ -11,8 +11,14 @@ type FigureByChordKey = tuple[ScaleType, Hand, int, Chord]
 
 
 @dataclass(frozen=True)
+class FigureByChordTable:
+    log_probabilities: Mapping[FigureNGram, float]
+    floor: float
+
+
+@dataclass(frozen=True)
 class FigureByChordModel:
-    log_probabilities: Mapping[FigureByChordKey, Mapping[FigureNGram, float]] = field(default_factory=dict)
+    tables: Mapping[FigureByChordKey, FigureByChordTable] = field(default_factory=dict)
 
     def table(
         self,
@@ -21,8 +27,8 @@ class FigureByChordModel:
         hand: Hand,
         figure_length: int,
         chord: Chord | None,
-    ) -> Mapping[FigureNGram, float] | None:
+    ) -> FigureByChordTable | None:
         if chord is None:
             return None
 
-        return self.log_probabilities.get((scale_type, hand, figure_length, chord))
+        return self.tables.get((scale_type, hand, figure_length, chord))

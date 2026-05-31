@@ -10,8 +10,8 @@ from musak_model.data.scale_matcher.matcher import match_scale
 from musak_model.data.schema import ParsedScore, Segment
 from musak_model.data.segmenter.streams import tokenize_unified_stream_safely
 from musak_model.data.segmenter.windows import create_window
-from musak_model.processing.profiler import NULL_PROCESSING_PROFILER, ProcessingProfilerProtocol
 from musak_model.tokens.duration import DurationVocabulary
+from musak_shared.profiling import NULL_PROFILER, ProfilerProtocol
 
 
 def segment_score(
@@ -22,7 +22,7 @@ def segment_score(
     segmentation: SegmentationConfig,
     scale_matcher_config: ScaleMatcherConfig,
     difficulty_level: int | None = None,
-    profiler: ProcessingProfilerProtocol = NULL_PROCESSING_PROFILER,
+    profiler: ProfilerProtocol = NULL_PROFILER,
 ) -> list[Segment]:
     return list(
         iter_score_segments(
@@ -45,7 +45,7 @@ def iter_score_segments(
     segmentation: SegmentationConfig,
     scale_matcher_config: ScaleMatcherConfig,
     difficulty_level: int | None = None,
-    profiler: ProcessingProfilerProtocol = NULL_PROCESSING_PROFILER,
+    profiler: ProfilerProtocol = NULL_PROFILER,
 ) -> Iterator[Segment]:
     total_bars = min(len(score.right_hand_bars), len(score.left_hand_bars))
     if segmentation.mode == SegmentationMode.WHOLE_FILE:
@@ -92,7 +92,7 @@ def _segment_ranges(
     segmentation: SegmentationConfig,
     scale_matcher_config: ScaleMatcherConfig,
     difficulty_level: int | None,
-    profiler: ProcessingProfilerProtocol,
+    profiler: ProfilerProtocol,
 ) -> Iterator[Segment]:
     for start, end in ranges:
         with profiler.measure("scale_match", source_file=source_file):

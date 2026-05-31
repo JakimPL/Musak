@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from musak_model.paths import ROOT_DIR
+from musak_model.paths import ROOT_DIRECTORY
 
 
 def sqlite_tracking_uri(database_path: Path) -> str:
@@ -15,7 +15,7 @@ def local_mlflow_tracking_uri(
 ) -> str:
     if database_path.is_absolute():
         try:
-            database_path = database_path.relative_to(ROOT_DIR)
+            database_path = database_path.relative_to(ROOT_DIRECTORY)
         except ValueError:
             return sqlite_tracking_uri(database_path)
 

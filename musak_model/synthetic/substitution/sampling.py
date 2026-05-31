@@ -1,4 +1,4 @@
-from collections.abc import Mapping, Sequence
+from collections.abc import Sequence
 
 import numpy as np
 from numpy.random import Generator
@@ -6,9 +6,8 @@ from numpy.typing import NDArray
 from scipy.special import softmax
 
 from musak_model.harmony.schema import Chord
-from musak_model.n_grams.figure.schema import FigureNGram
 from musak_model.synthetic.figures import FigureVocabulary, FigureVocabularyEntry
-from musak_model.synthetic.substitution.chord_figure import FigureByChordModel
+from musak_model.synthetic.substitution.chord_figure import FigureByChordModel, FigureByChordTable
 from musak_model.synthetic.substitution.config import SubstitutionConfig
 from musak_model.synthetic.substitution.scoring import (
     accent_fit,
@@ -107,7 +106,7 @@ def _chord_figure_table(
     chord: Chord | None,
     scale_type: ScaleType,
     model: FigureByChordModel,
-) -> Mapping[FigureNGram, float] | None:
+) -> FigureByChordTable | None:
     if not entries:
         return None
 

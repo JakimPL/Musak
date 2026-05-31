@@ -12,9 +12,9 @@ from musak_model.processing.io import load_parsed_score_json, write_json_model
 from musak_model.processing.manifest import parsed_error_row, parsed_success_row
 from musak_model.processing.parser.schema import ParsedScoreResult, ParsedScoreTask
 from musak_model.processing.parser.title import score_title
-from musak_model.processing.profiler import NULL_PROCESSING_PROFILER, ProcessingProfilerProtocol
 from musak_model.processing.progress import progress
 from musak_model.processing.workers import process_pool_context
+from musak_shared.profiling import NULL_PROFILER, ProfilerProtocol
 
 
 def run_parsed_score_tasks(
@@ -23,7 +23,7 @@ def run_parsed_score_tasks(
     workers: int,
     show_progress: bool,
     ordered_results: list[ParsedScoreResult | None],
-    profiler: ProcessingProfilerProtocol = NULL_PROCESSING_PROFILER,
+    profiler: ProfilerProtocol = NULL_PROFILER,
 ) -> None:
     if not tasks:
         return
@@ -97,7 +97,7 @@ def _run_parsed_score_tasks_serially(
     *,
     show_progress: bool,
     ordered_results: list[ParsedScoreResult | None],
-    profiler: ProcessingProfilerProtocol,
+    profiler: ProfilerProtocol,
 ) -> None:
     for task in progress(tasks, description="Parsing scores", unit="score", enabled=show_progress):
         with profiler.measure("parse_score_task", source_file=task.source_path):

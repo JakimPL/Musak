@@ -17,12 +17,12 @@ from musak_model.processing.parser import (
     parse_dataset,
 )
 from musak_model.processing.paths import ProcessedDatasetPaths
-from musak_model.processing.profiler import NULL_PROCESSING_PROFILER, ProcessingProfilerProtocol
 from musak_model.processing.snapshot import build_tokenizer_snapshot
 from musak_model.processing.tokenizer import TokenizeDatasetResult, tokenize_parsed_scores
 from musak_model.tokens.config import TokenizationConfig
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.vocabulary import TokenVocabulary
+from musak_shared.profiling import NULL_PROFILER, ProfilerProtocol
 
 type ProcessingStage = Literal["parse", "tokenize", "process"]
 _LOGGER = logging.getLogger(__name__)
@@ -50,7 +50,7 @@ def process_dataset(
     difficulty_labels: dict[str, int | None] | None = None,
     overwrite: bool = False,
     show_progress: bool = False,
-    profiler: ProcessingProfilerProtocol = NULL_PROCESSING_PROFILER,
+    profiler: ProfilerProtocol = NULL_PROFILER,
 ) -> ProcessDatasetResult:
     match stage:
         case "parse":
@@ -150,7 +150,7 @@ def _tokenize_existing_parsed_scores(
     difficulty_labels: dict[str, int | None] | None,
     overwrite: bool,
     show_progress: bool,
-    profiler: ProcessingProfilerProtocol,
+    profiler: ProfilerProtocol,
 ) -> TokenizeDatasetResult:
     paths = ProcessedDatasetPaths.from_dataset_root(processed_root=processed_root, dataset_root=dataset_root)
     duration_vocabulary = DurationVocabulary(tokenization_config)

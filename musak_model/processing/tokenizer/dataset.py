@@ -9,7 +9,6 @@ from musak_model.processing.io import write_json_model
 from musak_model.processing.manifest import EncodedManifestField, read_encoded_manifest
 from musak_model.processing.parser import ParsedScoreArtifact, load_parsed_score_artifacts
 from musak_model.processing.paths import ProcessedDatasetPaths
-from musak_model.processing.profiler import NULL_PROCESSING_PROFILER, ProcessingProfilerProtocol
 from musak_model.processing.progress import progress
 from musak_model.processing.snapshot import TokenizerSnapshot, build_tokenizer_snapshot
 from musak_model.processing.tokenizer.difficulty import log_difficulty_label_stats
@@ -32,6 +31,7 @@ from musak_model.processing.tokenizer.worker import run_tokenization_batch_tasks
 from musak_model.tokens.config import TokenizationConfig
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.vocabulary import TokenVocabulary
+from musak_shared.profiling import NULL_PROFILER, ProfilerProtocol
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -46,7 +46,7 @@ def tokenize_dataset(
     difficulty_labels: dict[str, int | None] | None,
     overwrite: bool,
     show_progress: bool,
-    profiler: ProcessingProfilerProtocol = NULL_PROCESSING_PROFILER,
+    profiler: ProfilerProtocol = NULL_PROFILER,
 ) -> TokenizeDatasetResult:
     paths = ProcessedDatasetPaths.from_dataset_root(processed_root=processed_root, dataset_root=dataset_root)
     parsed_scores = load_parsed_score_artifacts(dataset_root, processed_root=processed_root)
@@ -82,7 +82,7 @@ def tokenize_parsed_scores(
     tokenization_processing_config: TokenizationProcessingConfig,
     overwrite: bool,
     show_progress: bool,
-    profiler: ProcessingProfilerProtocol = NULL_PROCESSING_PROFILER,
+    profiler: ProfilerProtocol = NULL_PROFILER,
 ) -> TokenizeDatasetResult:
     parsed_scores = tuple(parsed_scores)
     output_paths = TokenizationOutputPaths.from_paths(paths, snapshot=snapshot)
@@ -172,7 +172,7 @@ def _write_tokenizer_snapshot(
     tokenizer_snapshot_path: Path,
     *,
     snapshot: TokenizerSnapshot,
-    profiler: ProcessingProfilerProtocol,
+    profiler: ProfilerProtocol,
 ) -> None:
     with profiler.measure("write_tokenizer_snapshot"):
         write_json_model(snapshot, tokenizer_snapshot_path, overwrite=True)
@@ -193,7 +193,7 @@ def _tokenize_missing_sources(
     token_vocabulary: TokenVocabulary,
     difficulty_labels: dict[str, int | None] | None,
     show_progress: bool,
-    profiler: ProcessingProfilerProtocol,
+    profiler: ProfilerProtocol,
 ) -> TokenizeDatasetResult:
     _LOGGER.info("Encoding %s parsed score(s)", len(parsed_scores))
     log_difficulty_label_stats(parsed_scores, dataset_root=dataset_root, difficulty_labels=difficulty_labels)
@@ -253,7 +253,7 @@ def _tokenize_missing_sources_serially(
     token_vocabulary: TokenVocabulary,
     difficulty_labels: dict[str, int | None] | None,
     show_progress: bool,
-    profiler: ProcessingProfilerProtocol,
+    profiler: ProfilerProtocol,
 ) -> TokenizeDatasetResult:
     encoded_line_count = resume_state.encoded_line_count
     manifest_row_count = resume_state.manifest_row_count
@@ -312,7 +312,7 @@ def _tokenize_missing_sources_in_parallel(
     tokenization_processing_config: TokenizationProcessingConfig,
     difficulty_labels: dict[str, int | None] | None,
     show_progress: bool,
-    profiler: ProcessingProfilerProtocol,
+    profiler: ProfilerProtocol,
 ) -> TokenizeDatasetResult:
     temp_root = output_paths.encoded_manifest_path.parent / "tmp"
     _LOGGER.info("Clearing tokenization temp directory: %s", temp_root)
