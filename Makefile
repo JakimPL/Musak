@@ -24,6 +24,13 @@ FIT_FIGURE_DIRECTORY ?=
 FIT_ENCODED_DIRECTORY ?= $(ANALYSIS_ENCODED_DIRECTORY)
 FIT_REGISTER_CONFIG ?=
 FIT_ACCENT_CONFIG ?=
+DIAGNOSTIC_OUTPUT_DIR ?=
+DIAGNOSTIC_ENCODED_DIRECTORY ?= $(ANALYSIS_ENCODED_DIRECTORY)
+DIAGNOSTIC_REFERENCE_DATA_DIR ?=
+DIAGNOSTIC_REFERENCE_ENCODED_DIRECTORY ?=
+DIAGNOSTIC_MAX_SEQUENCE_LENGTH ?= 1024
+DIAGNOSTIC_TOP_ROWS ?= 25
+DIAGNOSTIC_DISABLE_MLFLOW ?=
 APP_HOST ?= 127.0.0.1
 APP_PORT ?= 8000
 ARTIFACTS_DIR ?= artifacts
@@ -35,7 +42,7 @@ NOTEBOOK_NAMES := $(subst _,-,$(basename $(notdir $(NOTEBOOK_FILES))))
 NOTEBOOK_TARGETS := $(addprefix notebook-,$(NOTEBOOK_NAMES))
 NOTEBOOK_MODE ?= edit
 
-.PHONY: help install test app parse tokenize process analyze-n-grams fit-generator train pretrain finetune mlflow FORCE
+.PHONY: help install test app parse tokenize process diagnose analyze-n-grams fit-generator train pretrain finetune mlflow FORCE
 
 PRETRAIN_DATA_DIR ?= $(DATA_DIR)
 PRETRAIN_EPOCHS ?= $(EPOCHS)
@@ -67,6 +74,7 @@ help:
 	@printf '%s\n' '  make parse            Parse one MusicXML dataset into parsed artifacts.'
 	@printf '%s\n' '  make tokenize         Encode parsed artifacts into tokenized dataset artifacts.'
 	@printf '%s\n' '  make process          Run parse, tokenize, then figure analysis for one MusicXML dataset.'
+	@printf '%s\n' '  make diagnose         Build a deterministic diagnostic report from processed artifacts.'
 	@printf '%s\n' '  make analyze-n-grams  Extract figure n-gram counts from encoded dataset artifacts.'
 	@printf '%s\n' '  make fit-generator    Fit register/accent generator overrides from corpus figure statistics.'
 	@printf '%s\n' '  make pretrain         Train the broad token-distribution pretrain model.'
@@ -81,6 +89,7 @@ help:
 	@printf '%s\n' '  make test'
 	@printf '%s\n' '  APP_PORT=8080 make app'
 	@printf '%s\n' '  DATA_DIR=data/pretraining-dataset make process'
+	@printf '%s\n' '  DATA_DIR=data/pretraining-dataset DIAGNOSTIC_REFERENCE_DATA_DIR=data/finetuning-dataset make diagnose'
 	@printf '%s\n' '  DATA_DIR=data/pretraining-dataset make analyze-n-grams'
 	@printf '%s\n' '  DATA_DIR=data/pretraining-dataset FIT_GRID_DENOMINATOR=4 make fit-generator'
 	@printf '%s\n' '  DATA_DIR=data/finetuning-dataset PROCESS_WHOLE_FILE_SEGMENTS=1 PROCESS_DIFFICULTY_LABELS=data/finetuning-difficulty.json PROCESS_OVERWRITE=1 make process'
@@ -112,6 +121,12 @@ help:
 	@printf '%s\n' '  FIT_FIGURE_DIRECTORY  Figure artifact root override (e.g. a figure-splits dir). Defaults to the DATA_DIR figure profile.'
 	@printf '%s\n' '  FIT_ENCODED_DIRECTORY Encoded run directory override when multiple tokenizer runs exist.'
 	@printf '%s\n' '  FIT_REGISTER_CONFIG, FIT_ACCENT_CONFIG optional generator config YAML overrides for fit defaults.'
+	@printf '%s\n' '  DIAGNOSTIC_OUTPUT_DIR Optional diagnostic report output directory.'
+	@printf '%s\n' '  DIAGNOSTIC_ENCODED_DIRECTORY Optional encoded run directory override.'
+	@printf '%s\n' '  DIAGNOSTIC_REFERENCE_DATA_DIR Optional reference dataset for comparison.'
+	@printf '%s\n' '  DIAGNOSTIC_REFERENCE_ENCODED_DIRECTORY Optional reference encoded run directory override.'
+	@printf '%s\n' '  DIAGNOSTIC_MAX_SEQUENCE_LENGTH, DIAGNOSTIC_TOP_ROWS tune diagnostic thresholds/table sizes.'
+	@printf '%s\n' '  DIAGNOSTIC_DISABLE_MLFLOW=1 skips local MLflow lookup.'
 	@printf '%s\n' '  PROFILE=1 or PROCESS_PROFILE=1 passes --profile to process.'
 	@printf '%s\n' '  ARTIFACTS_DIR         Generated artifact root. Default: artifacts'
 	@printf '%s\n' '  MLFLOW_DB             MLflow SQLite tracking database. Default: artifacts/mlflow/mlflow.db'
@@ -158,6 +173,10 @@ tokenize:
 process:
 	$(call require_var,DATA_DIR)
 	$(call process_dataset_command,process)
+
+diagnose:
+	$(call require_var,DATA_DIR)
+	$(call diagnose_dataset_command)
 
 analyze-n-grams:
 	$(call require_var,DATA_DIR)
@@ -258,6 +277,20 @@ define fit_generator_command
 		--grid-denominator "$(FIT_GRID_DENOMINATOR)" \
 		$(call optional_arg,FIT_REGISTER_CONFIG,--register-config) \
 		$(call optional_arg,FIT_ACCENT_CONFIG,--accent-config)
+endef
+
+define diagnose_dataset_command
+	uv run python scripts/diagnose_dataset.py \
+		--data-dir "$(DATA_DIR)" \
+		$(call optional_arg,DIAGNOSTIC_ENCODED_DIRECTORY,--encoded-directory) \
+		$(call optional_arg,DIAGNOSTIC_REFERENCE_DATA_DIR,--reference-data-dir) \
+		$(call optional_arg,DIAGNOSTIC_REFERENCE_ENCODED_DIRECTORY,--reference-encoded-directory) \
+		$(call optional_arg,PROCESSING_CONFIG,--processing-config) \
+		$(call optional_arg,DIAGNOSTIC_OUTPUT_DIR,--output-dir) \
+		--max-sequence-length "$(DIAGNOSTIC_MAX_SEQUENCE_LENGTH)" \
+		--top-rows "$(DIAGNOSTIC_TOP_ROWS)" \
+		--mlflow-db "$(MLFLOW_DB)" \
+		$(call optional_flag,DIAGNOSTIC_DISABLE_MLFLOW,--disable-mlflow-lookup)
 endef
 
 define process_dataset_command

@@ -9,7 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from musak_model.tokens.schema import Hand, ScaleType
 
-RHYTHM_DIR_NAME: Final[str] = "rhythm"
+RHYTHM_DIRECTORY_NAME: Final[str] = "rhythm"
 RHYTHM_PROFILE_NAME: Final[str] = "profile.json"
 RHYTHM_COUNTS_NAME: Final[str] = "counts.parquet"
 
@@ -98,7 +98,7 @@ class RhythmProfile(BaseModel):
 
 
 def rhythm_artifact_paths_for_figure_root(figure_root_directory: Path) -> RhythmArtifactPaths:
-    root_directory = figure_root_directory / RHYTHM_DIR_NAME
+    root_directory = figure_root_directory / RHYTHM_DIRECTORY_NAME
     return RhythmArtifactPaths(
         root_directory=root_directory,
         profile_path=root_directory / RHYTHM_PROFILE_NAME,

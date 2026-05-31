@@ -14,8 +14,16 @@ def _():
     import altair as alt
     import marimo as mo
 
-    from musak_model.n_grams.profile.io import COUNT_COLUMN, HAND_COLUMN, N_COLUMN, SCALE_TYPE_COLUMN
-    from musak_model.paths import DEFAULT_ANALYSIS_DIRECTORY, DEFAULT_TRAINING_FIGURE_DIRECTORY
+    from musak_model.n_grams.profile.io import (
+        COUNT_COLUMN,
+        HAND_COLUMN,
+        N_COLUMN,
+        SCALE_TYPE_COLUMN,
+    )
+    from musak_model.paths import (
+        DEFAULT_ANALYSIS_DIRECTORY,
+        DEFAULT_TRAINING_FIGURE_DIRECTORY,
+    )
     from musak_shared.notation.html import score_data_html
     from notebooks.utils import (
         FIGURE_LABEL_COLUMN,
@@ -80,10 +88,10 @@ def _(mo):
 
 
 @app.cell
-def _(DEFAULT_ANALYSIS_DIR, DEFAULT_TRAINING_FIGURE_DIR, mo):
+def _(DEFAULT_ANALYSIS_DIR, DEFAULT_TRAINING_FIGURE_DIRECTORY, mo):
     initial_path = (
-        DEFAULT_TRAINING_FIGURE_DIR
-        if DEFAULT_TRAINING_FIGURE_DIR.exists()
+        DEFAULT_TRAINING_FIGURE_DIRECTORY
+        if DEFAULT_TRAINING_FIGURE_DIRECTORY.exists()
         else DEFAULT_ANALYSIS_DIR if DEFAULT_ANALYSIS_DIR.exists() else "."
     )
     vocabulary_browser = mo.ui.file_browser(

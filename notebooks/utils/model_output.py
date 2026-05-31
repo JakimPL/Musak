@@ -15,7 +15,10 @@ from musak_model.conditioning.time_signature import TimeSignatureVocabulary
 from musak_model.data.schema import Segment, SegmentMetadata
 from musak_model.decoder import segment_to_piano_roll_events
 from musak_model.evaluation import diagnose_segment
-from musak_model.evaluation.generation import ReferenceFreeGenerationMetric, reference_free_generation_metrics
+from musak_model.evaluation.generation import (
+    ReferenceFreeGenerationMetric,
+    reference_free_generation_metrics,
+)
 from musak_model.generation.constraints import (
     GenerationConstraintError,
     GenerationConstraints,
@@ -30,13 +33,17 @@ from musak_model.n_grams.figure.parser import extract_hand_onset_runs
 from musak_model.n_grams.figure.samples.schema import FigureNGramCountsByScale
 from musak_model.n_grams.figure.schema import FigureNGram
 from musak_model.n_grams.profile.io import read_figure_counts_for_groups
-from musak_model.n_grams.profile.metrics.reference.distribution import figure_reference_alignment_metrics
+from musak_model.n_grams.profile.metrics.reference.distribution import (
+    figure_reference_alignment_metrics,
+)
 from musak_model.n_grams.profile.rhythm.extraction import count_segment_rhythm_metrics
 from musak_model.n_grams.profile.rhythm.io import read_rhythm_counts
-from musak_model.n_grams.profile.rhythm.metrics import rhythm_reference_distribution_metrics
+from musak_model.n_grams.profile.rhythm.metrics import (
+    rhythm_reference_distribution_metrics,
+)
 from musak_model.n_grams.profile.rhythm.schema import (
     RHYTHM_COUNTS_NAME,
-    RHYTHM_DIR_NAME,
+    RHYTHM_DIRECTORY_NAME,
     RhythmCountCounter,
     RhythmCountKey,
     RhythmMetricKind,
@@ -646,7 +653,7 @@ def load_rhythm_reference_counts(path: Path) -> RhythmCountCounter:
 
 
 def rhythm_reference_counts_path(figure_counts_path: Path) -> Path:
-    return figure_counts_path.parent.parent / RHYTHM_DIR_NAME / RHYTHM_COUNTS_NAME
+    return figure_counts_path.parent.parent / RHYTHM_DIRECTORY_NAME / RHYTHM_COUNTS_NAME
 
 
 def rhythm_reference_alignment_metric_rows(

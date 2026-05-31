@@ -70,6 +70,33 @@ DATA_DIR=data/pretraining-dataset make analyze-n-grams
 Figure extraction writes resumable batch progress below the encoded run while it is incomplete. Compatible partial
 work resumes automatically, and `OVERWRITE=1` restarts from scratch.
 
+## Diagnose Processed Artifacts
+
+Run a deterministic diagnostic report after processing:
+
+```bash
+DATA_DIR=data/pretraining-dataset make diagnose
+```
+
+The report reads `parsed.csv`, `encoded.csv`, `data-00000.jsonl`, and `tokenizer.json` from the resolved encoded run. It
+writes `report.md`, `summary.json`, and CSV tables under `artifacts/diagnostics/<dataset-name>/<tokenizer-hash>/`.
+Use a reference dataset when comparing broad pretraining material with curated exercises:
+
+```bash
+DATA_DIR=data/pretraining-dataset DIAGNOSTIC_REFERENCE_DATA_DIR=data/finetuning-dataset make diagnose
+```
+
+Useful diagnostic switches:
+
+```bash
+DATA_DIR=data/pretraining-dataset DIAGNOSTIC_ENCODED_DIRECTORY=artifacts/processed/pretraining-dataset/encoded/<hash> make diagnose
+DATA_DIR=data/pretraining-dataset DIAGNOSTIC_OUTPUT_DIR=/tmp/pretraining-diagnostics make diagnose
+DATA_DIR=data/pretraining-dataset DIAGNOSTIC_DISABLE_MLFLOW=1 make diagnose
+```
+
+Diagnostics include processing health, scale-family and mode-collapse probes, token/vocabulary distributions, rhythm
+and texture summaries, outlier tables, optional reference comparison, and optional local MLflow run lookup.
+
 Start the local MLflow UI with:
 
 ```bash

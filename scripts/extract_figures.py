@@ -8,6 +8,8 @@ from musak_model.n_grams.config import NGramAnalysisConfig
 from musak_model.n_grams.profile.artifacts import figure_artifact_paths
 from musak_model.n_grams.profile.extraction import extract_figure_artifacts
 from musak_model.paths import DEFAULT_PROCESSED_ROOT, N_GRAM_ANALYSIS_CONFIG_PATH
+from musak_model.processing.encoded_runs import encoded_run_directories as _encoded_run_directories
+from musak_model.processing.encoded_runs import resolve_encoded_directory as _resolve_encoded_directory
 from musak_model.processing.paths import ENCODED_JSONL_NAME, TOKENIZER_SNAPSHOT_NAME
 
 _LOGGER = logging.getLogger(__name__)
@@ -109,32 +111,15 @@ def resolve_encoded_directory(
     processed_root: Path,
     encoded_directory: Path | None,
 ) -> Path:
-    if encoded_directory is not None:
-        return encoded_directory
-
-    if data_directory is None:
-        raise ValueError("--data-dir is required when --encoded-directory is omitted")
-
-    encoded_root = processed_root / data_directory.name / "encoded"
-    encoded_directorys = encoded_run_directories(encoded_root)
-    if not encoded_directorys:
-        raise FileNotFoundError(f"No encoded runs found in {encoded_root}")
-
-    if len(encoded_directorys) > 1:
-        raise ValueError(f"Multiple encoded runs found in {encoded_root}; pass --encoded-directory explicitly")
-
-    return encoded_directorys[0]
+    return _resolve_encoded_directory(
+        data_directory=data_directory,
+        processed_root=processed_root,
+        encoded_directory=encoded_directory,
+    )
 
 
 def encoded_run_directories(encoded_root: Path) -> list[Path]:
-    if not encoded_root.exists():
-        return []
-
-    return sorted(
-        path
-        for path in encoded_root.iterdir()
-        if path.is_dir() and (path / ENCODED_JSONL_NAME).is_file() and (path / TOKENIZER_SNAPSHOT_NAME).is_file()
-    )
+    return _encoded_run_directories(encoded_root)
 
 
 def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:

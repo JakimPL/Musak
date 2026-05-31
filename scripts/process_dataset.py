@@ -38,7 +38,7 @@ _LOG_LEVELS = {
 }
 _EXIT_FAILURE: Final[int] = 1
 _PARSING_STAGES: Final[frozenset[str]] = frozenset({"parse", "process"})
-_DEFAULT_PROFILE_OUTPUT_DIRS: Final[dict[str, Path]] = {
+_DEFAULT_PROFILE_OUTPUT_DIRECTORIES: Final[dict[str, Path]] = {
     "parse": DEFAULT_PARSING_PROFILE_OUTPUT_DIRECTORY,
     "tokenize": DEFAULT_TOKENIZATION_PROFILE_OUTPUT_DIRECTORY,
     "process": DEFAULT_COMBINED_PROCESSING_PROFILE_OUTPUT_DIRECTORY,
@@ -235,7 +235,7 @@ def _profile_output_dir(stage: str, *, configured: Path | None) -> Path:
     if configured is not None:
         return configured
 
-    return _DEFAULT_PROFILE_OUTPUT_DIRS[stage]
+    return _DEFAULT_PROFILE_OUTPUT_DIRECTORIES[stage]
 
 
 def _log_processing_file_not_found(

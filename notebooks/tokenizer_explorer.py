@@ -80,7 +80,7 @@ def _(build_default_token_vocabulary, mo):
 
 @app.cell
 def _(
-    DEFAULT_DATA_DIR,
+    DEFAULT_DATA_DIRECTORY,
     DEFAULT_PROCESSED_ROOT,
     Path,
     default_duration_vocabulary,
@@ -89,20 +89,20 @@ def _(
         current = path
         while not current.exists() or not current.is_dir():
             if current == current.parent:
-                return DEFAULT_DATA_DIR
+                return DEFAULT_DATA_DIRECTORY
 
             current = current.parent
 
         return current
 
-    data_root = DEFAULT_DATA_DIR
+    data_root = DEFAULT_DATA_DIRECTORY
     processed_browser_path = _existing_directory(DEFAULT_PROCESSED_ROOT)
     duration_vocabulary = default_duration_vocabulary()
     return duration_vocabulary, processed_browser_path
 
 
 @app.cell
-def _(DEFAULT_DATA_DIR, MUSICXML_EXTENSIONS, mo, processed_browser_path):
+def _(DEFAULT_DATA_DIRECTORY, MUSICXML_EXTENSIONS, mo, processed_browser_path):
     source_mode = mo.ui.radio(
         options={
             "Raw MusicXML": "raw",
@@ -114,7 +114,7 @@ def _(DEFAULT_DATA_DIR, MUSICXML_EXTENSIONS, mo, processed_browser_path):
         label="Source",
     )
     file_browser = mo.ui.file_browser(
-        initial_path=DEFAULT_DATA_DIR,
+        initial_path=DEFAULT_DATA_DIRECTORY,
         filetypes=list(MUSICXML_EXTENSIONS),
         selection_mode="file",
         multiple=False,
