@@ -87,8 +87,9 @@ Every entry lists the two entities being bridged and the package that owns the c
 | `segment_to_piano_roll_events`, `tokens_to_piano_roll_events`, `parsed_score_to_piano_roll_events` | `decoder/piano_roll.py` | `Segment` / `list[Token]` / `ParsedScore` → `list[PianoRollEvent]` |
 | `segment_to_music21_score` | `decoder/music21.py` | `Segment` → `music21.stream.Score` |
 | `segment_to_score_data`, `segment_to_notation_events` | `decoder/notation.py` | `Segment` → VexFlow `ScoreData` / notation events |
-| `note_token_to_vexflow_spelling` | `decoder/notation.py` | `NoteToken` + MIDI + `scale_root` + `key_fifths` → `VexflowSpelling` |
-| `key_signature_name`, `key_fifths_for_scale` | `decoder/notation.py` | `(scale_root, scale_type)` → key-signature name / key fifths |
+| `note_token_to_vexflow_spelling` | `decoder/notation.py` | `NoteToken` + MIDI + pitch-set `scale_root` + spelling `key_fifths` → `VexflowSpelling` |
+| `segment_key_signature_name`, `segment_spelling_key_fifths` | `decoder/notation.py` | `Segment` metadata + optional tokenization context → notation key signature / spelling key fifths |
+| `key_signature_name`, `key_fifths_for_scale` | `decoder/notation.py` | fallback `(scale_root, scale_type)` → key-signature name / key fifths |
 | `_letter_for_pitch_class_in_key_signature`, `_accidental_for_letter_pitch_class`, `_vexflow_octave` | `decoder/notation.py` | helper conversions for VexFlow spelling |
 
 ### Other domain-specific conversions

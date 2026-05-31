@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from musak_model.data.schema import Segment, SegmentMetadata
+from musak_model.data.schema import Segment, SegmentMetadata, SpellingContextSource, TokenizationContext
 from musak_model.decoder.notation import (
     UnsupportedNotationDurationError,
     segment_to_notation_events,
@@ -29,6 +29,7 @@ def _segment(
     *,
     scale_root: int = 0,
     scale_type: ScaleType = ScaleType.MAJOR,
+    tokenization_context: TokenizationContext | None = None,
     time_numerator: int = 4,
     time_denominator: int = 4,
     bar_count: int = 1,
@@ -38,6 +39,7 @@ def _segment(
         metadata=SegmentMetadata(
             scale_root=scale_root,
             scale_type=scale_type,
+            tokenization_context=tokenization_context,
             time_numerator=time_numerator,
             time_denominator=time_denominator,
             bar_count=bar_count,
@@ -49,6 +51,23 @@ def _segment(
 
 def _note(duration_id: int, *, degree: int = 1, accidental: int = 0) -> NoteToken:
     return NoteToken(degree=degree, accidental=accidental, octave_offset=0, duration_id=duration_id)
+
+
+def _tokenization_context(
+    *,
+    pitch_set_scale_root: int,
+    pitch_set_scale_type: ScaleType,
+    declared_key_fifths: int | None,
+    spelling_key_fifths: int,
+    spelling_context_source: SpellingContextSource,
+) -> TokenizationContext:
+    return TokenizationContext(
+        pitch_set_scale_root=pitch_set_scale_root,
+        pitch_set_scale_type=pitch_set_scale_type,
+        declared_key_fifths=declared_key_fifths,
+        spelling_key_fifths=spelling_key_fifths,
+        spelling_context_source=spelling_context_source,
+    )
 
 
 def test_segment_to_score_data_outputs_two_hand_rows(
@@ -131,6 +150,31 @@ def test_segment_to_score_data_uses_parent_major_key_signature_for_minor_scales(
     score = segment_to_score_data(segment, duration_vocabulary=duration_vocabulary)
 
     assert score.rows[0][0].key_signature == "C"
+
+
+def test_segment_to_score_data_uses_spelling_context_key_signature(
+    duration_vocabulary: DurationVocabulary,
+) -> None:
+    quarter_id = duration_vocabulary.fraction_to_id(Fraction(1, 4))
+    segment = _segment(
+        [HandToken(hand=Hand.RIGHT), _note(quarter_id, degree=4)],
+        scale_root=5,
+        scale_type=ScaleType.MAJOR,
+        tokenization_context=_tokenization_context(
+            pitch_set_scale_root=5,
+            pitch_set_scale_type=ScaleType.MAJOR,
+            declared_key_fifths=0,
+            spelling_key_fifths=0,
+            spelling_context_source=SpellingContextSource.DECLARED_KEY_SIGNATURE,
+        ),
+    )
+
+    score = segment_to_score_data(segment, duration_vocabulary=duration_vocabulary)
+    note = score.rows[0][0].voices[0].notes[0]
+
+    assert score.rows[0][0].key_signature == "C"
+    assert note.keys == ["bb/5"]
+    assert note.accidentals == ["b"]
 
 
 def test_segment_to_score_data_fills_rests(

@@ -147,7 +147,7 @@ def segment_to_score_data(
     measure_duration = Fraction(segment.time_numerator, segment.time_denominator)
     bar_count = max(segment.bar_count, _token_bar_count(segment))
     displayed_bar_count = bar_count if max_bars is None else min(bar_count, max_bars)
-    key_signature = key_signature_name(scale_root=segment.scale_root, scale_type=segment.scale_type)
+    key_signature = segment_key_signature_name(segment)
     rows: list[list[StaveData]] = []
     for first_measure in range(0, displayed_bar_count, measures_per_row or max(displayed_bar_count, 1)):
         last_measure = min(first_measure + (measures_per_row or displayed_bar_count), displayed_bar_count)
@@ -173,7 +173,7 @@ def segment_to_notation_events(
     default_hand: Hand = Hand.RIGHT,
 ) -> list[DecodedNotationEvent]:
     measure_duration = Fraction(segment.time_numerator, segment.time_denominator)
-    key_fifths = key_fifths_for_scale(scale_root=segment.scale_root, scale_type=segment.scale_type)
+    key_fifths = segment_spelling_key_fifths(segment)
     active_hand = default_hand
     bar_index = 0
     cursors = {Hand.RIGHT: Fraction(0), Hand.LEFT: Fraction(0)}
@@ -259,7 +259,22 @@ def segment_to_notation_events(
 
 
 def key_signature_name(*, scale_root: int, scale_type: ScaleType) -> str:
-    return _MAJOR_KEY_SIGNATURES_BY_FIFTHS[key_fifths_for_scale(scale_root=scale_root, scale_type=scale_type)]
+    return key_signature_name_from_fifths(key_fifths=key_fifths_for_scale(scale_root=scale_root, scale_type=scale_type))
+
+
+def segment_key_signature_name(segment: Segment) -> str:
+    return key_signature_name_from_fifths(key_fifths=segment_spelling_key_fifths(segment))
+
+
+def key_signature_name_from_fifths(*, key_fifths: int) -> str:
+    return _MAJOR_KEY_SIGNATURES_BY_FIFTHS[key_fifths]
+
+
+def segment_spelling_key_fifths(segment: Segment) -> int:
+    if segment.metadata.tokenization_context is not None:
+        return segment.metadata.tokenization_context.spelling_key_fifths
+
+    return key_fifths_for_scale(scale_root=segment.scale_root, scale_type=segment.scale_type)
 
 
 def key_fifths_for_scale(*, scale_root: int, scale_type: ScaleType) -> int:
