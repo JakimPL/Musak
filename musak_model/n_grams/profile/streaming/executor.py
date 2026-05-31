@@ -7,9 +7,15 @@ from typing import Protocol, Self, cast
 
 from musak_model.n_grams.config import NGramAnalysisConfig
 from musak_model.n_grams.profile.chord.schema import ChordDecodeSpec
-from musak_model.n_grams.profile.streaming.schema import FigureBatchResult, FigureBatchTask
+from musak_model.n_grams.profile.streaming.schema import (
+    FigureBatchResult,
+    FigureBatchTask,
+)
 from musak_model.n_grams.profile.streaming.store import FigureWorkStore
-from musak_model.n_grams.profile.streaming.tasks import figure_batch_tasks, figure_sample_batch_tasks
+from musak_model.n_grams.profile.streaming.tasks import (
+    figure_batch_tasks,
+    figure_sample_batch_tasks,
+)
 from musak_model.n_grams.profile.streaming.worker import process_figure_batch_task
 from musak_model.processing.progress import progress
 from musak_model.processing.workers import process_pool_context
@@ -68,13 +74,13 @@ def process_missing_batches(
     tasks = figure_batch_tasks(
         encoded_jsonl_path,
         tokenization_config=tokenization_config,
-        min_n=config.figure.min_n,
-        max_n=config.figure.max_n,
-        rhythm_min_n=config.rhythm.min_n,
-        rhythm_max_n=config.rhythm.max_n,
-        grid_alignment_denominators=config.rhythm.grid_alignment_denominators,
-        strong_beat_offsets=config.rhythm.strong_beat_offsets,
-        register_arch_basis_count=config.register.arch_basis_count,
+        min_n=config.figure_analysis.min_n,
+        max_n=config.figure_analysis.max_n,
+        rhythm_min_n=config.rhythm_analysis.min_n,
+        rhythm_max_n=config.rhythm_analysis.max_n,
+        grid_alignment_denominators=config.rhythm_analysis.grid_alignment_denominators,
+        strong_beat_offsets=config.rhythm_analysis.strong_beat_offsets,
+        register_arch_basis_count=config.register_analysis.arch_basis_count,
         chord_decode=chord_decode,
         batch_size=config.execution.batch_size,
         completed_batches=completed_batches,
@@ -107,13 +113,13 @@ def process_missing_sample_batches(
     tasks = figure_sample_batch_tasks(
         samples,
         tokenization_config=tokenization_config,
-        min_n=config.figure.min_n,
-        max_n=config.figure.max_n,
-        rhythm_min_n=config.rhythm.min_n,
-        rhythm_max_n=config.rhythm.max_n,
-        grid_alignment_denominators=config.rhythm.grid_alignment_denominators,
-        strong_beat_offsets=config.rhythm.strong_beat_offsets,
-        register_arch_basis_count=config.register.arch_basis_count,
+        min_n=config.figure_analysis.min_n,
+        max_n=config.figure_analysis.max_n,
+        rhythm_min_n=config.rhythm_analysis.min_n,
+        rhythm_max_n=config.rhythm_analysis.max_n,
+        grid_alignment_denominators=config.rhythm_analysis.grid_alignment_denominators,
+        strong_beat_offsets=config.rhythm_analysis.strong_beat_offsets,
+        register_arch_basis_count=config.register_analysis.arch_basis_count,
         batch_size=config.execution.batch_size,
         completed_batches=completed_batches,
     )

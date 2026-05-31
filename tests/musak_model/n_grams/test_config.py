@@ -53,15 +53,15 @@ def test_n_gram_analysis_config_loads_yaml(tmp_path: Path) -> None:
 
     config = NGramAnalysisConfig.load(config_path)
 
-    assert config.figure.min_n == 2
-    assert config.figure.max_n == 4
-    assert config.figure.limit_per_group == 10
-    assert config.figure.common_mass_threshold == 0.75
-    assert config.rhythm.min_n == 1
-    assert config.rhythm.max_n == 3
-    assert config.rhythm.grid_alignment_denominators == (1, 2, 4)
-    assert config.rhythm.strong_beat_offsets == (Fraction(0), Fraction(1, 2))
-    assert config.register.arch_basis_count == 5
+    assert config.figure_analysis.min_n == 2
+    assert config.figure_analysis.max_n == 4
+    assert config.figure_analysis.limit_per_group == 10
+    assert config.figure_analysis.common_mass_threshold == 0.75
+    assert config.rhythm_analysis.min_n == 1
+    assert config.rhythm_analysis.max_n == 3
+    assert config.rhythm_analysis.grid_alignment_denominators == (1, 2, 4)
+    assert config.rhythm_analysis.strong_beat_offsets == (Fraction(0), Fraction(1, 2))
+    assert config.register_analysis.arch_basis_count == 5
     assert config.execution.workers == 3
     assert config.execution.batch_size == 64
 

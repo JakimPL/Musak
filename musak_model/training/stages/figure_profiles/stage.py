@@ -3,9 +3,17 @@ from pathlib import Path
 from time import perf_counter
 
 from musak_model.n_grams.config import NGramAnalysisConfig
-from musak_model.n_grams.profile.loading import FigureProfileArtifacts, load_processed_figure_profile_artifacts
-from musak_model.n_grams.profile.metrics.profile_comparison import figure_profile_comparison_metrics
-from musak_model.paths import DEFAULT_TRAINING_FIGURE_DIRECTORY, N_GRAM_ANALYSIS_CONFIG_PATH
+from musak_model.n_grams.profile.loading import (
+    FigureProfileArtifacts,
+    load_processed_figure_profile_artifacts,
+)
+from musak_model.n_grams.profile.metrics.profile_comparison import (
+    figure_profile_comparison_metrics,
+)
+from musak_model.paths import (
+    DEFAULT_TRAINING_FIGURE_DIRECTORY,
+    N_GRAM_ANALYSIS_CONFIG_PATH,
+)
 from musak_model.tokens.config import TokenizationConfig
 from musak_model.tokens.vocabulary import TokenVocabulary
 from musak_model.training.ingestion.config import IngestionConfig
@@ -75,8 +83,8 @@ def split_figure_profile_metrics(
         "batch_size=%s workers=%s artifact_dir=%s",
         len(split.train),
         len(split.validation),
-        config.figure.min_n,
-        config.figure.max_n,
+        config.figure_analysis.min_n,
+        config.figure_analysis.max_n,
         config.execution.batch_size,
         config.execution.workers,
         split_directory,

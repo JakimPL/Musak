@@ -20,7 +20,14 @@ from musak_model.n_grams.config import (
 from musak_model.n_grams.figure.schema import FigureNGram
 from musak_model.n_grams.profile.rhythm.schema import RhythmCountKey
 from musak_model.tokens.duration import DurationVocabulary
-from musak_model.tokens.schema import EndToken, Hand, HandToken, HoldToken, NoteToken, ScaleType
+from musak_model.tokens.schema import (
+    EndToken,
+    Hand,
+    HandToken,
+    HoldToken,
+    NoteToken,
+    ScaleType,
+)
 from musak_model.tokens.vocabulary import TokenVocabulary
 from musak_model.training.ingestion.schema import EncodedExercise
 from notebooks.utils.model_output import (
@@ -294,7 +301,7 @@ def test_figure_reference_alignment_metric_rows_compare_alignment_and_novelty(
         segment,
         duration_vocabulary=duration_vocabulary,
         reference_counts=reference_counts,
-        figure_config=_analysis_config().figure,
+        figure_config=_analysis_config().figure_analysis,
     )
 
     assert _row_value(rows, "reference groups compared") == 2
@@ -331,7 +338,7 @@ def test_rhythm_grid_metric_rows_describe_grid_alignment(
     rows = rhythm_grid_metric_rows(
         segment,
         duration_vocabulary=duration_vocabulary,
-        rhythm_config=_analysis_config().rhythm,
+        rhythm_config=_analysis_config().rhythm_analysis,
     )
 
     assert _row_value(rows, "rhythmic onsets") == 2
@@ -378,7 +385,7 @@ def test_rhythm_reference_alignment_metric_rows_compare_reference_distributions(
         segment,
         duration_vocabulary=duration_vocabulary,
         reference_counts=reference_counts,
-        rhythm_config=_analysis_config().rhythm,
+        rhythm_config=_analysis_config().rhythm_analysis,
     )
 
     assert _row_value(rows, "duration-value distance") == "0.000"
@@ -389,11 +396,11 @@ def test_rhythm_reference_alignment_metric_rows_compare_reference_distributions(
 
 def _analysis_config() -> NGramAnalysisConfig:
     return NGramAnalysisConfig(
-        figure=FigureAnalysisConfig(min_n=2, max_n=4, limit_per_group=None, common_mass_threshold=0.8),
-        rhythm=RhythmAnalysisConfig(
+        figure_analysis=FigureAnalysisConfig(min_n=2, max_n=4, limit_per_group=None, common_mass_threshold=0.8),
+        rhythm_analysis=RhythmAnalysisConfig(
             min_n=2, max_n=4, grid_alignment_denominators=(1, 2, 4, 8, 16), strong_beat_offsets=(Fraction(0),)
         ),
-        register=RegisterAnalysisConfig(arch_basis_count=3),
+        register_analysis=RegisterAnalysisConfig(arch_basis_count=3),
         execution=ExecutionConfig(workers=1, batch_size=1),
     )
 

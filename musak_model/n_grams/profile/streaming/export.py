@@ -5,9 +5,16 @@ from pathlib import Path
 import polars as pl
 
 from musak_model.n_grams.config import NGramAnalysisConfig
-from musak_model.n_grams.figure.signature import figure_signature_from_json, figure_signature_to_ngram
+from musak_model.n_grams.figure.signature import (
+    figure_signature_from_json,
+    figure_signature_to_ngram,
+)
 from musak_model.n_grams.profile.artifacts import FigureArtifactPaths
-from musak_model.n_grams.profile.chord.io import write_chord_metadata, write_chord_transitions, write_figure_by_chord
+from musak_model.n_grams.profile.chord.io import (
+    write_chord_metadata,
+    write_chord_transitions,
+    write_figure_by_chord,
+)
 from musak_model.n_grams.profile.chord.schema import (
     ChordDecodeSpec,
     ChordProfileMetadata,
@@ -28,19 +35,33 @@ from musak_model.n_grams.profile.io import (
     N_COLUMN,
     SCALE_TYPE_COLUMN,
 )
-from musak_model.n_grams.profile.register.io import write_register_metadata, write_register_statistics
+from musak_model.n_grams.profile.register.io import (
+    write_register_metadata,
+    write_register_statistics,
+)
 from musak_model.n_grams.profile.register.schema import (
     RegisterProfileMetadata,
     register_artifact_paths_for_figure_root,
 )
-from musak_model.n_grams.profile.rhythm.io import build_rhythm_profile, write_rhythm_counts, write_rhythm_profile
+from musak_model.n_grams.profile.rhythm.io import (
+    build_rhythm_profile,
+    write_rhythm_counts,
+    write_rhythm_profile,
+)
 from musak_model.n_grams.profile.rhythm.schema import (
     RhythmCountCounter,
     RhythmProfileMetadata,
     rhythm_artifact_paths_for_figure_root,
 )
-from musak_model.n_grams.profile.schema import FigureProfile, FigureProfileGroup, FigureProfileMetadata
-from musak_model.n_grams.profile.streaming.schema import FigureCountKey, FigureStoreSummary
+from musak_model.n_grams.profile.schema import (
+    FigureProfile,
+    FigureProfileGroup,
+    FigureProfileMetadata,
+)
+from musak_model.n_grams.profile.streaming.schema import (
+    FigureCountKey,
+    FigureStoreSummary,
+)
 from musak_model.n_grams.profile.streaming.store import FigureWorkStore
 from musak_model.n_grams.profile.streaming.totals import figure_group_totals
 from musak_model.tokens.schema import Hand, ScaleType
@@ -57,16 +78,16 @@ def export_figure_artifacts(
     limit_per_group: int | None,
     chord_decode: ChordDecodeSpec | None = None,
 ) -> FigureStoreSummary:
-    profile = profile_from_store(store, min_n=config.figure.min_n, max_n=config.figure.max_n)
+    profile = profile_from_store(store, min_n=config.figure_analysis.min_n, max_n=config.figure_analysis.max_n)
     rhythm_counts = rhythm_counts_from_store(store)
     rhythm_paths = rhythm_artifact_paths_for_figure_root(artifact_paths.root_directory)
     rhythm_profile = build_rhythm_profile(
         rhythm_counts,
         metadata=RhythmProfileMetadata(
-            rhythm_min_n=config.rhythm.min_n,
-            rhythm_max_n=config.rhythm.max_n,
-            grid_alignment_denominators=config.rhythm.grid_alignment_denominators,
-            strong_beat_offsets=config.rhythm.strong_beat_offsets,
+            rhythm_min_n=config.rhythm_analysis.min_n,
+            rhythm_max_n=config.rhythm_analysis.max_n,
+            grid_alignment_denominators=config.rhythm_analysis.grid_alignment_denominators,
+            strong_beat_offsets=config.rhythm_analysis.strong_beat_offsets,
             sample_count=store.encoded_sample_count(),
         ),
     )
@@ -79,7 +100,7 @@ def export_figure_artifacts(
     write_register_statistics(store.tables.register_statistics(), register_paths.statistics_path)
     write_register_metadata(
         RegisterProfileMetadata(
-            arch_basis_count=config.register.arch_basis_count,
+            arch_basis_count=config.register_analysis.arch_basis_count,
             sample_count=store.encoded_sample_count(),
         ),
         register_paths.metadata_path,

@@ -5,7 +5,9 @@ from time import perf_counter
 from musak_model.n_grams.config import NGramAnalysisConfig
 from musak_model.n_grams.profile.artifacts import figure_artifact_paths_from_root
 from musak_model.n_grams.profile.io import read_figure_profile
-from musak_model.n_grams.profile.streaming.executor import process_missing_sample_batches
+from musak_model.n_grams.profile.streaming.executor import (
+    process_missing_sample_batches,
+)
 from musak_model.n_grams.profile.streaming.export import export_figure_artifacts
 from musak_model.n_grams.profile.streaming.store import (
     FigureWorkStore,
@@ -40,8 +42,8 @@ def build_split_artifacts(
         split_name,
         len(samples),
         task_count,
-        config.figure.min_n,
-        config.figure.max_n,
+        config.figure_analysis.min_n,
+        config.figure_analysis.max_n,
         config.execution.workers,
         paths.root_directory,
     )

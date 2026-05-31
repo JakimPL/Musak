@@ -64,7 +64,7 @@ def extract_streaming_figure_artifacts(
             artifact_paths=artifact_paths,
             output_path=output_path,
             config=config,
-            limit_per_group=config.figure.limit_per_group,
+            limit_per_group=config.figure_analysis.limit_per_group,
             chord_decode=chord_decode,
         )
         _LOGGER.info("Exported figure artifacts in %.1fs", perf_counter() - started_at)

@@ -8,7 +8,10 @@ from musak_model.harmony.decoding.config import ChordDecoderConfig
 from musak_model.harmony.vocabulary import ChordVocabularyConfig
 from musak_model.n_grams.config import NGramAnalysisConfig
 from musak_model.n_grams.profile.artifacts import figure_artifact_paths
-from musak_model.n_grams.profile.chord.io import read_chord_metadata, read_chord_transitions
+from musak_model.n_grams.profile.chord.io import (
+    read_chord_metadata,
+    read_chord_transitions,
+)
 from musak_model.n_grams.profile.chord.schema import (
     INITIAL_CHORD_SOURCE,
     ChordDecodeSpec,
@@ -22,12 +25,20 @@ from musak_model.n_grams.profile.io import (
     read_figure_sample_counts_jsonl,
 )
 from musak_model.n_grams.profile.reference import FigureReferenceStore
-from musak_model.n_grams.profile.rhythm.io import read_rhythm_counts, read_rhythm_profile
-from musak_model.n_grams.profile.rhythm.schema import rhythm_artifact_paths_for_figure_root
+from musak_model.n_grams.profile.rhythm.io import (
+    read_rhythm_counts,
+    read_rhythm_profile,
+)
+from musak_model.n_grams.profile.rhythm.schema import (
+    rhythm_artifact_paths_for_figure_root,
+)
 from musak_model.n_grams.profile.schema import FigureSampleCounts
 from musak_model.n_grams.profile.streaming.schema import FigureBatchTask
 from musak_model.n_grams.profile.streaming.state import figure_state_key
-from musak_model.n_grams.profile.streaming.store import FigureWorkStore, figure_reference_database_path
+from musak_model.n_grams.profile.streaming.store import (
+    FigureWorkStore,
+    figure_reference_database_path,
+)
 from musak_model.n_grams.profile.streaming.worker import process_figure_batch_task
 from musak_model.processing.io import append_jsonl, write_json_model
 from musak_model.processing.snapshot import build_tokenizer_snapshot
@@ -105,13 +116,13 @@ def test_extract_figure_artifacts_resumes_partial_work_store(
                     sample_start_index=0,
                     encoded_lines=(first_line,),
                     tokenization_config=tokenization_config,
-                    min_n=config.figure.min_n,
-                    max_n=config.figure.max_n,
-                    rhythm_min_n=config.rhythm.min_n,
-                    rhythm_max_n=config.rhythm.max_n,
-                    grid_alignment_denominators=config.rhythm.grid_alignment_denominators,
-                    strong_beat_offsets=config.rhythm.strong_beat_offsets,
-                    register_arch_basis_count=config.register.arch_basis_count,
+                    min_n=config.figure_analysis.min_n,
+                    max_n=config.figure_analysis.max_n,
+                    rhythm_min_n=config.rhythm_analysis.min_n,
+                    rhythm_max_n=config.rhythm_analysis.max_n,
+                    grid_alignment_denominators=config.rhythm_analysis.grid_alignment_denominators,
+                    strong_beat_offsets=config.rhythm_analysis.strong_beat_offsets,
+                    register_arch_basis_count=config.register_analysis.arch_basis_count,
                     chord_decode=_chord_decode_spec(),
                 )
             )

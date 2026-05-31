@@ -15,13 +15,13 @@ def figure_state_key(
 ) -> str:
     payload: dict[str, Any] = {
         "tokenizer_hash": snapshot.tokenizer_hash,
-        "min_n": config.figure.min_n,
-        "max_n": config.figure.max_n,
-        "rhythm_min_n": config.rhythm.min_n,
-        "rhythm_max_n": config.rhythm.max_n,
-        "grid_alignment_denominators": config.rhythm.grid_alignment_denominators,
-        "strong_beat_offsets": [str(offset) for offset in config.rhythm.strong_beat_offsets],
-        "register_arch_basis_count": config.register.arch_basis_count,
+        "min_n": config.figure_analysis.min_n,
+        "max_n": config.figure_analysis.max_n,
+        "rhythm_min_n": config.rhythm_analysis.min_n,
+        "rhythm_max_n": config.rhythm_analysis.max_n,
+        "grid_alignment_denominators": config.rhythm_analysis.grid_alignment_denominators,
+        "strong_beat_offsets": [str(offset) for offset in config.rhythm_analysis.strong_beat_offsets],
+        "register_arch_basis_count": config.register_analysis.arch_basis_count,
         "batch_size": config.execution.batch_size,
     }
     if chord_decode is not None:
