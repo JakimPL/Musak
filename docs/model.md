@@ -86,6 +86,12 @@ under `generation/musical_auxiliary/*` so sampled material can be compared again
 Training setup also logs train/validation auxiliary bucket distributions and total-variation distances under
 `model/split/musical_auxiliary/*`; these split metrics are reference diagnostics, not gradient terms.
 
+Generation evaluation also logs an interpretable lower-is-better sample penalty under
+`generation/<soft|hard>/mean/sample_penalty` plus named penalty terms. The current terms cover decode and constraint
+failures, incomplete or wrong-bar-count samples, silent or one-hand-only texture, hand imbalance, chromaticity,
+dotted-duration violations, minimum-duration violations, and configured playability-limit excesses. This score is for
+diagnostics and future reranking; it is not used as a training loss or sampling prior.
+
 Each encoded JSONL row is an `EncodedExercise`:
 
 - `token_ids`: unified two-hand token sequence.

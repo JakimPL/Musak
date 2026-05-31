@@ -132,8 +132,11 @@ This section is the durable resumption point if work continues after context com
   reports under `generation/musical_auxiliary/*`.
 - Completed: Phase 5C logs train/validation auxiliary bucket reference distributions and total-variation distances
   under `model/split/musical_auxiliary/*` during pretraining and finetuning setup.
-- Next: inspect Phase 5B/5C metrics on one short pretraining run before broadening the auxiliary target set beyond
-  the current density, rhythm, texture, chromaticity, dotted-duration, and span targets.
+- Completed: Phase 6A adds an interpretable generated-sample penalty report under
+  `generation/<soft|hard>/mean/sample_penalty*`. This is wired only as diagnostics for future reranking; sampling
+  and training behavior are unchanged.
+- Next: inspect Phase 5B/5C/6A metrics on one short pretraining run before broadening the auxiliary target set
+  beyond the current density, rhythm, texture, chromaticity, dotted-duration, and span targets.
 
 Early non-unit validation for Phase 2A:
 

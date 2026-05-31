@@ -31,6 +31,7 @@ from musak_model.evaluation.generation.sampling import (
     segment_from_tokens,
 )
 from musak_model.evaluation.generation.schema import GenerationSample
+from musak_model.evaluation.generation.scoring import generation_sample_score_metrics
 from musak_model.evaluation.generation.suite_metrics import suite_metrics
 from musak_model.generation.constraints import (
     GenerationConstraintError,
@@ -158,6 +159,8 @@ class GenerationSuiteEvaluator:
         metrics = {
             **suite_metrics(_SOFT_SUITE_NAME, suites.soft_samples),
             **suite_metrics(_HARD_SUITE_NAME, suites.hard_samples),
+            **generation_sample_score_metrics(_SOFT_SUITE_NAME, suites.soft_samples, config=self._config),
+            **generation_sample_score_metrics(_HARD_SUITE_NAME, suites.hard_samples, config=self._config),
             **figure_profile_metrics(
                 self._figure_profile_artifacts,
                 samples=samples,
