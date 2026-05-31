@@ -130,8 +130,10 @@ This section is the durable resumption point if work continues after context com
 - Completed: Phase 5B adds token-derived bar-level auxiliary targets for the same target families, bar-pooled model
   heads, configurable bar auxiliary loss weight, per-target bar loss/accuracy metrics, and generated-sample bucket
   reports under `generation/musical_auxiliary/*`.
-- Next: inspect Phase 5B metrics on one short pretraining run before broadening the auxiliary target set beyond the
-  current density, rhythm, texture, chromaticity, dotted-duration, and span targets.
+- Completed: Phase 5C logs train/validation auxiliary bucket reference distributions and total-variation distances
+  under `model/split/musical_auxiliary/*` during pretraining and finetuning setup.
+- Next: inspect Phase 5B/5C metrics on one short pretraining run before broadening the auxiliary target set beyond
+  the current density, rhythm, texture, chromaticity, dotted-duration, and span targets.
 
 Early non-unit validation for Phase 2A:
 

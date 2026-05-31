@@ -45,6 +45,7 @@ from musak_model.training.metrics import (
     module_gradient_norm_metrics,
 )
 from musak_model.training.progress import log_split_summary, progress
+from musak_model.training.stages.auxiliary_profiles import split_musical_auxiliary_profile_metrics
 from musak_model.training.stages.figure_profiles import (
     load_generation_figure_profile_artifacts,
     split_figure_profile_metrics,
@@ -839,13 +840,20 @@ def pretrain(
             split=split,
         )
         tracker.log_split_figure_metrics(
-            metrics=split_figure_profile_metrics(
-                split,
-                token_vocabulary=vocabulary,
-                tokenization_config=tokenization_config,
-                workers=training_config.runtime.num_workers,
-                show_progress=show_progress,
-            )
+            metrics={
+                **split_figure_profile_metrics(
+                    split,
+                    token_vocabulary=vocabulary,
+                    tokenization_config=tokenization_config,
+                    workers=training_config.runtime.num_workers,
+                    show_progress=show_progress,
+                ),
+                **split_musical_auxiliary_profile_metrics(
+                    split,
+                    token_vocabulary=vocabulary,
+                    target_config=resolved_model_config.musical_auxiliary_targets,
+                ),
+            }
         )
         trainer = PretrainingTrainer(
             model=model,

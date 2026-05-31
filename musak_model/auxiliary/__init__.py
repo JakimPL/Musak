@@ -1,4 +1,10 @@
 from musak_model.auxiliary.config import BOOLEAN_TARGET_CLASS_COUNT, MusicalAuxiliaryTargetConfig
+from musak_model.auxiliary.distribution import (
+    MusicalAuxiliaryTargetSeries,
+    musical_auxiliary_bucket_distance_metrics,
+    musical_auxiliary_bucket_distribution_metrics,
+    musical_auxiliary_target_series,
+)
 from musak_model.auxiliary.features import (
     MusicalAuxiliaryFeatures,
     bar_musical_auxiliary_features_from_segment,
@@ -26,6 +32,7 @@ __all__ = [
     "MUSICAL_AUXILIARY_TARGET_IGNORE_ID",
     "MusicalAuxiliaryFeatures",
     "MusicalAuxiliaryLogits",
+    "MusicalAuxiliaryTargetSeries",
     "MusicalBarAuxiliaryLogits",
     "MusicalBarAuxiliaryTargetTensors",
     "MusicalAuxiliaryTargetConfig",
@@ -33,10 +40,13 @@ __all__ = [
     "MusicalAuxiliaryTargetTensors",
     "bar_musical_auxiliary_features_from_segment",
     "bar_musical_auxiliary_target_ids_from_segment",
+    "musical_auxiliary_bucket_distance_metrics",
+    "musical_auxiliary_bucket_distribution_metrics",
     "musical_auxiliary_features_from_segment",
     "musical_auxiliary_target_ids_from_difficulty_features",
     "musical_auxiliary_target_ids_from_features",
     "musical_auxiliary_target_ids_from_segment",
+    "musical_auxiliary_target_series",
     "musical_auxiliary_target_tensors_from_ids",
     "stack_musical_auxiliary_targets",
 ]

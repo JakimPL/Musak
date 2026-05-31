@@ -83,6 +83,8 @@ targets are derived from the decoded token stream and are padded per batch with 
 sequence-level and bar-level auxiliary target logs its own loss and accuracy; the combined auxiliary loss is not used
 as a standalone musicality score. Generation evaluation logs bucket distributions for these auxiliary target families
 under `generation/musical_auxiliary/*` so sampled material can be compared against the intended exercise domain.
+Training setup also logs train/validation auxiliary bucket distributions and total-variation distances under
+`model/split/musical_auxiliary/*`; these split metrics are reference diagnostics, not gradient terms.
 
 Each encoded JSONL row is an `EncodedExercise`:
 
