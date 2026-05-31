@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import traceback
 from pathlib import Path
+from typing import Final
 from xml.etree.ElementTree import ParseError
 from zipfile import BadZipFile
 
@@ -12,7 +13,9 @@ from musak_model.data.cleaning import clean_parsed_score
 from musak_model.data.config import SegmentationConfig
 from musak_model.data.parser import parse_score
 from musak_model.data.pipeline import segment_parsed_score
+from musak_model.data.scale_matcher.config import ScaleMatcherConfig
 from musak_model.data.schema import ParsedScore, Segment
+from musak_model.processing.config import ProcessingConfig
 from musak_model.processing.diagnostics import ParseDiagnosticsCapture
 from musak_model.processing.manifest import ParsedManifestField, read_parsed_manifest
 from musak_model.processing.paths import PARSED_MANIFEST_NAME
@@ -27,6 +30,8 @@ _PROCESSING_ERRORS: tuple[type[Exception], ...] = (
     ValueError,
     ValidationError,
 )
+
+_SCALE_MATCHER_CONFIG: Final[ScaleMatcherConfig] = ProcessingConfig.load().tokenization.scale_matcher
 
 
 class ProcessingResult(BaseModel):
@@ -77,6 +82,7 @@ def process_score_safely(
             path,
             duration_vocabulary,
             segmentation_config=SegmentationConfig(window_bars=window_bars, stride_bars=stride_bars),
+            scale_matcher_config=_SCALE_MATCHER_CONFIG,
         )
     except _PROCESSING_ERRORS as exception:
         return ProcessingResult(
@@ -112,6 +118,7 @@ def segment_parsed_score_safely(
             path,
             duration_vocabulary,
             segmentation_config=SegmentationConfig(window_bars=window_bars, stride_bars=stride_bars),
+            scale_matcher_config=_SCALE_MATCHER_CONFIG,
         )
     except _PROCESSING_ERRORS as exception:
         return ProcessingResult(

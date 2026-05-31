@@ -21,8 +21,8 @@ def segment_to_music21_score(
 ) -> stream.Score:
     events = segment_to_piano_roll_events(segment, duration_vocabulary=duration_vocabulary)
     score = stream.Score()
-    score.insert(0, _part_from_events(events, hand=Hand.RIGHT, segment=segment))  # type: ignore[no-untyped-call]
-    score.insert(0, _part_from_events(events, hand=Hand.LEFT, segment=segment))  # type: ignore[no-untyped-call]
+    score.insert(0, _part_from_events(events, hand=Hand.RIGHT, segment=segment))
+    score.insert(0, _part_from_events(events, hand=Hand.LEFT, segment=segment))
     return score
 
 
@@ -38,10 +38,15 @@ def write_segment(
     return Path(written)
 
 
-def _part_from_events(events: list[PianoRollEvent], *, hand: Hand, segment: Segment) -> stream.Part:
+def _part_from_events(
+    events: list[PianoRollEvent],
+    *,
+    hand: Hand,
+    segment: Segment,
+) -> stream.Part:
     part = stream.Part(id=hand.value)  # type: ignore[no-untyped-call]
     time_signature_text = format_ratio((segment.time_numerator, segment.time_denominator))
-    part.insert(0, TimeSignature(time_signature_text))  # type: ignore[no-untyped-call]
+    part.insert(0, TimeSignature(time_signature_text))
     measure_duration = Fraction(segment.time_numerator, segment.time_denominator)
     hand_events = [event for event in events if event.hand == hand]
     grouped = _group_events_by_start(hand_events)
@@ -56,7 +61,7 @@ def _part_from_events(events: list[PianoRollEvent], *, hand: Hand, segment: Segm
             element = _element_from_onset_events(onset_events)
             element.duration.quarterLength = _fraction_to_quarter_length(fragment_duration)
             _apply_tie(element, tie_type)
-            part.insert(_fraction_to_quarter_length(fragment_start), element)  # type: ignore[no-untyped-call]
+            part.insert(_fraction_to_quarter_length(fragment_start), element)
 
     return part
 

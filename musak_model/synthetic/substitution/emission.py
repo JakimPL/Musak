@@ -5,7 +5,15 @@ from musak_model.harmony.expansion import ChordTone
 from musak_model.n_grams.figure.schema import FigureNGram
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.pitch import diatonic_position_to_degree_and_octave
-from musak_model.tokens.schema import JoinWithPreviousToken, NoteToken, ScaleType, Token, scale_size_for_type
+from musak_model.tokens.schema import (
+    HoldToken,
+    JoinWithPreviousToken,
+    NoteToken,
+    RestToken,
+    ScaleType,
+    Token,
+    scale_size_for_type,
+)
 
 
 def anchor_figure_to_tokens(
@@ -74,3 +82,36 @@ def chord_window_tokens(
         previous_position = position
 
     return tokens
+
+
+def duration_pieces(duration: Fraction, duration_vocabulary: DurationVocabulary) -> list[Fraction] | None:
+    if duration_vocabulary.duration_id_or_none(duration) is not None:
+        return [duration]
+
+    pieces: list[Fraction] = []
+    remaining = duration
+    for fraction in sorted(duration_vocabulary.all_fractions(), reverse=True):
+        while fraction <= remaining:
+            pieces.append(fraction)
+            remaining -= fraction
+
+    if remaining != 0:
+        return None
+
+    return pieces
+
+
+def rest_tokens(duration: Fraction, duration_vocabulary: DurationVocabulary) -> list[Token] | None:
+    pieces = duration_pieces(duration, duration_vocabulary)
+    if pieces is None:
+        return None
+
+    return [RestToken(duration_id=duration_vocabulary.require_duration_id(piece)) for piece in pieces]
+
+
+def hold_tokens(duration: Fraction, duration_vocabulary: DurationVocabulary) -> list[Token] | None:
+    pieces = duration_pieces(duration, duration_vocabulary)
+    if pieces is None:
+        return None
+
+    return [HoldToken(duration_id=duration_vocabulary.require_duration_id(piece)) for piece in pieces]

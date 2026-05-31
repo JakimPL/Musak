@@ -55,7 +55,7 @@ def harmonic_fit(
             metrical_position=metrical_position,
             indispensability=indispensability,
         )
-        weighted_chord_tone += weight * _onset_chord_tone_fraction(
+        weighted_chord_tone += weight * onset_chord_tone_fraction(
             degrees,
             anchor=anchor,
             scale_size=scale_size,
@@ -88,7 +88,7 @@ def accent_fit(
     onset_count = len(durations)
     duration_weights = [duration / total for duration in durations]
     chord_tone_fractions = [
-        _onset_chord_tone_fraction(
+        onset_chord_tone_fraction(
             degrees,
             anchor=anchor,
             scale_size=scale_size,
@@ -109,7 +109,7 @@ def accent_fit(
     return stress * envelope_value
 
 
-def _onset_chord_tone_fraction(
+def onset_chord_tone_fraction(
     degrees: tuple[tuple[int, int], ...],
     *,
     anchor: int,

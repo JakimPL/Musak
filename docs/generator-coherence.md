@@ -639,6 +639,16 @@ continuation after. (b) **Multi-onset gestures across bars** (e.g. a 7-note idea
 slot's figure so every onset is `≥ shortest_note_duration`; a slot too small for an `n ≥ 2` figure takes an `n=1`
 note — which only works because `n=1` is admitted.
 
+**As-built (Phase 2, `synthetic/render/`).** `render_slots` pairs each metrical-tree leaf with its
+harmonic-frontier chord; `SurfaceRenderer` walks the slots per bar and hand, emitting figures (`SOUND`, scaled to
+the slot span, drawn by the I-projection tilt over the vocabulary entries that *fit* the slot), holds (`TIE`), and
+rests (`REST`), each gated by `GenerationConstraintState` with a rest fallback. `base_duration = slot span ÷
+figure span-units` (no greedy fit-to-remaining-bar). Phase-2 simplifications, superseded later: both hands share
+one metrical tree and chord track (per-hand trees, the shared-skeleton/surface split, and hand couplings are
+Phase 5); the tilt's harmonic term is **duration-weighted** (`figure_selection._chord_tone_coverage`) — the
+metrical-position refinement of `scoring.harmonic_fit` is deferred; `λ_similarity` / motifs arrive in Phase 4. At
+`λ_curve = λ_harmonic = λ_accent = 0` figure choice is count-proportional, preserving the corpus marginal.
+
 ## Sources
 Form/segmentation & repetition: Cambouropoulos LBDM (ICMC 2001); Pearce/Müllensiefen/Wiggins segmentation
 comparison (ISMIR 2008) & IDyOM (2012); Meredith SIA/SIATEC/COSIATEC; self-similarity-matrix MSA; Sidorov/Jones/

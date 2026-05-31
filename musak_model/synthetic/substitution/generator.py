@@ -541,13 +541,6 @@ class SegmentGenerator:
         scale_type: ScaleType,
         cell_chords: tuple[Chord, ...],
     ) -> tuple[GenerationConstraintState, list[Token]]:
-        """Realize the shared chord track in one hand as held block chords / a sustained bass.
-
-        The bar is split into maximal runs of a single decoded chord (the chord windows intersected with the
-        bar). BLOCK_PER_WINDOW holds one voicing per run; ACCENT_GATED re-attacks it on the run's onset cells.
-        SUSTAINED_BASS voices the root only. Every voicing is pushed through the constraint engine, dropping the
-        top tone (then resting) on rejection.
-        """
         bar_end = state.constraints.bar_end(bar_index)
         first_cell = bar_index * grid_count_per_bar
         accompaniment = self.substitution_config.texture.accompaniment
