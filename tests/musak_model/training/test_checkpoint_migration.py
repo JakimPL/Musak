@@ -8,7 +8,14 @@ from torch.optim import AdamW
 from musak_model.conditioning.config import ConditioningConfig, DifficultyConfig
 from musak_model.conditioning.time_signature import TimeSignatureVocabularyConfig
 from musak_model.model import HierarchicalAutoregressiveModel
-from musak_model.model.config import CNNConfig, GRUConfig, ModelConfig, TransformerConfig
+from musak_model.model.config import (
+    CNNConfig,
+    GRUConfig,
+    ModelConfig,
+    ModelOutputConfig,
+    ModelOutputMode,
+    TransformerConfig,
+)
 from musak_model.tokens.config import TokenizationConfig
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.vocabulary import TokenVocabulary
@@ -26,6 +33,8 @@ def _token_vocabulary() -> TokenVocabulary:
 def _small_model_config() -> ModelConfig:
     return ModelConfig(
         vocabulary_size=_token_vocabulary().vocabulary_size,
+        duration_vocabulary_size=_token_vocabulary().duration_vocabulary.vocabulary_size(),
+        output=ModelOutputConfig(mode=ModelOutputMode.FLAT),
         cnn=CNNConfig(enabled=True, out_channels=HIDDEN_SIZE, kernel_sizes=(3,), num_layers=1, dropout=0.0),
         gru=GRUConfig(enabled=True, hidden_size=HIDDEN_SIZE, num_layers=1, dropout=0.0, bidirectional=False),
         transformer=TransformerConfig(

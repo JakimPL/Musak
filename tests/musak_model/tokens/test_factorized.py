@@ -8,6 +8,7 @@ from musak_model.tokens.factorized import (
     TokenKindId,
     attributes_to_token,
     attributes_to_token_id,
+    flat_vocabulary_attributes,
     predicted_attributes_to_token,
     predicted_attributes_to_token_id,
     token_id_to_attributes,
@@ -32,6 +33,18 @@ def test_factorized_attributes_round_trip_every_flat_vocabulary_id(token_vocabul
         attributes = token_id_to_attributes(token_id, vocabulary=token_vocabulary)
 
         assert attributes_to_token_id(attributes, vocabulary=token_vocabulary) == token_id
+
+
+def test_flat_vocabulary_attribute_table_matches_token_vocabulary_order(
+    token_vocabulary: TokenVocabulary,
+) -> None:
+    table = flat_vocabulary_attributes(duration_vocabulary_size=token_vocabulary.duration_vocabulary.vocabulary_size())
+
+    assert len(table) == token_vocabulary.vocabulary_size
+    assert list(table) == [
+        token_id_to_attributes(token_id, vocabulary=token_vocabulary)
+        for token_id in range(token_vocabulary.vocabulary_size)
+    ]
 
 
 def test_factorized_attributes_capture_note_fields(token_vocabulary: TokenVocabulary) -> None:

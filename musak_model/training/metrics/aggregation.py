@@ -12,6 +12,18 @@ class MetricsAccumulator:
     token_count: int = 0
     exact_match_count: int = 0
     token_kind_match_count: int | None = None
+    event_kind_loss_sum: float | None = None
+    event_kind_loss_target_count: int | None = None
+    duration_loss_sum: float | None = None
+    duration_loss_target_count: int | None = None
+    degree_loss_sum: float | None = None
+    degree_loss_target_count: int | None = None
+    accidental_loss_sum: float | None = None
+    accidental_loss_target_count: int | None = None
+    octave_offset_loss_sum: float | None = None
+    octave_offset_loss_target_count: int | None = None
+    hand_loss_sum: float | None = None
+    hand_loss_target_count: int | None = None
     duration_match_count: int | None = None
     duration_target_count: int | None = None
     degree_match_count: int | None = None
@@ -40,6 +52,42 @@ class MetricsAccumulator:
 
             self.token_kind_match_count += batch_metrics.token_kind_match_count
 
+        self.event_kind_loss_sum, self.event_kind_loss_target_count = _add_optional_weighted_loss(
+            self.event_kind_loss_sum,
+            self.event_kind_loss_target_count,
+            value=batch_metrics.event_kind_loss,
+            target_count=batch_metrics.event_kind_loss_target_count,
+        )
+        self.duration_loss_sum, self.duration_loss_target_count = _add_optional_weighted_loss(
+            self.duration_loss_sum,
+            self.duration_loss_target_count,
+            value=batch_metrics.duration_loss,
+            target_count=batch_metrics.duration_loss_target_count,
+        )
+        self.degree_loss_sum, self.degree_loss_target_count = _add_optional_weighted_loss(
+            self.degree_loss_sum,
+            self.degree_loss_target_count,
+            value=batch_metrics.degree_loss,
+            target_count=batch_metrics.degree_loss_target_count,
+        )
+        self.accidental_loss_sum, self.accidental_loss_target_count = _add_optional_weighted_loss(
+            self.accidental_loss_sum,
+            self.accidental_loss_target_count,
+            value=batch_metrics.accidental_loss,
+            target_count=batch_metrics.accidental_loss_target_count,
+        )
+        self.octave_offset_loss_sum, self.octave_offset_loss_target_count = _add_optional_weighted_loss(
+            self.octave_offset_loss_sum,
+            self.octave_offset_loss_target_count,
+            value=batch_metrics.octave_offset_loss,
+            target_count=batch_metrics.octave_offset_loss_target_count,
+        )
+        self.hand_loss_sum, self.hand_loss_target_count = _add_optional_weighted_loss(
+            self.hand_loss_sum,
+            self.hand_loss_target_count,
+            value=batch_metrics.hand_loss,
+            target_count=batch_metrics.hand_loss_target_count,
+        )
         self.duration_match_count, self.duration_target_count = _add_optional_count_pair(
             self.duration_match_count,
             self.duration_target_count,
@@ -113,6 +161,21 @@ class MetricsAccumulator:
             token_kind_accuracy=(
                 None if self.token_kind_match_count is None else self.token_kind_match_count / self.token_count
             ),
+            event_kind_loss=_weighted_optional_average(
+                self.event_kind_loss_sum,
+                weight=self.event_kind_loss_target_count,
+            ),
+            duration_loss=_weighted_optional_average(self.duration_loss_sum, weight=self.duration_loss_target_count),
+            degree_loss=_weighted_optional_average(self.degree_loss_sum, weight=self.degree_loss_target_count),
+            accidental_loss=_weighted_optional_average(
+                self.accidental_loss_sum,
+                weight=self.accidental_loss_target_count,
+            ),
+            octave_offset_loss=_weighted_optional_average(
+                self.octave_offset_loss_sum,
+                weight=self.octave_offset_loss_target_count,
+            ),
+            hand_loss=_weighted_optional_average(self.hand_loss_sum, weight=self.hand_loss_target_count),
             duration_accuracy=_optional_rate(self.duration_match_count, target_count=self.duration_target_count),
             degree_accuracy=_optional_rate(self.degree_match_count, target_count=self.degree_target_count),
             accidental_accuracy=_optional_rate(
@@ -151,6 +214,19 @@ def _add_optional_weighted_metric(current: float | None, *, value: float | None,
     return (current or 0.0) + value * weight
 
 
+def _add_optional_weighted_loss(
+    current_sum: float | None,
+    current_target_count: int | None,
+    *,
+    value: float | None,
+    target_count: int | None,
+) -> tuple[float | None, int | None]:
+    if value is None or target_count is None:
+        return current_sum, current_target_count
+
+    return (current_sum or 0.0) + value * target_count, (current_target_count or 0) + target_count
+
+
 def _add_optional_count_pair(
     current_match_count: int | None,
     current_target_count: int | None,
@@ -178,9 +254,9 @@ def _optional_rate(
 def _weighted_optional_average(
     value: float | None,
     *,
-    weight: int,
+    weight: int | None,
 ) -> float | None:
-    if value is None:
+    if value is None or weight is None or weight == 0:
         return None
 
     return value / weight

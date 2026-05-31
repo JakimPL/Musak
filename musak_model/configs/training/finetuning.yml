@@ -3,6 +3,14 @@ optimization:
   batch_size: 16
   learning_rate: 1e-4
   weight_decay: 0.01
+event_objective:
+  mode: factorized
+  kind_weight: 1.0
+  duration_weight: 1.0
+  degree_weight: 1.0
+  accidental_weight: 1.0
+  octave_offset_weight: 1.0
+  hand_weight: 1.0
 runtime:
   num_workers: 12
   device: cuda

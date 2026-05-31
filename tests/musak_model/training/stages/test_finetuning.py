@@ -12,13 +12,21 @@ from musak_model.data.scale_matcher.config import ScaleMatcherConfig
 from musak_model.data.schema import SegmentMetadata
 from musak_model.data.tokenization_context import tokenization_context_from_scale
 from musak_model.model import HierarchicalAutoregressiveModel
-from musak_model.model.config import CNNConfig, GRUConfig, ModelConfig, TransformerConfig
+from musak_model.model.config import (
+    CNNConfig,
+    GRUConfig,
+    ModelConfig,
+    ModelOutputConfig,
+    ModelOutputMode,
+    TransformerConfig,
+)
 from musak_model.tokens.config import TokenizationConfig
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import Hand, HandToken, NoteToken, ScaleType
 from musak_model.tokens.vocabulary import TokenVocabulary
 from musak_model.training.checkpoint import save_checkpoint
 from musak_model.training.config import (
+    EventObjectiveConfig,
     FinetuningCheckpointConfig,
     FinetuningTrainingConfig,
     GenerationEvaluationConfig,
@@ -52,8 +60,11 @@ def _token_vocabulary() -> TokenVocabulary:
 
 
 def _small_model_config() -> ModelConfig:
+    token_vocabulary = _token_vocabulary()
     return ModelConfig(
-        vocabulary_size=_token_vocabulary().vocabulary_size,
+        vocabulary_size=token_vocabulary.vocabulary_size,
+        duration_vocabulary_size=token_vocabulary.duration_vocabulary.vocabulary_size(),
+        output=ModelOutputConfig(mode=ModelOutputMode.FACTORIZED),
         cnn=CNNConfig(enabled=True, out_channels=HIDDEN_SIZE, kernel_sizes=(3,), num_layers=1, dropout=0.0),
         gru=GRUConfig(enabled=True, hidden_size=HIDDEN_SIZE, num_layers=1, dropout=0.0, bidirectional=False),
         transformer=TransformerConfig(
@@ -131,6 +142,15 @@ def test_train_finetuning_loads_pretraining_checkpoint_and_runs_epoch(
             checkpoints=FinetuningCheckpointConfig(
                 checkpoint_directory=tmp_path / "finetuning",
                 pretraining_checkpoint=pretraining_checkpoint,
+            ),
+            event_objective=EventObjectiveConfig(
+                mode=ModelOutputMode.FACTORIZED,
+                kind_weight=1.0,
+                duration_weight=1.0,
+                degree_weight=1.0,
+                accidental_weight=1.0,
+                octave_offset_weight=1.0,
+                hand_weight=1.0,
             ),
             conditioning=TrainingConditioningConfig(
                 use_time_signature=True,

@@ -4,6 +4,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from musak_model.model.config import ModelOutputMode
 from musak_model.paths import DEFAULT_PRETRAINING_CHECKPOINT_DIRECTORY, FINETUNING_CONFIG_PATH, PRETRAINING_CONFIG_PATH
 from musak_model.tokens.schema import ScaleType
 from musak_shared.files import load_yaml_config
@@ -19,6 +20,18 @@ class OptimizationConfig(BaseModel):
     batch_size: int = Field(ge=1)
     learning_rate: float = Field(gt=0)
     weight_decay: float = Field(ge=0)
+
+
+class EventObjectiveConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    mode: ModelOutputMode
+    kind_weight: float = Field(ge=0.0)
+    duration_weight: float = Field(ge=0.0)
+    degree_weight: float = Field(ge=0.0)
+    accidental_weight: float = Field(ge=0.0)
+    octave_offset_weight: float = Field(ge=0.0)
+    hand_weight: float = Field(ge=0.0)
 
 
 class RuntimeConfig(BaseModel):
@@ -105,6 +118,7 @@ class TrainingConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     optimization: OptimizationConfig
+    event_objective: EventObjectiveConfig
     runtime: RuntimeConfig
     conditioning: TrainingConditioningConfig
     checkpoints: CheckpointConfig

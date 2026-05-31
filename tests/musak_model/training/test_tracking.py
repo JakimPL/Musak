@@ -9,10 +9,18 @@ from musak_model.conditioning.config import ConditioningConfig, DifficultyConfig
 from musak_model.conditioning.time_signature import TimeSignatureVocabularyConfig
 from musak_model.data.schema import SegmentMetadata
 from musak_model.data.tokenization_context import tokenization_context_from_scale
-from musak_model.model.config import CNNConfig, GRUConfig, ModelConfig, TransformerConfig
+from musak_model.model.config import (
+    CNNConfig,
+    GRUConfig,
+    ModelConfig,
+    ModelOutputConfig,
+    ModelOutputMode,
+    TransformerConfig,
+)
 from musak_model.tokens.schema import ScaleType
 from musak_model.training.config import (
     CheckpointConfig,
+    EventObjectiveConfig,
     GenerationEvaluationConfig,
     MlflowConfig,
     OptimizationConfig,
@@ -65,6 +73,7 @@ class FakeMlflow(ModuleType):
 def _training_config(tmp_path: Path, *, enable_mlflow: bool = True, tracking_uri: str | None = None) -> TrainingConfig:
     return TrainingConfig(
         optimization=OptimizationConfig(epochs=1, batch_size=2, learning_rate=0.001, weight_decay=0.0),
+        event_objective=_event_objective_config(),
         runtime=RuntimeConfig(num_workers=1, device="cpu"),
         conditioning=TrainingConditioningConfig(
             use_time_signature=False,
@@ -106,6 +115,8 @@ def _training_config(tmp_path: Path, *, enable_mlflow: bool = True, tracking_uri
 def _model_config() -> ModelConfig:
     return ModelConfig(
         vocabulary_size=32,
+        duration_vocabulary_size=1,
+        output=ModelOutputConfig(mode=ModelOutputMode.FLAT),
         cnn=CNNConfig(enabled=True, out_channels=16, kernel_sizes=(3,), num_layers=1, dropout=0.0),
         gru=GRUConfig(enabled=True, hidden_size=16, num_layers=1, dropout=0.0, bidirectional=False),
         transformer=TransformerConfig(
@@ -121,6 +132,18 @@ def _model_config() -> ModelConfig:
             time_signature=TimeSignatureVocabularyConfig(max_denominator=4, relative_numerator_range=2),
             cfg_dropout_probability=0.0,
         ),
+    )
+
+
+def _event_objective_config() -> EventObjectiveConfig:
+    return EventObjectiveConfig(
+        mode=ModelOutputMode.FLAT,
+        kind_weight=1.0,
+        duration_weight=1.0,
+        degree_weight=1.0,
+        accidental_weight=1.0,
+        octave_offset_weight=1.0,
+        hand_weight=1.0,
     )
 
 

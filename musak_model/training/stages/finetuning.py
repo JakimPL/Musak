@@ -51,6 +51,8 @@ def finetune(
     token_vocabulary = TokenVocabulary(duration_vocabulary)
     resolved_model_config = model_config or ModelConfig.load(
         vocabulary_size=token_vocabulary.vocabulary_size,
+        duration_vocabulary_size=token_vocabulary.duration_vocabulary.vocabulary_size(),
+        output_mode=training_config.event_objective.mode,
         conditioning_config_path=conditioning_config_path,
     )
     _LOGGER.info("Model vocabulary size: %s", resolved_model_config.vocabulary_size)

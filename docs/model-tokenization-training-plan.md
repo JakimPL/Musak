@@ -114,8 +114,12 @@ This section is the durable resumption point if work continues after context com
 - Completed: Phase 2A added a lossless factorized token representation, derived factorized target tensors during
   dataset example construction, and logs flat-logit attribute accuracies for duration, degree, accidental, register,
   and hand.
-- Next: Phase 2B should add factorized model heads and masked per-attribute losses while keeping the flat objective
-  runnable as a baseline.
+- Completed: Phase 3 added selectable flat versus factorized event objectives. Factorized mode uses kind, duration,
+  degree, accidental, octave-offset, and hand heads with masked per-attribute cross-entropy and logs each loss term
+  separately. The model composes factorized head log-probabilities back into flat token scores so existing validity
+  penalties and generation evaluation can keep using the flat-token interface.
+- Next: Phase 5 should add deterministic exercise-level musical auxiliary targets, with Phase 4 bar-relative
+  coordinates pulled earlier if duration/timing diagnostics show accumulation errors.
 
 Early non-unit validation for Phase 2A:
 
@@ -129,8 +133,12 @@ uv run python scripts/pretrain.py --data-dir data/exercises --whole-file-segment
   --checkpoint-dir /tmp/musak-factorized-pretrain --disable-mlflow --overwrite --no-progress
 ```
 
-The one-epoch run should emit non-null duration, degree, accidental, octave-offset, and hand accuracies from the flat
-token logits. With MLflow enabled, these appear under `model/<train|validation>/rate/*_accuracy`.
+Use `--whole-file-segments` only when the encoded exercise artifacts were processed with whole-file segmentation;
+omit it when validating against existing windowed artifacts.
+
+The one-epoch run should emit non-null duration, degree, accidental, octave-offset, and hand accuracies where those
+targets are present. With MLflow enabled, accuracies appear under `model/<train|validation>/rate/*_accuracy`, and the
+factorized objective terms appear under `model/<train|validation>/mean/*_loss`.
 
 ## Phase 0: Baseline Audit
 

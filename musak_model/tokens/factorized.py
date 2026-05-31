@@ -102,6 +102,44 @@ def token_ids_to_attributes(token_ids: list[int], *, vocabulary: TokenVocabulary
     return [token_id_to_attributes(token_id, vocabulary=vocabulary) for token_id in token_ids]
 
 
+def flat_vocabulary_attributes(*, duration_vocabulary_size: int) -> tuple[TokenAttributes, ...]:
+    if duration_vocabulary_size <= MIN_DURATION_ID:
+        raise ValueError("duration_vocabulary_size must be positive")
+
+    attributes: list[TokenAttributes] = []
+    for degree_id in range(DEGREE_ATTRIBUTE_COUNT):
+        for accidental_id in range(ACCIDENTAL_ATTRIBUTE_COUNT):
+            for octave_offset_id in range(OCTAVE_OFFSET_ATTRIBUTE_COUNT):
+                for duration_id in range(duration_vocabulary_size):
+                    attributes.append(
+                        TokenAttributes(
+                            kind_id=TokenKindId.NOTE,
+                            degree_id=degree_id,
+                            accidental_id=accidental_id,
+                            octave_offset_id=octave_offset_id,
+                            duration_id=duration_id,
+                        )
+                    )
+
+    for duration_id in range(duration_vocabulary_size):
+        attributes.append(TokenAttributes(kind_id=TokenKindId.REST, duration_id=duration_id))
+
+    for duration_id in range(duration_vocabulary_size):
+        attributes.append(TokenAttributes(kind_id=TokenKindId.HOLD, duration_id=duration_id))
+
+    attributes.extend(
+        [
+            TokenAttributes(kind_id=TokenKindId.BAR),
+            TokenAttributes(kind_id=TokenKindId.END),
+            TokenAttributes(kind_id=TokenKindId.HAND, hand_id=_RIGHT_HAND_ID),
+            TokenAttributes(kind_id=TokenKindId.HAND, hand_id=_LEFT_HAND_ID),
+            TokenAttributes(kind_id=TokenKindId.JOIN_WITH_PREVIOUS),
+            TokenAttributes(kind_id=TokenKindId.START),
+        ]
+    )
+    return tuple(attributes)
+
+
 def attributes_to_token(attributes: TokenAttributes) -> Token:
     token = predicted_attributes_to_token(attributes)
     _validate_inactive_attributes_absent(attributes)

@@ -8,15 +8,32 @@ from torch import Tensor
 from musak_model.conditioning.config import ConditioningConfig, DifficultyConfig
 from musak_model.conditioning.time_signature import TimeSignatureVocabularyConfig
 from musak_model.model import HierarchicalAutoregressiveModel
-from musak_model.model.config import CNNConfig, GRUConfig, ModelConfig, TransformerConfig
+from musak_model.model.config import (
+    CNNConfig,
+    GRUConfig,
+    ModelConfig,
+    ModelOutputConfig,
+    ModelOutputMode,
+    TransformerConfig,
+)
+from musak_model.tokens.factorized import TOKEN_KIND_COUNT, flat_vocabulary_attributes
 
 VOCAB: Final[int] = 64
 H: Final[int] = 32  # hidden size (small for speed)
+FACTORIZED_DURATION_VOCAB: Final[int] = 1
+FACTORIZED_VOCAB: Final[int] = len(flat_vocabulary_attributes(duration_vocabulary_size=FACTORIZED_DURATION_VOCAB))
 
 
-def _small_config() -> ModelConfig:
+def _small_config(
+    *,
+    output_mode: ModelOutputMode = ModelOutputMode.FLAT,
+    vocabulary_size: int = VOCAB,
+    duration_vocabulary_size: int = 1,
+) -> ModelConfig:
     return ModelConfig(
-        vocabulary_size=VOCAB,
+        vocabulary_size=vocabulary_size,
+        duration_vocabulary_size=duration_vocabulary_size,
+        output=ModelOutputConfig(mode=output_mode),
         cnn=CNNConfig(enabled=True, out_channels=H, kernel_sizes=(3,), num_layers=1, dropout=0.0),
         gru=GRUConfig(enabled=True, hidden_size=H, num_layers=1, dropout=0.0, bidirectional=False),
         transformer=TransformerConfig(
@@ -113,6 +130,23 @@ class TestForwardOutputShape:
 
         logits = model(token_ids, bar_positions=bar_positions, **kwargs)
         assert logits.shape == (case.batch, case.seq_len, VOCAB)
+
+    def test_factorized_output_mode_returns_flat_token_scores_and_factorized_heads(self) -> None:
+        config = _small_config(
+            output_mode=ModelOutputMode.FACTORIZED,
+            vocabulary_size=FACTORIZED_VOCAB,
+            duration_vocabulary_size=FACTORIZED_DURATION_VOCAB,
+        )
+        model = HierarchicalAutoregressiveModel(config)
+        token_ids = torch.randint(0, FACTORIZED_VOCAB, (2, 8))
+        bar_positions = _uniform_bar_positions(2, 8, 2)
+
+        flat_scores = model(token_ids, bar_positions=bar_positions)
+        factorized_logits = model.factorized_logits(token_ids, bar_positions=bar_positions)
+
+        assert flat_scores.shape == (2, 8, FACTORIZED_VOCAB)
+        assert factorized_logits.kind.shape == (2, 8, TOKEN_KIND_COUNT)
+        assert factorized_logits.duration.shape == (2, 8, FACTORIZED_DURATION_VOCAB)
 
 
 class TestForwardBarLayouts:

@@ -6,9 +6,18 @@ from torch import Tensor
 from torch.nn.utils.rnn import pad_sequence
 
 from musak_model.model.cnn import LocalConvEncoder
-from musak_model.model.config import ModelConfig
+from musak_model.model.config import ModelConfig, ModelOutputMode
 from musak_model.model.gru import BarGRUEncoder, BarPrefixGRUEncoder
+from musak_model.model.output import FactorizedTokenLogits, FlatTokenAttributeBuffers, flat_token_log_scores
 from musak_model.model.transformer import CausalTransformerDecoder
+from musak_model.tokens.factorized import (
+    ACCIDENTAL_ATTRIBUTE_COUNT,
+    DEGREE_ATTRIBUTE_COUNT,
+    HAND_ATTRIBUTE_COUNT,
+    OCTAVE_OFFSET_ATTRIBUTE_COUNT,
+    TOKEN_KIND_COUNT,
+    flat_vocabulary_attributes,
+)
 
 
 class HierarchicalAutoregressiveModel(nn.Module):
@@ -32,7 +41,17 @@ class HierarchicalAutoregressiveModel(nn.Module):
             self._local_to_transformer_hidden = nn.Linear(local_hidden_size, config.transformer.hidden_size)
 
         self._decoder = CausalTransformerDecoder(config.transformer)
-        self._lm_head = nn.Linear(config.transformer.hidden_size, config.vocabulary_size)
+        match config.output.mode:
+            case ModelOutputMode.FLAT:
+                self._lm_head = nn.Linear(config.transformer.hidden_size, config.vocabulary_size)
+            case ModelOutputMode.FACTORIZED:
+                self._kind_head = nn.Linear(config.transformer.hidden_size, TOKEN_KIND_COUNT)
+                self._degree_head = nn.Linear(config.transformer.hidden_size, DEGREE_ATTRIBUTE_COUNT)
+                self._accidental_head = nn.Linear(config.transformer.hidden_size, ACCIDENTAL_ATTRIBUTE_COUNT)
+                self._octave_offset_head = nn.Linear(config.transformer.hidden_size, OCTAVE_OFFSET_ATTRIBUTE_COUNT)
+                self._duration_head = nn.Linear(config.transformer.hidden_size, config.duration_vocabulary_size)
+                self._hand_head = nn.Linear(config.transformer.hidden_size, HAND_ATTRIBUTE_COUNT)
+                self._register_flat_attribute_buffers(config)
 
         self._difficulty_embedding = nn.Embedding(
             config.conditioning.num_difficulty_levels, config.transformer.hidden_size
@@ -57,6 +76,67 @@ class HierarchicalAutoregressiveModel(nn.Module):
         time_signature_ids: Tensor | None = None,
         structural_control_ids: Tensor | None = None,
         token_padding_mask: Tensor | None = None,
+    ) -> Tensor:
+        decoded_embeddings = self._decoded_embeddings(
+            token_ids,
+            bar_positions=bar_positions,
+            difficulty_ids=difficulty_ids,
+            scale_type_ids=scale_type_ids,
+            time_signature_ids=time_signature_ids,
+            structural_control_ids=structural_control_ids,
+            token_padding_mask=token_padding_mask,
+        )
+        match self._config.output.mode:
+            case ModelOutputMode.FLAT:
+                return cast(Tensor, self._lm_head(decoded_embeddings))
+            case ModelOutputMode.FACTORIZED:
+                return self.flat_token_log_scores(self._factorized_logits_from_embeddings(decoded_embeddings))
+
+    @property
+    def output_mode(self) -> ModelOutputMode:
+        return self._config.output.mode
+
+    def factorized_logits(
+        self,
+        token_ids: Tensor,
+        *,
+        bar_positions: Tensor,
+        difficulty_ids: Tensor | None = None,
+        scale_type_ids: Tensor | None = None,
+        time_signature_ids: Tensor | None = None,
+        structural_control_ids: Tensor | None = None,
+        token_padding_mask: Tensor | None = None,
+    ) -> FactorizedTokenLogits:
+        if self._config.output.mode != ModelOutputMode.FACTORIZED:
+            raise ValueError("factorized logits require model output mode 'factorized'")
+
+        decoded_embeddings = self._decoded_embeddings(
+            token_ids,
+            bar_positions=bar_positions,
+            difficulty_ids=difficulty_ids,
+            scale_type_ids=scale_type_ids,
+            time_signature_ids=time_signature_ids,
+            structural_control_ids=structural_control_ids,
+            token_padding_mask=token_padding_mask,
+        )
+        return self._factorized_logits_from_embeddings(decoded_embeddings)
+
+    def flat_token_log_scores(self, logits: FactorizedTokenLogits) -> Tensor:
+        if self._config.output.mode != ModelOutputMode.FACTORIZED:
+            raise ValueError("flat token log scores require model output mode 'factorized'")
+
+        return flat_token_log_scores(logits, flat_attributes=self._flat_attribute_buffers())
+
+    def _decoded_embeddings(
+        self,
+        token_ids: Tensor,
+        *,
+        bar_positions: Tensor,
+        difficulty_ids: Tensor | None,
+        scale_type_ids: Tensor | None,
+        time_signature_ids: Tensor | None,
+        structural_control_ids: Tensor | None,
+        token_padding_mask: Tensor | None,
     ) -> Tensor:
         token_embeddings = self._token_embedding(token_ids)
         self._validate_bar_input_shapes(bar_embeddings=token_embeddings, bar_positions=bar_positions)
@@ -87,7 +167,45 @@ class HierarchicalAutoregressiveModel(nn.Module):
             memory_padding_mask=memory_padding_mask,
             memory_attention_mask=memory_attention_mask,
         )
-        return cast(Tensor, self._lm_head(decoded_embeddings))
+        return cast(Tensor, decoded_embeddings)
+
+    def _factorized_logits_from_embeddings(self, decoded_embeddings: Tensor) -> FactorizedTokenLogits:
+        return FactorizedTokenLogits(
+            kind=cast(Tensor, self._kind_head(decoded_embeddings)),
+            degree=cast(Tensor, self._degree_head(decoded_embeddings)),
+            accidental=cast(Tensor, self._accidental_head(decoded_embeddings)),
+            octave_offset=cast(Tensor, self._octave_offset_head(decoded_embeddings)),
+            duration=cast(Tensor, self._duration_head(decoded_embeddings)),
+            hand=cast(Tensor, self._hand_head(decoded_embeddings)),
+        )
+
+    def _register_flat_attribute_buffers(self, config: ModelConfig) -> None:
+        attributes = FlatTokenAttributeBuffers.from_attributes(
+            flat_vocabulary_attributes(duration_vocabulary_size=config.duration_vocabulary_size)
+        )
+        expected_vocabulary_size = attributes.kind_ids.numel()
+        if expected_vocabulary_size != config.vocabulary_size:
+            raise ValueError(
+                f"factorized flat attribute table size {expected_vocabulary_size} does not match "
+                f"vocabulary_size={config.vocabulary_size}"
+            )
+
+        self.register_buffer("_flat_kind_ids", attributes.kind_ids, persistent=False)
+        self.register_buffer("_flat_degree_ids", attributes.degree_ids, persistent=False)
+        self.register_buffer("_flat_accidental_ids", attributes.accidental_ids, persistent=False)
+        self.register_buffer("_flat_octave_offset_ids", attributes.octave_offset_ids, persistent=False)
+        self.register_buffer("_flat_duration_ids", attributes.duration_ids, persistent=False)
+        self.register_buffer("_flat_hand_ids", attributes.hand_ids, persistent=False)
+
+    def _flat_attribute_buffers(self) -> FlatTokenAttributeBuffers:
+        return FlatTokenAttributeBuffers(
+            kind_ids=cast(Tensor, self._flat_kind_ids),
+            degree_ids=cast(Tensor, self._flat_degree_ids),
+            accidental_ids=cast(Tensor, self._flat_accidental_ids),
+            octave_offset_ids=cast(Tensor, self._flat_octave_offset_ids),
+            duration_ids=cast(Tensor, self._flat_duration_ids),
+            hand_ids=cast(Tensor, self._flat_hand_ids),
+        )
 
     def _local_embeddings(self, token_embeddings: Tensor) -> Tensor:
         if not self._config.cnn.enabled:

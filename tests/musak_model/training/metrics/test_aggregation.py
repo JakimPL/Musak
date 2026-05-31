@@ -12,6 +12,10 @@ def test_metrics_accumulator_averages_loss_accuracy_and_gradient_norms() -> None
             token_count=2,
             exact_match_count=1,
             token_kind_match_count=2,
+            event_kind_loss=0.5,
+            event_kind_loss_target_count=2,
+            duration_loss=0.25,
+            duration_loss_target_count=2,
             duration_match_count=1,
             duration_target_count=2,
             degree_match_count=1,
@@ -37,6 +41,10 @@ def test_metrics_accumulator_averages_loss_accuracy_and_gradient_norms() -> None
             token_count=6,
             exact_match_count=3,
             token_kind_match_count=4,
+            event_kind_loss=1.0,
+            event_kind_loss_target_count=6,
+            duration_loss=0.75,
+            duration_loss_target_count=4,
             duration_match_count=3,
             duration_target_count=4,
             degree_match_count=2,
@@ -62,6 +70,8 @@ def test_metrics_accumulator_averages_loss_accuracy_and_gradient_norms() -> None
     assert metrics.loss == 1.75
     assert metrics.token_accuracy == 0.5
     assert metrics.token_kind_accuracy == 0.75
+    assert metrics.event_kind_loss == approx(0.875)
+    assert metrics.duration_loss == approx(0.5833333333333334)
     assert metrics.duration_accuracy == approx(4 / 6)
     assert metrics.degree_accuracy == approx(3 / 4)
     assert metrics.accidental_accuracy == approx(3 / 4)

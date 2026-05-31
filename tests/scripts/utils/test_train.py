@@ -3,9 +3,11 @@ from pathlib import Path
 
 import pytest
 
+from musak_model.model.config import ModelOutputMode
 from musak_model.tokens.schema import ScaleType
 from musak_model.training.config import (
     CheckpointConfig,
+    EventObjectiveConfig,
     FinetuningCheckpointConfig,
     FinetuningTrainingConfig,
     GenerationEvaluationConfig,
@@ -56,6 +58,7 @@ def _args(**overrides: object) -> argparse.Namespace:
 def _training_config(checkpoint_directory: Path, *, epochs: int = 25) -> TrainingConfig:
     return TrainingConfig(
         optimization=OptimizationConfig(epochs=epochs, batch_size=8, learning_rate=0.001, weight_decay=0.0),
+        event_objective=_event_objective_config(),
         runtime=RuntimeConfig(num_workers=2, device="cuda"),
         checkpoints=CheckpointConfig(checkpoint_directory=checkpoint_directory),
         conditioning=_conditioning_config(use_time_signature=True, use_scale_type=True),
@@ -72,6 +75,7 @@ def _finetuning_config(
 ) -> FinetuningTrainingConfig:
     return FinetuningTrainingConfig(
         optimization=OptimizationConfig(epochs=8, batch_size=8, learning_rate=0.001, weight_decay=0.0),
+        event_objective=_event_objective_config(),
         runtime=RuntimeConfig(num_workers=4, device="cuda"),
         checkpoints=FinetuningCheckpointConfig(
             checkpoint_directory=checkpoint_directory,
@@ -95,6 +99,18 @@ def _conditioning_config(
         use_structural_conditioning=False,
         use_validity_penalty=False,
         validity_penalty_weight=0.05,
+    )
+
+
+def _event_objective_config() -> EventObjectiveConfig:
+    return EventObjectiveConfig(
+        mode=ModelOutputMode.FLAT,
+        kind_weight=1.0,
+        duration_weight=1.0,
+        degree_weight=1.0,
+        accidental_weight=1.0,
+        octave_offset_weight=1.0,
+        hand_weight=1.0,
     )
 
 

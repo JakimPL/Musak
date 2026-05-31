@@ -6,7 +6,7 @@ from pathlib import Path
 import torch
 
 from musak_model.model import HierarchicalAutoregressiveModel
-from musak_model.model.config import ModelConfig
+from musak_model.model.config import ModelConfig, ModelOutputMode
 from musak_model.paths import CONDITIONING_CONFIG_PATH, MODEL_CONFIG_DIRECTORY, TOKENIZATION_CONFIG_PATH
 from musak_model.tokens.config import TokenizationConfig
 from musak_model.tokens.duration import DurationVocabulary
@@ -27,6 +27,8 @@ def main() -> None:
     token_vocabulary = TokenVocabulary(DurationVocabulary(tokenization_config))
     model_config = ModelConfig.load(
         vocabulary_size=token_vocabulary.vocabulary_size,
+        duration_vocabulary_size=token_vocabulary.duration_vocabulary.vocabulary_size(),
+        output_mode=args.output_mode,
         config_directory=args.model_config_dir,
         conditioning_config_path=args.conditioning_config,
     )
@@ -70,6 +72,13 @@ def _parse_args() -> argparse.Namespace:
         type=Path,
         default=MODEL_CONFIG_DIRECTORY,
         help="Directory containing cnn.yml, gru.yml, and transformer.yml for the target model.",
+    )
+    parser.add_argument(
+        "--output-mode",
+        choices=tuple(mode.value for mode in ModelOutputMode),
+        type=ModelOutputMode,
+        default=ModelOutputMode.FACTORIZED,
+        help="Target model output head shape.",
     )
     parser.add_argument(
         "--preserve-optimizer-state",

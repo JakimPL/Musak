@@ -51,6 +51,18 @@ artifacts under `artifacts/processed/example-dataset/encoded/<tokenizer-hash>`. 
 `tokenizer.json` matches the active tokenizer snapshot. Otherwise, training falls back to parsed JSON, then parses
 MusicXML from the dataset root when processed artifacts are unavailable.
 
+Training can run either the legacy flat-token objective or the factorized event objective. The active
+`event_objective.mode` is copied into the model output config at model construction time:
+
+- `flat` creates a single vocabulary-size language-model head and trains standard masked next-token cross-entropy.
+- `factorized` creates separate heads for token kind, duration, degree, accidental, octave offset, and hand. Each head
+  is trained only where its target attribute is active; absent attributes and padding positions are ignored. The model
+  also composes the factorized head log-probabilities back into flat token scores so validity penalties and generation
+  evaluation can continue to use the flat-token interface.
+
+The default pretraining and finetuning configs use the factorized objective. The flat objective remains available as a
+baseline by setting `event_objective.mode: flat`; normal CLI construction will create a matching flat-output model.
+
 Each encoded JSONL row is an `EncodedExercise`:
 
 - `token_ids`: unified two-hand token sequence.

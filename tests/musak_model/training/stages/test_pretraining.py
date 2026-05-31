@@ -10,13 +10,21 @@ from musak_model.conditioning.time_signature import TimeSignatureVocabulary, Tim
 from musak_model.data.schema import SegmentMetadata
 from musak_model.data.tokenization_context import tokenization_context_from_scale
 from musak_model.model import HierarchicalAutoregressiveModel
-from musak_model.model.config import CNNConfig, GRUConfig, ModelConfig, TransformerConfig
+from musak_model.model.config import (
+    CNNConfig,
+    GRUConfig,
+    ModelConfig,
+    ModelOutputConfig,
+    ModelOutputMode,
+    TransformerConfig,
+)
 from musak_model.tokens.config import TokenizationConfig
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import ScaleType
 from musak_model.tokens.vocabulary import TokenVocabulary
 from musak_model.training.config import (
     CheckpointConfig,
+    EventObjectiveConfig,
     GenerationEvaluationConfig,
     OptimizationConfig,
     RuntimeConfig,
@@ -69,9 +77,12 @@ class FakeTracker:
         self.invalid_files_logged = True
 
 
-def _small_model_config() -> ModelConfig:
+def _small_model_config(output_mode: ModelOutputMode = ModelOutputMode.FACTORIZED) -> ModelConfig:
+    token_vocabulary = _token_vocabulary()
     return ModelConfig(
-        vocabulary_size=_token_vocabulary().vocabulary_size,
+        vocabulary_size=token_vocabulary.vocabulary_size,
+        duration_vocabulary_size=token_vocabulary.duration_vocabulary.vocabulary_size(),
+        output=ModelOutputConfig(mode=output_mode),
         cnn=CNNConfig(enabled=True, out_channels=HIDDEN_SIZE, kernel_sizes=(3,), num_layers=1, dropout=0.0),
         gru=GRUConfig(enabled=True, hidden_size=HIDDEN_SIZE, num_layers=1, dropout=0.0, bidirectional=False),
         transformer=TransformerConfig(
@@ -96,10 +107,12 @@ def _training_config(
     resume_checkpoint: Path | None = None,
     epochs: int = 1,
     conditioning: TrainingConditioningConfig | None = None,
+    event_objective: EventObjectiveConfig | None = None,
     save_all_epochs: bool = False,
 ) -> TrainingConfig:
     return TrainingConfig(
         optimization=OptimizationConfig(epochs=epochs, batch_size=2, learning_rate=0.001, weight_decay=0.0),
+        event_objective=event_objective if event_objective is not None else _event_objective_config(),
         runtime=RuntimeConfig(num_workers=1, device="cpu"),
         conditioning=conditioning if conditioning is not None else _conditioning_config(),
         checkpoints=CheckpointConfig(
@@ -123,6 +136,18 @@ def _conditioning_config(
         use_structural_conditioning=False,
         use_validity_penalty=use_validity_penalty,
         validity_penalty_weight=validity_penalty_weight,
+    )
+
+
+def _event_objective_config(mode: ModelOutputMode = ModelOutputMode.FACTORIZED) -> EventObjectiveConfig:
+    return EventObjectiveConfig(
+        mode=mode,
+        kind_weight=1.0,
+        duration_weight=1.0,
+        degree_weight=1.0,
+        accidental_weight=1.0,
+        octave_offset_weight=1.0,
+        hand_weight=1.0,
     )
 
 
@@ -215,6 +240,11 @@ def test_trainer_runs_one_epoch_and_writes_checkpoints(tmp_path: Path) -> None:
     assert result.metrics[0].train_loss > 0
     assert result.metrics[0].train_perplexity > 1
     assert 0 <= result.metrics[0].train_token_accuracy <= 1
+    assert result.metrics[0].train_event_kind_loss is not None
+    assert result.metrics[0].train_duration_loss is not None
+    assert result.metrics[0].train_degree_loss is not None
+    assert result.metrics[0].train_accidental_loss is not None
+    assert result.metrics[0].train_octave_offset_loss is not None
     assert result.metrics[0].train_duration_accuracy is not None
     assert result.metrics[0].train_degree_accuracy is not None
     assert result.metrics[0].train_accidental_accuracy is not None
@@ -243,6 +273,26 @@ def test_trainer_logs_to_tracker(tmp_path: Path) -> None:
     assert tracker.epochs == [0]
     assert tracker.checkpoint_logged is True
     assert tracker.invalid_files_logged is True
+
+
+def test_trainer_keeps_flat_objective_runnable(tmp_path: Path) -> None:
+    token_vocabulary = _token_vocabulary()
+    model = HierarchicalAutoregressiveModel(_small_model_config(ModelOutputMode.FLAT))
+    trainer = PretrainingTrainer(
+        model=model,
+        config=_training_config(
+            tmp_path,
+            event_objective=_event_objective_config(ModelOutputMode.FLAT),
+        ),
+        train_loader=_loader(),
+        validation_loader=_loader(),
+        token_attribute_lookup=build_token_attribute_lookup(token_vocabulary),
+    )
+
+    result = trainer.train()
+
+    assert result.metrics[0].train_loss > 0
+    assert result.metrics[0].train_event_kind_loss is None
 
 
 def test_trainer_saves_epoch_checkpoints_when_enabled(tmp_path: Path) -> None:

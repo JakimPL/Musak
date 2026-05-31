@@ -9,7 +9,14 @@ from torch import Tensor
 from musak_model.conditioning.config import ConditioningConfig, DifficultyConfig
 from musak_model.conditioning.time_signature import TimeSignatureVocabularyConfig
 from musak_model.evaluation.generation import GenerationSuiteEvaluator
-from musak_model.model.config import CNNConfig, GRUConfig, ModelConfig, TransformerConfig
+from musak_model.model.config import (
+    CNNConfig,
+    GRUConfig,
+    ModelConfig,
+    ModelOutputConfig,
+    ModelOutputMode,
+    TransformerConfig,
+)
 from musak_model.n_grams.figure.schema import FigureNGram
 from musak_model.n_grams.profile.artifacts import figure_artifact_paths
 from musak_model.n_grams.profile.builder import build_figure_profile, build_figure_sample_counts
@@ -336,6 +343,8 @@ def _rhythm_profile_artifacts(tmp_path: Path) -> RhythmProfileArtifacts:
 def _model_config(vocabulary_size: int) -> ModelConfig:
     return ModelConfig(
         vocabulary_size=vocabulary_size,
+        duration_vocabulary_size=1,
+        output=ModelOutputConfig(mode=ModelOutputMode.FLAT),
         cnn=CNNConfig(enabled=True, out_channels=16, kernel_sizes=(3,), num_layers=1, dropout=0.0),
         gru=GRUConfig(enabled=True, hidden_size=16, num_layers=1, dropout=0.0, bidirectional=False),
         transformer=TransformerConfig(

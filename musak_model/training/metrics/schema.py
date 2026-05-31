@@ -11,6 +11,12 @@ class EpochMetrics(BaseModel):
     train_perplexity: float
     train_token_accuracy: float
     train_token_kind_accuracy: float | None = None
+    train_event_kind_loss: float | None = None
+    train_duration_loss: float | None = None
+    train_degree_loss: float | None = None
+    train_accidental_loss: float | None = None
+    train_octave_offset_loss: float | None = None
+    train_hand_loss: float | None = None
     train_duration_accuracy: float | None = None
     train_degree_accuracy: float | None = None
     train_accidental_accuracy: float | None = None
@@ -26,6 +32,12 @@ class EpochMetrics(BaseModel):
     validation_perplexity: float | None = None
     validation_token_accuracy: float | None = None
     validation_token_kind_accuracy: float | None = None
+    validation_event_kind_loss: float | None = None
+    validation_duration_loss: float | None = None
+    validation_degree_loss: float | None = None
+    validation_accidental_loss: float | None = None
+    validation_octave_offset_loss: float | None = None
+    validation_hand_loss: float | None = None
     validation_duration_accuracy: float | None = None
     validation_degree_accuracy: float | None = None
     validation_accidental_accuracy: float | None = None
@@ -43,6 +55,12 @@ class EpochSplitMetrics(BaseModel):
     perplexity: float
     token_accuracy: float
     token_kind_accuracy: float | None = None
+    event_kind_loss: float | None = None
+    duration_loss: float | None = None
+    degree_loss: float | None = None
+    accidental_loss: float | None = None
+    octave_offset_loss: float | None = None
+    hand_loss: float | None = None
     duration_accuracy: float | None = None
     degree_accuracy: float | None = None
     accidental_accuracy: float | None = None
@@ -63,6 +81,18 @@ class BatchMetrics(BaseModel):
     token_count: int = Field(ge=1)
     exact_match_count: int = Field(ge=0)
     token_kind_match_count: int | None = None
+    event_kind_loss: float | None = None
+    event_kind_loss_target_count: int | None = None
+    duration_loss: float | None = None
+    duration_loss_target_count: int | None = None
+    degree_loss: float | None = None
+    degree_loss_target_count: int | None = None
+    accidental_loss: float | None = None
+    accidental_loss_target_count: int | None = None
+    octave_offset_loss: float | None = None
+    octave_offset_loss_target_count: int | None = None
+    hand_loss: float | None = None
+    hand_loss_target_count: int | None = None
     duration_match_count: int | None = None
     duration_target_count: int | None = None
     degree_match_count: int | None = None

@@ -14,7 +14,7 @@ from musak_model.conditioning.time_signature import TimeSignatureVocabulary
 from musak_model.data.config import SegmentationConfig
 from musak_model.evaluation import GenerationSuiteEvaluator
 from musak_model.model import HierarchicalAutoregressiveModel
-from musak_model.model.config import ModelConfig
+from musak_model.model.config import ModelConfig, ModelOutputMode
 from musak_model.paths import CONDITIONING_CONFIG_PATH
 from musak_model.tokens.config import TokenizationConfig
 from musak_model.tokens.duration import DurationVocabulary
@@ -27,6 +27,7 @@ from musak_model.training.dataset.schema import TrainingBatch
 from musak_model.training.ingestion.config import IngestionConfig
 from musak_model.training.ingestion.schema import IngestionErrorRecord
 from musak_model.training.ingestion.split import build_split
+from musak_model.training.losses import FactorizedEventLoss, factorized_event_loss
 from musak_model.training.metrics import (
     BatchMetrics,
     EpochMetrics,
@@ -91,6 +92,12 @@ class PretrainingTrainer:
         )
         if config.conditioning.use_validity_penalty and validity_mask_builder is None:
             raise ValueError("validity_mask_builder is required when use_validity_penalty is true")
+
+        if self._model.output_mode != config.event_objective.mode:
+            raise ValueError(
+                f"model output mode {self._model.output_mode.value!r} does not match "
+                f"training objective mode {config.event_objective.mode.value!r}"
+            )
 
         self._validity_mask_builder = validity_mask_builder
         self._generation_evaluator = generation_evaluator
@@ -164,6 +171,12 @@ class PretrainingTrainer:
             train_perplexity=train_metrics.perplexity,
             train_token_accuracy=train_metrics.token_accuracy,
             train_token_kind_accuracy=train_metrics.token_kind_accuracy,
+            train_event_kind_loss=train_metrics.event_kind_loss,
+            train_duration_loss=train_metrics.duration_loss,
+            train_degree_loss=train_metrics.degree_loss,
+            train_accidental_loss=train_metrics.accidental_loss,
+            train_octave_offset_loss=train_metrics.octave_offset_loss,
+            train_hand_loss=train_metrics.hand_loss,
             train_duration_accuracy=train_metrics.duration_accuracy,
             train_degree_accuracy=train_metrics.degree_accuracy,
             train_accidental_accuracy=train_metrics.accidental_accuracy,
@@ -181,6 +194,14 @@ class PretrainingTrainer:
             validation_token_kind_accuracy=(
                 validation_metrics.token_kind_accuracy if validation_metrics is not None else None
             ),
+            validation_event_kind_loss=validation_metrics.event_kind_loss if validation_metrics is not None else None,
+            validation_duration_loss=validation_metrics.duration_loss if validation_metrics is not None else None,
+            validation_degree_loss=validation_metrics.degree_loss if validation_metrics is not None else None,
+            validation_accidental_loss=validation_metrics.accidental_loss if validation_metrics is not None else None,
+            validation_octave_offset_loss=(
+                validation_metrics.octave_offset_loss if validation_metrics is not None else None
+            ),
+            validation_hand_loss=validation_metrics.hand_loss if validation_metrics is not None else None,
             validation_duration_accuracy=(
                 validation_metrics.duration_accuracy if validation_metrics is not None else None
             ),
@@ -207,12 +228,16 @@ class PretrainingTrainer:
         _LOGGER.info(
             (
                 "Epoch %s/%s finished: train_loss=%.6f train_perplexity=%.6f "
-                "train_token_accuracy=%.6f train_token_kind_accuracy=%s train_duration_accuracy=%s "
+                "train_token_accuracy=%.6f train_token_kind_accuracy=%s train_event_kind_loss=%s "
+                "train_duration_loss=%s train_degree_loss=%s train_accidental_loss=%s "
+                "train_octave_offset_loss=%s train_hand_loss=%s train_duration_accuracy=%s "
                 "train_degree_accuracy=%s train_accidental_accuracy=%s train_octave_offset_accuracy=%s "
                 "train_hand_accuracy=%s train_validity_penalty_loss=%s "
                 "train_invalid_probability_mass=%s train_invalid_target_rate=%s train_cnn_gradient_norm=%s "
                 "train_gru_gradient_norm=%s train_transformer_gradient_norm=%s validation_loss=%s "
                 "validation_perplexity=%s validation_token_accuracy=%s validation_token_kind_accuracy=%s "
+                "validation_event_kind_loss=%s validation_duration_loss=%s validation_degree_loss=%s "
+                "validation_accidental_loss=%s validation_octave_offset_loss=%s validation_hand_loss=%s "
                 "validation_duration_accuracy=%s validation_degree_accuracy=%s validation_accidental_accuracy=%s "
                 "validation_octave_offset_accuracy=%s validation_hand_accuracy=%s "
                 "validation_validity_penalty_loss=%s validation_invalid_probability_mass=%s "
@@ -224,6 +249,12 @@ class PretrainingTrainer:
             metric.train_perplexity,
             metric.train_token_accuracy,
             metric.train_token_kind_accuracy,
+            metric.train_event_kind_loss,
+            metric.train_duration_loss,
+            metric.train_degree_loss,
+            metric.train_accidental_loss,
+            metric.train_octave_offset_loss,
+            metric.train_hand_loss,
             metric.train_duration_accuracy,
             metric.train_degree_accuracy,
             metric.train_accidental_accuracy,
@@ -239,6 +270,12 @@ class PretrainingTrainer:
             metric.validation_perplexity,
             metric.validation_token_accuracy,
             metric.validation_token_kind_accuracy,
+            metric.validation_event_kind_loss,
+            metric.validation_duration_loss,
+            metric.validation_degree_loss,
+            metric.validation_accidental_loss,
+            metric.validation_octave_offset_loss,
+            metric.validation_hand_loss,
             metric.validation_duration_accuracy,
             metric.validation_degree_accuracy,
             metric.validation_accidental_accuracy,
@@ -382,26 +419,9 @@ class PretrainingTrainer:
         return accumulator.to_epoch_split_metrics()
 
     def _loss_for_batch(self, batch: TrainingBatch) -> tuple[Tensor, BatchMetrics]:
-        logits = self._model(
-            batch.input_token_ids,
-            bar_positions=batch.bar_positions,
-            difficulty_ids=batch.difficulty_ids if self._config.conditioning.use_difficulty else None,
-            scale_type_ids=batch.conditioning_scale_type_ids if self._config.conditioning.use_scale_type else None,
-            time_signature_ids=(
-                batch.conditioning_time_signature_ids if self._config.conditioning.use_time_signature else None
-            ),
-            structural_control_ids=(
-                batch.structural_control_ids if self._config.conditioning.use_structural_conditioning else None
-            ),
-            token_padding_mask=batch.token_padding_mask,
-        )
-        log_probabilities = nn.functional.log_softmax(logits, dim=-1)
-        flat_loss = (
-            -log_probabilities.gather(dim=-1, index=batch.target_token_ids.unsqueeze(-1)).squeeze(-1).reshape(-1)
-        )
         valid_mask = ~batch.token_padding_mask.reshape(-1)
-        cross_entropy_loss = flat_loss[valid_mask].sum() / int(valid_mask.sum().item())
-        loss = cross_entropy_loss
+        logits, loss, factorized_loss = self._event_logits_and_loss(batch, valid_mask=valid_mask)
+        log_probabilities = nn.functional.log_softmax(logits, dim=-1)
         batch_metrics = batch_metrics_from_logits(
             logits,
             target_token_ids=batch.target_token_ids,
@@ -410,6 +430,7 @@ class PretrainingTrainer:
             token_kind_ids=self._token_kind_ids,
             token_attribute_lookup=self._token_attribute_lookup,
         )
+        batch_metrics = self._add_factorized_loss_metrics(batch_metrics, factorized_loss=factorized_loss)
         if self._config.conditioning.use_validity_penalty:
             validity_metrics = self._validity_penalty_metrics(
                 log_probabilities,
@@ -427,6 +448,86 @@ class PretrainingTrainer:
                 }
             )
         return loss, batch_metrics
+
+    def _event_logits_and_loss(
+        self,
+        batch: TrainingBatch,
+        *,
+        valid_mask: Tensor,
+    ) -> tuple[Tensor, Tensor, FactorizedEventLoss | None]:
+        match self._config.event_objective.mode:
+            case ModelOutputMode.FLAT:
+                return self._flat_logits_and_loss(batch, valid_mask=valid_mask)
+            case ModelOutputMode.FACTORIZED:
+                return self._factorized_logits_and_loss(batch)
+
+    def _flat_logits_and_loss(self, batch: TrainingBatch, *, valid_mask: Tensor) -> tuple[Tensor, Tensor, None]:
+        logits = self._model(
+            batch.input_token_ids,
+            bar_positions=batch.bar_positions,
+            difficulty_ids=batch.difficulty_ids if self._config.conditioning.use_difficulty else None,
+            scale_type_ids=batch.conditioning_scale_type_ids if self._config.conditioning.use_scale_type else None,
+            time_signature_ids=(
+                batch.conditioning_time_signature_ids if self._config.conditioning.use_time_signature else None
+            ),
+            structural_control_ids=(
+                batch.structural_control_ids if self._config.conditioning.use_structural_conditioning else None
+            ),
+            token_padding_mask=batch.token_padding_mask,
+        )
+        log_probabilities = nn.functional.log_softmax(logits, dim=-1)
+        flat_loss = (
+            -log_probabilities.gather(dim=-1, index=batch.target_token_ids.unsqueeze(-1)).squeeze(-1).reshape(-1)
+        )
+        cross_entropy_loss = flat_loss[valid_mask].sum() / int(valid_mask.sum().item())
+        return logits, cross_entropy_loss, None
+
+    def _factorized_logits_and_loss(self, batch: TrainingBatch) -> tuple[Tensor, Tensor, FactorizedEventLoss]:
+        factorized_logits = self._model.factorized_logits(
+            batch.input_token_ids,
+            bar_positions=batch.bar_positions,
+            difficulty_ids=batch.difficulty_ids if self._config.conditioning.use_difficulty else None,
+            scale_type_ids=batch.conditioning_scale_type_ids if self._config.conditioning.use_scale_type else None,
+            time_signature_ids=(
+                batch.conditioning_time_signature_ids if self._config.conditioning.use_time_signature else None
+            ),
+            structural_control_ids=(
+                batch.structural_control_ids if self._config.conditioning.use_structural_conditioning else None
+            ),
+            token_padding_mask=batch.token_padding_mask,
+        )
+        factorized_loss = factorized_event_loss(
+            factorized_logits,
+            targets=batch.target_token_attributes,
+            config=self._config.event_objective,
+        )
+        return self._model.flat_token_log_scores(factorized_logits), factorized_loss.loss, factorized_loss
+
+    def _add_factorized_loss_metrics(
+        self,
+        batch_metrics: BatchMetrics,
+        *,
+        factorized_loss: FactorizedEventLoss | None,
+    ) -> BatchMetrics:
+        if factorized_loss is None:
+            return batch_metrics
+
+        return batch_metrics.model_copy(
+            update={
+                "event_kind_loss": float(factorized_loss.kind_loss.detach().item()),
+                "event_kind_loss_target_count": factorized_loss.kind_target_count,
+                "duration_loss": float(factorized_loss.duration_loss.detach().item()),
+                "duration_loss_target_count": factorized_loss.duration_target_count,
+                "degree_loss": float(factorized_loss.degree_loss.detach().item()),
+                "degree_loss_target_count": factorized_loss.degree_target_count,
+                "accidental_loss": float(factorized_loss.accidental_loss.detach().item()),
+                "accidental_loss_target_count": factorized_loss.accidental_target_count,
+                "octave_offset_loss": float(factorized_loss.octave_offset_loss.detach().item()),
+                "octave_offset_loss_target_count": factorized_loss.octave_offset_target_count,
+                "hand_loss": float(factorized_loss.hand_loss.detach().item()),
+                "hand_loss_target_count": factorized_loss.hand_target_count,
+            }
+        )
 
     def _validity_penalty_metrics(
         self,
@@ -487,6 +588,8 @@ def pretrain(
     vocabulary = TokenVocabulary(DurationVocabulary(tokenization_config))
     resolved_model_config = model_config or ModelConfig.load(
         vocabulary_size=vocabulary.vocabulary_size,
+        duration_vocabulary_size=vocabulary.duration_vocabulary.vocabulary_size(),
+        output_mode=training_config.event_objective.mode,
         conditioning_config_path=conditioning_config_path,
     )
     _LOGGER.info("Model vocabulary size: %s", resolved_model_config.vocabulary_size)

@@ -3,9 +3,11 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
+from musak_model.model.config import ModelOutputMode
 from musak_model.tokens.schema import ScaleType
 from musak_model.training.config import (
     CheckpointConfig,
+    EventObjectiveConfig,
     GenerationEvaluationConfig,
     OptimizationConfig,
     RuntimeConfig,
@@ -48,9 +50,22 @@ def _generation_evaluation_config() -> GenerationEvaluationConfig:
     )
 
 
+def _event_objective_config() -> EventObjectiveConfig:
+    return EventObjectiveConfig(
+        mode=ModelOutputMode.FLAT,
+        kind_weight=1.0,
+        duration_weight=1.0,
+        degree_weight=1.0,
+        accidental_weight=1.0,
+        octave_offset_weight=1.0,
+        hand_weight=1.0,
+    )
+
+
 def test_training_config_accepts_nested_constructor() -> None:
     config = TrainingConfig(
         optimization=OptimizationConfig(epochs=1, batch_size=2, learning_rate=0.001, weight_decay=0.0),
+        event_objective=_event_objective_config(),
         runtime=RuntimeConfig(num_workers=0, device="cpu"),
         conditioning=_conditioning_config(),
         checkpoints=CheckpointConfig(checkpoint_directory=Path("checkpoints")),
@@ -80,6 +95,7 @@ def test_training_config_rejects_old_conditioning_field() -> None:
     with pytest.raises(ValidationError, match="use_conditioning"):
         TrainingConfig(
             optimization=OptimizationConfig(epochs=1, batch_size=2, learning_rate=0.001, weight_decay=0.0),
+            event_objective=_event_objective_config(),
             runtime=RuntimeConfig(num_workers=1, device="cpu"),
             checkpoints=CheckpointConfig(checkpoint_directory=Path("checkpoints")),
             conditioning={"use_conditioning": True},
