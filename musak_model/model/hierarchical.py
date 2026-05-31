@@ -5,10 +5,16 @@ import torch.nn as nn
 from torch import Tensor
 from torch.nn.utils.rnn import pad_sequence
 
+from musak_model.auxiliary.schema import MusicalAuxiliaryLogits
 from musak_model.model.cnn import LocalConvEncoder
 from musak_model.model.config import ModelConfig, ModelOutputMode
 from musak_model.model.gru import BarGRUEncoder, BarPrefixGRUEncoder
-from musak_model.model.output import FactorizedTokenLogits, FlatTokenAttributeBuffers, flat_token_log_scores
+from musak_model.model.output import (
+    FactorizedTokenLogits,
+    FlatTokenAttributeBuffers,
+    ModelTrainingLogits,
+    flat_token_log_scores,
+)
 from musak_model.model.transformer import CausalTransformerDecoder
 from musak_model.tokens.factorized import (
     ACCIDENTAL_ATTRIBUTE_COUNT,
@@ -67,6 +73,25 @@ class HierarchicalAutoregressiveModel(nn.Module):
             for vocabulary_size in config.conditioning.structural_vocabulary_sizes
         )
         self._conditioning_norm = nn.LayerNorm(config.transformer.hidden_size)
+        auxiliary_targets = config.musical_auxiliary_targets
+        self._note_density_head = nn.Linear(config.transformer.hidden_size, auxiliary_targets.note_density_class_count)
+        self._rhythmic_diversity_head = nn.Linear(
+            config.transformer.hidden_size,
+            auxiliary_targets.rhythmic_diversity_class_count,
+        )
+        self._voice_independence_head = nn.Linear(
+            config.transformer.hidden_size,
+            auxiliary_targets.voice_independence_class_count,
+        )
+        self._uses_accidentals_head = nn.Linear(
+            config.transformer.hidden_size,
+            auxiliary_targets.uses_accidentals_class_count,
+        )
+        self._dotted_duration_head = nn.Linear(
+            config.transformer.hidden_size,
+            auxiliary_targets.dotted_duration_class_count,
+        )
+        self._hand_span_head = nn.Linear(config.transformer.hidden_size, auxiliary_targets.hand_span_class_count)
 
     def forward(
         self,
@@ -140,6 +165,53 @@ class HierarchicalAutoregressiveModel(nn.Module):
             raise ValueError("flat token log scores require model output mode 'factorized'")
 
         return flat_token_log_scores(logits, flat_attributes=self._flat_attribute_buffers())
+
+    def training_logits(
+        self,
+        token_ids: Tensor,
+        *,
+        bar_positions: Tensor,
+        bar_relative_ticks: Tensor,
+        bar_duration_ticks: Tensor,
+        active_hand_ids: Tensor,
+        difficulty_ids: Tensor | None = None,
+        scale_type_ids: Tensor | None = None,
+        time_signature_ids: Tensor | None = None,
+        structural_control_ids: Tensor | None = None,
+        token_padding_mask: Tensor | None = None,
+    ) -> ModelTrainingLogits:
+        decoded_embeddings = self._decoded_embeddings(
+            token_ids,
+            bar_positions=bar_positions,
+            bar_relative_ticks=bar_relative_ticks,
+            bar_duration_ticks=bar_duration_ticks,
+            active_hand_ids=active_hand_ids,
+            difficulty_ids=difficulty_ids,
+            scale_type_ids=scale_type_ids,
+            time_signature_ids=time_signature_ids,
+            structural_control_ids=structural_control_ids,
+            token_padding_mask=token_padding_mask,
+        )
+        musical_auxiliary_logits = self._musical_auxiliary_logits_from_embeddings(
+            decoded_embeddings,
+            padding_mask=self._build_target_padding_mask(
+                bar_positions=bar_positions,
+                token_padding_mask=token_padding_mask,
+            ),
+        )
+        match self._config.output.mode:
+            case ModelOutputMode.FLAT:
+                return ModelTrainingLogits(
+                    flat_logits=cast(Tensor, self._lm_head(decoded_embeddings)),
+                    musical_auxiliary_logits=musical_auxiliary_logits,
+                )
+            case ModelOutputMode.FACTORIZED:
+                factorized_logits = self._factorized_logits_from_embeddings(decoded_embeddings)
+                return ModelTrainingLogits(
+                    flat_logits=self.flat_token_log_scores(factorized_logits),
+                    factorized_logits=factorized_logits,
+                    musical_auxiliary_logits=musical_auxiliary_logits,
+                )
 
     def _decoded_embeddings(
         self,
@@ -224,6 +296,33 @@ class HierarchicalAutoregressiveModel(nn.Module):
             duration=cast(Tensor, self._duration_head(decoded_embeddings)),
             hand=cast(Tensor, self._hand_head(decoded_embeddings)),
         )
+
+    def _musical_auxiliary_logits_from_embeddings(
+        self,
+        decoded_embeddings: Tensor,
+        *,
+        padding_mask: Tensor,
+    ) -> MusicalAuxiliaryLogits:
+        pooled_embeddings = self._mean_pool_decoder_embeddings(decoded_embeddings, padding_mask=padding_mask)
+        return MusicalAuxiliaryLogits(
+            note_density=cast(Tensor, self._note_density_head(pooled_embeddings)),
+            rhythmic_diversity=cast(Tensor, self._rhythmic_diversity_head(pooled_embeddings)),
+            voice_independence=cast(Tensor, self._voice_independence_head(pooled_embeddings)),
+            uses_accidentals=cast(Tensor, self._uses_accidentals_head(pooled_embeddings)),
+            dotted_duration=cast(Tensor, self._dotted_duration_head(pooled_embeddings)),
+            hand_span=cast(Tensor, self._hand_span_head(pooled_embeddings)),
+        )
+
+    @staticmethod
+    def _mean_pool_decoder_embeddings(decoded_embeddings: Tensor, *, padding_mask: Tensor) -> Tensor:
+        if padding_mask.shape != decoded_embeddings.shape[:2]:
+            padding_shape = tuple(padding_mask.shape)
+            decoded_shape = tuple(decoded_embeddings.shape[:2])
+            raise ValueError(f"padding_mask shape {padding_shape} does not match decoded shape {decoded_shape}")
+
+        active_mask = (~padding_mask).to(device=decoded_embeddings.device, dtype=decoded_embeddings.dtype)
+        token_counts = active_mask.sum(dim=1).clamp_min(1).unsqueeze(-1)
+        return (decoded_embeddings * active_mask.unsqueeze(-1)).sum(dim=1) / token_counts
 
     def _register_flat_attribute_buffers(self, config: ModelConfig) -> None:
         attributes = FlatTokenAttributeBuffers.from_attributes(

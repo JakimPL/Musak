@@ -5,6 +5,7 @@ from typing import Final
 import pytest
 from torch.optim import AdamW
 
+from musak_model.auxiliary.config import MusicalAuxiliaryTargetConfig
 from musak_model.conditioning.config import ConditioningConfig, DifficultyConfig
 from musak_model.conditioning.time_signature import TimeSignatureVocabularyConfig
 from musak_model.data.config import SegmentationConfig
@@ -31,6 +32,7 @@ from musak_model.training.config import (
     FinetuningTrainingConfig,
     GenerationEvaluationConfig,
     MlflowConfig,
+    MusicalAuxiliaryObjectiveConfig,
     OptimizationConfig,
     RuntimeConfig,
     TrainingConditioningConfig,
@@ -40,6 +42,15 @@ from musak_model.training.ingestion.schema import EncodedExercise, IngestionSpli
 from musak_model.training.stages.finetuning import finetune
 
 HIDDEN_SIZE: Final[int] = 16
+
+
+def _musical_auxiliary_target_config() -> MusicalAuxiliaryTargetConfig:
+    return MusicalAuxiliaryTargetConfig(
+        note_density_bucket_boundaries=(0.25, 0.5, 0.75, 1.0, 1.5, 2.0),
+        rhythmic_diversity_bucket_boundaries=(0.2, 0.4, 0.6, 0.8),
+        voice_independence_bucket_boundaries=(0.2, 0.4, 0.6, 0.8),
+        hand_span_bucket_boundaries=(3, 5, 8, 12, 16),
+    )
 
 
 def _scale_matcher_config() -> ScaleMatcherConfig:
@@ -65,6 +76,7 @@ def _small_model_config() -> ModelConfig:
         vocabulary_size=token_vocabulary.vocabulary_size,
         duration_vocabulary_size=token_vocabulary.duration_vocabulary.vocabulary_size(),
         output=ModelOutputConfig(mode=ModelOutputMode.FACTORIZED),
+        musical_auxiliary_targets=_musical_auxiliary_target_config(),
         cnn=CNNConfig(enabled=True, out_channels=HIDDEN_SIZE, kernel_sizes=(3,), num_layers=1, dropout=0.0),
         gru=GRUConfig(enabled=True, hidden_size=HIDDEN_SIZE, num_layers=1, dropout=0.0, bidirectional=False),
         transformer=TransformerConfig(
@@ -151,6 +163,17 @@ def test_train_finetuning_loads_pretraining_checkpoint_and_runs_epoch(
                 accidental_weight=1.0,
                 octave_offset_weight=1.0,
                 hand_weight=1.0,
+            ),
+            musical_auxiliary_targets=_musical_auxiliary_target_config(),
+            musical_auxiliary_objective=MusicalAuxiliaryObjectiveConfig(
+                enabled=True,
+                weight=0.1,
+                note_density_weight=1.0,
+                rhythmic_diversity_weight=1.0,
+                voice_independence_weight=1.0,
+                uses_accidentals_weight=1.0,
+                dotted_duration_weight=1.0,
+                hand_span_weight=1.0,
             ),
             conditioning=TrainingConditioningConfig(
                 use_time_signature=True,

@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 
+from musak_model.auxiliary.config import MusicalAuxiliaryTargetConfig
 from musak_model.model.config import ModelOutputMode
 from musak_model.tokens.schema import ScaleType
 from musak_model.training.config import (
@@ -12,6 +13,7 @@ from musak_model.training.config import (
     FinetuningTrainingConfig,
     GenerationEvaluationConfig,
     MlflowConfig,
+    MusicalAuxiliaryObjectiveConfig,
     OptimizationConfig,
     RuntimeConfig,
     TrainingConditioningConfig,
@@ -59,6 +61,8 @@ def _training_config(checkpoint_directory: Path, *, epochs: int = 25) -> Trainin
     return TrainingConfig(
         optimization=OptimizationConfig(epochs=epochs, batch_size=8, learning_rate=0.001, weight_decay=0.0),
         event_objective=_event_objective_config(),
+        musical_auxiliary_targets=_musical_auxiliary_target_config(),
+        musical_auxiliary_objective=_musical_auxiliary_objective_config(),
         runtime=RuntimeConfig(num_workers=2, device="cuda"),
         checkpoints=CheckpointConfig(checkpoint_directory=checkpoint_directory),
         conditioning=_conditioning_config(use_time_signature=True, use_scale_type=True),
@@ -76,6 +80,8 @@ def _finetuning_config(
     return FinetuningTrainingConfig(
         optimization=OptimizationConfig(epochs=8, batch_size=8, learning_rate=0.001, weight_decay=0.0),
         event_objective=_event_objective_config(),
+        musical_auxiliary_targets=_musical_auxiliary_target_config(),
+        musical_auxiliary_objective=_musical_auxiliary_objective_config(),
         runtime=RuntimeConfig(num_workers=4, device="cuda"),
         checkpoints=FinetuningCheckpointConfig(
             checkpoint_directory=checkpoint_directory,
@@ -111,6 +117,28 @@ def _event_objective_config() -> EventObjectiveConfig:
         accidental_weight=1.0,
         octave_offset_weight=1.0,
         hand_weight=1.0,
+    )
+
+
+def _musical_auxiliary_objective_config() -> MusicalAuxiliaryObjectiveConfig:
+    return MusicalAuxiliaryObjectiveConfig(
+        enabled=True,
+        weight=0.1,
+        note_density_weight=1.0,
+        rhythmic_diversity_weight=1.0,
+        voice_independence_weight=1.0,
+        uses_accidentals_weight=1.0,
+        dotted_duration_weight=1.0,
+        hand_span_weight=1.0,
+    )
+
+
+def _musical_auxiliary_target_config() -> MusicalAuxiliaryTargetConfig:
+    return MusicalAuxiliaryTargetConfig(
+        note_density_bucket_boundaries=(0.25, 0.5, 0.75, 1.0, 1.5, 2.0),
+        rhythmic_diversity_bucket_boundaries=(0.2, 0.4, 0.6, 0.8),
+        voice_independence_bucket_boundaries=(0.2, 0.4, 0.6, 0.8),
+        hand_span_bucket_boundaries=(3, 5, 8, 12, 16),
     )
 
 

@@ -4,6 +4,7 @@ from typing import cast
 
 from torch.utils.data import DataLoader
 
+from musak_model.auxiliary.config import MusicalAuxiliaryTargetConfig
 from musak_model.conditioning.structural.vocabulary import StructuralControlVocabulary
 from musak_model.conditioning.time_signature import TimeSignatureVocabulary
 from musak_model.tokens.vocabulary import TokenVocabulary
@@ -24,6 +25,7 @@ def build_dataloaders(
     num_workers: int,
     time_signature_vocabulary: TimeSignatureVocabulary,
     token_vocabulary: TokenVocabulary,
+    musical_auxiliary_targets: MusicalAuxiliaryTargetConfig,
     conditioning: TrainingConditioningConfig,
     structural_control_vocabulary: StructuralControlVocabulary | None = None,
     include_structural_controls: bool = False,
@@ -39,6 +41,7 @@ def build_dataloaders(
         include_bar_count_control=include_bar_count_control,
         time_signature_vocabulary=time_signature_vocabulary,
         token_vocabulary=token_vocabulary,
+        musical_auxiliary_targets=musical_auxiliary_targets,
         structural_control_vocabulary=structural_control_vocabulary,
         max_sequence_length=max_sequence_length,
     )
@@ -56,6 +59,7 @@ def build_dataloaders(
         include_bar_count_control=include_bar_count_control,
         time_signature_vocabulary=time_signature_vocabulary,
         token_vocabulary=token_vocabulary,
+        musical_auxiliary_targets=musical_auxiliary_targets,
         structural_control_vocabulary=structural_control_vocabulary,
         max_sequence_length=max_sequence_length,
     )

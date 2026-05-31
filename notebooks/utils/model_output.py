@@ -50,7 +50,7 @@ from musak_model.n_grams.profile.rhythm.schema import (
     RhythmCountKey,
     RhythmMetricKind,
 )
-from musak_model.paths import MODEL_CONFIG_DIRECTORY
+from musak_model.paths import MODEL_CONFIG_DIRECTORY, PRETRAINING_CONFIG_PATH
 from musak_model.tokens.config import TokenizationConfig
 from musak_model.tokens.duration import DurationVocabulary, duration_tick_denominator
 from musak_model.tokens.schema import (
@@ -70,6 +70,7 @@ from musak_model.tokens.schema import (
 from musak_model.tokens.text import tokens_from_text, tokens_to_text
 from musak_model.tokens.vocabulary import TokenVocabulary
 from musak_model.training.conditioning import scale_type_to_id, time_signature_to_id
+from musak_model.training.config import TrainingConfig
 from musak_model.training.ingestion.schema import EncodedExercise
 
 _FIGURE_PATTERN_MIN_N: Final = 1
@@ -195,6 +196,7 @@ def load_trained_model(
     checkpoint_path: Path,
     *,
     device: str,
+    training_config_path: Path = PRETRAINING_CONFIG_PATH,
     tokenization_config_path: Path | None = None,
     model_config_directory: Path | None = None,
 ) -> LoadedModel:
@@ -206,12 +208,14 @@ def load_trained_model(
     )
     duration_vocabulary = DurationVocabulary(tokenization_config)
     token_vocabulary = TokenVocabulary(duration_vocabulary)
+    training_config = TrainingConfig.load(training_config_path)
     state = cast(dict[str, object], torch.load(checkpoint_path, map_location=resolved_device))
     model_state_dict = cast(dict[str, Tensor], state["model_state_dict"])
     model_config = ModelConfig.load(
         vocabulary_size=token_vocabulary.vocabulary_size,
         duration_vocabulary_size=duration_vocabulary.vocabulary_size(),
         output_mode=_checkpoint_output_mode(model_state_dict),
+        musical_auxiliary_targets=training_config.musical_auxiliary_targets,
         config_directory=model_config_directory or MODEL_CONFIG_DIRECTORY,
     )
     model = HierarchicalAutoregressiveModel(model_config)

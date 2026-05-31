@@ -5,6 +5,7 @@ from dataclasses import dataclass
 import torch
 from torch import Tensor
 
+from musak_model.auxiliary.schema import MusicalAuxiliaryLogits
 from musak_model.tokens.factorized import ABSENT_ATTRIBUTE_ID, TokenAttributes
 
 
@@ -16,6 +17,13 @@ class FactorizedTokenLogits:
     octave_offset: Tensor
     duration: Tensor
     hand: Tensor
+
+
+@dataclass(frozen=True)
+class ModelTrainingLogits:
+    flat_logits: Tensor
+    musical_auxiliary_logits: MusicalAuxiliaryLogits
+    factorized_logits: FactorizedTokenLogits | None = None
 
 
 @dataclass(frozen=True)

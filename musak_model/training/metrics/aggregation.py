@@ -34,6 +34,26 @@ class MetricsAccumulator:
     octave_offset_target_count: int | None = None
     hand_match_count: int | None = None
     hand_target_count: int | None = None
+    musical_auxiliary_loss_sum: float | None = None
+    musical_auxiliary_target_count: int | None = None
+    note_density_loss_sum: float | None = None
+    note_density_match_count: int | None = None
+    note_density_target_count: int | None = None
+    rhythmic_diversity_loss_sum: float | None = None
+    rhythmic_diversity_match_count: int | None = None
+    rhythmic_diversity_target_count: int | None = None
+    voice_independence_loss_sum: float | None = None
+    voice_independence_match_count: int | None = None
+    voice_independence_target_count: int | None = None
+    uses_accidentals_loss_sum: float | None = None
+    uses_accidentals_match_count: int | None = None
+    uses_accidentals_target_count: int | None = None
+    dotted_duration_loss_sum: float | None = None
+    dotted_duration_match_count: int | None = None
+    dotted_duration_target_count: int | None = None
+    hand_span_loss_sum: float | None = None
+    hand_span_match_count: int | None = None
+    hand_span_target_count: int | None = None
     validity_penalty_loss_sum: float | None = None
     invalid_probability_mass_sum: float | None = None
     invalid_target_count: int | None = None
@@ -118,6 +138,72 @@ class MetricsAccumulator:
             match_count=batch_metrics.hand_match_count,
             target_count=batch_metrics.hand_target_count,
         )
+        self.musical_auxiliary_loss_sum, self.musical_auxiliary_target_count = _add_optional_weighted_loss(
+            self.musical_auxiliary_loss_sum,
+            self.musical_auxiliary_target_count,
+            value=batch_metrics.musical_auxiliary_loss,
+            target_count=batch_metrics.musical_auxiliary_target_count,
+        )
+        self.note_density_loss_sum, self.note_density_match_count, self.note_density_target_count = (
+            _add_optional_auxiliary_metric(
+                self.note_density_loss_sum,
+                self.note_density_match_count,
+                self.note_density_target_count,
+                value=batch_metrics.note_density_loss,
+                match_count=batch_metrics.note_density_match_count,
+                target_count=batch_metrics.note_density_target_count,
+            )
+        )
+        self.rhythmic_diversity_loss_sum, self.rhythmic_diversity_match_count, self.rhythmic_diversity_target_count = (
+            _add_optional_auxiliary_metric(
+                self.rhythmic_diversity_loss_sum,
+                self.rhythmic_diversity_match_count,
+                self.rhythmic_diversity_target_count,
+                value=batch_metrics.rhythmic_diversity_loss,
+                match_count=batch_metrics.rhythmic_diversity_match_count,
+                target_count=batch_metrics.rhythmic_diversity_target_count,
+            )
+        )
+        self.voice_independence_loss_sum, self.voice_independence_match_count, self.voice_independence_target_count = (
+            _add_optional_auxiliary_metric(
+                self.voice_independence_loss_sum,
+                self.voice_independence_match_count,
+                self.voice_independence_target_count,
+                value=batch_metrics.voice_independence_loss,
+                match_count=batch_metrics.voice_independence_match_count,
+                target_count=batch_metrics.voice_independence_target_count,
+            )
+        )
+        self.uses_accidentals_loss_sum, self.uses_accidentals_match_count, self.uses_accidentals_target_count = (
+            _add_optional_auxiliary_metric(
+                self.uses_accidentals_loss_sum,
+                self.uses_accidentals_match_count,
+                self.uses_accidentals_target_count,
+                value=batch_metrics.uses_accidentals_loss,
+                match_count=batch_metrics.uses_accidentals_match_count,
+                target_count=batch_metrics.uses_accidentals_target_count,
+            )
+        )
+        self.dotted_duration_loss_sum, self.dotted_duration_match_count, self.dotted_duration_target_count = (
+            _add_optional_auxiliary_metric(
+                self.dotted_duration_loss_sum,
+                self.dotted_duration_match_count,
+                self.dotted_duration_target_count,
+                value=batch_metrics.dotted_duration_loss,
+                match_count=batch_metrics.dotted_duration_match_count,
+                target_count=batch_metrics.dotted_duration_target_count,
+            )
+        )
+        self.hand_span_loss_sum, self.hand_span_match_count, self.hand_span_target_count = (
+            _add_optional_auxiliary_metric(
+                self.hand_span_loss_sum,
+                self.hand_span_match_count,
+                self.hand_span_target_count,
+                value=batch_metrics.hand_span_loss,
+                match_count=batch_metrics.hand_span_match_count,
+                target_count=batch_metrics.hand_span_target_count,
+            )
+        )
         if batch_metrics.validity_penalty_token_count is not None:
             if self.validity_penalty_token_count is None:
                 self.validity_penalty_token_count = 0
@@ -187,6 +273,52 @@ class MetricsAccumulator:
                 target_count=self.octave_offset_target_count,
             ),
             hand_accuracy=_optional_rate(self.hand_match_count, target_count=self.hand_target_count),
+            musical_auxiliary_loss=_weighted_optional_average(
+                self.musical_auxiliary_loss_sum,
+                weight=self.musical_auxiliary_target_count,
+            ),
+            note_density_loss=_weighted_optional_average(
+                self.note_density_loss_sum,
+                weight=self.note_density_target_count,
+            ),
+            note_density_accuracy=_optional_rate(
+                self.note_density_match_count,
+                target_count=self.note_density_target_count,
+            ),
+            rhythmic_diversity_loss=_weighted_optional_average(
+                self.rhythmic_diversity_loss_sum,
+                weight=self.rhythmic_diversity_target_count,
+            ),
+            rhythmic_diversity_accuracy=_optional_rate(
+                self.rhythmic_diversity_match_count,
+                target_count=self.rhythmic_diversity_target_count,
+            ),
+            voice_independence_loss=_weighted_optional_average(
+                self.voice_independence_loss_sum,
+                weight=self.voice_independence_target_count,
+            ),
+            voice_independence_accuracy=_optional_rate(
+                self.voice_independence_match_count,
+                target_count=self.voice_independence_target_count,
+            ),
+            uses_accidentals_loss=_weighted_optional_average(
+                self.uses_accidentals_loss_sum,
+                weight=self.uses_accidentals_target_count,
+            ),
+            uses_accidentals_accuracy=_optional_rate(
+                self.uses_accidentals_match_count,
+                target_count=self.uses_accidentals_target_count,
+            ),
+            dotted_duration_loss=_weighted_optional_average(
+                self.dotted_duration_loss_sum,
+                weight=self.dotted_duration_target_count,
+            ),
+            dotted_duration_accuracy=_optional_rate(
+                self.dotted_duration_match_count,
+                target_count=self.dotted_duration_target_count,
+            ),
+            hand_span_loss=_weighted_optional_average(self.hand_span_loss_sum, weight=self.hand_span_target_count),
+            hand_span_accuracy=_optional_rate(self.hand_span_match_count, target_count=self.hand_span_target_count),
             validity_penalty_loss=_optional_validity_average(
                 self.validity_penalty_loss_sum,
                 token_count=self.validity_penalty_token_count,
@@ -238,6 +370,25 @@ def _add_optional_count_pair(
         return current_match_count, current_target_count
 
     return (current_match_count or 0) + match_count, (current_target_count or 0) + target_count
+
+
+def _add_optional_auxiliary_metric(
+    current_loss_sum: float | None,
+    current_match_count: int | None,
+    current_target_count: int | None,
+    *,
+    value: float | None,
+    match_count: int | None,
+    target_count: int | None,
+) -> tuple[float | None, int | None, int | None]:
+    if value is None or match_count is None or target_count is None:
+        return current_loss_sum, current_match_count, current_target_count
+
+    return (
+        (current_loss_sum or 0.0) + value * target_count,
+        (current_match_count or 0) + match_count,
+        (current_target_count or 0) + target_count,
+    )
 
 
 def _optional_rate(

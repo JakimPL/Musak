@@ -5,6 +5,11 @@ import torch
 from torch import Tensor
 from torch.utils.data import Dataset
 
+from musak_model.auxiliary.config import MusicalAuxiliaryTargetConfig
+from musak_model.auxiliary.targets import (
+    musical_auxiliary_target_ids_from_difficulty_features,
+    musical_auxiliary_target_tensors_from_ids,
+)
 from musak_model.conditioning.structural.features import extract_structural_control_features
 from musak_model.conditioning.structural.vocabulary import StructuralControlVocabulary
 from musak_model.conditioning.time_signature import TimeSignatureVocabulary
@@ -29,6 +34,7 @@ class EncodedExerciseDataset(Dataset[TrainingExample]):
         *,
         time_signature_vocabulary: TimeSignatureVocabulary,
         token_vocabulary: TokenVocabulary,
+        musical_auxiliary_targets: MusicalAuxiliaryTargetConfig,
         conditioning: TrainingConditioningConfig,
         structural_control_vocabulary: StructuralControlVocabulary | None = None,
         include_structural_controls: bool = False,
@@ -53,6 +59,7 @@ class EncodedExerciseDataset(Dataset[TrainingExample]):
                 include_bar_count_control=include_bar_count_control,
                 time_signature_vocabulary=time_signature_vocabulary,
                 token_vocabulary=token_vocabulary,
+                musical_auxiliary_targets=musical_auxiliary_targets,
                 structural_control_vocabulary=structural_control_vocabulary,
             )
             for sample in samples
@@ -79,6 +86,7 @@ def _to_training_example(
     include_bar_count_control: bool,
     time_signature_vocabulary: TimeSignatureVocabulary,
     token_vocabulary: TokenVocabulary,
+    musical_auxiliary_targets: MusicalAuxiliaryTargetConfig,
     structural_control_vocabulary: StructuralControlVocabulary | None,
 ) -> TrainingExample:
     token_ids = torch.tensor(sample.token_ids, dtype=torch.long)
@@ -123,6 +131,12 @@ def _to_training_example(
         input_token_ids=input_token_ids,
         target_token_ids=token_ids,
         target_token_attributes=token_attribute_targets_from_token_ids(token_ids, vocabulary=token_vocabulary),
+        musical_auxiliary_targets=musical_auxiliary_target_tensors_from_ids(
+            musical_auxiliary_target_ids_from_difficulty_features(
+                sample.metadata.difficulty_features,
+                config=musical_auxiliary_targets,
+            )
+        ),
         bar_positions=input_bar_positions,
         bar_relative_ticks=torch.tensor(input_coordinates.bar_relative_ticks, dtype=torch.long),
         bar_duration_ticks=torch.tensor(input_coordinates.bar_duration_ticks, dtype=torch.long),

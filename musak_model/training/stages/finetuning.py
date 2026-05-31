@@ -53,6 +53,7 @@ def finetune(
         vocabulary_size=token_vocabulary.vocabulary_size,
         duration_vocabulary_size=token_vocabulary.duration_vocabulary.vocabulary_size(),
         output_mode=training_config.event_objective.mode,
+        musical_auxiliary_targets=training_config.musical_auxiliary_targets,
         conditioning_config_path=conditioning_config_path,
     )
     _LOGGER.info("Model vocabulary size: %s", resolved_model_config.vocabulary_size)
@@ -79,6 +80,7 @@ def finetune(
         include_bar_count_control=training_config.conditioning.use_structural_conditioning,
         time_signature_vocabulary=time_signature_vocabulary,
         token_vocabulary=token_vocabulary,
+        musical_auxiliary_targets=resolved_model_config.musical_auxiliary_targets,
         structural_control_vocabulary=structural_control_vocabulary,
         max_sequence_length=resolved_model_config.transformer.max_sequence_length,
     )

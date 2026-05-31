@@ -7,7 +7,12 @@ import torch
 
 from musak_model.model import HierarchicalAutoregressiveModel
 from musak_model.model.config import ModelConfig, ModelOutputMode
-from musak_model.paths import CONDITIONING_CONFIG_PATH, MODEL_CONFIG_DIRECTORY, TOKENIZATION_CONFIG_PATH
+from musak_model.paths import (
+    CONDITIONING_CONFIG_PATH,
+    MODEL_CONFIG_DIRECTORY,
+    PRETRAINING_CONFIG_PATH,
+    TOKENIZATION_CONFIG_PATH,
+)
 from musak_model.tokens.config import TokenizationConfig
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.vocabulary import TokenVocabulary
@@ -15,6 +20,7 @@ from musak_model.training.checkpoint_migration import (
     CheckpointMigrationReport,
     migrate_checkpoint_to_model,
 )
+from musak_model.training.config import TrainingConfig
 
 
 def main() -> None:
@@ -24,11 +30,13 @@ def main() -> None:
 
     torch.manual_seed(args.seed)
     tokenization_config = TokenizationConfig.load(args.tokenization_config)
+    training_config = TrainingConfig.load(args.training_config)
     token_vocabulary = TokenVocabulary(DurationVocabulary(tokenization_config))
     model_config = ModelConfig.load(
         vocabulary_size=token_vocabulary.vocabulary_size,
         duration_vocabulary_size=token_vocabulary.duration_vocabulary.vocabulary_size(),
         output_mode=args.output_mode,
+        musical_auxiliary_targets=training_config.musical_auxiliary_targets,
         config_directory=args.model_config_dir,
         conditioning_config_path=args.conditioning_config,
     )
@@ -60,6 +68,12 @@ def _parse_args() -> argparse.Namespace:
         type=Path,
         default=TOKENIZATION_CONFIG_PATH,
         help="Tokenization config for the target model.",
+    )
+    parser.add_argument(
+        "--training-config",
+        type=Path,
+        default=PRETRAINING_CONFIG_PATH,
+        help="Training config providing target auxiliary bucket boundaries.",
     )
     parser.add_argument(
         "--conditioning-config",

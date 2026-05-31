@@ -6,9 +6,14 @@ import torch
 import torch.nn as nn
 from torch import Tensor
 
+from musak_model.auxiliary.schema import (
+    MUSICAL_AUXILIARY_TARGET_IGNORE_ID,
+    MusicalAuxiliaryLogits,
+    MusicalAuxiliaryTargetTensors,
+)
 from musak_model.model.output import FactorizedTokenLogits
 from musak_model.tokens.factorized import ABSENT_ATTRIBUTE_ID
-from musak_model.training.config import EventObjectiveConfig
+from musak_model.training.config import EventObjectiveConfig, MusicalAuxiliaryObjectiveConfig
 from musak_model.training.dataset.factorized import TokenAttributeTargetTensors
 
 
@@ -27,6 +32,29 @@ class FactorizedEventLoss:
     accidental_target_count: int
     octave_offset_target_count: int
     hand_target_count: int
+
+
+@dataclass(frozen=True)
+class MusicalAuxiliaryLoss:
+    loss: Tensor
+    note_density_loss: Tensor
+    rhythmic_diversity_loss: Tensor
+    voice_independence_loss: Tensor
+    uses_accidentals_loss: Tensor
+    dotted_duration_loss: Tensor
+    hand_span_loss: Tensor
+    note_density_match_count: int
+    note_density_target_count: int
+    rhythmic_diversity_match_count: int
+    rhythmic_diversity_target_count: int
+    voice_independence_match_count: int
+    voice_independence_target_count: int
+    uses_accidentals_match_count: int
+    uses_accidentals_target_count: int
+    dotted_duration_match_count: int
+    dotted_duration_target_count: int
+    hand_span_match_count: int
+    hand_span_target_count: int
 
 
 def factorized_event_loss(
@@ -69,6 +97,71 @@ def factorized_event_loss(
     )
 
 
+def musical_auxiliary_loss(
+    logits: MusicalAuxiliaryLogits,
+    *,
+    targets: MusicalAuxiliaryTargetTensors,
+    config: MusicalAuxiliaryObjectiveConfig,
+) -> MusicalAuxiliaryLoss:
+    note_density_loss, note_density_match_count, note_density_target_count = _single_target_cross_entropy(
+        logits.note_density,
+        targets.note_density_ids,
+    )
+    rhythmic_diversity_loss, rhythmic_diversity_match_count, rhythmic_diversity_target_count = (
+        _single_target_cross_entropy(
+            logits.rhythmic_diversity,
+            targets.rhythmic_diversity_ids,
+        )
+    )
+    voice_independence_loss, voice_independence_match_count, voice_independence_target_count = (
+        _single_target_cross_entropy(
+            logits.voice_independence,
+            targets.voice_independence_ids,
+        )
+    )
+    uses_accidentals_loss, uses_accidentals_match_count, uses_accidentals_target_count = _single_target_cross_entropy(
+        logits.uses_accidentals,
+        targets.uses_accidentals_ids,
+    )
+    dotted_duration_loss, dotted_duration_match_count, dotted_duration_target_count = _single_target_cross_entropy(
+        logits.dotted_duration,
+        targets.dotted_duration_ids,
+    )
+    hand_span_loss, hand_span_match_count, hand_span_target_count = _single_target_cross_entropy(
+        logits.hand_span,
+        targets.hand_span_ids,
+    )
+    loss = (
+        config.note_density_weight * note_density_loss
+        + config.rhythmic_diversity_weight * rhythmic_diversity_loss
+        + config.voice_independence_weight * voice_independence_loss
+        + config.uses_accidentals_weight * uses_accidentals_loss
+        + config.dotted_duration_weight * dotted_duration_loss
+        + config.hand_span_weight * hand_span_loss
+    )
+    return MusicalAuxiliaryLoss(
+        loss=loss,
+        note_density_loss=note_density_loss,
+        rhythmic_diversity_loss=rhythmic_diversity_loss,
+        voice_independence_loss=voice_independence_loss,
+        uses_accidentals_loss=uses_accidentals_loss,
+        dotted_duration_loss=dotted_duration_loss,
+        hand_span_loss=hand_span_loss,
+        note_density_match_count=note_density_match_count,
+        note_density_target_count=note_density_target_count,
+        rhythmic_diversity_match_count=rhythmic_diversity_match_count,
+        rhythmic_diversity_target_count=rhythmic_diversity_target_count,
+        voice_independence_match_count=voice_independence_match_count,
+        voice_independence_target_count=voice_independence_target_count,
+        uses_accidentals_match_count=uses_accidentals_match_count,
+        uses_accidentals_target_count=uses_accidentals_target_count,
+        dotted_duration_match_count=dotted_duration_match_count,
+        dotted_duration_target_count=dotted_duration_target_count,
+        hand_span_match_count=hand_span_match_count,
+        hand_span_target_count=hand_span_target_count,
+    )
+
+
 def _masked_cross_entropy(logits: Tensor, targets: Tensor) -> tuple[Tensor, int]:
     if logits.shape[:-1] != targets.shape:
         raise ValueError(f"logits shape {tuple(logits.shape[:-1])} does not match targets shape {tuple(targets.shape)}")
@@ -88,3 +181,31 @@ def _masked_cross_entropy(logits: Tensor, targets: Tensor) -> tuple[Tensor, int]
         raise ValueError("active factorized targets contain ids outside the corresponding head range")
 
     return nn.functional.cross_entropy(flat_logits[active_mask], active_targets, reduction="mean"), target_count
+
+
+def _single_target_cross_entropy(logits: Tensor, targets: Tensor) -> tuple[Tensor, int, int]:
+    if logits.ndim != 2:
+        raise ValueError(f"auxiliary logits must be 2D, got {logits.ndim}D")
+
+    if targets.ndim != 1:
+        raise ValueError(f"auxiliary targets must be 1D, got {targets.ndim}D")
+
+    if logits.size(0) != targets.size(0):
+        raise ValueError(f"logits batch size {logits.size(0)} does not match targets batch size {targets.size(0)}")
+
+    active_mask = targets != MUSICAL_AUXILIARY_TARGET_IGNORE_ID
+    target_count = int(active_mask.sum().item())
+    if target_count == 0:
+        return logits.sum() * 0.0, 0, 0
+
+    active_targets = targets[active_mask]
+    if torch.any(active_targets < 0):
+        raise ValueError("active auxiliary targets contain negative ids")
+
+    if torch.any(active_targets >= logits.size(-1)):
+        raise ValueError("active auxiliary targets contain ids outside the corresponding head range")
+
+    active_logits = logits[active_mask]
+    predictions = active_logits.argmax(dim=-1)
+    match_count = int((predictions == active_targets).sum().item())
+    return nn.functional.cross_entropy(active_logits, active_targets, reduction="mean"), match_count, target_count

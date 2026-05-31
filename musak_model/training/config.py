@@ -4,6 +4,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from musak_model.auxiliary.config import MusicalAuxiliaryTargetConfig
 from musak_model.model.config import ModelOutputMode
 from musak_model.paths import DEFAULT_PRETRAINING_CHECKPOINT_DIRECTORY, FINETUNING_CONFIG_PATH, PRETRAINING_CONFIG_PATH
 from musak_model.tokens.schema import ScaleType
@@ -32,6 +33,19 @@ class EventObjectiveConfig(BaseModel):
     accidental_weight: float = Field(ge=0.0)
     octave_offset_weight: float = Field(ge=0.0)
     hand_weight: float = Field(ge=0.0)
+
+
+class MusicalAuxiliaryObjectiveConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    enabled: bool
+    weight: float = Field(ge=0.0)
+    note_density_weight: float = Field(ge=0.0)
+    rhythmic_diversity_weight: float = Field(ge=0.0)
+    voice_independence_weight: float = Field(ge=0.0)
+    uses_accidentals_weight: float = Field(ge=0.0)
+    dotted_duration_weight: float = Field(ge=0.0)
+    hand_span_weight: float = Field(ge=0.0)
 
 
 class RuntimeConfig(BaseModel):
@@ -119,6 +133,8 @@ class TrainingConfig(BaseModel):
 
     optimization: OptimizationConfig
     event_objective: EventObjectiveConfig
+    musical_auxiliary_targets: MusicalAuxiliaryTargetConfig
+    musical_auxiliary_objective: MusicalAuxiliaryObjectiveConfig
     runtime: RuntimeConfig
     conditioning: TrainingConditioningConfig
     checkpoints: CheckpointConfig

@@ -3,6 +3,7 @@ from pathlib import Path
 
 import torch
 
+from musak_model.auxiliary.config import MusicalAuxiliaryTargetConfig
 from musak_model.conditioning.time_signature import TimeSignatureVocabulary, TimeSignatureVocabularyConfig
 from musak_model.data.schema import SegmentMetadata
 from musak_model.data.tokenization_context import tokenization_context_from_scale
@@ -31,6 +32,15 @@ def _conditioning_config() -> TrainingConditioningConfig:
     )
 
 
+def _musical_auxiliary_target_config() -> MusicalAuxiliaryTargetConfig:
+    return MusicalAuxiliaryTargetConfig(
+        note_density_bucket_boundaries=(0.25, 0.5, 0.75, 1.0, 1.5, 2.0),
+        rhythmic_diversity_bucket_boundaries=(0.2, 0.4, 0.6, 0.8),
+        voice_independence_bucket_boundaries=(0.2, 0.4, 0.6, 0.8),
+        hand_span_bucket_boundaries=(3, 5, 8, 12, 16),
+    )
+
+
 def _sample(token_ids: list[int], bar_positions: list[int]) -> EncodedExercise:
     return EncodedExercise(
         token_ids=token_ids,
@@ -54,6 +64,7 @@ def _batch(token_ids: list[int], *, token_vocabulary: TokenVocabulary):
         [_sample(token_ids, [0] * len(token_ids))],
         time_signature_vocabulary=_time_signature_vocabulary(),
         token_vocabulary=token_vocabulary,
+        musical_auxiliary_targets=_musical_auxiliary_target_config(),
         conditioning=_conditioning_config(),
     )
     return collate_training_examples([dataset[0]])

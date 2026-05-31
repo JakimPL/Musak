@@ -90,6 +90,14 @@ Every entry lists the two entities being bridged and the package that owns the c
 | `attributes_to_token`, `predicted_attributes_to_token` | `tokens/factorized.py` | strict target attributes / model-style predicted attributes → `Token` |
 | `attributes_to_token_id`, `predicted_attributes_to_token_id` | `tokens/factorized.py` | strict target attributes / model-style predicted attributes → flat token id |
 
+### Musical auxiliary targets (`musak_model/auxiliary`)
+
+| Function | File | Input → Output |
+| --- | --- | --- |
+| `musical_auxiliary_target_ids_from_difficulty_features` | `auxiliary/targets.py` | `DifficultyFeatures` / missing features + configured bucket boundaries → auxiliary target ids |
+| `musical_auxiliary_target_tensors_from_ids` | `auxiliary/targets.py` | auxiliary target ids → scalar target tensors |
+| `stack_musical_auxiliary_targets` | `auxiliary/targets.py` | per-example auxiliary target tensors → batched target tensors |
+
 ### Decoding to notation / piano-roll (`musak_model/decoder`)
 
 | Function | File | Input → Output |

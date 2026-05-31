@@ -11,6 +11,20 @@ event_objective:
   accidental_weight: 1.0
   octave_offset_weight: 1.0
   hand_weight: 1.0
+musical_auxiliary_targets:
+  note_density_bucket_boundaries: [0.25, 0.5, 0.75, 1.0, 1.5, 2.0]
+  rhythmic_diversity_bucket_boundaries: [0.2, 0.4, 0.6, 0.8]
+  voice_independence_bucket_boundaries: [0.2, 0.4, 0.6, 0.8]
+  hand_span_bucket_boundaries: [3, 5, 8, 12, 16]
+musical_auxiliary_objective:
+  enabled: true
+  weight: 0.1
+  note_density_weight: 1.0
+  rhythmic_diversity_weight: 1.0
+  voice_independence_weight: 1.0
+  uses_accidentals_weight: 1.0
+  dotted_duration_weight: 1.0
+  hand_span_weight: 1.0
 runtime:
   num_workers: 6
   device: cuda

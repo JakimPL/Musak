@@ -5,6 +5,7 @@ import pytest
 import torch
 from torch.optim import AdamW
 
+from musak_model.auxiliary.config import MusicalAuxiliaryTargetConfig
 from musak_model.conditioning.config import ConditioningConfig, DifficultyConfig
 from musak_model.conditioning.time_signature import TimeSignatureVocabularyConfig
 from musak_model.model import HierarchicalAutoregressiveModel
@@ -25,6 +26,15 @@ from musak_model.training.checkpoint_migration import CheckpointMigrationError, 
 HIDDEN_SIZE: Final[int] = 16
 
 
+def _musical_auxiliary_target_config() -> MusicalAuxiliaryTargetConfig:
+    return MusicalAuxiliaryTargetConfig(
+        note_density_bucket_boundaries=(0.25, 0.5, 0.75, 1.0, 1.5, 2.0),
+        rhythmic_diversity_bucket_boundaries=(0.2, 0.4, 0.6, 0.8),
+        voice_independence_bucket_boundaries=(0.2, 0.4, 0.6, 0.8),
+        hand_span_bucket_boundaries=(3, 5, 8, 12, 16),
+    )
+
+
 def _token_vocabulary() -> TokenVocabulary:
     tokenization_config = TokenizationConfig(shortest_duration=16, allowed_tuplets=(3,), max_dots=1)
     return TokenVocabulary(DurationVocabulary(tokenization_config))
@@ -35,6 +45,7 @@ def _small_model_config() -> ModelConfig:
         vocabulary_size=_token_vocabulary().vocabulary_size,
         duration_vocabulary_size=_token_vocabulary().duration_vocabulary.vocabulary_size(),
         output=ModelOutputConfig(mode=ModelOutputMode.FLAT),
+        musical_auxiliary_targets=_musical_auxiliary_target_config(),
         cnn=CNNConfig(enabled=True, out_channels=HIDDEN_SIZE, kernel_sizes=(3,), num_layers=1, dropout=0.0),
         gru=GRUConfig(enabled=True, hidden_size=HIDDEN_SIZE, num_layers=1, dropout=0.0, bidirectional=False),
         transformer=TransformerConfig(

@@ -3,11 +3,13 @@ from pathlib import Path
 
 import pytest
 
+from musak_model.auxiliary.config import MusicalAuxiliaryTargetConfig
+from musak_model.auxiliary.schema import MUSICAL_AUXILIARY_TARGET_IGNORE_ID
 from musak_model.conditioning.config import ConditioningConfig
 from musak_model.conditioning.structural.constants import UNKNOWN_CONTROL_ID, StructuralControlName
 from musak_model.conditioning.structural.vocabulary import StructuralControlVocabulary
 from musak_model.conditioning.time_signature import TimeSignatureVocabulary, TimeSignatureVocabularyConfig
-from musak_model.data.schema import SegmentMetadata
+from musak_model.data.schema import DifficultyFeatures, SegmentMetadata
 from musak_model.data.tokenization_context import tokenization_context_from_scale
 from musak_model.tokens.duration import DurationVocabulary, duration_fraction_to_ticks, duration_tick_denominator
 from musak_model.tokens.factorized import ABSENT_ATTRIBUTE_ID, TokenKindId
@@ -42,11 +44,21 @@ def _time_signature_vocabulary() -> TimeSignatureVocabulary:
     return TimeSignatureVocabulary(TimeSignatureVocabularyConfig(max_denominator=4, relative_numerator_range=2))
 
 
+def _musical_auxiliary_target_config() -> MusicalAuxiliaryTargetConfig:
+    return MusicalAuxiliaryTargetConfig(
+        note_density_bucket_boundaries=(0.25, 0.5, 0.75, 1.0, 1.5, 2.0),
+        rhythmic_diversity_bucket_boundaries=(0.2, 0.4, 0.6, 0.8),
+        voice_independence_bucket_boundaries=(0.2, 0.4, 0.6, 0.8),
+        hand_span_bucket_boundaries=(3, 5, 8, 12, 16),
+    )
+
+
 def _sample(
     token_ids: list[int],
     bar_positions: list[int],
     *,
     difficulty_level: int | None = 3,
+    difficulty_features: DifficultyFeatures | None = None,
     time_signature: tuple[int, int] = (4, 4),
     bar_count: int = 1,
 ) -> EncodedExercise:
@@ -63,6 +75,7 @@ def _sample(
             window_start_bar=0,
             source_file=Path("piece.mxl"),
             difficulty_level=difficulty_level,
+            difficulty_features=difficulty_features,
         ),
     )
 
@@ -72,6 +85,7 @@ def test_dataset_builds_teacher_forcing_examples_with_start_token(token_vocabula
         [_sample([1, 2, 3], [0, 0, 0])],
         time_signature_vocabulary=_time_signature_vocabulary(),
         token_vocabulary=token_vocabulary,
+        musical_auxiliary_targets=_musical_auxiliary_target_config(),
         conditioning=_conditioning_config(),
     )
 
@@ -99,6 +113,7 @@ def test_dataset_builds_factorized_target_attributes(
         [_sample(token_ids, [0, 0, 0])],
         time_signature_vocabulary=_time_signature_vocabulary(),
         token_vocabulary=token_vocabulary,
+        musical_auxiliary_targets=_musical_auxiliary_target_config(),
         conditioning=_conditioning_config(),
     )
 
@@ -110,6 +125,58 @@ def test_dataset_builds_factorized_target_attributes(
     assert attributes.octave_offset_ids.tolist() == [ABSENT_ATTRIBUTE_ID, 1, ABSENT_ATTRIBUTE_ID]
     assert attributes.duration_ids.tolist() == [ABSENT_ATTRIBUTE_ID, quarter_id, eighth_id]
     assert attributes.hand_ids.tolist() == [0, ABSENT_ATTRIBUTE_ID, ABSENT_ATTRIBUTE_ID]
+
+
+def test_dataset_builds_musical_auxiliary_targets(token_vocabulary: TokenVocabulary) -> None:
+    dataset = EncodedExerciseDataset(
+        [
+            _sample(
+                [1],
+                [0],
+                difficulty_features=DifficultyFeatures(
+                    max_right_hand_span_semitones=4,
+                    max_left_hand_span_semitones=9,
+                    notes_per_beat=0.8,
+                    rhythmic_diversity=0.45,
+                    voice_independence=0.7,
+                    has_accidentals=True,
+                    has_dotted_notes=False,
+                ),
+            )
+        ],
+        time_signature_vocabulary=_time_signature_vocabulary(),
+        token_vocabulary=token_vocabulary,
+        musical_auxiliary_targets=_musical_auxiliary_target_config(),
+        conditioning=_conditioning_config(),
+    )
+
+    targets = dataset[0].musical_auxiliary_targets
+
+    assert targets.note_density_ids.item() == 3
+    assert targets.rhythmic_diversity_ids.item() == 2
+    assert targets.voice_independence_ids.item() == 3
+    assert targets.uses_accidentals_ids.item() == 1
+    assert targets.dotted_duration_ids.item() == 0
+    assert targets.hand_span_ids.item() == 3
+
+
+def test_dataset_ignores_missing_musical_auxiliary_targets(token_vocabulary: TokenVocabulary) -> None:
+    dataset = EncodedExerciseDataset(
+        [_sample([1], [0], difficulty_features=None)],
+        time_signature_vocabulary=_time_signature_vocabulary(),
+        token_vocabulary=token_vocabulary,
+        musical_auxiliary_targets=_musical_auxiliary_target_config(),
+        conditioning=_conditioning_config(),
+    )
+
+    targets = dataset[0].musical_auxiliary_targets
+
+    assert targets.note_density_ids.item() == MUSICAL_AUXILIARY_TARGET_IGNORE_ID
+    assert targets.rhythmic_diversity_ids.item() == MUSICAL_AUXILIARY_TARGET_IGNORE_ID
+    assert targets.voice_independence_ids.item() == MUSICAL_AUXILIARY_TARGET_IGNORE_ID
+    assert targets.uses_accidentals_ids.item() == MUSICAL_AUXILIARY_TARGET_IGNORE_ID
+    assert targets.dotted_duration_ids.item() == MUSICAL_AUXILIARY_TARGET_IGNORE_ID
+    assert targets.hand_span_ids.item() == MUSICAL_AUXILIARY_TARGET_IGNORE_ID
 
 
 def test_dataset_builds_decoder_coordinate_features(
@@ -135,6 +202,7 @@ def test_dataset_builds_decoder_coordinate_features(
         [_sample(token_ids, [0, 0, 0, 0, 0])],
         time_signature_vocabulary=_time_signature_vocabulary(),
         token_vocabulary=token_vocabulary,
+        musical_auxiliary_targets=_musical_auxiliary_target_config(),
         conditioning=_conditioning_config(),
     )
 
@@ -150,6 +218,7 @@ def test_dataset_keeps_single_token_samples_for_start_token_training(token_vocab
         [_sample([1], [0])],
         time_signature_vocabulary=_time_signature_vocabulary(),
         token_vocabulary=token_vocabulary,
+        musical_auxiliary_targets=_musical_auxiliary_target_config(),
         conditioning=_conditioning_config(),
     )
 
@@ -163,6 +232,7 @@ def test_dataset_skips_empty_samples(token_vocabulary: TokenVocabulary) -> None:
         [_sample([], [])],
         time_signature_vocabulary=_time_signature_vocabulary(),
         token_vocabulary=token_vocabulary,
+        musical_auxiliary_targets=_musical_auxiliary_target_config(),
         conditioning=_conditioning_config(),
     )
 
@@ -177,6 +247,7 @@ def test_dataset_skips_samples_longer_than_max_sequence_length(token_vocabulary:
         ],
         time_signature_vocabulary=_time_signature_vocabulary(),
         token_vocabulary=token_vocabulary,
+        musical_auxiliary_targets=_musical_auxiliary_target_config(),
         conditioning=_conditioning_config(),
         max_sequence_length=3,
     )
@@ -195,6 +266,7 @@ def test_dataset_skips_samples_with_unsupported_time_signature_when_conditioned(
         ],
         time_signature_vocabulary=_time_signature_vocabulary(),
         token_vocabulary=token_vocabulary,
+        musical_auxiliary_targets=_musical_auxiliary_target_config(),
         conditioning=_conditioning_config(use_time_signature=True),
     )
 
@@ -209,6 +281,7 @@ def test_dataset_keeps_unsupported_time_signature_when_time_signature_conditioni
         [_sample([1, 2, 3], [0, 0, 0], time_signature=(2, 1))],
         time_signature_vocabulary=_time_signature_vocabulary(),
         token_vocabulary=token_vocabulary,
+        musical_auxiliary_targets=_musical_auxiliary_target_config(),
         conditioning=_conditioning_config(use_time_signature=False, use_scale_type=True),
     )
 
@@ -222,6 +295,7 @@ def test_dataset_builds_independent_metadata_conditioning_ids(token_vocabulary: 
         [_sample([1, 2, 3], [0, 0, 0], difficulty_level=3)],
         time_signature_vocabulary=_time_signature_vocabulary(),
         token_vocabulary=token_vocabulary,
+        musical_auxiliary_targets=_musical_auxiliary_target_config(),
         conditioning=_conditioning_config(
             use_time_signature=True,
             use_scale_type=True,
@@ -244,6 +318,7 @@ def test_dataset_omits_difficulty_when_disabled(token_vocabulary: TokenVocabular
         [_sample([1, 2, 3], [0, 0, 0], difficulty_level=3)],
         time_signature_vocabulary=_time_signature_vocabulary(),
         token_vocabulary=token_vocabulary,
+        musical_auxiliary_targets=_musical_auxiliary_target_config(),
         conditioning=_conditioning_config(use_time_signature=True, use_scale_type=True),
     )
 
@@ -264,6 +339,7 @@ def test_dataset_skips_unlabeled_samples_when_difficulty_conditioning_is_enabled
         ],
         time_signature_vocabulary=_time_signature_vocabulary(),
         token_vocabulary=token_vocabulary,
+        musical_auxiliary_targets=_musical_auxiliary_target_config(),
         conditioning=_conditioning_config(use_difficulty=True),
     )
 
@@ -281,6 +357,7 @@ def test_dataset_rejects_mismatched_token_and_bar_position_lengths(token_vocabul
             [_sample([1, 2], [0])],
             time_signature_vocabulary=_time_signature_vocabulary(),
             token_vocabulary=token_vocabulary,
+            musical_auxiliary_targets=_musical_auxiliary_target_config(),
             conditioning=_conditioning_config(),
         )
 
@@ -293,6 +370,7 @@ def test_collate_pads_tokens_and_bar_positions(token_vocabulary: TokenVocabulary
         ],
         time_signature_vocabulary=_time_signature_vocabulary(),
         token_vocabulary=token_vocabulary,
+        musical_auxiliary_targets=_musical_auxiliary_target_config(),
         conditioning=_conditioning_config(),
     )
 
@@ -310,6 +388,7 @@ def test_collate_pads_tokens_and_bar_positions(token_vocabulary: TokenVocabulary
     assert batch.active_hand_ids.tolist()[1][-1] == -1
     assert batch.target_token_attributes.kind_ids.tolist()[1][-1] == ABSENT_ATTRIBUTE_ID
     assert batch.target_token_attributes.duration_ids.tolist()[1][-1] == ABSENT_ATTRIBUTE_ID
+    assert batch.musical_auxiliary_targets.note_density_ids.tolist() == [-1, -1]
     assert batch.structural_control_ids.tolist() == [[], []]
     assert batch.token_padding_mask.tolist() == [[False, False, False], [False, False, True]]
 
@@ -330,6 +409,7 @@ def test_dataset_builds_structural_control_ids_when_enabled(
         include_structural_controls=True,
         time_signature_vocabulary=_time_signature_vocabulary(),
         token_vocabulary=token_vocabulary,
+        musical_auxiliary_targets=_musical_auxiliary_target_config(),
         conditioning=_conditioning_config(),
         structural_control_vocabulary=StructuralControlVocabulary(ConditioningConfig.load().structural),
     )
@@ -357,6 +437,7 @@ def test_dataset_uses_bar_count_control_only_when_enabled(
         include_bar_count_control=True,
         time_signature_vocabulary=_time_signature_vocabulary(),
         token_vocabulary=token_vocabulary,
+        musical_auxiliary_targets=_musical_auxiliary_target_config(),
         conditioning=_conditioning_config(),
         structural_control_vocabulary=structural_control_vocabulary,
     )
@@ -374,6 +455,7 @@ def test_dataset_requires_structural_vocabulary_when_structural_controls_are_ena
             include_structural_controls=True,
             time_signature_vocabulary=_time_signature_vocabulary(),
             token_vocabulary=token_vocabulary,
+            musical_auxiliary_targets=_musical_auxiliary_target_config(),
             conditioning=_conditioning_config(),
         )
 

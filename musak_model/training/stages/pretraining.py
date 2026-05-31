@@ -15,6 +15,7 @@ from musak_model.data.config import SegmentationConfig
 from musak_model.evaluation import GenerationSuiteEvaluator
 from musak_model.model import HierarchicalAutoregressiveModel
 from musak_model.model.config import ModelConfig, ModelOutputMode
+from musak_model.model.output import ModelTrainingLogits
 from musak_model.paths import CONDITIONING_CONFIG_PATH
 from musak_model.tokens.config import TokenizationConfig
 from musak_model.tokens.duration import DurationVocabulary
@@ -27,7 +28,12 @@ from musak_model.training.dataset.schema import TrainingBatch
 from musak_model.training.ingestion.config import IngestionConfig
 from musak_model.training.ingestion.schema import IngestionErrorRecord
 from musak_model.training.ingestion.split import build_split
-from musak_model.training.losses import FactorizedEventLoss, factorized_event_loss
+from musak_model.training.losses import (
+    FactorizedEventLoss,
+    MusicalAuxiliaryLoss,
+    factorized_event_loss,
+    musical_auxiliary_loss,
+)
 from musak_model.training.metrics import (
     BatchMetrics,
     EpochMetrics,
@@ -182,6 +188,19 @@ class PretrainingTrainer:
             train_accidental_accuracy=train_metrics.accidental_accuracy,
             train_octave_offset_accuracy=train_metrics.octave_offset_accuracy,
             train_hand_accuracy=train_metrics.hand_accuracy,
+            train_musical_auxiliary_loss=train_metrics.musical_auxiliary_loss,
+            train_note_density_loss=train_metrics.note_density_loss,
+            train_note_density_accuracy=train_metrics.note_density_accuracy,
+            train_rhythmic_diversity_loss=train_metrics.rhythmic_diversity_loss,
+            train_rhythmic_diversity_accuracy=train_metrics.rhythmic_diversity_accuracy,
+            train_voice_independence_loss=train_metrics.voice_independence_loss,
+            train_voice_independence_accuracy=train_metrics.voice_independence_accuracy,
+            train_uses_accidentals_loss=train_metrics.uses_accidentals_loss,
+            train_uses_accidentals_accuracy=train_metrics.uses_accidentals_accuracy,
+            train_dotted_duration_loss=train_metrics.dotted_duration_loss,
+            train_dotted_duration_accuracy=train_metrics.dotted_duration_accuracy,
+            train_hand_span_loss=train_metrics.hand_span_loss,
+            train_hand_span_accuracy=train_metrics.hand_span_accuracy,
             train_validity_penalty_loss=train_metrics.validity_penalty_loss,
             train_invalid_probability_mass=train_metrics.invalid_probability_mass,
             train_invalid_target_rate=train_metrics.invalid_target_rate,
@@ -213,6 +232,43 @@ class PretrainingTrainer:
                 validation_metrics.octave_offset_accuracy if validation_metrics is not None else None
             ),
             validation_hand_accuracy=validation_metrics.hand_accuracy if validation_metrics is not None else None,
+            validation_musical_auxiliary_loss=(
+                validation_metrics.musical_auxiliary_loss if validation_metrics is not None else None
+            ),
+            validation_note_density_loss=(
+                validation_metrics.note_density_loss if validation_metrics is not None else None
+            ),
+            validation_note_density_accuracy=(
+                validation_metrics.note_density_accuracy if validation_metrics is not None else None
+            ),
+            validation_rhythmic_diversity_loss=(
+                validation_metrics.rhythmic_diversity_loss if validation_metrics is not None else None
+            ),
+            validation_rhythmic_diversity_accuracy=(
+                validation_metrics.rhythmic_diversity_accuracy if validation_metrics is not None else None
+            ),
+            validation_voice_independence_loss=(
+                validation_metrics.voice_independence_loss if validation_metrics is not None else None
+            ),
+            validation_voice_independence_accuracy=(
+                validation_metrics.voice_independence_accuracy if validation_metrics is not None else None
+            ),
+            validation_uses_accidentals_loss=(
+                validation_metrics.uses_accidentals_loss if validation_metrics is not None else None
+            ),
+            validation_uses_accidentals_accuracy=(
+                validation_metrics.uses_accidentals_accuracy if validation_metrics is not None else None
+            ),
+            validation_dotted_duration_loss=(
+                validation_metrics.dotted_duration_loss if validation_metrics is not None else None
+            ),
+            validation_dotted_duration_accuracy=(
+                validation_metrics.dotted_duration_accuracy if validation_metrics is not None else None
+            ),
+            validation_hand_span_loss=validation_metrics.hand_span_loss if validation_metrics is not None else None,
+            validation_hand_span_accuracy=(
+                validation_metrics.hand_span_accuracy if validation_metrics is not None else None
+            ),
             validation_validity_penalty_loss=(
                 validation_metrics.validity_penalty_loss if validation_metrics is not None else None
             ),
@@ -420,7 +476,16 @@ class PretrainingTrainer:
 
     def _loss_for_batch(self, batch: TrainingBatch) -> tuple[Tensor, BatchMetrics]:
         valid_mask = ~batch.token_padding_mask.reshape(-1)
-        logits, loss, factorized_loss = self._event_logits_and_loss(batch, valid_mask=valid_mask)
+        model_logits = self._model_training_logits(batch)
+        logits, loss, factorized_loss = self._event_logits_and_loss(
+            batch,
+            model_logits=model_logits,
+            valid_mask=valid_mask,
+        )
+        auxiliary_loss = self._musical_auxiliary_loss(model_logits, batch=batch)
+        if auxiliary_loss is not None:
+            loss = loss + self._config.musical_auxiliary_objective.weight * auxiliary_loss.loss
+
         log_probabilities = nn.functional.log_softmax(logits, dim=-1)
         batch_metrics = batch_metrics_from_logits(
             logits,
@@ -431,6 +496,7 @@ class PretrainingTrainer:
             token_attribute_lookup=self._token_attribute_lookup,
         )
         batch_metrics = self._add_factorized_loss_metrics(batch_metrics, factorized_loss=factorized_loss)
+        batch_metrics = self._add_musical_auxiliary_loss_metrics(batch_metrics, auxiliary_loss=auxiliary_loss)
         if self._config.conditioning.use_validity_penalty:
             validity_metrics = self._validity_penalty_metrics(
                 log_probabilities,
@@ -449,20 +515,8 @@ class PretrainingTrainer:
             )
         return loss, batch_metrics
 
-    def _event_logits_and_loss(
-        self,
-        batch: TrainingBatch,
-        *,
-        valid_mask: Tensor,
-    ) -> tuple[Tensor, Tensor, FactorizedEventLoss | None]:
-        match self._config.event_objective.mode:
-            case ModelOutputMode.FLAT:
-                return self._flat_logits_and_loss(batch, valid_mask=valid_mask)
-            case ModelOutputMode.FACTORIZED:
-                return self._factorized_logits_and_loss(batch)
-
-    def _flat_logits_and_loss(self, batch: TrainingBatch, *, valid_mask: Tensor) -> tuple[Tensor, Tensor, None]:
-        logits = self._model(
+    def _model_training_logits(self, batch: TrainingBatch) -> ModelTrainingLogits:
+        return self._model.training_logits(
             batch.input_token_ids,
             bar_positions=batch.bar_positions,
             bar_relative_ticks=batch.bar_relative_ticks,
@@ -478,6 +532,28 @@ class PretrainingTrainer:
             ),
             token_padding_mask=batch.token_padding_mask,
         )
+
+    def _event_logits_and_loss(
+        self,
+        batch: TrainingBatch,
+        *,
+        model_logits: ModelTrainingLogits,
+        valid_mask: Tensor,
+    ) -> tuple[Tensor, Tensor, FactorizedEventLoss | None]:
+        match self._config.event_objective.mode:
+            case ModelOutputMode.FLAT:
+                return self._flat_logits_and_loss(batch, model_logits=model_logits, valid_mask=valid_mask)
+            case ModelOutputMode.FACTORIZED:
+                return self._factorized_logits_and_loss(batch, model_logits=model_logits)
+
+    def _flat_logits_and_loss(
+        self,
+        batch: TrainingBatch,
+        *,
+        model_logits: ModelTrainingLogits,
+        valid_mask: Tensor,
+    ) -> tuple[Tensor, Tensor, None]:
+        logits = model_logits.flat_logits
         log_probabilities = nn.functional.log_softmax(logits, dim=-1)
         flat_loss = (
             -log_probabilities.gather(dim=-1, index=batch.target_token_ids.unsqueeze(-1)).squeeze(-1).reshape(-1)
@@ -485,29 +561,37 @@ class PretrainingTrainer:
         cross_entropy_loss = flat_loss[valid_mask].sum() / int(valid_mask.sum().item())
         return logits, cross_entropy_loss, None
 
-    def _factorized_logits_and_loss(self, batch: TrainingBatch) -> tuple[Tensor, Tensor, FactorizedEventLoss]:
-        factorized_logits = self._model.factorized_logits(
-            batch.input_token_ids,
-            bar_positions=batch.bar_positions,
-            bar_relative_ticks=batch.bar_relative_ticks,
-            bar_duration_ticks=batch.bar_duration_ticks,
-            active_hand_ids=batch.active_hand_ids,
-            difficulty_ids=batch.difficulty_ids if self._config.conditioning.use_difficulty else None,
-            scale_type_ids=batch.conditioning_scale_type_ids if self._config.conditioning.use_scale_type else None,
-            time_signature_ids=(
-                batch.conditioning_time_signature_ids if self._config.conditioning.use_time_signature else None
-            ),
-            structural_control_ids=(
-                batch.structural_control_ids if self._config.conditioning.use_structural_conditioning else None
-            ),
-            token_padding_mask=batch.token_padding_mask,
-        )
+    def _factorized_logits_and_loss(
+        self,
+        batch: TrainingBatch,
+        *,
+        model_logits: ModelTrainingLogits,
+    ) -> tuple[Tensor, Tensor, FactorizedEventLoss]:
+        factorized_logits = model_logits.factorized_logits
+        if factorized_logits is None:
+            raise ValueError("factorized training requires factorized logits")
+
         factorized_loss = factorized_event_loss(
             factorized_logits,
             targets=batch.target_token_attributes,
             config=self._config.event_objective,
         )
-        return self._model.flat_token_log_scores(factorized_logits), factorized_loss.loss, factorized_loss
+        return model_logits.flat_logits, factorized_loss.loss, factorized_loss
+
+    def _musical_auxiliary_loss(
+        self,
+        model_logits: ModelTrainingLogits,
+        *,
+        batch: TrainingBatch,
+    ) -> MusicalAuxiliaryLoss | None:
+        if not self._config.musical_auxiliary_objective.enabled:
+            return None
+
+        return musical_auxiliary_loss(
+            model_logits.musical_auxiliary_logits,
+            targets=batch.musical_auxiliary_targets,
+            config=self._config.musical_auxiliary_objective,
+        )
 
     def _add_factorized_loss_metrics(
         self,
@@ -532,6 +616,48 @@ class PretrainingTrainer:
                 "octave_offset_loss_target_count": factorized_loss.octave_offset_target_count,
                 "hand_loss": float(factorized_loss.hand_loss.detach().item()),
                 "hand_loss_target_count": factorized_loss.hand_target_count,
+            }
+        )
+
+    def _add_musical_auxiliary_loss_metrics(
+        self,
+        batch_metrics: BatchMetrics,
+        *,
+        auxiliary_loss: MusicalAuxiliaryLoss | None,
+    ) -> BatchMetrics:
+        if auxiliary_loss is None:
+            return batch_metrics
+
+        total_target_count = (
+            auxiliary_loss.note_density_target_count
+            + auxiliary_loss.rhythmic_diversity_target_count
+            + auxiliary_loss.voice_independence_target_count
+            + auxiliary_loss.uses_accidentals_target_count
+            + auxiliary_loss.dotted_duration_target_count
+            + auxiliary_loss.hand_span_target_count
+        )
+        return batch_metrics.model_copy(
+            update={
+                "musical_auxiliary_loss": float(auxiliary_loss.loss.detach().item()),
+                "musical_auxiliary_target_count": total_target_count,
+                "note_density_loss": float(auxiliary_loss.note_density_loss.detach().item()),
+                "note_density_match_count": auxiliary_loss.note_density_match_count,
+                "note_density_target_count": auxiliary_loss.note_density_target_count,
+                "rhythmic_diversity_loss": float(auxiliary_loss.rhythmic_diversity_loss.detach().item()),
+                "rhythmic_diversity_match_count": auxiliary_loss.rhythmic_diversity_match_count,
+                "rhythmic_diversity_target_count": auxiliary_loss.rhythmic_diversity_target_count,
+                "voice_independence_loss": float(auxiliary_loss.voice_independence_loss.detach().item()),
+                "voice_independence_match_count": auxiliary_loss.voice_independence_match_count,
+                "voice_independence_target_count": auxiliary_loss.voice_independence_target_count,
+                "uses_accidentals_loss": float(auxiliary_loss.uses_accidentals_loss.detach().item()),
+                "uses_accidentals_match_count": auxiliary_loss.uses_accidentals_match_count,
+                "uses_accidentals_target_count": auxiliary_loss.uses_accidentals_target_count,
+                "dotted_duration_loss": float(auxiliary_loss.dotted_duration_loss.detach().item()),
+                "dotted_duration_match_count": auxiliary_loss.dotted_duration_match_count,
+                "dotted_duration_target_count": auxiliary_loss.dotted_duration_target_count,
+                "hand_span_loss": float(auxiliary_loss.hand_span_loss.detach().item()),
+                "hand_span_match_count": auxiliary_loss.hand_span_match_count,
+                "hand_span_target_count": auxiliary_loss.hand_span_target_count,
             }
         )
 
@@ -596,6 +722,7 @@ def pretrain(
         vocabulary_size=vocabulary.vocabulary_size,
         duration_vocabulary_size=vocabulary.duration_vocabulary.vocabulary_size(),
         output_mode=training_config.event_objective.mode,
+        musical_auxiliary_targets=training_config.musical_auxiliary_targets,
         conditioning_config_path=conditioning_config_path,
     )
     _LOGGER.info("Model vocabulary size: %s", resolved_model_config.vocabulary_size)
@@ -612,6 +739,7 @@ def pretrain(
         include_structural_controls=training_config.conditioning.use_structural_conditioning,
         time_signature_vocabulary=time_signature_vocabulary,
         token_vocabulary=vocabulary,
+        musical_auxiliary_targets=resolved_model_config.musical_auxiliary_targets,
         structural_control_vocabulary=structural_control_vocabulary,
         max_sequence_length=resolved_model_config.transformer.max_sequence_length,
     )
@@ -674,6 +802,7 @@ def _move_batch_to_device(batch: TrainingBatch, *, device: torch.device) -> Trai
         input_token_ids=batch.input_token_ids.to(device),
         target_token_ids=batch.target_token_ids.to(device),
         target_token_attributes=batch.target_token_attributes.to(device),
+        musical_auxiliary_targets=batch.musical_auxiliary_targets.to(device),
         bar_positions=batch.bar_positions.to(device),
         bar_relative_ticks=batch.bar_relative_ticks.to(device),
         bar_duration_ticks=batch.bar_duration_ticks.to(device),

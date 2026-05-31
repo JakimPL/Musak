@@ -6,6 +6,7 @@ import pytest
 import torch
 from torch import Tensor
 
+from musak_model.auxiliary.config import MusicalAuxiliaryTargetConfig
 from musak_model.conditioning.config import ConditioningConfig, DifficultyConfig
 from musak_model.conditioning.time_signature import TimeSignatureVocabularyConfig
 from musak_model.evaluation.generation import GenerationSuiteEvaluator
@@ -69,6 +70,15 @@ def _conditioning_config() -> TrainingConditioningConfig:
         use_structural_conditioning=False,
         use_validity_penalty=False,
         validity_penalty_weight=0.05,
+    )
+
+
+def _musical_auxiliary_target_config() -> MusicalAuxiliaryTargetConfig:
+    return MusicalAuxiliaryTargetConfig(
+        note_density_bucket_boundaries=(0.25, 0.5, 0.75, 1.0, 1.5, 2.0),
+        rhythmic_diversity_bucket_boundaries=(0.2, 0.4, 0.6, 0.8),
+        voice_independence_bucket_boundaries=(0.2, 0.4, 0.6, 0.8),
+        hand_span_bucket_boundaries=(3, 5, 8, 12, 16),
     )
 
 
@@ -348,6 +358,7 @@ def _model_config(vocabulary_size: int) -> ModelConfig:
         vocabulary_size=vocabulary_size,
         duration_vocabulary_size=1,
         output=ModelOutputConfig(mode=ModelOutputMode.FLAT),
+        musical_auxiliary_targets=_musical_auxiliary_target_config(),
         cnn=CNNConfig(enabled=True, out_channels=16, kernel_sizes=(3,), num_layers=1, dropout=0.0),
         gru=GRUConfig(enabled=True, hidden_size=16, num_layers=1, dropout=0.0, bidirectional=False),
         transformer=TransformerConfig(

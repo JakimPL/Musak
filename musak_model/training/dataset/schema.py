@@ -3,6 +3,7 @@ from fractions import Fraction
 
 from torch import Tensor
 
+from musak_model.auxiliary.schema import MusicalAuxiliaryTargetTensors
 from musak_model.training.dataset.factorized import TokenAttributeTargetTensors
 
 
@@ -11,6 +12,7 @@ class TrainingExample:
     input_token_ids: Tensor
     target_token_ids: Tensor
     target_token_attributes: TokenAttributeTargetTensors
+    musical_auxiliary_targets: MusicalAuxiliaryTargetTensors
     bar_positions: Tensor
     bar_relative_ticks: Tensor
     bar_duration_ticks: Tensor
@@ -32,6 +34,7 @@ class TrainingBatch:
     input_token_ids: Tensor
     target_token_ids: Tensor
     target_token_attributes: TokenAttributeTargetTensors
+    musical_auxiliary_targets: MusicalAuxiliaryTargetTensors
     bar_positions: Tensor
     bar_relative_ticks: Tensor
     bar_duration_ticks: Tensor

@@ -3,6 +3,7 @@ from typing import Final
 import torch
 from torch import Tensor
 
+from musak_model.auxiliary.targets import stack_musical_auxiliary_targets
 from musak_model.training.dataset.factorized import pad_token_attribute_targets
 from musak_model.training.dataset.schema import TrainingBatch, TrainingExample
 
@@ -64,6 +65,9 @@ def collate_training_examples(examples: list[TrainingExample]) -> TrainingBatch:
         target_token_attributes=pad_token_attribute_targets(
             [example.target_token_attributes for example in examples],
             max_length=max_length,
+        ),
+        musical_auxiliary_targets=stack_musical_auxiliary_targets(
+            [example.musical_auxiliary_targets for example in examples]
         ),
         bar_positions=bar_positions,
         bar_relative_ticks=bar_relative_ticks,

@@ -26,6 +26,26 @@ def test_metrics_accumulator_averages_loss_accuracy_and_gradient_norms() -> None
             octave_offset_target_count=1,
             hand_match_count=0,
             hand_target_count=0,
+            musical_auxiliary_loss=1.0,
+            musical_auxiliary_target_count=6,
+            note_density_loss=0.2,
+            note_density_match_count=1,
+            note_density_target_count=2,
+            rhythmic_diversity_loss=0.4,
+            rhythmic_diversity_match_count=2,
+            rhythmic_diversity_target_count=2,
+            voice_independence_loss=0.6,
+            voice_independence_match_count=1,
+            voice_independence_target_count=2,
+            uses_accidentals_loss=0.8,
+            uses_accidentals_match_count=2,
+            uses_accidentals_target_count=2,
+            dotted_duration_loss=1.0,
+            dotted_duration_match_count=0,
+            dotted_duration_target_count=2,
+            hand_span_loss=1.2,
+            hand_span_match_count=1,
+            hand_span_target_count=2,
             validity_penalty_loss=0.2,
             invalid_probability_mass=0.4,
             invalid_target_count=1,
@@ -55,6 +75,26 @@ def test_metrics_accumulator_averages_loss_accuracy_and_gradient_norms() -> None
             octave_offset_target_count=3,
             hand_match_count=1,
             hand_target_count=1,
+            musical_auxiliary_loss=2.0,
+            musical_auxiliary_target_count=12,
+            note_density_loss=0.4,
+            note_density_match_count=2,
+            note_density_target_count=4,
+            rhythmic_diversity_loss=0.8,
+            rhythmic_diversity_match_count=1,
+            rhythmic_diversity_target_count=4,
+            voice_independence_loss=1.2,
+            voice_independence_match_count=3,
+            voice_independence_target_count=4,
+            uses_accidentals_loss=1.6,
+            uses_accidentals_match_count=4,
+            uses_accidentals_target_count=4,
+            dotted_duration_loss=2.0,
+            dotted_duration_match_count=2,
+            dotted_duration_target_count=4,
+            hand_span_loss=2.4,
+            hand_span_match_count=3,
+            hand_span_target_count=4,
             validity_penalty_loss=0.6,
             invalid_probability_mass=0.8,
             invalid_target_count=2,
@@ -77,6 +117,19 @@ def test_metrics_accumulator_averages_loss_accuracy_and_gradient_norms() -> None
     assert metrics.accidental_accuracy == approx(3 / 4)
     assert metrics.octave_offset_accuracy == approx(2 / 4)
     assert metrics.hand_accuracy == 1.0
+    assert metrics.musical_auxiliary_loss == approx(5 / 3)
+    assert metrics.note_density_loss == approx(1 / 3)
+    assert metrics.note_density_accuracy == 0.5
+    assert metrics.rhythmic_diversity_loss == approx(2 / 3)
+    assert metrics.rhythmic_diversity_accuracy == 0.5
+    assert metrics.voice_independence_loss == 1.0
+    assert metrics.voice_independence_accuracy == approx(4 / 6)
+    assert metrics.uses_accidentals_loss == approx(4 / 3)
+    assert metrics.uses_accidentals_accuracy == 1.0
+    assert metrics.dotted_duration_loss == approx(5 / 3)
+    assert metrics.dotted_duration_accuracy == approx(2 / 6)
+    assert metrics.hand_span_loss == 2.0
+    assert metrics.hand_span_accuracy == approx(4 / 6)
     assert metrics.validity_penalty_loss == approx(0.5)
     assert metrics.invalid_probability_mass == approx(0.7)
     assert metrics.invalid_target_rate == 0.375

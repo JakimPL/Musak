@@ -5,6 +5,8 @@ import pytest
 import torch
 from torch import Tensor
 
+from musak_model.auxiliary.config import MusicalAuxiliaryTargetConfig
+from musak_model.auxiliary.schema import MusicalAuxiliaryLogits
 from musak_model.conditioning.config import ConditioningConfig, DifficultyConfig
 from musak_model.conditioning.time_signature import TimeSignatureVocabularyConfig
 from musak_model.model import HierarchicalAutoregressiveModel
@@ -24,6 +26,15 @@ FACTORIZED_DURATION_VOCAB: Final[int] = 1
 FACTORIZED_VOCAB: Final[int] = len(flat_vocabulary_attributes(duration_vocabulary_size=FACTORIZED_DURATION_VOCAB))
 
 
+def _musical_auxiliary_target_config() -> MusicalAuxiliaryTargetConfig:
+    return MusicalAuxiliaryTargetConfig(
+        note_density_bucket_boundaries=(0.25, 0.5, 0.75, 1.0, 1.5, 2.0),
+        rhythmic_diversity_bucket_boundaries=(0.2, 0.4, 0.6, 0.8),
+        voice_independence_bucket_boundaries=(0.2, 0.4, 0.6, 0.8),
+        hand_span_bucket_boundaries=(3, 5, 8, 12, 16),
+    )
+
+
 def _small_config(
     *,
     output_mode: ModelOutputMode = ModelOutputMode.FLAT,
@@ -34,6 +45,7 @@ def _small_config(
         vocabulary_size=vocabulary_size,
         duration_vocabulary_size=duration_vocabulary_size,
         output=ModelOutputConfig(mode=output_mode),
+        musical_auxiliary_targets=_musical_auxiliary_target_config(),
         cnn=CNNConfig(enabled=True, out_channels=H, kernel_sizes=(3,), num_layers=1, dropout=0.0),
         gru=GRUConfig(enabled=True, hidden_size=H, num_layers=1, dropout=0.0, bidirectional=False),
         transformer=TransformerConfig(
@@ -73,6 +85,17 @@ def _coordinate_kwargs(token_ids: Tensor) -> dict[str, Tensor]:
         "bar_duration_ticks": torch.ones_like(token_ids),
         "active_hand_ids": torch.zeros_like(token_ids),
     }
+
+
+def _musical_auxiliary_logits_sum(logits: MusicalAuxiliaryLogits) -> Tensor:
+    return (
+        logits.note_density.sum()
+        + logits.rhythmic_diversity.sum()
+        + logits.voice_independence.sum()
+        + logits.uses_accidentals.sum()
+        + logits.dotted_duration.sum()
+        + logits.hand_span.sum()
+    )
 
 
 @dataclass(frozen=True)
@@ -155,8 +178,11 @@ class TestForwardOutputShape:
             bar_positions=bar_positions,
             **_coordinate_kwargs(token_ids),
         )
+        training_logits = model.training_logits(token_ids, bar_positions=bar_positions, **_coordinate_kwargs(token_ids))
 
         assert flat_scores.shape == (2, 8, FACTORIZED_VOCAB)
+        assert training_logits.flat_logits.shape == (2, 8, FACTORIZED_VOCAB)
+        assert training_logits.factorized_logits is not None
         assert factorized_logits.kind.shape == (2, 8, TOKEN_KIND_COUNT)
         assert factorized_logits.duration.shape == (2, 8, FACTORIZED_DURATION_VOCAB)
 
@@ -303,7 +329,7 @@ class TestForwardBehaviour:
         model = HierarchicalAutoregressiveModel(config)
         token_ids = torch.randint(0, VOCAB, (2, 16))
         bar_positions = _uniform_bar_positions(2, 16, 2)
-        logits = model(
+        logits = model.training_logits(
             token_ids,
             bar_positions=bar_positions,
             **_coordinate_kwargs(token_ids),
@@ -316,7 +342,7 @@ class TestForwardBehaviour:
                 dtype=torch.long,
             ),
         )
-        logits.sum().backward()
+        (logits.flat_logits.sum() + _musical_auxiliary_logits_sum(logits.musical_auxiliary_logits)).backward()
         params_without_grad = [name for name, p in model.named_parameters() if p.grad is None]
         assert params_without_grad == [], f"No gradient for: {params_without_grad}"
 
@@ -419,7 +445,7 @@ class TestEncoderBypass:
         token_ids = torch.randint(0, VOCAB, (2, 16))
         bar_positions = _uniform_bar_positions(2, 16, 2)
 
-        logits = model(
+        logits = model.training_logits(
             token_ids,
             bar_positions=bar_positions,
             **_coordinate_kwargs(token_ids),
@@ -432,8 +458,8 @@ class TestEncoderBypass:
                 dtype=torch.long,
             ),
         )
-        logits.sum().backward()
+        (logits.flat_logits.sum() + _musical_auxiliary_logits_sum(logits.musical_auxiliary_logits)).backward()
 
         params_without_grad = [name for name, parameter in model.named_parameters() if parameter.grad is None]
-        assert logits.shape == (2, 16, VOCAB)
+        assert logits.flat_logits.shape == (2, 16, VOCAB)
         assert params_without_grad == [], f"No gradient for: {params_without_grad}"

@@ -63,6 +63,23 @@ Training can run either the legacy flat-token objective or the factorized event 
 The default pretraining and finetuning configs use the factorized objective. The flat objective remains available as a
 baseline by setting `event_objective.mode: flat`; normal CLI construction will create a matching flat-output model.
 
+Training also has a musical auxiliary objective. Target bucket boundaries are controlled by
+`musical_auxiliary_targets`, and the loss weights are controlled by `musical_auxiliary_objective`. The objective is
+enabled by default with a small overall weight. The current auxiliary heads are sequence-level classifiers over
+deterministic buckets derived from `metadata.difficulty_features`:
+
+- note density per beat;
+- rhythmic diversity;
+- voice independence;
+- whether the sample uses accidentals;
+- whether the sample uses dotted durations;
+- maximum hand span.
+
+The model head sizes are derived from the configured target bucket boundaries, so boundary changes are architecture
+changes and should be treated like other checkpoint-shape changes. Missing `difficulty_features` produce ignored
+auxiliary targets, so older or raw fallback samples can still train the event objective. Each auxiliary target logs its
+own loss and accuracy; the combined auxiliary loss is not used as a standalone musicality score.
+
 Each encoded JSONL row is an `EncodedExercise`:
 
 - `token_ids`: unified two-hand token sequence.

@@ -5,6 +5,7 @@ from typing import Any
 
 import pytest
 
+from musak_model.auxiliary.config import MusicalAuxiliaryTargetConfig
 from musak_model.conditioning.config import ConditioningConfig, DifficultyConfig
 from musak_model.conditioning.time_signature import TimeSignatureVocabularyConfig
 from musak_model.data.schema import SegmentMetadata
@@ -23,6 +24,7 @@ from musak_model.training.config import (
     EventObjectiveConfig,
     GenerationEvaluationConfig,
     MlflowConfig,
+    MusicalAuxiliaryObjectiveConfig,
     OptimizationConfig,
     RuntimeConfig,
     TrainingConditioningConfig,
@@ -74,6 +76,8 @@ def _training_config(tmp_path: Path, *, enable_mlflow: bool = True, tracking_uri
     return TrainingConfig(
         optimization=OptimizationConfig(epochs=1, batch_size=2, learning_rate=0.001, weight_decay=0.0),
         event_objective=_event_objective_config(),
+        musical_auxiliary_targets=_musical_auxiliary_target_config(),
+        musical_auxiliary_objective=_musical_auxiliary_objective_config(),
         runtime=RuntimeConfig(num_workers=1, device="cpu"),
         conditioning=TrainingConditioningConfig(
             use_time_signature=False,
@@ -117,6 +121,7 @@ def _model_config() -> ModelConfig:
         vocabulary_size=32,
         duration_vocabulary_size=1,
         output=ModelOutputConfig(mode=ModelOutputMode.FLAT),
+        musical_auxiliary_targets=_musical_auxiliary_target_config(),
         cnn=CNNConfig(enabled=True, out_channels=16, kernel_sizes=(3,), num_layers=1, dropout=0.0),
         gru=GRUConfig(enabled=True, hidden_size=16, num_layers=1, dropout=0.0, bidirectional=False),
         transformer=TransformerConfig(
@@ -144,6 +149,28 @@ def _event_objective_config() -> EventObjectiveConfig:
         accidental_weight=1.0,
         octave_offset_weight=1.0,
         hand_weight=1.0,
+    )
+
+
+def _musical_auxiliary_objective_config() -> MusicalAuxiliaryObjectiveConfig:
+    return MusicalAuxiliaryObjectiveConfig(
+        enabled=True,
+        weight=0.1,
+        note_density_weight=1.0,
+        rhythmic_diversity_weight=1.0,
+        voice_independence_weight=1.0,
+        uses_accidentals_weight=1.0,
+        dotted_duration_weight=1.0,
+        hand_span_weight=1.0,
+    )
+
+
+def _musical_auxiliary_target_config() -> MusicalAuxiliaryTargetConfig:
+    return MusicalAuxiliaryTargetConfig(
+        note_density_bucket_boundaries=(0.25, 0.5, 0.75, 1.0, 1.5, 2.0),
+        rhythmic_diversity_bucket_boundaries=(0.2, 0.4, 0.6, 0.8),
+        voice_independence_bucket_boundaries=(0.2, 0.4, 0.6, 0.8),
+        hand_span_bucket_boundaries=(3, 5, 8, 12, 16),
     )
 
 
@@ -196,6 +223,8 @@ def test_mlflow_tracker_logs_setup_metrics_artifacts_and_invalid_files(
                 train_perplexity=3.49,
                 train_token_accuracy=0.5,
                 train_token_kind_accuracy=0.75,
+                train_musical_auxiliary_loss=2.5,
+                train_note_density_accuracy=0.8,
                 train_cnn_gradient_norm=0.1,
                 train_gru_gradient_norm=0.2,
                 train_transformer_gradient_norm=0.3,
@@ -221,6 +250,8 @@ def test_mlflow_tracker_logs_setup_metrics_artifacts_and_invalid_files(
     assert ("model/train/mean/perplexity", 3.49, 3) in fake_mlflow.metrics
     assert ("model/train/rate/token_accuracy", 0.5, 3) in fake_mlflow.metrics
     assert ("model/train/rate/token_kind_accuracy", 0.75, 3) in fake_mlflow.metrics
+    assert ("model/train/mean/musical_auxiliary_loss", 2.5, 3) in fake_mlflow.metrics
+    assert ("model/train/rate/note_density_accuracy", 0.8, 3) in fake_mlflow.metrics
     assert ("model/train/mean/cnn_gradient_norm", 0.1, 3) in fake_mlflow.metrics
     assert ("model/train/mean/gru_gradient_norm", 0.2, 3) in fake_mlflow.metrics
     assert ("model/train/mean/transformer_gradient_norm", 0.3, 3) in fake_mlflow.metrics

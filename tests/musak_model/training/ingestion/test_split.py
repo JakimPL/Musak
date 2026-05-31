@@ -7,6 +7,7 @@ from music21.meter.base import TimeSignature
 from music21.note import Note
 from music21.stream.base import Measure, Part, Score
 
+from musak_model.auxiliary.config import MusicalAuxiliaryTargetConfig
 from musak_model.conditioning.time_signature import TimeSignatureVocabulary, TimeSignatureVocabularyConfig
 from musak_model.data.config import SegmentationConfig, SegmentationMode
 from musak_model.data.scale_matcher.config import ScaleMatcherConfig
@@ -35,6 +36,15 @@ def _conditioning_config() -> TrainingConditioningConfig:
         use_structural_conditioning=False,
         use_validity_penalty=False,
         validity_penalty_weight=0.05,
+    )
+
+
+def _musical_auxiliary_target_config() -> MusicalAuxiliaryTargetConfig:
+    return MusicalAuxiliaryTargetConfig(
+        note_density_bucket_boundaries=(0.25, 0.5, 0.75, 1.0, 1.5, 2.0),
+        rhythmic_diversity_bucket_boundaries=(0.2, 0.4, 0.6, 0.8),
+        voice_independence_bucket_boundaries=(0.2, 0.4, 0.6, 0.8),
+        hand_span_bucket_boundaries=(3, 5, 8, 12, 16),
     )
 
 
@@ -383,6 +393,7 @@ def test_raw_ingestion_pipeline_preserves_short_measure_bar_tokens(
             TimeSignatureVocabularyConfig(max_denominator=4, relative_numerator_range=2)
         ),
         token_vocabulary=token_vocabulary,
+        musical_auxiliary_targets=_musical_auxiliary_target_config(),
         conditioning=_conditioning_config(),
     )
     batch = collate_training_examples([dataset[0]])

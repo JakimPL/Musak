@@ -122,7 +122,13 @@ This section is the durable resumption point if work continues after context com
   shape. Dataset construction and generation derive `bar_relative_ticks`, `bar_duration_ticks`, and `active_hand_ids`
   from the musical prefix, then feed them into the hierarchical model alongside token embeddings. Hard generation
   constraints remain separate and authoritative for exact legality.
-- Next: Phase 5 should add deterministic exercise-level musical auxiliary targets.
+- Completed: Phase 5A adds deterministic sequence-level musical auxiliary targets from `difficulty_features`:
+  note-density bucket, rhythmic-diversity bucket, voice-independence bucket, accidentals flag, dotted-duration flag,
+  and hand-span bucket. Target bucket boundaries live in `musical_auxiliary_targets`, the hierarchical model derives
+  pooled head sizes from that config, training adds a configurable weighted auxiliary loss, and MLflow logs per-target
+  auxiliary losses and accuracies.
+- Next: Phase 5B should add bar-level auxiliary targets and explicit generated-sample bucket reports for the same
+  target families.
 
 Early non-unit validation for Phase 2A:
 

@@ -5,6 +5,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from musak_model.auxiliary.config import MusicalAuxiliaryTargetConfig
 from musak_model.conditioning.config import ConditioningConfig
 from musak_model.paths import CONDITIONING_CONFIG_PATH, MODEL_CONFIG_DIRECTORY
 from musak_shared.files import load_yaml_config
@@ -58,6 +59,7 @@ class ModelConfig(BaseModel):
     vocabulary_size: int = Field(ge=1)
     duration_vocabulary_size: int = Field(ge=1)
     output: ModelOutputConfig
+    musical_auxiliary_targets: MusicalAuxiliaryTargetConfig
     cnn: CNNConfig
     gru: GRUConfig
     transformer: TransformerConfig
@@ -70,6 +72,7 @@ class ModelConfig(BaseModel):
         vocabulary_size: int,
         duration_vocabulary_size: int,
         output_mode: ModelOutputMode,
+        musical_auxiliary_targets: MusicalAuxiliaryTargetConfig,
         config_directory: Path = MODEL_CONFIG_DIRECTORY,
         conditioning_config_path: Path = CONDITIONING_CONFIG_PATH,
     ) -> ModelConfig:
@@ -77,6 +80,7 @@ class ModelConfig(BaseModel):
             vocabulary_size=vocabulary_size,
             duration_vocabulary_size=duration_vocabulary_size,
             output=ModelOutputConfig(mode=output_mode),
+            musical_auxiliary_targets=musical_auxiliary_targets,
             cnn=CNNConfig.model_validate(load_yaml_config(config_directory / "cnn.yml")),
             gru=GRUConfig.model_validate(load_yaml_config(config_directory / "gru.yml")),
             transformer=TransformerConfig.model_validate(load_yaml_config(config_directory / "transformer.yml")),

@@ -3,12 +3,14 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
+from musak_model.auxiliary.config import MusicalAuxiliaryTargetConfig
 from musak_model.model.config import ModelOutputMode
 from musak_model.tokens.schema import ScaleType
 from musak_model.training.config import (
     CheckpointConfig,
     EventObjectiveConfig,
     GenerationEvaluationConfig,
+    MusicalAuxiliaryObjectiveConfig,
     OptimizationConfig,
     RuntimeConfig,
     TrainingConditioningConfig,
@@ -62,10 +64,34 @@ def _event_objective_config() -> EventObjectiveConfig:
     )
 
 
+def _musical_auxiliary_objective_config() -> MusicalAuxiliaryObjectiveConfig:
+    return MusicalAuxiliaryObjectiveConfig(
+        enabled=True,
+        weight=0.1,
+        note_density_weight=1.0,
+        rhythmic_diversity_weight=1.0,
+        voice_independence_weight=1.0,
+        uses_accidentals_weight=1.0,
+        dotted_duration_weight=1.0,
+        hand_span_weight=1.0,
+    )
+
+
+def _musical_auxiliary_target_config() -> MusicalAuxiliaryTargetConfig:
+    return MusicalAuxiliaryTargetConfig(
+        note_density_bucket_boundaries=(0.25, 0.5, 0.75, 1.0, 1.5, 2.0),
+        rhythmic_diversity_bucket_boundaries=(0.2, 0.4, 0.6, 0.8),
+        voice_independence_bucket_boundaries=(0.2, 0.4, 0.6, 0.8),
+        hand_span_bucket_boundaries=(3, 5, 8, 12, 16),
+    )
+
+
 def test_training_config_accepts_nested_constructor() -> None:
     config = TrainingConfig(
         optimization=OptimizationConfig(epochs=1, batch_size=2, learning_rate=0.001, weight_decay=0.0),
         event_objective=_event_objective_config(),
+        musical_auxiliary_targets=_musical_auxiliary_target_config(),
+        musical_auxiliary_objective=_musical_auxiliary_objective_config(),
         runtime=RuntimeConfig(num_workers=0, device="cpu"),
         conditioning=_conditioning_config(),
         checkpoints=CheckpointConfig(checkpoint_directory=Path("checkpoints")),
@@ -96,6 +122,8 @@ def test_training_config_rejects_old_conditioning_field() -> None:
         TrainingConfig(
             optimization=OptimizationConfig(epochs=1, batch_size=2, learning_rate=0.001, weight_decay=0.0),
             event_objective=_event_objective_config(),
+            musical_auxiliary_targets=_musical_auxiliary_target_config(),
+            musical_auxiliary_objective=_musical_auxiliary_objective_config(),
             runtime=RuntimeConfig(num_workers=1, device="cpu"),
             checkpoints=CheckpointConfig(checkpoint_directory=Path("checkpoints")),
             conditioning={"use_conditioning": True},

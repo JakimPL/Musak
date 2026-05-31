@@ -5,6 +5,7 @@ from typing import Final, Self
 import torch
 from torch.utils.data import DataLoader
 
+from musak_model.auxiliary.config import MusicalAuxiliaryTargetConfig
 from musak_model.conditioning.config import ConditioningConfig, DifficultyConfig
 from musak_model.conditioning.time_signature import TimeSignatureVocabulary, TimeSignatureVocabularyConfig
 from musak_model.data.schema import SegmentMetadata
@@ -26,6 +27,7 @@ from musak_model.training.config import (
     CheckpointConfig,
     EventObjectiveConfig,
     GenerationEvaluationConfig,
+    MusicalAuxiliaryObjectiveConfig,
     OptimizationConfig,
     RuntimeConfig,
     TrainingConditioningConfig,
@@ -41,6 +43,15 @@ from musak_model.training.stages.pretraining import PretrainingTrainer
 from musak_model.training.validity import TrainingValidityMaskBuilder
 
 HIDDEN_SIZE: Final[int] = 16
+
+
+def _musical_auxiliary_target_config() -> MusicalAuxiliaryTargetConfig:
+    return MusicalAuxiliaryTargetConfig(
+        note_density_bucket_boundaries=(0.25, 0.5, 0.75, 1.0, 1.5, 2.0),
+        rhythmic_diversity_bucket_boundaries=(0.2, 0.4, 0.6, 0.8),
+        voice_independence_bucket_boundaries=(0.2, 0.4, 0.6, 0.8),
+        hand_span_bucket_boundaries=(3, 5, 8, 12, 16),
+    )
 
 
 class FakeTracker:
@@ -83,6 +94,7 @@ def _small_model_config(output_mode: ModelOutputMode = ModelOutputMode.FACTORIZE
         vocabulary_size=token_vocabulary.vocabulary_size,
         duration_vocabulary_size=token_vocabulary.duration_vocabulary.vocabulary_size(),
         output=ModelOutputConfig(mode=output_mode),
+        musical_auxiliary_targets=_musical_auxiliary_target_config(),
         cnn=CNNConfig(enabled=True, out_channels=HIDDEN_SIZE, kernel_sizes=(3,), num_layers=1, dropout=0.0),
         gru=GRUConfig(enabled=True, hidden_size=HIDDEN_SIZE, num_layers=1, dropout=0.0, bidirectional=False),
         transformer=TransformerConfig(
@@ -113,6 +125,8 @@ def _training_config(
     return TrainingConfig(
         optimization=OptimizationConfig(epochs=epochs, batch_size=2, learning_rate=0.001, weight_decay=0.0),
         event_objective=event_objective if event_objective is not None else _event_objective_config(),
+        musical_auxiliary_targets=_musical_auxiliary_target_config(),
+        musical_auxiliary_objective=_musical_auxiliary_objective_config(),
         runtime=RuntimeConfig(num_workers=1, device="cpu"),
         conditioning=conditioning if conditioning is not None else _conditioning_config(),
         checkpoints=CheckpointConfig(
@@ -148,6 +162,19 @@ def _event_objective_config(mode: ModelOutputMode = ModelOutputMode.FACTORIZED) 
         accidental_weight=1.0,
         octave_offset_weight=1.0,
         hand_weight=1.0,
+    )
+
+
+def _musical_auxiliary_objective_config() -> MusicalAuxiliaryObjectiveConfig:
+    return MusicalAuxiliaryObjectiveConfig(
+        enabled=True,
+        weight=0.1,
+        note_density_weight=1.0,
+        rhythmic_diversity_weight=1.0,
+        voice_independence_weight=1.0,
+        uses_accidentals_weight=1.0,
+        dotted_duration_weight=1.0,
+        hand_span_weight=1.0,
     )
 
 
@@ -212,6 +239,7 @@ def _loader() -> DataLoader[TrainingBatch]:
             TimeSignatureVocabularyConfig(max_denominator=4, relative_numerator_range=2)
         ),
         token_vocabulary=token_vocabulary,
+        musical_auxiliary_targets=_musical_auxiliary_target_config(),
         conditioning=_conditioning_config(),
     )
     return DataLoader(dataset, batch_size=2, collate_fn=collate_training_examples)
