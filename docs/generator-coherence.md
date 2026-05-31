@@ -608,6 +608,37 @@ chord is drawn from the realization distribution, so authentic vs deceptive diff
 chord, not by type. (3) Harmonic-arrival tension = **tonic-triad pitch-class overlap**. (4) **Voicing /
 perfect-imperfect deferred** to a later bass/soprano pass.
 
+## 20. Surface render — figures on the metrical tree (Phase 2)
+
+*Elaborates §4 Layer 5: how the preserved figure surface meets the metrical/time-span skeleton.*
+
+**Slot model.** A metrical-tree **leaf is a render slot.** A `SOUND` leaf hosts **one figure of any `n ≥ 1`** (an
+`n=1` figure *is* a single note — no special case), scaled to the leaf's span
+(`base_duration = leaf_span / figure_normalized_span`) with every onset duration `≥ shortest_note_duration`. A
+`TIE` leaf **extends** the previous note; a `REST` leaf is silence. The **harmonic frontier** (§13.2) gives each
+slot its chord; the concrete figure is drawn by the I-projection tilt reading that chord and the leaf's metrical
+weight.
+
+**Rhythm is two complementary levels:** the tree places figures, rests, and ties in metrical time (macro); each
+figure supplies its within-slot notes (micro). `base_duration` comes from the *slot span*, never fit-to-remaining-
+bar — removing the old compression-to-short-notes bias (points 3, 5).
+
+**Single / whole notes.** `n=1` is just a single note; a whole-note-per-bar = a bar-sized `SOUND` slot holding an
+`n=1` figure. This requires `min_n=1` in figure extraction (`configs/analysis/n_grams.yml`) — set. The signature
+builder already handles a single-onset window (normalized duration `(1,1)`, `base_duration` = the note's held
+duration).
+
+**Cross-bar (concrete — not "hypermeter").** The barline is always a metrical-tree boundary. (a) **Sustained /
+ligature crossings** of any offset and span → `TIE` leaves: a `SOUND` attack before the barline plus `TIE`
+continuation after. (b) **Multi-onset gestures across bars** (e.g. a 7-note idea over 2 bars) → a **motif**
+(Phase 4): a metrical subtree spanning the bars plus its contour, reused as a unit. A single beamed multi-onset
+*figure* deliberately stays within a bar (matching notation: beams don't cross barlines, ties and slurs do).
+
+**Two duration bounds.** `min_leaf_duration` (the metrical grammar's minimum *slot*) and `shortest_note_duration`
+(the minimum of the duration vocabulary), with `min_leaf_duration ≥ shortest_note_duration`. The renderer bounds a
+slot's figure so every onset is `≥ shortest_note_duration`; a slot too small for an `n ≥ 2` figure takes an `n=1`
+note — which only works because `n=1` is admitted.
+
 ## Sources
 Form/segmentation & repetition: Cambouropoulos LBDM (ICMC 2001); Pearce/Müllensiefen/Wiggins segmentation
 comparison (ISMIR 2008) & IDyOM (2012); Meredith SIA/SIATEC/COSIATEC; self-similarity-matrix MSA; Sidorov/Jones/

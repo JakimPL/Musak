@@ -1,5 +1,5 @@
 figure:
-  min_n: 2
+  min_n: 1
   max_n: 10
   limit_per_group: null
   common_mass_threshold: 0.80
