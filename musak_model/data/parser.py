@@ -22,7 +22,7 @@ from musak_model.tokens.schema import ScaleType
 from musak_shared.elements import pitch_class_from_key_fifths
 
 _QUARTER_NOTE_FRACTION: Final[Fraction] = Fraction(1, 4)
-_TRIPLET_DENOMINATOR_LIMIT: Final[int] = 12
+_DENOMINATOR_LIMIT: Final[int] = 60
 
 
 def parse_score(path: Path) -> ParsedScore:
@@ -259,4 +259,4 @@ def _tie_type_from_text(value: str) -> TieType:
 
 
 def _to_fraction(value: float | Fraction) -> Fraction:
-    return Fraction(value).limit_denominator(_TRIPLET_DENOMINATOR_LIMIT)
+    return Fraction(value).limit_denominator(_DENOMINATOR_LIMIT)
