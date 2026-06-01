@@ -17,6 +17,7 @@ from musak_model.synthetic.fitting.figure_by_chord import (
     write_figure_by_chord_table,
 )
 from musak_model.synthetic.fitting.fit import fit_generator_config
+from musak_model.synthetic.fitting.form.fit import FormFittingConfig
 from musak_model.synthetic.processes.accent import AccentFieldConfig
 from musak_model.synthetic.processes.pitch import RegisterCurveConfig
 from scripts.extract_figures import resolve_encoded_directory
@@ -39,6 +40,7 @@ def main() -> None:
         register_default = _load_register_config(args.register_config)
         accent_default = _load_accent_config(args.accent_config)
         chord_fit = _load_chord_fit_config(args.chord_fit_config)
+        form_fitting = _load_form_fitting_config(args.form_fitting_config)
         chord_vocabulary = ChordVocabularyConfig.load()
     except (FileNotFoundError, ValueError) as exception:
         _LOGGER.error("Generator fitting input is invalid: %s", exception)
@@ -57,6 +59,7 @@ def main() -> None:
             register_default=register_default,
             accent_default=accent_default,
             chord_fit=chord_fit,
+            form_fitting=form_fitting,
             chord_vocabulary=chord_vocabulary,
             grid_denominator=args.grid_denominator,
         )
@@ -70,6 +73,7 @@ def main() -> None:
     _LOGGER.info("Register overrides fitted: %s", len(fitted.register_overrides))
     _LOGGER.info("Accent overrides fitted: %s", len(fitted.accent_overrides))
     _LOGGER.info("Chord transition models fitted: %s", len(fitted.chord_transitions))
+    _LOGGER.info("Form priors fitted: %s", len(fitted.form_priors))
     _LOGGER.info("Figure-by-chord rows fitted: %s", figure_by_chord_count)
     _LOGGER.info("Fitted generator config written to %s", output_path)
 
@@ -108,6 +112,10 @@ def _load_accent_config(path: Path | None) -> AccentFieldConfig:
 
 def _load_chord_fit_config(path: Path | None) -> ChordFitConfig:
     return ChordFitConfig.load() if path is None else ChordFitConfig.load(path)
+
+
+def _load_form_fitting_config(path: Path | None) -> FormFittingConfig:
+    return FormFittingConfig.load() if path is None else FormFittingConfig.load(path)
 
 
 def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -157,6 +165,12 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         type=Path,
         help="Chord-fit YAML config (prior_count, functional_strength, self_transition_bias) for the empirical "
         "transition smoothing prior.",
+    )
+    parser.add_argument(
+        "--form-fitting-config",
+        type=Path,
+        help="Form-fitting YAML config (cadence detector weights, repetition thresholds, smoothing, fallback prior) "
+        "for fitting the per-scale-type form priors from persisted form statistics.",
     )
     parser.add_argument(
         "--log-level",

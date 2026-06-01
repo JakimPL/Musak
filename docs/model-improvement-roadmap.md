@@ -5,7 +5,7 @@ This document turns the research direction from
 `musak_model`.
 
 Before implementing any phase, follow [guidelines.md](guidelines.md) for code ownership, typing, tests, and conversion
-placement. For the stochastic generator context and the reference-prior design, use [generator.md](generator.md) as the
+placement. For the stochastic generator context and the reference-prior design, use [generator/overview.md](generator/overview.md) as the
 main design source. For the current model pipeline, token semantics, and training flow, use [model.md](model.md).
 
 ## Current Diagnosis
@@ -109,7 +109,7 @@ Acceptance criteria:
 
 - Synthetic output improves against reference metrics without requiring manual slider tuning.
 - Register autocorrelation, density, rhythm, harmonic consonance, and figure-family distributions are logged.
-- `generator.md` and `generator-model.md` are updated when code behavior changes.
+- `generator/overview.md` and `generator/model.md` are updated when code behavior changes.
 
 ### 4. Establish The Stochastic Generator As Baseline
 
@@ -190,6 +190,6 @@ audio before treating a metric improvement as real.
 - Preserve scale-relative pitch semantics and `scale_root` as decode metadata.
 - Add abstractions only where they serve a measurable phase goal.
 - Keep generated-artifact schemas versioned and fail fast on partial/incompatible artifact sets.
-- Keep docs synchronized: update this roadmap for high-level plan changes, [generator.md](generator.md) for generator
-  design changes, [generator-model.md](generator-model.md) for implemented generator behavior, and [model.md](model.md)
+- Keep docs synchronized: update this roadmap for high-level plan changes, [generator/overview.md](generator/overview.md) for generator
+  design changes, [generator/model.md](generator/model.md) for implemented generator behavior, and [model.md](model.md)
   for token/training pipeline changes.

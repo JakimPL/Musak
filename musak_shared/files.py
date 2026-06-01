@@ -1,4 +1,6 @@
 import csv
+import hashlib
+import json
 import shutil
 from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
@@ -95,3 +97,13 @@ def remove_empty_parents(path: Path, *, stop_at: Path) -> None:
         except OSError:
             return
         current_path = current_path.parent
+
+
+def get_fingerprint(dictionary: dict[str, Any]) -> str:
+    return hashlib.sha256(
+        json.dumps(
+            dictionary,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()

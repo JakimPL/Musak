@@ -1,6 +1,6 @@
 # Design — Stochastic internal coherence: a top-down "plan-then-render" generator
 
-> Status: **high-level design** (deliberation). Destined for `docs/generator-coherence.md`.
+> Status: **high-level design** (deliberation). Destined for `docs/generator/coherence.md`.
 > Scope locked: short exercises (**4–16 bars**), **single key** (modulation deferred behind a switch),
 > classical/stochastic (non-neural) throughout. Specifies the generative model — *what is sampled, conditioned
 > on what* — not the implementation.
@@ -276,7 +276,7 @@ Given `B`: draw `(g,n) ~ P(g|n)` consistent with `B`; draw `string ~ P(string|n,
 
 ## 12. Controls (the founding style API) — preserved and re-homed
 
-The redesign must keep the controllability that motivated the project (`docs/generator.md` §1, §7). All survive;
+The redesign must keep the controllability that motivated the project (`docs/generator/overview.md` §1, §7). All survive;
 most are *improved* by acting on **structural units** instead of independent grid cells (the fix for "random draws
 ignore structure"). Each control is a parameter of **one** layer's generative process, so they stay orthogonal.
 
@@ -530,7 +530,7 @@ verbose names, `Final` constants, `uv run` tooling, tests mirror the package lay
 - **Phase 3 — Form (learned) + phrase/cadence induction.** Offline estimators (`synthetic/fitting/`):
   repetition-string histogram; cadence detection → phrase-length + `P(cadence_type|pos)` (§16.1). Generation:
   sample `FormTree`; wire `cadence_target` into Phase 1. *Verify:* sampled forms match corpus repetition + cadence
-  statistics; the 8-bar period reproduces.
+  statistics; the 8-bar period reproduces. **Concrete design:** [phase-3-form-estimators.md](phase-3-form-estimators.md).
 - **Phase 4 — Motif reuse-with-variation.** Per-class trees (§16.2 order); seed render + seed-selection `Q`;
   variation operators; re-grounding; `similarity_fit` + edit-distance neighborhood. *Verify:* restatements
   recognizable but not identical; repeated-figure-family & variation-after-repeat rates match corpus; **TV
@@ -539,8 +539,8 @@ verbose names, `Final` constants, `uv run` tooling, tests mirror the package lay
   global knobs; fit harmony `θ` (inside-outside + Dirichlet); calibrate `λ`s (incl. `λ_sim`) vs TV + structural
   metrics. *Verify:* controls move output as intended; TV under target; structural suite logged.
 - **Phase 6 — Fit, validate, document.** Fit all learned distributions; full structural + TV metrics; human
-  inspection (notation / piano-roll / audio); finalize **`docs/generator-coherence.md`** (as-built) and update
-  `docs/generator.md` / `generator-model.md`.
+  inspection (notation / piano-roll / audio); finalize **`docs/generator/coherence.md`** (as-built) and update
+  `docs/generator/overview.md` / `model.md`.
 - **Retirement:** once Phases 2–5 validate, remove the old greedy path, `processes/chord_track.py`'s sampler, and
   the accent field's structural role (it survives only as the density prior).
 

@@ -11,10 +11,13 @@ from musak_model.n_grams.profile.rhythm.schema import rhythm_artifact_paths_for_
 from musak_model.synthetic.fitting.accent import fit_accent_overrides_from_rhythm_counts
 from musak_model.synthetic.fitting.artifacts import FittedChordTransitions, FittedGeneratorConfig
 from musak_model.synthetic.fitting.chord import ChordFitConfig, fit_chord_transition_model
+from musak_model.synthetic.fitting.form.fit import FormFittingConfig, fit_form_priors
+from musak_model.synthetic.fitting.form.io import form_artifact_paths_for_figure_root, read_form_statistics
 from musak_model.synthetic.fitting.register import fit_register_overrides_from_statistics
 from musak_model.synthetic.processes.accent import AccentFieldConfig
 from musak_model.synthetic.processes.chord_track import functional_transition_model
 from musak_model.synthetic.processes.pitch import RegisterCurveConfig
+from musak_model.synthetic.structure.form import FormPrior
 from musak_model.tokens.schema import ScaleType
 
 
@@ -24,6 +27,7 @@ def fit_generator_config(
     register_default: RegisterCurveConfig,
     accent_default: AccentFieldConfig,
     chord_fit: ChordFitConfig,
+    form_fitting: FormFittingConfig,
     chord_vocabulary: ChordVocabularyConfig,
     grid_denominator: int,
 ) -> FittedGeneratorConfig:
@@ -46,7 +50,20 @@ def fit_generator_config(
         chord_transitions=_fit_chord_transitions_from_store(
             figure_root_directory, chord_fit=chord_fit, chord_vocabulary=chord_vocabulary
         ),
+        form_priors=_fit_form_priors_from_store(figure_root_directory, form_fitting=form_fitting),
     )
+
+
+def _fit_form_priors_from_store(
+    figure_root_directory: Path,
+    *,
+    form_fitting: FormFittingConfig,
+) -> dict[ScaleType, FormPrior]:
+    statistics = read_form_statistics(form_artifact_paths_for_figure_root(figure_root_directory))
+    if statistics is None:
+        return {}
+
+    return fit_form_priors(statistics, config=form_fitting)
 
 
 def _fit_chord_transitions_from_store(

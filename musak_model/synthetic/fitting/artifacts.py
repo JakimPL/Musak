@@ -10,6 +10,7 @@ from musak_model.n_grams.profile.chord.schema import chord_from_key, chord_to_ke
 from musak_model.synthetic.processes.accent import AccentFieldOverride
 from musak_model.synthetic.processes.chord_track import ChordTransitionModel
 from musak_model.synthetic.processes.pitch import RegisterCurveOverride
+from musak_model.synthetic.structure.form import FormPrior
 from musak_model.tokens.schema import ScaleType
 
 FITTED_GENERATOR_CONFIG_NAME: Final[str] = "fitted_generator.json"
@@ -51,10 +52,14 @@ class FittedGeneratorConfig(BaseModel):
     register_overrides: tuple[RegisterCurveOverride, ...] = ()
     accent_overrides: tuple[AccentFieldOverride, ...] = ()
     chord_transitions: dict[ScaleType, FittedChordTransitions] = {}
+    form_priors: dict[ScaleType, FormPrior] = {}
 
     def chord_transition_model(self, scale_type: ScaleType) -> ChordTransitionModel | None:
         fitted = self.chord_transitions.get(scale_type)
         return fitted.to_model() if fitted is not None else None
+
+    def form_prior(self, scale_type: ScaleType) -> FormPrior | None:
+        return self.form_priors.get(scale_type)
 
     @classmethod
     def read(cls, path: Path) -> FittedGeneratorConfig:

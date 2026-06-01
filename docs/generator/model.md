@@ -1,7 +1,7 @@
 # Synthetic Generator — Procedural Model (from code)
 
 > This document models the generator **as implemented** in `musak_model/synthetic/` and its
-> direct dependencies, not as described in [`generator.md`](generator.md). Where the running
+> direct dependencies, not as described in [`overview.md`](overview.md). Where the running
 > code diverges from the design doc, the actual behaviour is described here and the divergences
 > are collected in [§7](#7-where-the-code-diverges-from-generatormd). Every box maps to a concrete
 > symbol; file/line references are given in [§8](#8-symbol-index).
@@ -449,14 +449,14 @@ generation, `notebooks/utils/synthetic.py:load_synthetic_inputs` finds the artif
 
 ---
 
-## 7. Where the code diverges from `generator.md`
+## 7. Where the code diverges from `overview.md`
 
 The model body above describes the code as-built; most earlier divergences are now closed and folded into
 the body. One genuine divergence from the design remains:
 
 - **D7 — Figure length is uniform, not empirical.** `_place_one_figure` picks `figure_length` via
   `rng.choice(figure_lengths)` uniformly. `FigureVocabulary.length_distribution` exists but is unused on the
-  hot path. (See `generator-followups.md` #7.)
+  hot path. (See `followups.md` #7.)
 
 (The previously-tracked D1–D6 and D8–D10 are closed; their current behavior is described in §2–§3b and §6.
 D5's last piece — the empirical chord loop — is now closed and wired: the decoder runs in the corpus pass,

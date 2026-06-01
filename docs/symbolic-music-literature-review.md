@@ -70,7 +70,7 @@ n-grams are too numerous and sparse to become a vocabulary, but they are well su
 - decoding-time scores or renderer emissions;
 - evaluation baselines.
 
-This matches the direction of the synthetic generator design in [generator.md](generator.md): low-order global
+This matches the direction of the synthetic generator design in [generator/overview.md](generator/overview.md): low-order global
 processes supply structure, and empirical figure templates supply local musical surface.
 
 ## Paper Notes

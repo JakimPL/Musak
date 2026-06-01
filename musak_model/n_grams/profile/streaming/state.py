@@ -5,6 +5,7 @@ from typing import Any
 from musak_model.n_grams.config import NGramAnalysisConfig
 from musak_model.n_grams.profile.chord.schema import ChordDecodeSpec
 from musak_model.processing.snapshot import TokenizerSnapshot
+from musak_shared.files import get_fingerprint
 
 
 def figure_state_key(
@@ -28,4 +29,4 @@ def figure_state_key(
         payload["chord_decoder"] = chord_decode.decoder_config.model_dump(mode="json")
         payload["chord_vocabulary"] = chord_decode.vocabulary.model_dump(mode="json")
 
-    return hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
+    return get_fingerprint(payload)

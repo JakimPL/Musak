@@ -17,6 +17,8 @@
 13. Be explicit about type expectations. Avoid dynamic `getattr` or `hasattr`.
 14. Prefer existing, efficient library implementations over reinventing them. Reach for `numpy`, `scipy`, `scikit-learn`, etc. for numerical primitives (e.g. `scipy.special.expit` over a hand-rolled sigmoid, `scipy.signal.lfilter` over a Python AR(1) loop, `np.gcd` over a Python comprehension).
 15. Vectorise with NumPy whenever the computation operates over a sequence.
+16. Complex operations, especially repeated, should not be inlined but delegated to a helper function.
+17. Prefer `NamedTuple` instead of operating on raw indices.
 
 ## Shared Ownership
 

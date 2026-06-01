@@ -1,18 +1,18 @@
-# Gaps between `docs/generator.md` and the current implementation
+# Gaps between `docs/generator/overview.md` and the current implementation
 
-`docs/generator.md` is the design document. This file is the running list of places where the code does
+`docs/generator/overview.md` is the design document. This file is the running list of places where the code does
 not yet match it — gaps to be closed. Each entry names what the design says, what the code does today, and
 what closing the gap requires.
 
 The entries fall into two kinds: **unimplemented design** (the feature simply is not there yet) and
 **code diverges from design** (a step exists but computes something different from the doc). The latter were
-surfaced by the code-derived model in [`docs/generator-model.md`](generator-model.md); its §6 carries the
+surfaced by the code-derived model in [`docs/generator/model.md`](model.md); its §6 carries the
 `D1`–`D10` labels cross-referenced below.
 
 Already closed: the accent field is wired into substitution, the length-0 decoder window is guarded, and
 the activity gate plus register/accent reads are now per grid cell (gaps 1 and 3). (The register home-offset
 $\mu_i$ was never a gap — `octave_offset` is home-relative and $\mu_i$ is applied at token-to-MIDI
-conversion; see `docs/generator.md` §3.) A quick-wins pass then closed gaps 5, 6, 12 and 13, and a
+conversion; see `docs/generator/overview.md` §3.) A quick-wins pass then closed gaps 5, 6, 12 and 13, and a
 structural pass closed gaps 2 (sync coupling) and 9 (sub-bar harmonic rhythm) (all below).
 
 A musical pass then closed #4 (metrical harmonic conditioning) and #8 (texture mode), and landed the
@@ -113,7 +113,7 @@ against a one-cell register change, so the two quantities lived on different sca
 last)] - curve[fired]` — the register change over as many cells as the figure has onsets (one cell per
 onset) — so the slope target and the figure's multi-onset displacement share a scale. `figure_net_contour`
 is kept as the net displacement of the figure's lowest voice (the appropriate quantity for slope-matching;
-the doc's "Σ relative steps" wording was the loose part), documented as such, and `docs/generator.md` §6 is
+the doc's "Σ relative steps" wording was the loose part), documented as such, and `docs/generator/overview.md` §6 is
 reconciled to match. The mean-voice alternative for polyphonic onsets was considered and not adopted — the
 lowest voice is consistent with the figure anchoring convention.
 
@@ -204,7 +204,7 @@ and load into the **generation** path (`load_synthetic_inputs` → `build_segmen
 sweep stays on the default (neutral), per the deferred coupling. Same `config + overrides` keying exists for
 the accent field (#11).
 
-*Design-vs-code refinement:* `generator.md` §3/§9 describes the register fit as a Welch-averaged PSD of
+*Design-vs-code refinement:* `overview.md` §3/§9 describes the register fit as a Welch-averaged PSD of
 length-normalised trajectories; the implementation realises the same intent (moment-match arch + OU per
 `(scale_type, hand)`) via the **mid-cell DCT trend/residual partition**, which is consistent-by-construction
 with the arch sampler.
@@ -237,7 +237,7 @@ weighted regression** of `logit(occupancy_rate)` on `indispensability^exponent` 
 `metric_gain`, and a **fitted `metric_exponent`** (searched over a small candidate set). The accent
 **envelope** parameters remain pass-through (fitting deferred — see the deferred list).
 
-*Design-vs-code refinement:* `generator.md` §9 describes the accent fit as fitting baseline/gain/exponent to
+*Design-vs-code refinement:* `overview.md` §9 describes the accent fit as fitting baseline/gain/exponent to
 "the measured strong/weak onset ratio and overall density"; the implementation uses the richer **per-position
 occupancy profile** instead (the strong/weak ratio is a two-bucket special case of it), which is what makes
 the exponent identifiable.

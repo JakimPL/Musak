@@ -16,6 +16,7 @@ ACCENT_FIELD_CONFIG_PATH: Final[Path] = CONFIGS_DIRECTORY / "generation" / "acce
 METRICAL_GRAMMAR_CONFIG_PATH: Final[Path] = CONFIGS_DIRECTORY / "generation" / "metrical_grammar.yml"
 HARMONY_GRAMMAR_CONFIG_PATH: Final[Path] = CONFIGS_DIRECTORY / "generation" / "harmony_grammar.yml"
 RENDER_CONFIG_PATH: Final[Path] = CONFIGS_DIRECTORY / "generation" / "render.yml"
+FORM_FITTING_CONFIG_PATH: Final[Path] = CONFIGS_DIRECTORY / "generation" / "form_fitting.yml"
 HAND_COUPLING_CONFIG_PATH: Final[Path] = CONFIGS_DIRECTORY / "generation" / "hand_coupling.yml"
 CALIBRATION_CONFIG_PATH: Final[Path] = CONFIGS_DIRECTORY / "generation" / "calibration.yml"
 INGESTION_CONFIG_PATH: Final[Path] = CONFIGS_DIRECTORY / "training" / "ingestion.yml"

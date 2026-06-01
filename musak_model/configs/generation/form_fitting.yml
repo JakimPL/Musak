@@ -1,0 +1,43 @@
+cadence:
+  metrical_weight: 1.0
+  harmonic_arrival_weight: 1.5
+  rhythmic_stop_weight: 0.5
+  bar_alignment_weight: 0.5
+  cadence_threshold: 1.5
+  minimum_cadence_separation_slots: 2
+  maximum_closing_slots: 3
+repetition:
+  segment_length_candidates: [1, 2, 4]
+  similarity_bucket_count: 20
+smoothing_pseudo_count: 1.0
+minimum_observation_count: 8
+same_similarity_threshold: 0.85
+variation_similarity_threshold: 0.5
+fallback_prior:
+  phrase_lengths:
+    - bars: 2
+      weight: 1.0
+    - bars: 4
+      weight: 3.0
+    - bars: 8
+      weight: 2.0
+  segment_lengths:
+    - bars: 2
+      weight: 3.0
+    - bars: 4
+      weight: 1.0
+  closings:
+    - is_final: false
+      functions: [predominant, dominant]
+      weight: 2.0
+    - is_final: false
+      functions: [dominant]
+      weight: 1.0
+    - is_final: true
+      functions: [dominant, tonic]
+      weight: 2.0
+    - is_final: true
+      functions: [predominant, dominant, tonic]
+      weight: 1.0
+  repeat_probability: 0.5
+  variation_probability: 0.5
