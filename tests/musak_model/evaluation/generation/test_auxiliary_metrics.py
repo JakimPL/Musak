@@ -58,6 +58,7 @@ def _sample(*, duration_id: int, decode_error: str | None = None) -> GenerationS
         ),
         diagnostics=None,
         decode_error=decode_error,
+        harmonic_plan_windows=None,
         completed_bars=0,
         target_bar_count=1,
     )

@@ -38,7 +38,7 @@ def _note(degree: int, duration_id: int) -> NoteToken:
     return NoteToken(degree=degree, accidental=0, octave_offset=0, duration_id=duration_id)
 
 
-def test_harmonic_consonance_rate_counts_coincident_onset_intervals(duration_vocabulary: DurationVocabulary) -> None:
+def test_harmonic_consonance_rates_count_coincident_onset_intervals(duration_vocabulary: DurationVocabulary) -> None:
     whole = duration_vocabulary.require_duration_id(Fraction(1))
     segment = _segment(
         [
@@ -60,7 +60,8 @@ def test_harmonic_consonance_rate_counts_coincident_onset_intervals(duration_voc
     metrics = musical_metrics([segment], duration_vocabulary=duration_vocabulary)
 
     assert metrics["musical/count/coincident_onset_pairs"] == 2.0
-    assert metrics["musical/rate/harmonic_consonance"] == 0.5
+    assert metrics["musical/rate/triadic_harmonic_consonance"] == 0.5
+    assert metrics["musical/rate/perfect_harmonic_consonance"] == 0.5
 
 
 def test_register_autocorrelation_high_for_ascending_line(duration_vocabulary: DurationVocabulary) -> None:
@@ -84,7 +85,8 @@ def test_register_autocorrelation_high_for_ascending_line(duration_vocabulary: D
     metrics = musical_metrics([segment], duration_vocabulary=duration_vocabulary)
 
     assert metrics["musical/mean/register_lag1_autocorrelation"] > 0.9
-    assert "musical/rate/harmonic_consonance" not in metrics
+    assert "musical/rate/triadic_harmonic_consonance" not in metrics
+    assert "musical/rate/perfect_harmonic_consonance" not in metrics
 
 
 def test_no_coincident_onsets_and_too_few_notes_report_only_the_count(
@@ -106,5 +108,6 @@ def test_no_coincident_onsets_and_too_few_notes_report_only_the_count(
     metrics = musical_metrics([segment], duration_vocabulary=duration_vocabulary)
 
     assert metrics["musical/count/coincident_onset_pairs"] == 0.0
-    assert "musical/rate/harmonic_consonance" not in metrics
+    assert "musical/rate/triadic_harmonic_consonance" not in metrics
+    assert "musical/rate/perfect_harmonic_consonance" not in metrics
     assert "musical/mean/register_lag1_autocorrelation" not in metrics

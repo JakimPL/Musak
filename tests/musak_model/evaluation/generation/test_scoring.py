@@ -44,6 +44,7 @@ def _sample(*, diagnostics: SegmentDiagnostics | None) -> GenerationSample:
         ),
         diagnostics=diagnostics,
         decode_error=None,
+        harmonic_plan_windows=None,
         completed_bars=1,
         target_bar_count=2,
     )

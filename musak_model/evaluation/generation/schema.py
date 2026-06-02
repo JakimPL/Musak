@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from musak_model.conditioning.harmony.schema import HarmonicPlanWindow
 from musak_model.evaluation.diagnostics import SegmentDiagnostics
 from musak_model.tokens.schema import Token
 
@@ -23,6 +24,7 @@ class GenerationSample:
     constraint_report: ConstraintReport
     diagnostics: SegmentDiagnostics | None
     decode_error: str | None
+    harmonic_plan_windows: tuple[HarmonicPlanWindow, ...] | None
     completed_bars: int
     target_bar_count: int
 

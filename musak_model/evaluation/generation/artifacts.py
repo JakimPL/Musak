@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
 
+from musak_model.conditioning.harmony.schema import HarmonicPlanWindow
 from musak_model.decoder.music21 import write_segment
 from musak_model.evaluation.generation.protocols import GenerationEvaluationOptions
 from musak_model.evaluation.generation.sampling import segment_from_tokens
@@ -111,6 +112,7 @@ def _manifest_record(
         "constraint_report": _constraint_report_values(sample.constraint_report),
         "diagnostics": None if sample.diagnostics is None else sample.diagnostics.to_manifest_values(),
         "decode_error": sample.decode_error,
+        "harmonic_plan": _optional_harmonic_plan_values(sample.harmonic_plan_windows),
         "completed_bars": sample.completed_bars,
         "target_bar_count": sample.target_bar_count,
     }
@@ -123,6 +125,26 @@ def _constraint_report_values(report: ConstraintReport) -> dict[str, float | int
         "first_failure_step": report.first_failure_step,
         "error": report.error,
     }
+
+
+def _optional_harmonic_plan_values(
+    windows: tuple[HarmonicPlanWindow, ...] | None,
+) -> list[dict[str, int | str | None]] | None:
+    if windows is None:
+        return None
+
+    return [
+        {
+            "start": str(window.start),
+            "end": str(window.end),
+            "root_degree": window.chord.root_degree,
+            "root_accidental": window.chord.root_accidental,
+            "quality": window.chord.quality.value,
+            "extension": window.chord.extension.value,
+            "harmonic_function": None if window.harmonic_function is None else window.harmonic_function.value,
+        }
+        for window in windows
+    ]
 
 
 def _optional_relative_path_text(path: Path | None, base_directory: Path) -> str | None:

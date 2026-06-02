@@ -14,6 +14,8 @@ MAX_ONSET_SPAN_SEMITONES: Final[int] = 12
 
 PITCHES_PER_OCTAVE: Final[int] = 12
 MIDI_OCTAVE_OFFSET: Final[int] = 1
+TRIADIC_CONSONANT_INTERVAL_CLASSES: Final[frozenset[int]] = frozenset({0, 3, 4, 5, 7, 8, 9})
+PERFECT_CONSONANT_INTERVAL_CLASSES: Final[frozenset[int]] = frozenset({0, 5, 7})
 SHARP_PITCH_CLASS_NAMES: Final[tuple[str, ...]] = ("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
 FLAT_PITCH_CLASS_NAMES: Final[tuple[str, ...]] = ("C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B")
 PITCH_CLASS_NAMES: Final[tuple[str, ...]] = SHARP_PITCH_CLASS_NAMES

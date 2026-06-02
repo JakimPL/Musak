@@ -188,12 +188,15 @@ def test_generation_suite_passes_harmonic_plan_when_enabled() -> None:
         figure_profile_artifacts=None,
     )
 
-    evaluator.evaluate_result(model, device=torch.device("cpu"))
+    result = evaluator.evaluate_result(model, device=torch.device("cpu"))
 
     assert len(model.harmonic_plans) == 1
     assert model.harmonic_plans[0] is not None
     assert model.harmonic_plans[0].shape == torch.Size([1, 1])
     assert int(model.harmonic_plans[0].root_degree_ids[0, 0].item()) > 0
+    assert result.sample_suites[0].samples[0].harmonic_plan_windows is not None
+    assert result.metrics["generation/soft/harmony/count/planned_samples"] == 1.0
+    assert result.metrics["generation/soft/harmony/count/decoded_samples"] == 1.0
 
 
 def test_generation_suite_rejects_harmony_conditioning_mismatch() -> None:

@@ -1,4 +1,5 @@
 from collections.abc import Sequence
+from dataclasses import dataclass
 from fractions import Fraction
 from typing import Final
 
@@ -9,13 +10,23 @@ from musak_model.n_grams.figure.parser import extract_hand_onset_runs
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.pitch import note_token_to_midi_pitch
 from musak_model.tokens.schema import Hand
-from musak_shared.elements import PITCHES_PER_OCTAVE
+from musak_shared.elements import (
+    PERFECT_CONSONANT_INTERVAL_CLASSES,
+    PITCHES_PER_OCTAVE,
+    TRIADIC_CONSONANT_INTERVAL_CLASSES,
+)
 
 _METRIC_PREFIX: Final[str] = "musical"
-_CONSONANT_INTERVAL_CLASSES: Final[frozenset[int]] = frozenset({0, 3, 4, 5, 7, 8, 9})
 _MINIMUM_AUTOCORRELATION_LENGTH: Final[int] = 3
 
 type OnsetPitches = list[tuple[Fraction, tuple[int, ...]]]
+
+
+@dataclass(frozen=True)
+class _ConsonanceCounts:
+    triadic_consonant_pairs: int
+    perfect_consonant_pairs: int
+    total_pairs: int
 
 
 def musical_metrics(
@@ -24,19 +35,22 @@ def musical_metrics(
     duration_vocabulary: DurationVocabulary,
     metric_prefix: str = _METRIC_PREFIX,
 ) -> dict[str, float]:
-    consonant_pairs = 0
+    triadic_consonant_pairs = 0
+    perfect_consonant_pairs = 0
     coincident_pairs = 0
     autocorrelations: list[float] = []
     for segment in segments:
         onset_pitches = _onset_pitches_by_hand(segment, duration_vocabulary=duration_vocabulary)
-        consonant, total = _coincident_consonance_counts(onset_pitches)
-        consonant_pairs += consonant
-        coincident_pairs += total
+        counts = _coincident_consonance_counts(onset_pitches)
+        triadic_consonant_pairs += counts.triadic_consonant_pairs
+        perfect_consonant_pairs += counts.perfect_consonant_pairs
+        coincident_pairs += counts.total_pairs
         autocorrelations.extend(_register_autocorrelations(onset_pitches))
 
     metrics: dict[str, float] = {f"{metric_prefix}/count/coincident_onset_pairs": float(coincident_pairs)}
     if coincident_pairs > 0:
-        metrics[f"{metric_prefix}/rate/harmonic_consonance"] = consonant_pairs / coincident_pairs
+        metrics[f"{metric_prefix}/rate/triadic_harmonic_consonance"] = triadic_consonant_pairs / coincident_pairs
+        metrics[f"{metric_prefix}/rate/perfect_harmonic_consonance"] = perfect_consonant_pairs / coincident_pairs
 
     if autocorrelations:
         metrics[f"{metric_prefix}/mean/register_lag1_autocorrelation"] = float(np.mean(autocorrelations))
@@ -73,9 +87,10 @@ def _onset_pitches_by_hand(
     }
 
 
-def _coincident_consonance_counts(onset_pitches: dict[Hand, OnsetPitches]) -> tuple[int, int]:
+def _coincident_consonance_counts(onset_pitches: dict[Hand, OnsetPitches]) -> _ConsonanceCounts:
     left_pitches_by_start = dict(onset_pitches.get(Hand.LEFT, []))
-    consonant = 0
+    triadic_consonant = 0
+    perfect_consonant = 0
     total = 0
     for start, right_pitches in onset_pitches.get(Hand.RIGHT, []):
         left_pitches = left_pitches_by_start.get(start)
@@ -85,10 +100,17 @@ def _coincident_consonance_counts(onset_pitches: dict[Hand, OnsetPitches]) -> tu
         for right_pitch in right_pitches:
             for left_pitch in left_pitches:
                 total += 1
-                if abs(right_pitch - left_pitch) % PITCHES_PER_OCTAVE in _CONSONANT_INTERVAL_CLASSES:
-                    consonant += 1
+                interval_class = abs(right_pitch - left_pitch) % PITCHES_PER_OCTAVE
+                if interval_class in TRIADIC_CONSONANT_INTERVAL_CLASSES:
+                    triadic_consonant += 1
+                if interval_class in PERFECT_CONSONANT_INTERVAL_CLASSES:
+                    perfect_consonant += 1
 
-    return consonant, total
+    return _ConsonanceCounts(
+        triadic_consonant_pairs=triadic_consonant,
+        perfect_consonant_pairs=perfect_consonant,
+        total_pairs=total,
+    )
 
 
 def _register_autocorrelations(onset_pitches: dict[Hand, OnsetPitches]) -> list[float]:

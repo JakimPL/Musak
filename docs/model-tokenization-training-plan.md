@@ -162,7 +162,12 @@ This section is the durable resumption point if work continues after context com
   `HarmonicPlanWindow`s over `GenerationConstraints`, aligns those windows to decoder coordinates at each sampling
   step, and passes batched `HarmonicPlanInputTensors` into the model when harmony conditioning is enabled. Empirical
   chord-transition providers are still deferred.
-- Next: implement Structural-bias Phase 6 by adding plan-aware generation metrics.
+- Completed: Structural-bias Phase 6 adds plan-aware generation metrics under
+  `generation/<soft|hard>/harmony/*`. Evaluation now retains the sampled harmonic plan per `GenerationSample`, writes
+  it into the sample artifact manifest, decodes the generated token stream with the same Viterbi chord decoder, and
+  reports duration-overlap agreement for harmonic function and root degree. It also reports duration-weighted planned
+  chord-tone coverage, strong-beat chord-tone coverage using `rhythm_analysis.strong_beat_offsets`,
+  triadic and perfect coincident-onset consonance, and final-slot closure.
 
 Early non-unit validation for Phase 2A:
 

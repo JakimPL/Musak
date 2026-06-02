@@ -34,6 +34,7 @@ def _sample(tokens: list[Token], *, decode_error: str | None = None) -> Generati
         constraint_report=ConstraintReport(failed=False, valid_token_fraction=1.0, first_failure_step=None, error=None),
         diagnostics=None,
         decode_error=decode_error,
+        harmonic_plan_windows=None,
         completed_bars=sum(isinstance(token, BarToken) for token in tokens),
         target_bar_count=2,
     )
@@ -66,7 +67,8 @@ def test_musical_profile_metrics_use_generation_prefix(duration_vocabulary: Dura
     metrics = musical_profile_metrics(samples=samples, config=_Options(), duration_vocabulary=duration_vocabulary)
 
     assert metrics["generation/musical/count/coincident_onset_pairs"] == 2.0
-    assert metrics["generation/musical/rate/harmonic_consonance"] == 0.5
+    assert metrics["generation/musical/rate/triadic_harmonic_consonance"] == 0.5
+    assert metrics["generation/musical/rate/perfect_harmonic_consonance"] == 0.5
 
 
 def test_musical_profile_metrics_skip_decode_errors(duration_vocabulary: DurationVocabulary) -> None:
@@ -80,4 +82,5 @@ def test_musical_profile_metrics_skip_decode_errors(duration_vocabulary: Duratio
     metrics = musical_profile_metrics(samples=samples, config=_Options(), duration_vocabulary=duration_vocabulary)
 
     assert metrics["generation/musical/count/coincident_onset_pairs"] == 2.0
-    assert metrics["generation/musical/rate/harmonic_consonance"] == 0.5
+    assert metrics["generation/musical/rate/triadic_harmonic_consonance"] == 0.5
+    assert metrics["generation/musical/rate/perfect_harmonic_consonance"] == 0.5

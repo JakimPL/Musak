@@ -19,6 +19,7 @@ from musak_model.evaluation.diagnostics import SegmentDiagnostics, diagnose_segm
 from musak_model.evaluation.generation.artifacts import write_generation_sample_artifacts
 from musak_model.evaluation.generation.auxiliary_metrics import musical_auxiliary_bucket_metrics
 from musak_model.evaluation.generation.figure_metrics import figure_profile_metrics
+from musak_model.evaluation.generation.harmony_metrics import harmonic_plan_metrics
 from musak_model.evaluation.generation.musical_metrics import musical_profile_metrics
 from musak_model.evaluation.generation.protocols import (
     GenerationConditioningOptions,
@@ -72,6 +73,7 @@ class _SampleSuites:
 class _SampledTokenIds:
     token_ids: list[int]
     constraint_error: str | None
+    harmonic_plan_windows: tuple[HarmonicPlanWindow, ...] | None
 
 
 @dataclass(frozen=True)
@@ -191,11 +193,26 @@ class GenerationSuiteEvaluator:
     def _evaluation_metrics(self, suites: _SampleSuites) -> dict[str, float]:
         _LOGGER.info("Computing generation evaluation metrics")
         samples = [*suites.soft_samples, *suites.hard_samples]
+        n_gram_analysis_config = NGramAnalysisConfig.load()
         metrics = {
             **suite_metrics(_SOFT_SUITE_NAME, suites.soft_samples),
             **suite_metrics(_HARD_SUITE_NAME, suites.hard_samples),
             **generation_sample_score_metrics(_SOFT_SUITE_NAME, suites.soft_samples, config=self._config),
             **generation_sample_score_metrics(_HARD_SUITE_NAME, suites.hard_samples, config=self._config),
+            **harmonic_plan_metrics(
+                _SOFT_SUITE_NAME,
+                suites.soft_samples,
+                config=self._config,
+                duration_vocabulary=self._duration_vocabulary,
+                rhythm_config=n_gram_analysis_config.rhythm_analysis,
+            ),
+            **harmonic_plan_metrics(
+                _HARD_SUITE_NAME,
+                suites.hard_samples,
+                config=self._config,
+                duration_vocabulary=self._duration_vocabulary,
+                rhythm_config=n_gram_analysis_config.rhythm_analysis,
+            ),
             **figure_profile_metrics(
                 self._figure_profile_artifacts,
                 samples=samples,
@@ -206,7 +223,7 @@ class GenerationSuiteEvaluator:
                 self._figure_profile_artifacts,
                 samples=samples,
                 config=self._config,
-                rhythm_config=NGramAnalysisConfig.load().rhythm_analysis,
+                rhythm_config=n_gram_analysis_config.rhythm_analysis,
                 duration_vocabulary=self._duration_vocabulary,
             ),
             **musical_profile_metrics(
@@ -262,6 +279,7 @@ class GenerationSuiteEvaluator:
         return self._generation_sample(
             decoded_sample,
             constraint_error=sampled_token_ids.constraint_error,
+            harmonic_plan_windows=sampled_token_ids.harmonic_plan_windows,
             constraints=constraints,
         )
 
@@ -313,7 +331,11 @@ class GenerationSuiteEvaluator:
             if isinstance(self._token_vocabulary.id_to_token(next_token_id), EndToken):
                 break
 
-        return _SampledTokenIds(token_ids=token_ids, constraint_error=constraint_error)
+        return _SampledTokenIds(
+            token_ids=token_ids,
+            constraint_error=constraint_error,
+            harmonic_plan_windows=harmonic_plan_windows,
+        )
 
     def _prefix_exceeds_model_context(self, token_ids: list[int]) -> bool:
         model_input_length = len([self._token_vocabulary.start_token_id, *token_ids])
@@ -429,6 +451,7 @@ class GenerationSuiteEvaluator:
         decoded_sample: _DecodedSample,
         *,
         constraint_error: str | None,
+        harmonic_plan_windows: tuple[HarmonicPlanWindow, ...] | None,
         constraints: GenerationConstraints,
     ) -> GenerationSample:
         return GenerationSample(
@@ -443,6 +466,7 @@ class GenerationSuiteEvaluator:
             ),
             diagnostics=decoded_sample.diagnostics,
             decode_error=decoded_sample.decode_error,
+            harmonic_plan_windows=harmonic_plan_windows,
             completed_bars=sum(isinstance(token, BarToken) for token in decoded_sample.tokens),
             target_bar_count=self._config.bar_count,
         )
