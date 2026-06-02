@@ -78,3 +78,15 @@ class TestPhrasesToScoreData:
         assert len(score.rows) == 2
         assert len(score.rows[0]) == 2
         assert len(score.rows[1]) == 2
+
+    def test_melodic_score_uses_treble_clef(self) -> None:
+        phrase = Phrase(notes=[Note(duration=4)] * 4)
+        score = phrases_to_score_data([phrase], time_signature=(4, 4), tempo=120, melodic=True)
+        assert score.rows[0][0].clef == "treble"
+        assert score.rows[0][0].voices[0].notes[0].keys == ["c/4"]
+
+    def test_melodic_groups_use_distinct_keys(self) -> None:
+        phrase = Phrase(notes=[Note(duration=4)])
+        score = phrases_to_score_data([phrase, phrase], time_signature=(4, 4), tempo=120, melodic=True)
+        assert score.rows[0][0].voices[0].notes[0].keys == ["c/4"]
+        assert score.rows[1][0].voices[0].notes[0].keys == ["e/4"]

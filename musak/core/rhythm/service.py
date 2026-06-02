@@ -411,6 +411,7 @@ class RhythmService:
             time_signature=settings.time_signature,
             tempo=settings.tempo,
             max_notes_per_measure=generator.max_notes_per_measure,
+            melodic=request.melodic,
         )
 
         midi_file = phrases_to_midi(

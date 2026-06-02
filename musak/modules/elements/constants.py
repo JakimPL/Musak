@@ -45,5 +45,6 @@ MIDI_TICKS_PER_BEAT: Final[int] = 480
 MIDI_VELOCITY: Final[int] = 80
 MIDI_PERCUSSION_CHANNEL: Final[int] = 9
 MIDI_PERCUSSION_NOTE: Final[int] = 42
+MIDI_PERCUSSION_NOTES: Final[tuple[int, ...]] = (36, 42, 38, 37)
 MIDI_MELODIC_CHANNEL: Final[int] = 0
 MIDI_MELODIC_NOTE: Final[int] = 60
