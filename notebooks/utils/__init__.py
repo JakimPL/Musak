@@ -34,6 +34,7 @@ from notebooks.utils.encoded import (
     load_encoded_shard_context,
 )
 from notebooks.utils.file_browser import FileSelection, selected_directory, selected_file, selected_musicxml_file
+from notebooks.utils.form_render import FormRenderOutput, FormRenderRequest, render_form_segment
 from notebooks.utils.model_output import (
     GeneratedOutput,
     GenerationRequest,
@@ -148,6 +149,9 @@ __all__ = [
     "DatasetStatistics",
     "DEFAULT_DATASET_QUALITY_DATABASE_PATH",
     "FileSelection",
+    "FormRenderOutput",
+    "FormRenderRequest",
+    "render_form_segment",
     "FIGURE_CHORDS_ONLY_COLUMN",
     "FIGURE_DURATION_UNIT_COLUMN",
     "FIGURE_IN_SCALE_COLUMN",
