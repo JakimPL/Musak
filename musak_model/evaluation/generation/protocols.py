@@ -37,6 +37,7 @@ class GenerationConditioningOptions(Protocol):
     use_time_signature: bool
     use_scale_type: bool
     use_structural_conditioning: bool
+    use_harmony_conditioning: bool
 
 
 class GenerationModel(Protocol):

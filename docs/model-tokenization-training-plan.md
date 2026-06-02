@@ -156,10 +156,13 @@ This section is the durable resumption point if work continues after context com
 - Completed: Structural-bias Phase 4 wires harmonic-plan tensors into training examples, collation, device movement,
   model protocols, and model forward/training paths. `TrainingConditioningConfig.use_harmony_conditioning` controls
   dataset/batch usage; `conditioning.harmony.enabled` controls whether the model instantiates harmonic-plan embedding
-  tables. The embeddings are added as per-step token context and the event objective is unchanged. Generation still
-  receives all-unknown harmony until Phase 5 supplies an explicit plan.
-- Next: implement Structural-bias Phase 5 by adding a generation plan provider and passing aligned harmonic-plan
-  tensors at each sampling step.
+  tables. The embeddings are added as per-step token context and the event objective is unchanged.
+- Completed: Structural-bias Phase 5 adds a generation harmonic-plan provider. Generation now samples a
+  deterministic-per-seed diatonic chord track from the existing functional transition prior, converts it to
+  `HarmonicPlanWindow`s over `GenerationConstraints`, aligns those windows to decoder coordinates at each sampling
+  step, and passes batched `HarmonicPlanInputTensors` into the model when harmony conditioning is enabled. Empirical
+  chord-transition providers are still deferred.
+- Next: implement Structural-bias Phase 6 by adding plan-aware generation metrics.
 
 Early non-unit validation for Phase 2A:
 

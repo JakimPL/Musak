@@ -65,13 +65,13 @@ def _generation_config(**overrides: object) -> GenerationEvaluationConfig:
     return GenerationEvaluationConfig.model_validate(values)
 
 
-def _conditioning_config() -> TrainingConditioningConfig:
+def _conditioning_config(*, use_harmony_conditioning: bool = False) -> TrainingConditioningConfig:
     return TrainingConditioningConfig(
         use_time_signature=False,
         use_scale_type=False,
         use_difficulty=False,
         use_structural_conditioning=False,
-        use_harmony_conditioning=False,
+        use_harmony_conditioning=use_harmony_conditioning,
         use_validity_penalty=False,
         validity_penalty_weight=0.05,
     )
@@ -92,6 +92,7 @@ class ScriptedModel:
         self._vocabulary_size = vocabulary_size
         self._step = 0
         self.training = True
+        self.harmonic_plans: list[HarmonicPlanInputTensors | None] = []
 
     def eval(self) -> "ScriptedModel":
         self.training = False
@@ -116,6 +117,7 @@ class ScriptedModel:
         harmonic_plan: HarmonicPlanInputTensors | None = None,
         token_padding_mask: Tensor | None = None,
     ) -> Tensor:
+        self.harmonic_plans.append(harmonic_plan)
         logits = torch.full((1, token_ids.size(1), self._vocabulary_size), -1000.0)
         scripted_id = self._token_ids[min(self._step, len(self._token_ids) - 1)]
         logits[0, -1, scripted_id] = 1000.0
@@ -170,6 +172,44 @@ def test_generation_suite_logs_soft_and_hard_constraint_metrics() -> None:
     assert metrics["generation/hard/mean/constraint_valid_token_fraction"] == 1.0
     assert metrics["generation/musical_auxiliary/count/samples"] == 2.0
     assert "generation/soft/mean/sample_penalty" in metrics
+
+
+def test_generation_suite_passes_harmonic_plan_when_enabled() -> None:
+    duration_vocabulary = DurationVocabulary(TokenizationConfig(shortest_duration=16, allowed_tuplets=(3,), max_dots=1))
+    token_vocabulary = TokenVocabulary(duration_vocabulary)
+    model = ScriptedModel([token_vocabulary.end_token_id], vocabulary_size=token_vocabulary.vocabulary_size)
+    evaluator = GenerationSuiteEvaluator(
+        config=_generation_config(soft_sample_count=1, hard_sample_count=0, max_new_tokens=1),
+        conditioning=_conditioning_config(use_harmony_conditioning=True),
+        model_config=_model_config(token_vocabulary.vocabulary_size, harmony_enabled=True),
+        token_vocabulary=token_vocabulary,
+        duration_vocabulary=duration_vocabulary,
+        include_bar_count_control=False,
+        figure_profile_artifacts=None,
+    )
+
+    evaluator.evaluate_result(model, device=torch.device("cpu"))
+
+    assert len(model.harmonic_plans) == 1
+    assert model.harmonic_plans[0] is not None
+    assert model.harmonic_plans[0].shape == torch.Size([1, 1])
+    assert int(model.harmonic_plans[0].root_degree_ids[0, 0].item()) > 0
+
+
+def test_generation_suite_rejects_harmony_conditioning_mismatch() -> None:
+    duration_vocabulary = DurationVocabulary(TokenizationConfig(shortest_duration=16, allowed_tuplets=(3,), max_dots=1))
+    token_vocabulary = TokenVocabulary(duration_vocabulary)
+
+    with pytest.raises(ValueError, match="harmony conditioning"):
+        GenerationSuiteEvaluator(
+            config=_generation_config(soft_sample_count=0, hard_sample_count=0),
+            conditioning=_conditioning_config(use_harmony_conditioning=True),
+            model_config=_model_config(token_vocabulary.vocabulary_size, harmony_enabled=False),
+            token_vocabulary=token_vocabulary,
+            duration_vocabulary=duration_vocabulary,
+            include_bar_count_control=False,
+            figure_profile_artifacts=None,
+        )
 
 
 def test_generation_suite_includes_loaded_figure_profile_context_metrics(tmp_path: Path) -> None:
@@ -363,7 +403,7 @@ def _rhythm_profile_artifacts(tmp_path: Path) -> RhythmProfileArtifacts:
     )
 
 
-def _model_config(vocabulary_size: int) -> ModelConfig:
+def _model_config(vocabulary_size: int, *, harmony_enabled: bool = False) -> ModelConfig:
     return ModelConfig(
         vocabulary_size=vocabulary_size,
         duration_vocabulary_size=1,
@@ -383,7 +423,7 @@ def _model_config(vocabulary_size: int) -> ModelConfig:
         conditioning=ConditioningConfig(
             difficulty=DifficultyConfig(max_level=5),
             time_signature=TimeSignatureVocabularyConfig(max_denominator=4, relative_numerator_range=2),
-            harmony=HarmonicConditioningConfig(enabled=False),
+            harmony=HarmonicConditioningConfig(enabled=harmony_enabled),
             cfg_dropout_probability=0.0,
         ),
     )

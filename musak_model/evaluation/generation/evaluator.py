@@ -9,6 +9,9 @@ from typing import Final
 import torch
 from torch import Tensor
 
+from musak_model.conditioning.harmony.alignment import harmonic_plan_tensors_from_decoder_coordinates
+from musak_model.conditioning.harmony.generation import FunctionalHarmonicPlanProvider, HarmonicPlanProvider
+from musak_model.conditioning.harmony.schema import HarmonicPlanInputTensors, HarmonicPlanWindow
 from musak_model.conditioning.structural.schema import StructuralControlFeatures
 from musak_model.conditioning.structural.vocabulary import StructuralControlVocabulary
 from musak_model.conditioning.time_signature import TimeSignatureVocabulary
@@ -45,7 +48,7 @@ from musak_model.generation.constraints import (
     allowed_next_token_ids,
     mask_disallowed_logits,
 )
-from musak_model.generation.coordinates import decoder_input_coordinates_from_token_ids
+from musak_model.generation.coordinates import DecoderInputCoordinates, decoder_input_coordinates_from_token_ids
 from musak_model.model.config import ModelConfig
 from musak_model.n_grams.config import NGramAnalysisConfig
 from musak_model.n_grams.profile.loading import FigureProfileArtifacts
@@ -104,6 +107,10 @@ class GenerationSuiteEvaluator:
         self._duration_tick_denominator = duration_tick_denominator(duration_vocabulary)
         self._include_bar_count_control = include_bar_count_control
         self._figure_profile_artifacts = figure_profile_artifacts
+        self._harmonic_plan_provider = _harmonic_plan_provider(
+            conditioning=conditioning,
+            model_config=model_config,
+        )
 
     def evaluate(
         self,
@@ -271,6 +278,7 @@ class GenerationSuiteEvaluator:
         generator.manual_seed(seed)
         token_ids: list[int] = []
         constraint_error: str | None = None
+        harmonic_plan_windows = self._harmonic_plan_windows(constraints, seed=seed)
 
         for _ in range(self._config.max_new_tokens):
             if self._prefix_exceeds_model_context(token_ids):
@@ -280,6 +288,7 @@ class GenerationSuiteEvaluator:
                 model,
                 token_ids=token_ids,
                 constraints=constraints,
+                harmonic_plan_windows=harmonic_plan_windows,
                 device=device,
             )
             if hard_constraints:
@@ -316,6 +325,7 @@ class GenerationSuiteEvaluator:
         *,
         token_ids: list[int],
         constraints: GenerationConstraints,
+        harmonic_plan_windows: tuple[HarmonicPlanWindow, ...] | None,
         device: torch.device,
     ) -> Tensor:
         model_input_ids = [self._token_vocabulary.start_token_id, *token_ids]
@@ -325,6 +335,12 @@ class GenerationSuiteEvaluator:
             token_vocabulary=self._token_vocabulary,
             duration_vocabulary=self._duration_vocabulary,
             duration_tick_denominator=self._duration_tick_denominator,
+        )
+        harmonic_plan = self._harmonic_plan_tensor(
+            harmonic_plan_windows,
+            constraints=constraints,
+            coordinates=coordinates,
+            device=device,
         )
         return model(
             torch.tensor([model_input_ids], dtype=torch.long, device=device),
@@ -339,7 +355,40 @@ class GenerationSuiteEvaluator:
             scale_type_ids=self._scale_type_tensor(device=device),
             time_signature_ids=self._time_signature_tensor(device=device),
             structural_control_ids=self._structural_control_tensor(device=device),
+            harmonic_plan=harmonic_plan,
         )[0, -1]
+
+    def _harmonic_plan_windows(
+        self,
+        constraints: GenerationConstraints,
+        *,
+        seed: int,
+    ) -> tuple[HarmonicPlanWindow, ...] | None:
+        if self._harmonic_plan_provider is None:
+            return None
+
+        return self._harmonic_plan_provider.plan_windows(constraints=constraints, seed=seed)
+
+    def _harmonic_plan_tensor(
+        self,
+        harmonic_plan_windows: tuple[HarmonicPlanWindow, ...] | None,
+        *,
+        constraints: GenerationConstraints,
+        coordinates: DecoderInputCoordinates,
+        device: torch.device,
+    ) -> HarmonicPlanInputTensors | None:
+        if harmonic_plan_windows is None:
+            return None
+
+        return _batch_harmonic_plan_input_tensors(
+            harmonic_plan_tensors_from_decoder_coordinates(
+                harmonic_plan_windows,
+                constraints=constraints,
+                coordinates=coordinates,
+                duration_tick_denominator=self._duration_tick_denominator,
+            ),
+            device=device,
+        )
 
     def _constrained_logits(
         self,
@@ -431,3 +480,36 @@ class GenerationSuiteEvaluator:
         )
         vocabulary = StructuralControlVocabulary(self._model_config.conditioning.structural)
         return torch.tensor([vocabulary.features_to_ids(features)], dtype=torch.long, device=device)
+
+
+def _harmonic_plan_provider(
+    *,
+    conditioning: GenerationConditioningOptions,
+    model_config: ModelConfig,
+) -> HarmonicPlanProvider | None:
+    if conditioning.use_harmony_conditioning != model_config.conditioning.harmony.enabled:
+        raise ValueError(
+            "generation harmony conditioning must match the model architecture "
+            f"(conditioning={conditioning.use_harmony_conditioning}, "
+            f"model={model_config.conditioning.harmony.enabled})"
+        )
+
+    if not conditioning.use_harmony_conditioning:
+        return None
+
+    return FunctionalHarmonicPlanProvider.load()
+
+
+def _batch_harmonic_plan_input_tensors(
+    tensors: HarmonicPlanInputTensors,
+    *,
+    device: torch.device,
+) -> HarmonicPlanInputTensors:
+    return HarmonicPlanInputTensors(
+        harmonic_function_ids=tensors.harmonic_function_ids.unsqueeze(0).to(device),
+        root_degree_ids=tensors.root_degree_ids.unsqueeze(0).to(device),
+        root_accidental_ids=tensors.root_accidental_ids.unsqueeze(0).to(device),
+        quality_ids=tensors.quality_ids.unsqueeze(0).to(device),
+        extension_ids=tensors.extension_ids.unsqueeze(0).to(device),
+        chord_change_ids=tensors.chord_change_ids.unsqueeze(0).to(device),
+    )
