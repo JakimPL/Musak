@@ -142,9 +142,15 @@ This section is the durable resumption point if work continues after context com
   `model/input.yml`. `flat_plus_factorized` still consumes flat token IDs, but augments each previous-token embedding
   with token-kind, duration, degree, accidental, octave-offset, and hand embeddings derived from the tokenizer
   vocabulary. Encoded artifact shape, generation legality constraints, and the event objective remain unchanged.
+- Completed: Structural-bias Phase 2 added `musak_model.conditioning.harmony`, with `HarmonicPlanWindow`,
+  `HarmonicPlanIds`, `HarmonicPlanInputTensors`, and deterministic low-cardinality vocabularies for harmonic
+  function, root degree, root accidental, chord quality, chord extension, and chord-change flag. Every vocabulary
+  reserves ID `0` for unknown plan information. The chord-extension space is deliberately limited to triad, seventh,
+  and major seventh; default chord decoding still emits triads only until seventh-specific scoring is improved. No
+  training, dataset, or generation path consumes these IDs yet.
 - Next: inspect Phase 5B/5C/6A metrics and Phase 6B artifacts on one short pretraining run, then start
-  Structural-bias Phase 2 by adding harmonic-plan schema and low-cardinality vocabulary types without conditioning
-  the model yet.
+  Structural-bias Phase 3 by extracting harmonic windows with the existing Viterbi chord decoder and aligning them to
+  decoder-step coordinates.
 
 Early non-unit validation for Phase 2A:
 

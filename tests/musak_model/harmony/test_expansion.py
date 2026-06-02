@@ -68,8 +68,19 @@ _EXPANSION_CASES: tuple[ExpansionCase, ...] = (
         expected_tones=frozenset({(5, 0), (7, 0), (2, 0), (4, 0)}),
     ),
     ExpansionCase(
-        identifier="major_seventh",
+        identifier="tonic_seventh",
         chord=Chord(root_degree=1, root_accidental=0, quality=ChordQuality.MAJOR, extension=ChordExtension.SEVENTH),
+        scale_type=ScaleType.MAJOR,
+        expected_tones=frozenset({(1, 0), (3, 0), (5, 0), (7, -1)}),
+    ),
+    ExpansionCase(
+        identifier="major_seventh",
+        chord=Chord(
+            root_degree=1,
+            root_accidental=0,
+            quality=ChordQuality.MAJOR,
+            extension=ChordExtension.MAJOR_SEVENTH,
+        ),
         scale_type=ScaleType.MAJOR,
         expected_tones=frozenset({(1, 0), (3, 0), (5, 0), (7, 0)}),
     ),

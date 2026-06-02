@@ -79,8 +79,10 @@ $$\bigl(d_r,\; a_r,\; q,\; e\bigr),$$
 with $d_r \in \{1, \dots, s\}$ the root degree (key-relative, so the chord track is transposition-invariant in the same
 way that figures are anchor-relative), $a_r \in \{-1, 0, +1\}$ the root accidental, $q$ a quality drawn from a
 YAML-configurable vocabulary (the four standard triad qualities — major, minor, diminished, augmented — enabled by
-default), and $e$ an optional extension. Extensions for sevenths, ninths, elevenths and the altered variants ♭9 and ♯11
-are *defined* in the configuration but disabled in v1 so that the initial generator runs over triads only.
+default), and $e$ an optional extension. The current extension space is intentionally conservative: triad, minor
+seventh, and major seventh. Minor seventh and major seventh are defined in the vocabulary but disabled by default for
+decoding, because pure chord-tone membership makes seventh chords tie with some simpler triads when the seventh itself
+is not present.
 
 The tone set of a chord is obtained by generic-third stacking. The $m$-th chord member sits at generic degree
 $d_m = ((d_r - 1 + 2m) \bmod s) + 1$, and its accidental is
@@ -88,9 +90,9 @@ $d_m = ((d_r - 1 + 2m) \bmod s) + 1$, and its accidental is
 $$\alpha_m \;=\; \bigl[(\sigma(d_r) + a_r + q_m) - \sigma(d_m)\bigr] \bmod 12,$$
 
 interpreted as a signed residue in $\{-6, \dots, +6\}$, where $q_m$ is the $m$-th semitone interval of the quality
-(e.g. $(0, 3, 7)$ for minor; $(0, 4, 7)$ for major; $(0, 3, 6)$ for diminished). For members beyond the triad core the
-$q_m$ is absent and the natural diatonic accidental is used (zero by default, with optional alterations declared by the
-extension). The construction is general enough to handle the chords that motivated working in scale-degree space in the
+(e.g. $(0, 3, 7)$ for minor; $(0, 4, 7)$ for major; $(0, 3, 6)$ for diminished), followed by any explicit extension
+intervals. `SEVENTH` adds interval 10 above the root, while `MAJOR_SEVENTH` adds interval 11. The construction is
+general enough to handle the chords that motivated working in scale-degree space in the
 first place. Borrowed-quality chords — minor iv in C major, for instance — produce $(4, 0), (6, -1), (1, 0)$: the ♭6
 appears automatically as accidental $-1$ on degree 6, exactly how `NoteToken` and `FigureDegree` already encode chromatic
 notes. Secondary dominants such as V/V in C major produce $(4, +1)$ for F♯; chromatic-root chords such as ♭VI live as

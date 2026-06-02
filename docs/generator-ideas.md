@@ -422,12 +422,12 @@ A pure, dependency-light chord primitive + YAML vocabulary, expandable to a diat
 `musak_model/synthetic/harmony/`:
 
 - `schema.py` — `ChordQuality` (`MAJOR/MINOR/DIMINISHED/AUGMENTED`) and `ChordExtension`
-  (`TRIAD/SEVENTH/NINTH/ELEVENTH`, plus altered variants like `FLAT_NINTH`, `SHARP_ELEVENTH`) `StrEnum`s; a frozen
+  (`TRIAD/SEVENTH/MAJOR_SEVENTH`) `StrEnum`s; a frozen
   Pydantic `Chord` model `(root_degree: 1..7, root_accidental: −1..1, quality, extension)`, key-relative.
 - `vocabulary.py` — `ChordVocabularyConfig` (frozen Pydantic, `.load(path)` mirroring
-  `musak_model/n_grams/config.py:NGramAnalysisConfig.load`): the quality→semitone-interval table and per-quality /
-  per-extension enable flags. Mirror the structure of `musak/config/inversions.yml` (`chords_definitions` + on/off
-  `default_settings`) but in scale-degree terms; v1 enables triads of the four core qualities only.
+  `musak_model/n_grams/config.py:NGramAnalysisConfig.load`): the quality→semitone-interval table, explicit extension
+  intervals, and per-quality / per-extension enable flags. The default config enables triads only while keeping
+  seventh and major-seventh definitions available for later opt-in experiments.
 - `expansion.py` — `expand_chord_to_tones(chord, *, scale_type) -> tuple[ChordTone, ...]` with
   `ChordTone = (degree, accidental)`, implementing the generic-third stacking of Section 4.
 
@@ -517,4 +517,3 @@ and round-trips through the decoder.
 
 **Verify**: the generated corpus scored by `figure_distribution_metrics` and `figure_profile_comparison_metrics` stays
 under the TV target, and the co-activity/sync extremes produce the expected alternation vs full-overlap behaviour.
-

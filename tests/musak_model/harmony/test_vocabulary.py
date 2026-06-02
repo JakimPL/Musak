@@ -21,11 +21,12 @@ def test_default_config_loads() -> None:
     assert config.enabled_extensions() == (ChordExtension.TRIAD,)
 
 
-def test_default_config_defines_disabled_extensions() -> None:
+def test_default_config_defines_supported_extensions() -> None:
     config = ChordVocabularyConfig.load()
 
-    assert config.extension_definition(ChordExtension.SEVENTH).members == 4
-    assert config.extension_definition(ChordExtension.FLAT_NINTH).alterations == {4: -1}
+    assert config.extension_definition(ChordExtension.TRIAD).additional_intervals == ()
+    assert config.extension_definition(ChordExtension.SEVENTH).additional_intervals == (10,)
+    assert config.extension_definition(ChordExtension.MAJOR_SEVENTH).additional_intervals == (11,)
 
 
 def test_quality_definition_rejects_non_triad_intervals() -> None:
@@ -38,6 +39,6 @@ def test_quality_definition_rejects_non_zero_root() -> None:
         QualityDefinition(intervals=(1, 4, 7), enabled=True)
 
 
-def test_extension_definition_rejects_negative_alteration_member() -> None:
-    with pytest.raises(ValidationError, match="non-negative"):
-        ExtensionDefinition(members=5, alterations={-1: 1}, enabled=False)
+def test_extension_definition_rejects_out_of_range_interval() -> None:
+    with pytest.raises(ValidationError, match="extension intervals"):
+        ExtensionDefinition(additional_intervals=(12,), enabled=False)

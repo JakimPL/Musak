@@ -24,10 +24,7 @@ TRIAD_QUALITY_BY_INTERVALS: Final[dict[tuple[int, int], ChordQuality]] = {
 class ChordExtension(StrEnum):
     TRIAD = "triad"
     SEVENTH = "seventh"
-    NINTH = "ninth"
-    ELEVENTH = "eleventh"
-    FLAT_NINTH = "flat_ninth"
-    SHARP_ELEVENTH = "sharp_eleventh"
+    MAJOR_SEVENTH = "major_seventh"
 
 
 DEFAULT_CHORD_EXTENSION: Final[ChordExtension] = ChordExtension.TRIAD

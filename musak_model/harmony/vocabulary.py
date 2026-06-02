@@ -3,10 +3,11 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Final
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator
 
 from musak_model.harmony.schema import ChordExtension, ChordQuality
 from musak_model.paths import CHORD_VOCABULARY_CONFIG_PATH
+from musak_shared.elements import PITCHES_PER_OCTAVE
 from musak_shared.files import load_yaml_config
 
 TRIAD_INTERVAL_COUNT: Final[int] = 3
@@ -34,15 +35,14 @@ class QualityDefinition(BaseModel):
 class ExtensionDefinition(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    members: int = Field(ge=TRIAD_INTERVAL_COUNT)
-    alterations: dict[int, int] = {}
+    additional_intervals: tuple[int, ...]
     enabled: bool = DEFAULT_CHORD_DEFINITION_ENABLED
 
-    @field_validator("alterations")
+    @field_validator("additional_intervals")
     @classmethod
-    def _validate_alterations(cls, value: dict[int, int]) -> dict[int, int]:
-        if any(member < 0 for member in value):
-            raise ValueError("alteration member indices must be non-negative")
+    def _validate_additional_intervals(cls, value: tuple[int, ...]) -> tuple[int, ...]:
+        if any(interval < 0 or interval >= PITCHES_PER_OCTAVE for interval in value):
+            raise ValueError(f"extension intervals must be in [0, {PITCHES_PER_OCTAVE})")
 
         return value
 

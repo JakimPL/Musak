@@ -35,21 +35,17 @@ def expand_chord_to_tones(
 
     quality_definition = vocabulary.quality_definition(chord.quality)
     extension_definition = vocabulary.extension_definition(chord.extension)
-    triad_interval_count = len(quality_definition.intervals)
+    chord_intervals = (*quality_definition.intervals, *extension_definition.additional_intervals)
     root_index = chord.root_degree - 1
     root_semitone = intervals[root_index] + chord.root_accidental
 
     tones: list[ChordTone] = []
-    for member in range(extension_definition.members):
+    for member, chord_interval in enumerate(chord_intervals):
         generic_index = (root_index + _GENERIC_THIRD_STEP * member) % scale_size
         natural_semitone = intervals[generic_index]
-        if member < triad_interval_count:
-            desired_semitone = root_semitone + quality_definition.intervals[member]
-            accidental = _signed_pitch_class_residue(desired_semitone - natural_semitone)
-        else:
-            accidental = 0
+        desired_semitone = root_semitone + chord_interval
+        accidental = _signed_pitch_class_residue(desired_semitone - natural_semitone)
 
-        accidental += extension_definition.alterations.get(member, 0)
         if not MIN_ACCIDENTAL <= accidental <= MAX_ACCIDENTAL:
             raise UnspellableChordError(
                 f"chord member {member} of {chord!r} requires accidental {accidental} "

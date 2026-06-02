@@ -10,21 +10,10 @@ qualities:
 
 extensions:
   triad:
-    members: 3
+    additional_intervals: []
   seventh:
-    members: 4
+    additional_intervals: [10]
     enabled: false
-  ninth:
-    members: 5
-    enabled: false
-  eleventh:
-    members: 6
-    enabled: false
-  flat_ninth:
-    members: 5
-    alterations: {4: -1}
-    enabled: false
-  sharp_eleventh:
-    members: 6
-    alterations: {5: 1}
+  major_seventh:
+    additional_intervals: [11]
     enabled: false

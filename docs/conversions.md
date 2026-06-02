@@ -105,6 +105,14 @@ Every entry lists the two entities being bridged and the package that owns the c
 | `stack_musical_auxiliary_targets` | `auxiliary/targets.py` | per-example auxiliary target tensors → batched target tensors |
 | `stack_musical_bar_auxiliary_targets` | `auxiliary/targets.py` | per-example bar auxiliary target tensors → padded batched target tensors |
 
+### Harmonic plan conditioning (`musak_model/conditioning/harmony`)
+
+| Function | File | Input → Output |
+| --- | --- | --- |
+| `harmonic_plan_windows_from_chord_windows` | `conditioning/harmony/schema.py` | decoded `ChordWindow` sequence → `HarmonicPlanWindow` sequence |
+| `harmonic_plan_ids_from_chord` / `harmonic_plan_ids_from_window` / `harmonic_plan_ids_from_windows` | `conditioning/harmony/vocabulary.py` | `Chord` / harmonic plan window(s) → harmonic plan ids |
+| `harmonic_plan_tensors_from_ids` | `conditioning/harmony/vocabulary.py` | harmonic plan ids → tensor bundle |
+
 ### Decoding to notation / piano-roll (`musak_model/decoder`)
 
 | Function | File | Input → Output |
