@@ -249,8 +249,18 @@ def test_piano_roll_chart_layers_scale_and_chord_highlights_behind_notes() -> No
         chord_highlights=chord_highlights,
     ).to_dict()["layer"]
 
-    assert len(layers) == 4
-    scale_layer, chord_layer, note_layer = layers[0], layers[1], layers[2]
+    assert len(layers) == 7
+    chord_window_layer, chord_rule_layer, chord_label_layer = layers[0], layers[1], layers[2]
+    scale_layer, chord_pitch_layer, note_layer = layers[3], layers[4], layers[5]
+    # Chord cue: full-height background band, boundary rule, and label.
+    assert chord_window_layer["mark"]["type"] == "rect"
+    assert chord_window_layer["encoding"]["x"]["field"] == "start_in_bars"
+    assert chord_window_layer["encoding"]["x2"]["field"] == "end_in_bars"
+    assert chord_window_layer["encoding"]["fill"]["field"] == "band"
+    assert chord_rule_layer["mark"]["type"] == "rule"
+    assert chord_rule_layer["encoding"]["x"]["field"] == "start_in_bars"
+    assert chord_label_layer["mark"]["type"] == "text"
+    assert chord_label_layer["encoding"]["text"]["field"] == "label"
     # Scale band: full-width (no x), one semitone tall, fixed green fill with a separating outline.
     assert scale_layer["mark"]["type"] == "rect"
     assert scale_layer["mark"]["fill"] == "#43a047"
@@ -258,11 +268,11 @@ def test_piano_roll_chart_layers_scale_and_chord_highlights_behind_notes() -> No
     assert "x" not in scale_layer["encoding"]
     assert scale_layer["encoding"]["y"]["field"] == "pitch_low"
     assert scale_layer["encoding"]["y2"]["field"] == "pitch_high"
-    # Chord band: windowed in time (x/x2), distinct purple fill.
-    assert chord_layer["mark"]["type"] == "rect"
-    assert chord_layer["mark"]["fill"] == "#7e57c2"
-    assert chord_layer["encoding"]["x"]["field"] == "start_in_bars"
-    assert chord_layer["encoding"]["x2"]["field"] == "end_in_bars"
+    # Chord pitch band: windowed in time (x/x2), distinct purple fill.
+    assert chord_pitch_layer["mark"]["type"] == "rect"
+    assert chord_pitch_layer["mark"]["fill"] == "#7e57c2"
+    assert chord_pitch_layer["encoding"]["x"]["field"] == "start_in_bars"
+    assert chord_pitch_layer["encoding"]["x2"]["field"] == "end_in_bars"
     # Notes stay drawn on top of both highlight bands.
     assert note_layer["encoding"]["x"]["field"] == "bar_start_display"
 

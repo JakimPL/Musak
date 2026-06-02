@@ -31,6 +31,7 @@ def _():
         encoded_sample_to_segment,
         encoded_shard_path_for_manifest_row,
         hand_controls,
+        harmonic_plan_inspection,
         initialize_quality_database,
         load_dataset_statistics,
         load_encoded_manifest_selection,
@@ -43,6 +44,7 @@ def _():
         processed_dataset_directories,
         quality_database_summary_rows,
         rating_by_segment_key,
+        scale_pitch_class_set,
         segment_piano_roll_view_data,
         unrated_source_frame,
         upsert_segment_rating,
@@ -68,6 +70,7 @@ def _():
         encoded_shard_path_for_manifest_row,
         file_sha256,
         hand_controls,
+        harmonic_plan_inspection,
         initialize_quality_database,
         load_dataset_statistics,
         load_encoded_sample_from_index,
@@ -82,6 +85,7 @@ def _():
         processed_dataset_directories,
         quality_database_summary_rows,
         rating_by_segment_key,
+        scale_pitch_class_set,
         score_data_html,
         segment_piano_roll_view_data,
         segment_to_score_data,
@@ -452,10 +456,15 @@ def _(hand_controls, mo):
 
 @app.cell
 def _(mo):
-    render_piano_rolls_checkbox = mo.ui.checkbox(value=False, label="Render piano rolls")
-    render_controls_output = render_piano_rolls_checkbox
+    render_piano_rolls_checkbox = mo.ui.checkbox(value=True, label="Render piano rolls")
+    render_harmonic_inspection_checkbox = mo.ui.checkbox(value=True, label="Show harmonic plan")
+    render_controls_output = mo.hstack(
+        [render_piano_rolls_checkbox, render_harmonic_inspection_checkbox],
+        gap=2,
+        wrap=True,
+    )
     render_controls_output
-    return (render_piano_rolls_checkbox,)
+    return render_harmonic_inspection_checkbox, render_piano_rolls_checkbox
 
 
 @app.cell
@@ -577,6 +586,7 @@ def _(
 def _(
     Hand,
     PitchSpelling,
+    harmonic_plan_inspection,
     mo,
     piano_roll_audio_data,
     score_data_html,
@@ -603,6 +613,14 @@ def _(
         )
 
     @mo.cache
+    def cached_harmonic_plan_inspection(segment, duration_vocabulary):
+        return harmonic_plan_inspection(
+            segment,
+            duration_vocabulary=duration_vocabulary,
+            pitch_spelling=PitchSpelling.SHARPS,
+        )
+
+    @mo.cache
     def cached_audio_data(view_data, hand_values: tuple[str, ...]):
         return piano_roll_audio_data(
             view_data,
@@ -610,7 +628,7 @@ def _(
             hands=frozenset(Hand(hand_value) for hand_value in hand_values),
         )
 
-    return cached_audio_data, cached_notation_preview, cached_piano_roll_view_data
+    return cached_audio_data, cached_harmonic_plan_inspection, cached_notation_preview, cached_piano_roll_view_data
 
 
 @app.cell
@@ -658,7 +676,7 @@ def _(
         rating_key = (window_start_bar, bar_count)
         existing = existing_ratings.get(rating_key, {})
         existing_rating = str(existing["rating"]) if "rating" in existing else None
-        existing_decision = str(existing.get("decision", SegmentReviewDecision.OK.value))
+        existing_decision = str(existing["decision"]) if "decision" in existing else None
         existing_time_error = bool(existing.get("time_signature_error", 0))
         existing_key_error = bool(existing.get("key_signature_error", 0))
         effective_rating = selected_rating_value() if selected_review_key() == active_review_key else existing_rating
@@ -722,6 +740,7 @@ def _(
                 set_action_message("Select a rating before saving this segment.")
                 return
 
+            persisted_decision = current_decision or SegmentReviewDecision.OK.value
             upsert_segment_rating(
                 database_path,
                 SegmentRating(
@@ -731,12 +750,13 @@ def _(
                     window_start_bar=int(selected_row[str(EncodedManifestField.WINDOW_START_BAR)]),
                     bar_count=int(selected_row[str(EncodedManifestField.BAR_COUNT)]),
                     rating=int(current_rating),
-                    decision=SegmentReviewDecision(str(current_decision)),
+                    decision=SegmentReviewDecision(persisted_decision),
                     time_signature_error=bool(selected_time_error.value),
                     key_signature_error=bool(selected_key_error.value),
                     manifest_segment_id=str(selected_row[str(EncodedManifestField.SEGMENT_ID)]),
                 ),
             )
+            set_selected_decision_value(None)
             set_action_message(
                 (
                     f"Saved segment {selected_row[str(EncodedManifestField.WINDOW_START_BAR)]}"
@@ -815,13 +835,42 @@ def _(
         _bar_count = int(selected_row_dict[str(EncodedManifestField.BAR_COUNT)])
         _existing = existing_ratings.get((_window_start_bar, _bar_count), {})
         _existing_rating = str(_existing["rating"]) if "rating" in _existing else None
-        _existing_decision = str(_existing.get("decision", SegmentReviewDecision.OK.value))
+        _existing_decision = str(_existing["decision"]) if "decision" in _existing else None
         _rating = selected_rating_value() if selected_review_key() == active_review_key else _existing_rating
         _decision = selected_decision_value() if selected_review_key() == active_review_key else _existing_decision
         _rating_text = "none" if _rating is None else str(_rating)
-        review_state_output = mo.callout(f"Selected rating: {_rating_text}; decision: {_decision}.", kind="info")
+        _decision_text = "none" if _decision is None else str(_decision)
+        review_state_output = mo.callout(
+            f"Selected rating: {_rating_text}; decision: {_decision_text}.",
+            kind="info",
+        )
     review_state_output
     return
+
+
+@app.cell
+def _(
+    cached_harmonic_plan_inspection,
+    render_harmonic_inspection_checkbox,
+    selected_segment_error,
+    selected_segment_selection,
+):
+    harmonic_inspection = None
+    harmonic_inspection_error = ""
+    if (
+        selected_segment_selection is not None
+        and not selected_segment_error
+        and render_harmonic_inspection_checkbox.value
+    ):
+        try:
+            harmonic_inspection = cached_harmonic_plan_inspection(
+                selected_segment_selection.segment,
+                selected_segment_selection.duration_vocabulary,
+            )
+        except (FileNotFoundError, IndexError, TypeError, ValueError) as exception:
+            harmonic_inspection_error = f"{type(exception).__name__}: {exception}"
+
+    return harmonic_inspection, harmonic_inspection_error
 
 
 @app.cell
@@ -889,27 +938,96 @@ def _(
 def _(
     alt,
     cached_piano_roll_view_data,
+    harmonic_inspection,
+    harmonic_inspection_error,
     mo,
     piano_roll_chart_panel,
+    render_harmonic_inspection_checkbox,
     render_piano_rolls_checkbox,
+    scale_pitch_class_set,
     segment_hand_controls,
     selected_segment_error,
     selected_segment_selection,
 ):
-    if selected_segment_selection is None or selected_segment_error or not render_piano_rolls_checkbox.value:
+    if selected_segment_selection is None or selected_segment_error:
         piano_roll_output = mo.md("")
+    elif not render_piano_rolls_checkbox.value:
+        piano_roll_output = mo.callout("Piano roll rendering is disabled.", kind="info")
     else:
-        _view_data = cached_piano_roll_view_data(
-            selected_segment_selection.segment,
-            selected_segment_selection.duration_vocabulary,
-        )
-        piano_roll_output = piano_roll_chart_panel(
-            _view_data,
-            mo=mo,
-            alt=alt,
-            controls=segment_hand_controls,
-        )
+        try:
+            _view_data = cached_piano_roll_view_data(
+                selected_segment_selection.segment,
+                selected_segment_selection.duration_vocabulary,
+            )
+            _show_harmony = (
+                render_harmonic_inspection_checkbox.value
+                and harmonic_inspection is not None
+                and not harmonic_inspection_error
+            )
+            piano_roll_output = piano_roll_chart_panel(
+                _view_data,
+                mo=mo,
+                alt=alt,
+                controls=segment_hand_controls,
+                scale_pitch_classes=(
+                    scale_pitch_class_set(
+                        selected_segment_selection.segment.scale_root,
+                        selected_segment_selection.segment.scale_type,
+                    )
+                    if _show_harmony
+                    else None
+                ),
+                chord_highlights=harmonic_inspection.chord_highlights if _show_harmony else (),
+            )
+        except (FileNotFoundError, IndexError, TypeError, ValueError) as exception:
+            piano_roll_output = mo.callout(
+                f"Piano roll rendering failed: {type(exception).__name__}: {exception}",
+                kind="warn",
+            )
     piano_roll_output
+    return
+
+
+@app.cell
+def _(
+    harmonic_inspection,
+    harmonic_inspection_error,
+    mo,
+    render_harmonic_inspection_checkbox,
+    selected_segment_error,
+    selected_segment_selection,
+):
+    if not render_harmonic_inspection_checkbox.value:
+        harmonic_inspection_output = mo.md("")
+    elif selected_segment_selection is None or selected_segment_error:
+        harmonic_inspection_output = mo.md("")
+    elif harmonic_inspection_error:
+        harmonic_inspection_output = mo.callout(
+            f"Harmonic inspection failed: {harmonic_inspection_error}",
+            kind="warn",
+        )
+    elif harmonic_inspection is None:
+        harmonic_inspection_output = mo.md("")
+    else:
+        strong_non_chord = harmonic_inspection.note_frame.loc[
+            harmonic_inspection.note_frame["strong_beat_non_chord"]
+        ].copy()
+        non_chord_output = (
+            mo.ui.table(strong_non_chord, selection=None, label="Strong-beat non-chord notes")
+            if not strong_non_chord.empty
+            else mo.callout("No strong-beat non-chord notes detected.", kind="success")
+        )
+        harmonic_inspection_output = mo.vstack(
+            [
+                mo.md("### Harmonic plan"),
+                mo.ui.table(harmonic_inspection.summary_rows, selection=None, label="Summary"),
+                mo.ui.table(harmonic_inspection.window_frame, selection=None, label="Decoded chord windows"),
+                non_chord_output,
+                mo.ui.table(harmonic_inspection.note_frame, selection=None, label="Note diagnostics"),
+            ],
+            gap=1,
+        )
+    harmonic_inspection_output
     return
 
 

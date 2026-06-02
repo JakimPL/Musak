@@ -30,6 +30,14 @@ _CHORD_HIGHLIGHT_FILL: Final[str] = "#7e57c2"
 _CHORD_HIGHLIGHT_STROKE: Final[str] = "#4527a0"
 _CHORD_HIGHLIGHT_FILL_OPACITY: Final[float] = 0.22
 _CHORD_HIGHLIGHT_STROKE_OPACITY: Final[float] = 0.5
+_CHORD_WINDOW_FILL_RANGE: Final[tuple[str, str]] = ("#eef1f8", "#e2e7f0")
+_CHORD_WINDOW_FILL_OPACITY: Final[float] = 0.42
+_CHORD_WINDOW_RULE_COLOR: Final[str] = "#8f96aa"
+_CHORD_WINDOW_RULE_OPACITY: Final[float] = 0.75
+_CHORD_WINDOW_RULE_DASH: Final[list[int]] = [3, 3]
+_CHORD_LABEL_COLOR: Final[str] = "#1a237e"
+_CHORD_LABEL_VERTICAL_OFFSET: Final[int] = 4
+_CHORD_LABEL_FONT_SIZE: Final[int] = 13
 _HIGHLIGHT_STROKE_WIDTH: Final[float] = 0.5
 _PITCH_BAND_HALF_HEIGHT: Final[float] = 0.5
 _SHARP_PITCH_NAMES: Final[tuple[str, ...]] = ("C-", "C#", "D-", "D#", "E-", "F-", "F#", "G-", "G#", "A-", "A#", "B-")
@@ -255,6 +263,14 @@ def _highlight_layers(
     chord_highlights: Sequence[ChordHighlight],
 ) -> list[Any]:
     layers: list[Any] = []
+    layers.extend(
+        _chord_window_layers(
+            alt=alt,
+            y_domain=y_domain,
+            bar_domain=bar_domain,
+            chord_highlights=chord_highlights,
+        )
+    )
     if scale_pitch_classes:
         scale_rows = _pitch_band_rows(scale_pitch_classes, y_domain=y_domain, pitch_spelling=pitch_spelling)
         if scale_rows:
@@ -307,6 +323,80 @@ def _highlight_layers(
         )
 
     return layers
+
+
+def _chord_window_layers(
+    *,
+    alt: Any,
+    y_domain: list[float],
+    bar_domain: tuple[float, float],
+    chord_highlights: Sequence[ChordHighlight],
+) -> list[Any]:
+    if not chord_highlights:
+        return []
+
+    rows = [
+        {
+            "start_in_bars": highlight.start_in_bars,
+            "end_in_bars": highlight.end_in_bars,
+            "mid_in_bars": (highlight.start_in_bars + highlight.end_in_bars) / 2,
+            "label": highlight.label,
+            "band": str(index % 2),
+            "pitch_low": y_domain[0],
+            "pitch_high": y_domain[1],
+            "label_y": y_domain[1],
+        }
+        for index, highlight in enumerate(chord_highlights)
+    ]
+    frame = pd.DataFrame(rows)
+    x = alt.X("start_in_bars:Q", axis=None, scale=alt.Scale(domain=list(bar_domain)))
+    tooltip = [
+        alt.Tooltip("label:N", title="Chord"),
+        alt.Tooltip("start_in_bars:Q", title="From bar", format=".3f"),
+        alt.Tooltip("end_in_bars:Q", title="To bar", format=".3f"),
+    ]
+    bands = (
+        alt.Chart(frame)
+        .mark_rect(opacity=_CHORD_WINDOW_FILL_OPACITY)
+        .encode(
+            x=x,
+            x2="end_in_bars:Q",
+            y=alt.Y("pitch_low:Q", axis=None, scale=alt.Scale(domain=y_domain)),
+            y2="pitch_high:Q",
+            fill=alt.Fill(
+                "band:N",
+                scale=alt.Scale(domain=["0", "1"], range=list(_CHORD_WINDOW_FILL_RANGE)),
+                legend=None,
+            ),
+            tooltip=tooltip,
+        )
+    )
+    rules = (
+        alt.Chart(frame)
+        .mark_rule(
+            color=_CHORD_WINDOW_RULE_COLOR,
+            strokeDash=_CHORD_WINDOW_RULE_DASH,
+            opacity=_CHORD_WINDOW_RULE_OPACITY,
+        )
+        .encode(x=x, tooltip=tooltip)
+    )
+    labels = (
+        alt.Chart(frame)
+        .mark_text(
+            baseline="top",
+            dy=_CHORD_LABEL_VERTICAL_OFFSET,
+            fontSize=_CHORD_LABEL_FONT_SIZE,
+            fontWeight="bold",
+            color=_CHORD_LABEL_COLOR,
+        )
+        .encode(
+            x=alt.X("mid_in_bars:Q", axis=None, scale=alt.Scale(domain=list(bar_domain))),
+            y=alt.Y("label_y:Q", axis=None, scale=alt.Scale(domain=y_domain)),
+            text=alt.Text("label:N"),
+            tooltip=tooltip,
+        )
+    )
+    return [bands, rules, labels]
 
 
 def _pitch_band_rows(

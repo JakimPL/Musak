@@ -34,6 +34,11 @@ from notebooks.utils.encoded import (
     load_encoded_shard_context,
 )
 from notebooks.utils.file_browser import FileSelection, selected_directory, selected_file, selected_musicxml_file
+from notebooks.utils.harmony import (
+    HarmonicPlanInspection,
+    harmonic_plan_chord_highlights,
+    harmonic_plan_inspection,
+)
 from notebooks.utils.model_output import (
     GeneratedOutput,
     GenerationRequest,
@@ -161,6 +166,7 @@ __all__ = [
     "FIGURE_TOTAL_COLUMN",
     "FIGURE_UNIQUE_COLUMN",
     "HandControls",
+    "HarmonicPlanInspection",
     "PianoRollViewData",
     "PitchSpelling",
     "ProcessingResult",
@@ -224,6 +230,8 @@ __all__ = [
     "load_rhythm_reference_counts",
     "overview_rows",
     "hand_controls",
+    "harmonic_plan_chord_highlights",
+    "harmonic_plan_inspection",
     "load_trained_model",
     "mark_source_file_skipped",
     "parsed_score_piano_roll_dataframe",
