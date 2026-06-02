@@ -1,3 +1,9 @@
+from musak_model.conditioning.harmony.alignment import (
+    harmonic_plan_ids_from_decoder_coordinates,
+    harmonic_plan_tensors_from_decoder_coordinates,
+    harmonic_plan_tensors_from_token_ids,
+)
+from musak_model.conditioning.harmony.extraction import harmonic_plan_windows_from_segment
 from musak_model.conditioning.harmony.schema import (
     HarmonicPlanIds,
     HarmonicPlanInputTensors,
@@ -48,10 +54,14 @@ __all__ = [
     "chord_quality_to_id",
     "harmonic_function_for_chord",
     "harmonic_function_to_id",
+    "harmonic_plan_ids_from_decoder_coordinates",
     "harmonic_plan_ids_from_chord",
     "harmonic_plan_ids_from_window",
     "harmonic_plan_ids_from_windows",
+    "harmonic_plan_tensors_from_decoder_coordinates",
     "harmonic_plan_tensors_from_ids",
+    "harmonic_plan_tensors_from_token_ids",
+    "harmonic_plan_windows_from_segment",
     "harmonic_plan_windows_from_chord_windows",
     "id_to_chord_change",
     "id_to_chord_extension",

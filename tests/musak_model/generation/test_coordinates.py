@@ -11,7 +11,7 @@ from musak_model.tokens.duration import (
     duration_tick_denominator,
 )
 from musak_model.tokens.factorized import hand_to_attribute_id
-from musak_model.tokens.schema import BarToken, Hand, HandToken, JoinWithPreviousToken, NoteToken, RestToken
+from musak_model.tokens.schema import BarToken, Hand, HandToken, JoinWithPreviousToken, NoteToken, RestToken, Token
 from musak_model.tokens.vocabulary import TokenVocabulary
 
 
@@ -41,6 +41,7 @@ def test_decoder_coordinates_track_active_hand_and_bar_relative_time(
     )
 
     assert coordinates.bar_relative_ticks == (0, 0, quarter_ticks, half_ticks, 0, half_ticks, 0, 0)
+    assert coordinates.bar_indices == (0, 0, 0, 0, 0, 0, 1, 1)
     assert coordinates.bar_duration_ticks == (whole_ticks,) * 8
     assert coordinates.active_hand_ids == (
         hand_to_attribute_id(Hand.RIGHT),
@@ -81,7 +82,7 @@ def test_decoder_coordinates_from_token_ids_matches_tokens(
     token_vocabulary: TokenVocabulary,
 ) -> None:
     quarter_id = duration_vocabulary.fraction_to_id(Fraction(1, 4))
-    tokens = [
+    tokens: list[Token] = [
         HandToken(hand=Hand.LEFT),
         RestToken(duration_id=quarter_id),
     ]
@@ -122,6 +123,7 @@ def test_decoder_coordinates_use_declared_bar_durations(duration_vocabulary: Dur
     )
 
     assert coordinates.bar_relative_ticks == (0, 0)
+    assert coordinates.bar_indices == (0, 1)
     assert coordinates.bar_duration_ticks == (half_ticks, whole_ticks)
 
 

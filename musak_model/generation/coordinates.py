@@ -27,6 +27,7 @@ MINIMUM_BAR_DURATION_TICKS: Final = 1
 
 @dataclass(frozen=True)
 class DecoderInputCoordinates:
+    bar_indices: tuple[int, ...]
     bar_relative_ticks: tuple[int, ...]
     bar_duration_ticks: tuple[int, ...]
     active_hand_ids: tuple[int, ...]
@@ -191,11 +192,13 @@ def decoder_input_coordinates_from_tokens(
     duration_tick_denominator: int,
 ) -> DecoderInputCoordinates:
     state = _DecoderCoordinateState(constraints=constraints)
+    bar_indices: list[int] = []
     bar_relative_ticks: list[int] = []
     bar_duration_ticks: list[int] = []
     active_hand_ids: list[int] = []
     _append_state_coordinates(
         state,
+        bar_indices=bar_indices,
         bar_relative_ticks=bar_relative_ticks,
         bar_duration_ticks=bar_duration_ticks,
         active_hand_ids=active_hand_ids,
@@ -205,6 +208,7 @@ def decoder_input_coordinates_from_tokens(
         state = state.apply(token, duration_vocabulary=duration_vocabulary)
         _append_state_coordinates(
             state,
+            bar_indices=bar_indices,
             bar_relative_ticks=bar_relative_ticks,
             bar_duration_ticks=bar_duration_ticks,
             active_hand_ids=active_hand_ids,
@@ -212,6 +216,7 @@ def decoder_input_coordinates_from_tokens(
         )
 
     return DecoderInputCoordinates(
+        bar_indices=tuple(bar_indices),
         bar_relative_ticks=tuple(bar_relative_ticks),
         bar_duration_ticks=tuple(bar_duration_ticks),
         active_hand_ids=tuple(active_hand_ids),
@@ -221,6 +226,7 @@ def decoder_input_coordinates_from_tokens(
 def _append_state_coordinates(
     state: _DecoderCoordinateState,
     *,
+    bar_indices: list[int],
     bar_relative_ticks: list[int],
     bar_duration_ticks: list[int],
     active_hand_ids: list[int],
@@ -229,6 +235,7 @@ def _append_state_coordinates(
     bar_start = state.constraints.bar_start(state.bar_index)
     active_cursor = state.cursor(state.active_hand)
     bar_duration = state.constraints.bar_duration(state.bar_index)
+    bar_indices.append(state.bar_index)
     bar_relative_ticks.append(
         duration_fraction_to_ticks(active_cursor - bar_start, denominator=duration_tick_denominator)
     )

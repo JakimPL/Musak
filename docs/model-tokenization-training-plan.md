@@ -148,9 +148,14 @@ This section is the durable resumption point if work continues after context com
   reserves ID `0` for unknown plan information. The chord-extension space is deliberately limited to triad, seventh,
   and major seventh; default chord decoding still emits triads only until seventh-specific scoring is improved. No
   training, dataset, or generation path consumes these IDs yet.
+- Completed: Structural-bias Phase 3 added harmonic-plan extraction from `Segment` via the existing chord decoder and
+  decoder-step alignment from `DecoderInputCoordinates` to `HarmonicPlanInputTensors`. The coordinate path now carries
+  internal `bar_indices` so harmonic alignment uses the same post-prefix cursor semantics as generation. Padding
+  coordinates and plan gaps map to the unknown harmonic-plan ID. No training, dataset, or generation path consumes
+  these IDs yet.
 - Next: inspect Phase 5B/5C/6A metrics and Phase 6B artifacts on one short pretraining run, then start
-  Structural-bias Phase 3 by extracting harmonic windows with the existing Viterbi chord decoder and aligning them to
-  decoder-step coordinates.
+  Structural-bias Phase 4 by adding harmonic-plan tensors to training examples, batches, and model conditioning behind
+  a config flag.
 
 Early non-unit validation for Phase 2A:
 

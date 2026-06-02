@@ -109,9 +109,11 @@ Every entry lists the two entities being bridged and the package that owns the c
 
 | Function | File | Input → Output |
 | --- | --- | --- |
+| `harmonic_plan_windows_from_segment` | `conditioning/harmony/extraction.py` | `Segment` + chord decoder → `HarmonicPlanWindow` sequence |
 | `harmonic_plan_windows_from_chord_windows` | `conditioning/harmony/schema.py` | decoded `ChordWindow` sequence → `HarmonicPlanWindow` sequence |
 | `harmonic_plan_ids_from_chord` / `harmonic_plan_ids_from_window` / `harmonic_plan_ids_from_windows` | `conditioning/harmony/vocabulary.py` | `Chord` / harmonic plan window(s) → harmonic plan ids |
 | `harmonic_plan_tensors_from_ids` | `conditioning/harmony/vocabulary.py` | harmonic plan ids → tensor bundle |
+| `harmonic_plan_ids_from_decoder_coordinates` / `harmonic_plan_tensors_from_decoder_coordinates` / `harmonic_plan_tensors_from_token_ids` | `conditioning/harmony/alignment.py` | harmonic plan windows + decoder-step coordinates / token prefix → aligned harmonic plan ids or tensors |
 
 ### Decoding to notation / piano-roll (`musak_model/decoder`)
 
