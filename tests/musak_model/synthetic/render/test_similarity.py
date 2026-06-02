@@ -39,7 +39,9 @@ def test_edit_distance_counts_insertion() -> None:
 
 def test_similarity_pulls_selection_toward_the_intended_figure() -> None:
     entries = (_entry(_ngram(0)), _entry(_ngram(1)), _entry(_ngram(5)))
-    config = RenderConfig.load().model_copy(update={"lambda_similarity": 5.0})
+    config = RenderConfig.load().model_copy(
+        update={"lambda_curve": 0.0, "lambda_harmonic": 0.0, "lambda_accent": 0.0, "lambda_similarity": 5.0}
+    )
 
     selected = select_figure(
         entries,

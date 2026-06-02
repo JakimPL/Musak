@@ -13,6 +13,7 @@ from musak_model.harmony.vocabulary import ChordVocabularyConfig
 from musak_model.synthetic.fitting.form.fit import FormFittingConfig
 from musak_model.synthetic.processes.pitch import RegisterCurveConfig, RegisterCurveSampler
 from musak_model.synthetic.render.config import RenderConfig
+from musak_model.synthetic.render.motif import MotifConfig
 from musak_model.synthetic.render.renderer import SurfaceRenderer
 from musak_model.synthetic.structure.form import FormPrior, FormSampler, FormTree
 from musak_model.synthetic.structure.harmony_grammar import HarmonyGrammarConfig, HarmonyGrammarSampler
@@ -35,6 +36,12 @@ class FormRenderRequest:
     seed: int
     harmonic_slot_denominator: int
     prior_source: str
+    commonness_bias: float
+    lambda_curve: float
+    lambda_harmonic: float
+    lambda_accent: float
+    lambda_similarity: float
+    variation_budget: float
 
 
 @dataclass(frozen=True)
@@ -59,7 +66,17 @@ def render_form_segment(
     prior, warning = _select_prior(
         inputs, scale_type=scale_type, prior_source=request.prior_source, form_fitting=form_fitting
     )
-    renderer = _build_renderer(inputs)
+    render_config = RenderConfig.load().model_copy(
+        update={
+            "commonness_bias": request.commonness_bias,
+            "lambda_curve": request.lambda_curve,
+            "lambda_harmonic": request.lambda_harmonic,
+            "lambda_accent": request.lambda_accent,
+            "lambda_similarity": request.lambda_similarity,
+        }
+    )
+    motif_config = MotifConfig.load().model_copy(update={"variation_budget": request.variation_budget})
+    renderer = _build_renderer(inputs, render_config=render_config, motif_config=motif_config)
     form = FormSampler(prior).sample(bar_count=request.bar_count, rng=default_rng(request.seed))
     constraints = GenerationConstraints(
         time_numerator=request.time_numerator,
@@ -107,10 +124,15 @@ def render_form_segment(
     )
 
 
-def _build_renderer(inputs: SyntheticInputs) -> SurfaceRenderer:
+def _build_renderer(
+    inputs: SyntheticInputs,
+    *,
+    render_config: RenderConfig,
+    motif_config: MotifConfig,
+) -> SurfaceRenderer:
     chord_vocabulary = ChordVocabularyConfig.load()
     return SurfaceRenderer(
-        config=RenderConfig.load(),
+        config=render_config,
         metrical_sampler=MetricalTreeSampler(config=MetricalGrammarConfig.load()),
         harmony_sampler=HarmonyGrammarSampler(config=HarmonyGrammarConfig.load(), vocabulary=chord_vocabulary),
         register_curve_sampler=RegisterCurveSampler(
@@ -119,6 +141,7 @@ def _build_renderer(inputs: SyntheticInputs) -> SurfaceRenderer:
         figure_vocabulary=inputs.figure_vocabulary,
         duration_vocabulary=inputs.duration_vocabulary,
         chord_vocabulary=chord_vocabulary,
+        motif_config=motif_config,
     )
 
 

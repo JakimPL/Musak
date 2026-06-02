@@ -7,6 +7,7 @@ import polars as pl
 import pytest
 from numpy.random import default_rng
 
+from musak_model.n_grams.figure.schema import FigureNGram
 from musak_model.n_grams.profile.io import (
     BASE_DURATION_COLUMN,
     BASE_DURATION_SCHEMA,
@@ -17,9 +18,12 @@ from musak_model.n_grams.profile.io import (
 )
 from musak_model.synthetic.base_durations import (
     BaseDurationDistribution,
+    choose_base_duration,
+    fitting_base_durations,
     load_base_duration_distribution,
     weighted_base_duration_choice,
 )
+from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import Hand, ScaleType
 from musak_shared.tables import write_table
 
@@ -124,3 +128,50 @@ def test_aggregated_counter_round_trip_matches_expected() -> None:
     assert distribution.candidates(scale_type=ScaleType.MAJOR, hand=Hand.RIGHT, figure_length=2) == (
         (Fraction(1, 4), 2),
     )
+
+
+_CANDIDATES = ((Fraction(1, 16), 1), (Fraction(1, 8), 3), (Fraction(1, 4), 1))
+
+
+def _figure(*steps: int) -> FigureNGram:
+    return FigureNGram(onsets=tuple((((step, 0),), Fraction(1)) for step in steps))
+
+
+def test_fitting_excludes_bases_that_overrun_the_remaining_space(duration_vocabulary: DurationVocabulary) -> None:
+    fitting = fitting_base_durations(
+        _figure(0, 1), _CANDIDATES, remaining=Fraction(1, 32), duration_vocabulary=duration_vocabulary
+    )
+
+    assert fitting == []
+
+
+def test_choose_base_duration_centers_on_the_weighted_median(duration_vocabulary: DurationVocabulary) -> None:
+    base = choose_base_duration(
+        _figure(0, 1), _CANDIDATES, density_offset=0.0, remaining=Fraction(1), duration_vocabulary=duration_vocabulary
+    )
+
+    assert base == Fraction(1, 8)
+
+
+def test_density_offset_lengthens_or_shortens_the_base(duration_vocabulary: DurationVocabulary) -> None:
+    longer = choose_base_duration(
+        _figure(0, 1), _CANDIDATES, density_offset=1.0, remaining=Fraction(1), duration_vocabulary=duration_vocabulary
+    )
+    shorter = choose_base_duration(
+        _figure(0, 1), _CANDIDATES, density_offset=-1.0, remaining=Fraction(1), duration_vocabulary=duration_vocabulary
+    )
+
+    assert longer == Fraction(1, 4)
+    assert shorter == Fraction(1, 16)
+
+
+def test_choose_base_duration_returns_none_when_nothing_fits(duration_vocabulary: DurationVocabulary) -> None:
+    base = choose_base_duration(
+        _figure(0, 1),
+        _CANDIDATES,
+        density_offset=0.0,
+        remaining=Fraction(1, 32),
+        duration_vocabulary=duration_vocabulary,
+    )
+
+    assert base is None

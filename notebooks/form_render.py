@@ -134,6 +134,14 @@ def _(FormRenderRequest, ScaleType, mo, set_render_request, synthetic_inputs):
     seed = mo.ui.number(start=0, stop=2**31 - 1, step=1, value=0, label="Seed")
     harmonic_slot_denominator = mo.ui.dropdown(options=["1", "2", "4"], value="1", label="Harmonic slot (1/N note)")
     prior_source = mo.ui.dropdown(options=["fitted", "fallback"], value="fitted", label="Form prior")
+    commonness_bias = mo.ui.slider(start=0.0, stop=3.0, step=0.1, value=1.0, label="Commonness bias", show_value=True)
+    lambda_curve = mo.ui.slider(start=0.0, stop=8.0, step=0.5, value=2.0, label="λ curve", show_value=True)
+    lambda_harmonic = mo.ui.slider(start=0.0, stop=8.0, step=0.5, value=4.0, label="λ harmonic", show_value=True)
+    lambda_accent = mo.ui.slider(start=0.0, stop=4.0, step=0.1, value=0.5, label="λ accent", show_value=True)
+    lambda_similarity = mo.ui.slider(start=0.0, stop=12.0, step=0.5, value=6.0, label="λ similarity", show_value=True)
+    variation_budget = mo.ui.slider(
+        start=0.0, stop=1.0, step=0.05, value=0.3, label="Variation budget", show_value=True
+    )
     bpm = mo.ui.slider(start=30, stop=240, step=1, value=80, label="BPM", show_value=True)
     notation_bars = mo.ui.slider(start=1, stop=32, step=1, value=8, label="Notation bars", show_value=True)
 
@@ -148,6 +156,12 @@ def _(FormRenderRequest, ScaleType, mo, set_render_request, synthetic_inputs):
                 seed=int(seed.value),
                 harmonic_slot_denominator=int(harmonic_slot_denominator.value),
                 prior_source=prior_source.value,
+                commonness_bias=float(commonness_bias.value),
+                lambda_curve=float(lambda_curve.value),
+                lambda_harmonic=float(lambda_harmonic.value),
+                lambda_accent=float(lambda_accent.value),
+                lambda_similarity=float(lambda_similarity.value),
+                variation_budget=float(variation_budget.value),
             )
         )
 
@@ -155,12 +169,23 @@ def _(FormRenderRequest, ScaleType, mo, set_render_request, synthetic_inputs):
     mo.vstack(
         [
             mo.md("## Controls"),
+            mo.md(
+                "**λ harmonic** lands chord tones on strong beats, **λ curve** follows the register arc, "
+                "**λ similarity** drives motif reuse across restatements (0 = independent draws / corpus marginal). "
+                "**Variation budget** sets how much restatements transform."
+            ),
             mo.hstack(
                 [scale_root, scale_type, time_numerator, time_denominator, bar_count, seed],
                 gap=2,
                 wrap=True,
             ),
             mo.hstack([harmonic_slot_denominator, prior_source, bpm, notation_bars], gap=2, wrap=True),
+            mo.md("### Figure tilt"),
+            mo.hstack(
+                [commonness_bias, lambda_curve, lambda_harmonic, lambda_accent, lambda_similarity, variation_budget],
+                gap=2,
+                wrap=True,
+            ),
             render_button,
         ],
         gap=2,

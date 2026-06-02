@@ -1,6 +1,6 @@
 commonness_bias: 1.0
-lambda_curve: 0.0
-lambda_harmonic: 0.0
-lambda_accent: 0.0
+lambda_curve: 2.0
+lambda_harmonic: 4.0
+lambda_accent: 0.5
 lambda_similarity: 0.0
 max_resample_retries: 8

@@ -1,13 +1,29 @@
 from collections.abc import Sequence
 from dataclasses import dataclass
+from pathlib import Path
 
 from numpy.random import Generator
+from pydantic import BaseModel, ConfigDict, Field
 
 from musak_model.n_grams.figure.schema import FigureNGram
+from musak_model.paths import MOTIF_CONFIG_PATH
 from musak_model.synthetic.figures import FigureVocabularyEntry
 from musak_model.synthetic.render.config import RenderConfig
 from musak_model.synthetic.render.figure_selection import select_scored_figure
 from musak_model.tokens.schema import ScaleType
+from musak_shared.files import load_yaml_config
+
+
+class MotifConfig(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    seed_candidate_count: int = Field(gt=0)
+    variation_budget: float = Field(ge=0.0, le=1.0)
+    maximum_transpose: int = Field(ge=0)
+
+    @classmethod
+    def load(cls, path: Path = MOTIF_CONFIG_PATH) -> "MotifConfig":
+        return cls.model_validate(load_yaml_config(path))
 
 
 @dataclass(frozen=True)
