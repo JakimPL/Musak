@@ -21,6 +21,9 @@ from musak_model.training.metrics import EpochMetrics
 
 _LOGGER = logging.getLogger(__name__)
 _MLFLOW_TRACKING_URI_ENV: Final[str] = "MLFLOW_TRACKING_URI"
+_MLFLOW_RUN_NAME_TAG: Final[str] = "mlflow.runName"
+_MUSAK_EXPERIMENT_PREFIX: Final[str] = "musak-"
+_FINGERPRINT_NAME_LENGTH: Final[int] = 8
 
 
 class TrainingTracker(Protocol):
@@ -112,6 +115,8 @@ class MlflowTrainingTracker:
         self._training_config = training_config
         self._tracking_root = tracking_root or Path.cwd()
         self._mlflow = importlib.import_module("mlflow")
+        self._uses_generated_run_name = training_config.mlflow.mlflow_run_name is None
+        self._run_name = training_config.mlflow.mlflow_run_name or _mlflow_run_name(training_config)
 
     def __enter__(self) -> Self:
         tracking_uri = _resolve_tracking_uri(
@@ -121,12 +126,12 @@ class MlflowTrainingTracker:
         _LOGGER.info(
             "Starting MLflow training run: experiment=%s run_name=%s tracking_uri=%s",
             self._training_config.mlflow.mlflow_experiment_name,
-            self._training_config.mlflow.mlflow_run_name,
+            self._run_name,
             tracking_uri,
         )
         self._mlflow.set_tracking_uri(tracking_uri)
         self._mlflow.set_experiment(self._training_config.mlflow.mlflow_experiment_name)
-        self._mlflow.start_run(run_name=self._training_config.mlflow.mlflow_run_name)
+        self._mlflow.start_run(run_name=self._run_name)
         return self
 
     def __exit__(
@@ -154,6 +159,14 @@ class MlflowTrainingTracker:
         started_at = perf_counter()
         _LOGGER.info("Computing encoded sample fingerprint for MLflow setup")
         fingerprint = encoded_samples_fingerprint([*split.train, *split.validation])
+        if self._uses_generated_run_name:
+            self._run_name = _mlflow_run_name_with_split(
+                training_config=training_config,
+                split=split,
+                fingerprint=fingerprint,
+            )
+            self._mlflow.set_tag(_MLFLOW_RUN_NAME_TAG, self._run_name)
+
         params = _flatten_params(
             {
                 "training": _serializable_dump(training_config),
@@ -240,6 +253,52 @@ def _resolve_tracking_uri(
 
 def _serializable_dump(model: BaseModel) -> dict[str, object]:
     return model.model_dump(mode="json")
+
+
+def _mlflow_run_name(training_config: TrainingConfig) -> str:
+    generation = training_config.generation_evaluation
+    return "-".join(
+        (
+            _stage_name(training_config),
+            training_config.event_objective.mode.value,
+            f"e{training_config.optimization.epochs}",
+            f"bs{training_config.optimization.batch_size}",
+            f"lr{_format_run_name_number(training_config.optimization.learning_rate)}",
+            training_config.runtime.device,
+            f"aux{_format_run_name_number(training_config.musical_auxiliary_objective.weight)}",
+            f"vp{_format_run_name_number(training_config.conditioning.validity_penalty_weight)}",
+            f"gen{generation.bar_count}b-{generation.soft_sample_count}s{generation.hard_sample_count}h",
+        )
+    )
+
+
+def _mlflow_run_name_with_split(
+    *,
+    training_config: TrainingConfig,
+    split: IngestionSplit,
+    fingerprint: str,
+) -> str:
+    return "-".join(
+        (
+            _mlflow_run_name(training_config),
+            f"tr{len(split.train)}",
+            f"va{len(split.validation)}",
+            f"bad{len(split.invalid_files)}",
+            f"fp{fingerprint[:_FINGERPRINT_NAME_LENGTH]}",
+        )
+    )
+
+
+def _stage_name(training_config: TrainingConfig) -> str:
+    experiment_name = training_config.mlflow.mlflow_experiment_name
+    if experiment_name.startswith(_MUSAK_EXPERIMENT_PREFIX):
+        return experiment_name.removeprefix(_MUSAK_EXPERIMENT_PREFIX)
+
+    return experiment_name
+
+
+def _format_run_name_number(value: float) -> str:
+    return f"{value:g}".replace("-", "m").replace(".", "p")
 
 
 def _epoch_metric_values(metrics: EpochMetrics) -> dict[str, float]:

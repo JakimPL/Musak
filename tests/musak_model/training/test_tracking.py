@@ -46,6 +46,7 @@ class FakeMlflow(ModuleType):
         self.metrics: list[tuple[str, float, int]] = []
         self.artifacts: list[tuple[str, str | None]] = []
         self.logged_dicts: list[tuple[dict[str, Any], str]] = []
+        self.tags: dict[str, str] = {}
 
     def set_tracking_uri(self, tracking_uri: str) -> None:
         self.tracking_uri = tracking_uri
@@ -58,6 +59,11 @@ class FakeMlflow(ModuleType):
 
     def end_run(self, *, status: str) -> None:
         self.ended_status = status
+
+    def set_tag(self, key: str, value: str) -> None:
+        self.tags[key] = value
+        if key == "mlflow.runName":
+            self.run_name = value
 
     def log_params(self, params: dict[str, str | int | float | bool]) -> None:
         self.params.update(params)
@@ -113,6 +119,18 @@ def _training_config(tmp_path: Path, *, enable_mlflow: bool = True, tracking_uri
             maximum_pitch_gap_semitones=12,
             maximum_static_hand_span_degrees=5,
         ),
+    )
+
+
+def _training_config_with_generated_run_name(tmp_path: Path) -> TrainingConfig:
+    return _training_config(tmp_path).model_copy(
+        update={
+            "mlflow": MlflowConfig(
+                enable_mlflow=True,
+                mlflow_tracking_uri="file:///tmp/mlruns",
+                mlflow_run_name=None,
+            )
+        }
     )
 
 
@@ -266,6 +284,38 @@ def test_mlflow_tracker_logs_setup_metrics_artifacts_and_invalid_files(
     assert ("model/split/figure/count/comparable_groups", 1.0, 0) in fake_mlflow.metrics
     assert fake_mlflow.artifacts == [(str(checkpoint), "checkpoints")]
     assert fake_mlflow.logged_dicts[0][1] == "invalid_files.json"
+
+
+def test_mlflow_tracker_generates_informative_default_run_name(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_mlflow = FakeMlflow()
+    monkeypatch.setitem(sys.modules, "mlflow", fake_mlflow)
+    training_config = _training_config_with_generated_run_name(tmp_path)
+
+    with MlflowTrainingTracker(training_config=training_config, tracking_root=tmp_path) as tracker:
+        assert fake_mlflow.run_name == "pretrain-flat-e1-bs2-lr0p001-cpu-aux0p1-vp0p05-gen2b-4s4h"
+        tracker.log_setup(training_config=training_config, model_config=_model_config(), split=_split())
+
+    assert fake_mlflow.run_name.startswith("pretrain-flat-e1-bs2-lr0p001-cpu-aux0p1-vp0p05-gen2b-4s4h")
+    assert "-tr1-va0-bad1-fp" in fake_mlflow.run_name
+    assert fake_mlflow.tags["mlflow.runName"] == fake_mlflow.run_name
+
+
+def test_mlflow_tracker_keeps_explicit_run_name_after_setup(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_mlflow = FakeMlflow()
+    monkeypatch.setitem(sys.modules, "mlflow", fake_mlflow)
+    training_config = _training_config(tmp_path, tracking_uri="file:///tmp/mlruns")
+
+    with MlflowTrainingTracker(training_config=training_config, tracking_root=tmp_path) as tracker:
+        tracker.log_setup(training_config=training_config, model_config=_model_config(), split=_split())
+
+    assert fake_mlflow.run_name == "test-run"
+    assert "mlflow.runName" not in fake_mlflow.tags
 
 
 def test_mlflow_tracker_uses_environment_uri_before_local_fallback(
