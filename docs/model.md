@@ -92,6 +92,11 @@ failures, incomplete or wrong-bar-count samples, silent or one-hand-only texture
 dotted-duration violations, minimum-duration violations, and configured playability-limit excesses. This score is for
 diagnostics and future reranking; it is not used as a training loss or sampling prior.
 
+When generation evaluation runs during training, MLflow also receives a sample artifact bundle under
+`generation/epoch_NNNN/`. The bundle contains `samples.jsonl`, token-text files for every soft and hard sample, and
+MusicXML files for samples that decode cleanly through the model-owned `Segment` to MusicXML conversion path. Samples
+with decode errors remain in the manifest and token-text files but do not get notation artifacts.
+
 Each encoded JSONL row is an `EncodedExercise`:
 
 - `token_ids`: unified two-hand token sequence.

@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Protocol
 
+import torch
 from torch import Tensor
 
+from musak_model.evaluation.generation.schema import GenerationEvaluationResult
 from musak_model.tokens.schema import ScaleType
 
 
@@ -57,3 +60,14 @@ class GenerationModel(Protocol):
         structural_control_ids: Tensor | None = None,
         token_padding_mask: Tensor | None = None,
     ) -> Tensor: ...
+
+
+class GenerationEvaluator(Protocol):
+    def evaluate_result(
+        self,
+        model: GenerationModel,
+        *,
+        device: torch.device,
+    ) -> GenerationEvaluationResult: ...
+
+    def write_artifacts(self, result: GenerationEvaluationResult, *, output_directory: Path) -> None: ...

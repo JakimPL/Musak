@@ -1,6 +1,7 @@
 import logging
 from dataclasses import dataclass
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from time import perf_counter
 
 import torch
@@ -14,6 +15,7 @@ from musak_model.conditioning.structural.vocabulary import StructuralControlVoca
 from musak_model.conditioning.time_signature import TimeSignatureVocabulary
 from musak_model.data.config import SegmentationConfig
 from musak_model.evaluation import GenerationSuiteEvaluator
+from musak_model.evaluation.generation import GenerationEvaluator
 from musak_model.model import HierarchicalAutoregressiveModel
 from musak_model.model.config import ModelConfig, ModelOutputMode
 from musak_model.model.output import ModelTrainingLogits
@@ -85,7 +87,7 @@ class PretrainingTrainer:
         token_kind_ids: Tensor | None = None,
         token_attribute_lookup: TokenAttributeTargetTensors | None = None,
         validity_mask_builder: TrainingValidityMaskBuilder | None = None,
-        generation_evaluator: GenerationSuiteEvaluator | None = None,
+        generation_evaluator: GenerationEvaluator | None = None,
     ) -> None:
         self._model = model
         self._config = config
@@ -527,9 +529,13 @@ class PretrainingTrainer:
             return
 
         _LOGGER.info("Running generation evaluation for epoch %s", epoch + 1)
-        metrics = self._generation_evaluator.evaluate(self._model, device=self._device)
-        self._tracker.log_generation_evaluation(metrics=metrics, epoch=epoch)
-        _LOGGER.info("Logged %s generation evaluation metric(s)", len(metrics))
+        result = self._generation_evaluator.evaluate_result(self._model, device=self._device)
+        self._tracker.log_generation_evaluation(metrics=result.metrics, epoch=epoch)
+        with TemporaryDirectory(prefix="musak-generation-evaluation-") as temporary_directory:
+            artifact_directory = Path(temporary_directory)
+            self._generation_evaluator.write_artifacts(result, output_directory=artifact_directory)
+            self._tracker.log_generation_artifacts(artifact_directory=artifact_directory, epoch=epoch)
+        _LOGGER.info("Logged %s generation evaluation metric(s)", len(result.metrics))
 
     def _train_epoch(self, *, epoch: int) -> EpochSplitMetrics:
         self._model.train()

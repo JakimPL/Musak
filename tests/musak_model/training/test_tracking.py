@@ -46,6 +46,7 @@ class FakeMlflow(ModuleType):
         self.params: dict[str, str | int | float | bool] = {}
         self.metrics: list[tuple[str, float, int]] = []
         self.artifacts: list[tuple[str, str | None]] = []
+        self.artifact_directories: list[tuple[str, str | None]] = []
         self.logged_dicts: list[tuple[dict[str, Any], str]] = []
         self.tags: dict[str, str] = {}
 
@@ -74,6 +75,9 @@ class FakeMlflow(ModuleType):
 
     def log_artifact(self, local_path: str, *, artifact_path: str | None = None) -> None:
         self.artifacts.append((local_path, artifact_path))
+
+    def log_artifacts(self, local_dir: str, *, artifact_path: str | None = None) -> None:
+        self.artifact_directories.append((local_dir, artifact_path))
 
     def log_dict(self, dictionary: dict[str, Any], artifact_file: str) -> None:
         self.logged_dicts.append((dictionary, artifact_file))
@@ -229,6 +233,9 @@ def test_mlflow_tracker_logs_setup_metrics_artifacts_and_invalid_files(
     monkeypatch.setitem(sys.modules, "mlflow", fake_mlflow)
     checkpoint = tmp_path / "checkpoint.pt"
     checkpoint.write_text("checkpoint")
+    generation_artifact_directory = tmp_path / "generation-artifacts"
+    generation_artifact_directory.mkdir()
+    (generation_artifact_directory / "samples.jsonl").write_text("", encoding="utf-8")
 
     tracker = MlflowTrainingTracker(
         training_config=_training_config(tmp_path, tracking_uri="file:///tmp/mlruns"),
@@ -257,6 +264,7 @@ def test_mlflow_tracker_logs_setup_metrics_artifacts_and_invalid_files(
             )
         )
         tracker.log_generation_evaluation(metrics={"generation/soft/rate/end": 0.25}, epoch=3)
+        tracker.log_generation_artifacts(artifact_directory=generation_artifact_directory, epoch=3)
         tracker.log_split_figure_metrics(metrics={"model/split/figure/count/comparable_groups": 1.0})
         tracker.log_checkpoints(latest_checkpoint_path=checkpoint, best_checkpoint_path=None)
         tracker.log_invalid_files(invalid_files=_split().invalid_files)
@@ -285,6 +293,7 @@ def test_mlflow_tracker_logs_setup_metrics_artifacts_and_invalid_files(
     assert ("generation/soft/rate/end", 0.25, 3) in fake_mlflow.metrics
     assert ("model/split/figure/count/comparable_groups", 1.0, 0) in fake_mlflow.metrics
     assert fake_mlflow.artifacts == [(str(checkpoint), "checkpoints")]
+    assert fake_mlflow.artifact_directories == [(str(generation_artifact_directory), "generation/epoch_0003")]
     assert fake_mlflow.logged_dicts[0][1] == "invalid_files.json"
 
 

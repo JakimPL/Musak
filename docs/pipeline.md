@@ -135,7 +135,9 @@ make train
 ```
 
 Training logs model metrics to MLflow. Generation evaluation is enabled by the default training configs and logs
-sample-quality metrics during training. Training also builds figure profiles for the actual train and validation
+sample-quality metrics during training. Each generation-evaluation epoch also logs sample artifacts under
+`generation/epoch_NNNN/`: a JSONL manifest, token-text files, and MusicXML for samples that decode cleanly. Training
+also builds figure profiles for the actual train and validation
 partitions and logs `model/split/figure/...` metrics so the split distribution can be inspected. Those split figure
 counts are persisted under the generated artifact root and reused by compatible training runs. When matching figure
 artifacts are available under the processed encoded run, generation evaluation also logs figure comparison metrics;

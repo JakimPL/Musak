@@ -135,8 +135,11 @@ This section is the durable resumption point if work continues after context com
 - Completed: Phase 6A adds an interpretable generated-sample penalty report under
   `generation/<soft|hard>/mean/sample_penalty*`. This is wired only as diagnostics for future reranking; sampling
   and training behavior are unchanged.
-- Next: inspect Phase 5B/5C/6A metrics on one short pretraining run before broadening the auxiliary target set
-  beyond the current density, rhythm, texture, chromaticity, dotted-duration, and span targets.
+- Completed: Phase 6B logs generated-sample artifacts to MLflow under `generation/epoch_NNNN/`: a JSONL manifest,
+  token-text files, and MusicXML files for samples that decode cleanly through the existing `Segment` to MusicXML
+  conversion path. MIDI export is intentionally deferred because there is no model-owned conversion primitive yet.
+- Next: inspect Phase 5B/5C/6A metrics and Phase 6B artifacts on one short pretraining run before broadening the
+  auxiliary target set beyond the current density, rhythm, texture, chromaticity, dotted-duration, and span targets.
 
 Early non-unit validation for Phase 2A:
 

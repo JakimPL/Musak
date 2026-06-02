@@ -1,6 +1,6 @@
 from pathlib import Path
 from types import TracebackType
-from typing import Final, Self
+from typing import Final, Self, cast
 
 import pytest
 import torch
@@ -11,6 +11,7 @@ from musak_model.conditioning.config import ConditioningConfig, DifficultyConfig
 from musak_model.conditioning.time_signature import TimeSignatureVocabulary, TimeSignatureVocabularyConfig
 from musak_model.data.schema import SegmentMetadata
 from musak_model.data.tokenization_context import tokenization_context_from_scale
+from musak_model.evaluation.generation import GenerationEvaluationResult, GenerationModel
 from musak_model.model import HierarchicalAutoregressiveModel
 from musak_model.model.config import (
     CNNConfig,
@@ -60,6 +61,7 @@ class FakeTracker:
     def __init__(self) -> None:
         self.epochs: list[int] = []
         self.generation_evaluations: list[tuple[int, dict[str, float]]] = []
+        self.generation_artifacts: list[tuple[int, list[str]]] = []
         self.checkpoint_logged = False
         self.invalid_files_logged = False
 
@@ -82,6 +84,17 @@ class FakeTracker:
 
     def log_generation_evaluation(self, *, metrics: dict[str, float], epoch: int) -> None:
         self.generation_evaluations.append((epoch, metrics))
+
+    def log_generation_artifacts(self, *, artifact_directory: Path, epoch: int) -> None:
+        self.generation_artifacts.append(
+            (
+                epoch,
+                sorted(path.relative_to(artifact_directory).as_posix() for path in artifact_directory.rglob("*")),
+            )
+        )
+
+    def log_split_figure_metrics(self, *, metrics: dict[str, float]) -> None:
+        return None
 
     def log_checkpoints(self, *, latest_checkpoint_path: Path | None, best_checkpoint_path: Path | None) -> None:
         self.checkpoint_logged = True
@@ -214,9 +227,21 @@ class FakeGenerationEvaluator:
     def __init__(self) -> None:
         self.epochs_seen = 0
 
-    def evaluate(self, model: HierarchicalAutoregressiveModel, *, device: torch.device) -> dict[str, float]:
+    def evaluate(self, model: GenerationModel, *, device: torch.device) -> dict[str, float]:
+        return self.evaluate_result(model, device=device).metrics
+
+    def evaluate_result(
+        self,
+        model: GenerationModel,
+        *,
+        device: torch.device,
+    ) -> GenerationEvaluationResult:
         self.epochs_seen += 1
-        return {"generation/soft/count/samples": 1.0}
+        return GenerationEvaluationResult(metrics={"generation/soft/count/samples": 1.0}, sample_suites=())
+
+    def write_artifacts(self, result: GenerationEvaluationResult, *, output_directory: Path) -> None:
+        output_directory.mkdir(parents=True, exist_ok=True)
+        (output_directory / "samples.jsonl").write_text("", encoding="utf-8")
 
 
 def _epoch_metric(*, epoch: int, validation_loss: float) -> EpochMetrics:
@@ -263,7 +288,7 @@ def _loader() -> DataLoader[TrainingBatch]:
         musical_auxiliary_targets=_musical_auxiliary_target_config(),
         conditioning=_conditioning_config(),
     )
-    return DataLoader(dataset, batch_size=2, collate_fn=collate_training_examples)
+    return cast(DataLoader[TrainingBatch], DataLoader(dataset, batch_size=2, collate_fn=collate_training_examples))
 
 
 def _token_vocabulary() -> TokenVocabulary:
@@ -382,6 +407,7 @@ def test_trainer_logs_generation_evaluation_on_configured_cadence(tmp_path: Path
 
     assert evaluator.epochs_seen == 1
     assert tracker.generation_evaluations == [(4, {"generation/soft/count/samples": 1.0})]
+    assert tracker.generation_artifacts == [(4, ["samples.jsonl"])]
 
 
 def test_trainer_stops_early_after_validation_loss_patience(

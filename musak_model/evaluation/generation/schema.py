@@ -25,3 +25,15 @@ class GenerationSample:
     decode_error: str | None
     completed_bars: int
     target_bar_count: int
+
+
+@dataclass(frozen=True)
+class GenerationSampleSuite:
+    name: str
+    samples: list[GenerationSample]
+
+
+@dataclass(frozen=True)
+class GenerationEvaluationResult:
+    metrics: dict[str, float]
+    sample_suites: tuple[GenerationSampleSuite, ...]

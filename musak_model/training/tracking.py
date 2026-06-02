@@ -24,6 +24,7 @@ _MLFLOW_TRACKING_URI_ENV: Final[str] = "MLFLOW_TRACKING_URI"
 _MLFLOW_RUN_NAME_TAG: Final[str] = "mlflow.runName"
 _MUSAK_EXPERIMENT_PREFIX: Final[str] = "musak-"
 _FINGERPRINT_NAME_LENGTH: Final[int] = 8
+_GENERATION_ARTIFACT_ROOT: Final[str] = "generation"
 
 
 class TrainingTracker(Protocol):
@@ -47,6 +48,8 @@ class TrainingTracker(Protocol):
     def log_epoch(self, *, metrics: EpochMetrics) -> None: ...
 
     def log_generation_evaluation(self, *, metrics: dict[str, float], epoch: int) -> None: ...
+
+    def log_generation_artifacts(self, *, artifact_directory: Path, epoch: int) -> None: ...
 
     def log_split_figure_metrics(self, *, metrics: dict[str, float]) -> None: ...
 
@@ -84,6 +87,9 @@ class NoOpTrainingTracker:
         return None
 
     def log_generation_evaluation(self, *, metrics: dict[str, float], epoch: int) -> None:
+        return None
+
+    def log_generation_artifacts(self, *, artifact_directory: Path, epoch: int) -> None:
         return None
 
     def log_split_figure_metrics(self, *, metrics: dict[str, float]) -> None:
@@ -195,6 +201,11 @@ class MlflowTrainingTracker:
         for name, value in metrics.items():
             if math.isfinite(value):
                 self._mlflow.log_metric(name, value, step=epoch)
+
+    def log_generation_artifacts(self, *, artifact_directory: Path, epoch: int) -> None:
+        artifact_path = f"{_GENERATION_ARTIFACT_ROOT}/epoch_{epoch:04d}"
+        _LOGGER.info("Logging generation evaluation artifacts to MLflow: artifact_path=%s", artifact_path)
+        self._mlflow.log_artifacts(str(artifact_directory), artifact_path=artifact_path)
 
     def log_split_figure_metrics(self, *, metrics: dict[str, float]) -> None:
         _LOGGER.info("Logging %s split figure metric(s) to MLflow", len(metrics))

@@ -142,11 +142,14 @@ def test_generation_suite_logs_soft_and_hard_constraint_metrics() -> None:
         figure_profile_artifacts=None,
     )
 
-    metrics = evaluator.evaluate(
+    result = evaluator.evaluate_result(
         ScriptedModel(scripted_ids, vocabulary_size=token_vocabulary.vocabulary_size),
         device=torch.device("cpu"),
     )
+    metrics = result.metrics
 
+    assert [suite.name for suite in result.sample_suites] == ["soft", "hard"]
+    assert [len(suite.samples) for suite in result.sample_suites] == [1, 1]
     assert metrics["generation/soft/count/samples"] == 1.0
     assert metrics["generation/hard/count/samples"] == 1.0
     assert metrics["generation/soft/rate/end"] == 1.0

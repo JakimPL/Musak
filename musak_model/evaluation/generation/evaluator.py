@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from pathlib import Path
 from time import perf_counter
 from typing import Final
 
@@ -12,6 +13,7 @@ from musak_model.conditioning.structural.schema import StructuralControlFeatures
 from musak_model.conditioning.structural.vocabulary import StructuralControlVocabulary
 from musak_model.conditioning.time_signature import TimeSignatureVocabulary
 from musak_model.evaluation.diagnostics import SegmentDiagnostics, diagnose_segment
+from musak_model.evaluation.generation.artifacts import write_generation_sample_artifacts
 from musak_model.evaluation.generation.auxiliary_metrics import musical_auxiliary_bucket_metrics
 from musak_model.evaluation.generation.figure_metrics import figure_profile_metrics
 from musak_model.evaluation.generation.musical_metrics import musical_profile_metrics
@@ -30,7 +32,11 @@ from musak_model.evaluation.generation.sampling import (
     scale_type_to_id,
     segment_from_tokens,
 )
-from musak_model.evaluation.generation.schema import GenerationSample
+from musak_model.evaluation.generation.schema import (
+    GenerationEvaluationResult,
+    GenerationSample,
+    GenerationSampleSuite,
+)
 from musak_model.evaluation.generation.scoring import generation_sample_score_metrics
 from musak_model.evaluation.generation.suite_metrics import suite_metrics
 from musak_model.generation.constraints import (
@@ -105,6 +111,14 @@ class GenerationSuiteEvaluator:
         *,
         device: torch.device,
     ) -> dict[str, float]:
+        return self.evaluate_result(model, device=device).metrics
+
+    def evaluate_result(
+        self,
+        model: GenerationModel,
+        *,
+        device: torch.device,
+    ) -> GenerationEvaluationResult:
         _LOGGER.info(
             "Starting generation evaluation: soft_samples=%s hard_samples=%s max_new_tokens=%s device=%s",
             self._config.soft_sample_count,
@@ -127,7 +141,21 @@ class GenerationSuiteEvaluator:
             perf_counter() - started_at,
             len(metrics),
         )
-        return metrics
+        return GenerationEvaluationResult(
+            metrics=metrics,
+            sample_suites=(
+                GenerationSampleSuite(name=_SOFT_SUITE_NAME, samples=suites.soft_samples),
+                GenerationSampleSuite(name=_HARD_SUITE_NAME, samples=suites.hard_samples),
+            ),
+        )
+
+    def write_artifacts(self, result: GenerationEvaluationResult, *, output_directory: Path) -> None:
+        write_generation_sample_artifacts(
+            result,
+            output_directory=output_directory,
+            config=self._config,
+            duration_vocabulary=self._duration_vocabulary,
+        )
 
     def _sample_suites(self, model: GenerationModel, *, device: torch.device) -> _SampleSuites:
         _LOGGER.info("Generating soft evaluation samples")
