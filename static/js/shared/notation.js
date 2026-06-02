@@ -31,7 +31,7 @@ function buildStaveNote(noteData, clef) {
     const isRest = noteData.duration.endsWith('r');
     const keys = isRest ? [REST_PLACEHOLDER_KEY] : noteData.keys;
     const note = new StaveNote({ clef, keys, duration: noteData.duration });
-    if (!isRest) {
+    if (!isRest && clef !== 'percussion') {
         const accidentals = noteData.accidentals?.length
             ? noteData.accidentals
             : keys.map(key => accidentalFromKey(key));
