@@ -265,6 +265,7 @@ def _mlflow_run_name(training_config: TrainingConfig) -> str:
             f"bs{training_config.optimization.batch_size}",
             f"lr{_format_run_name_number(training_config.optimization.learning_rate)}",
             training_config.runtime.device,
+            _early_stopping_run_name_part(training_config),
             f"aux{_format_run_name_number(training_config.musical_auxiliary_objective.weight)}",
             f"vp{_format_run_name_number(training_config.conditioning.validity_penalty_weight)}",
             f"gen{generation.bar_count}b-{generation.soft_sample_count}s{generation.hard_sample_count}h",
@@ -295,6 +296,14 @@ def _stage_name(training_config: TrainingConfig) -> str:
         return experiment_name.removeprefix(_MUSAK_EXPERIMENT_PREFIX)
 
     return experiment_name
+
+
+def _early_stopping_run_name_part(training_config: TrainingConfig) -> str:
+    early_stopping = training_config.early_stopping
+    if not early_stopping.enabled:
+        return "noes"
+
+    return f"es{early_stopping.patience_epochs}"
 
 
 def _format_run_name_number(value: float) -> str:

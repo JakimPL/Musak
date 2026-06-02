@@ -21,6 +21,7 @@ from musak_model.model.config import (
 from musak_model.tokens.schema import ScaleType
 from musak_model.training.config import (
     CheckpointConfig,
+    EarlyStoppingConfig,
     EventObjectiveConfig,
     GenerationEvaluationConfig,
     MlflowConfig,
@@ -84,6 +85,7 @@ def _training_config(tmp_path: Path, *, enable_mlflow: bool = True, tracking_uri
         event_objective=_event_objective_config(),
         musical_auxiliary_targets=_musical_auxiliary_target_config(),
         musical_auxiliary_objective=_musical_auxiliary_objective_config(),
+        early_stopping=EarlyStoppingConfig(enabled=False, patience_epochs=10, min_delta=0.0),
         runtime=RuntimeConfig(num_workers=1, device="cpu"),
         conditioning=TrainingConditioningConfig(
             use_time_signature=False,
@@ -295,10 +297,10 @@ def test_mlflow_tracker_generates_informative_default_run_name(
     training_config = _training_config_with_generated_run_name(tmp_path)
 
     with MlflowTrainingTracker(training_config=training_config, tracking_root=tmp_path) as tracker:
-        assert fake_mlflow.run_name == "pretrain-flat-e1-bs2-lr0p001-cpu-aux0p1-vp0p05-gen2b-4s4h"
+        assert fake_mlflow.run_name == "pretrain-flat-e1-bs2-lr0p001-cpu-noes-aux0p1-vp0p05-gen2b-4s4h"
         tracker.log_setup(training_config=training_config, model_config=_model_config(), split=_split())
 
-    assert fake_mlflow.run_name.startswith("pretrain-flat-e1-bs2-lr0p001-cpu-aux0p1-vp0p05-gen2b-4s4h")
+    assert fake_mlflow.run_name.startswith("pretrain-flat-e1-bs2-lr0p001-cpu-noes-aux0p1-vp0p05-gen2b-4s4h")
     assert "-tr1-va0-bad1-fp" in fake_mlflow.run_name
     assert fake_mlflow.tags["mlflow.runName"] == fake_mlflow.run_name
 

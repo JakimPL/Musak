@@ -361,6 +361,11 @@ reject from that state. It does not replace the next-token objective. If the gro
 invalid for its prefix, that position is excluded from the auxiliary penalty and counted as an invalid-target
 metric instead of pushing the model away from the observed token.
 
+Training supports validation-loss early stopping through the `early_stopping` config section. Pretraining leaves it
+disabled by default because broad corpus runs may improve slowly. Finetuning enables it by default so small exercise
+sets stop once validation loss has failed to improve for the configured patience window. The best checkpoint is still
+selected by validation loss and should be preferred over the latest checkpoint for finetuned models.
+
 ## MLflow Metric Naming Protocol
 
 MLflow metric names use slash-separated hierarchy. The aggregation/statistic level must be explicit and must appear

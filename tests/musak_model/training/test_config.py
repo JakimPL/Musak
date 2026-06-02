@@ -8,6 +8,7 @@ from musak_model.model.config import ModelOutputMode
 from musak_model.tokens.schema import ScaleType
 from musak_model.training.config import (
     CheckpointConfig,
+    EarlyStoppingConfig,
     EventObjectiveConfig,
     GenerationEvaluationConfig,
     MusicalAuxiliaryObjectiveConfig,
@@ -87,12 +88,17 @@ def _musical_auxiliary_target_config() -> MusicalAuxiliaryTargetConfig:
     )
 
 
+def _early_stopping_config() -> EarlyStoppingConfig:
+    return EarlyStoppingConfig(enabled=False, patience_epochs=10, min_delta=0.0)
+
+
 def test_training_config_accepts_nested_constructor() -> None:
     config = TrainingConfig(
         optimization=OptimizationConfig(epochs=1, batch_size=2, learning_rate=0.001, weight_decay=0.0),
         event_objective=_event_objective_config(),
         musical_auxiliary_targets=_musical_auxiliary_target_config(),
         musical_auxiliary_objective=_musical_auxiliary_objective_config(),
+        early_stopping=_early_stopping_config(),
         runtime=RuntimeConfig(num_workers=0, device="cpu"),
         conditioning=_conditioning_config(),
         checkpoints=CheckpointConfig(checkpoint_directory=Path("checkpoints")),
@@ -125,6 +131,7 @@ def test_training_config_rejects_old_conditioning_field() -> None:
             event_objective=_event_objective_config(),
             musical_auxiliary_targets=_musical_auxiliary_target_config(),
             musical_auxiliary_objective=_musical_auxiliary_objective_config(),
+            early_stopping=_early_stopping_config(),
             runtime=RuntimeConfig(num_workers=1, device="cpu"),
             checkpoints=CheckpointConfig(checkpoint_directory=Path("checkpoints")),
             conditioning={"use_conditioning": True},

@@ -27,6 +27,7 @@ from musak_model.tokens.schema import Hand, HandToken, NoteToken, ScaleType
 from musak_model.tokens.vocabulary import TokenVocabulary
 from musak_model.training.checkpoint import save_checkpoint
 from musak_model.training.config import (
+    EarlyStoppingConfig,
     EventObjectiveConfig,
     FinetuningCheckpointConfig,
     FinetuningTrainingConfig,
@@ -176,6 +177,7 @@ def test_train_finetuning_loads_pretraining_checkpoint_and_runs_epoch(
                 dotted_duration_weight=1.0,
                 hand_span_weight=1.0,
             ),
+            early_stopping=EarlyStoppingConfig(enabled=False, patience_epochs=10, min_delta=0.0),
             conditioning=TrainingConditioningConfig(
                 use_time_signature=True,
                 use_scale_type=True,

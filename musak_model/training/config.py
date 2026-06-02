@@ -49,6 +49,14 @@ class MusicalAuxiliaryObjectiveConfig(BaseModel):
     hand_span_weight: float = Field(ge=0.0)
 
 
+class EarlyStoppingConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    enabled: bool
+    patience_epochs: int = Field(ge=1)
+    min_delta: float = Field(ge=0.0)
+
+
 class RuntimeConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -136,6 +144,7 @@ class TrainingConfig(BaseModel):
     event_objective: EventObjectiveConfig
     musical_auxiliary_targets: MusicalAuxiliaryTargetConfig
     musical_auxiliary_objective: MusicalAuxiliaryObjectiveConfig
+    early_stopping: EarlyStoppingConfig
     runtime: RuntimeConfig
     conditioning: TrainingConditioningConfig
     checkpoints: CheckpointConfig

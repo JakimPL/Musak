@@ -495,6 +495,7 @@ def log_training_start(
     _LOGGER.info("Conditioning config: %s", args.conditioning_config)
     _LOGGER.info("Device: %s", training_config.runtime.device)
     _LOGGER.info("Epochs: %s", training_config.optimization.epochs)
+    _LOGGER.info("Early stopping: %s", training_config.early_stopping)
     _LOGGER.info("Batch size: %s", training_config.optimization.batch_size)
     _LOGGER.info("Workers: %s", training_config.runtime.num_workers)
     _LOGGER.info("Progress bars: %s", not args.no_progress)

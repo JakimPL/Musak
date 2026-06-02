@@ -2,6 +2,7 @@ from pathlib import Path
 from types import TracebackType
 from typing import Final, Self
 
+import pytest
 import torch
 from torch.utils.data import DataLoader
 
@@ -25,6 +26,7 @@ from musak_model.tokens.schema import ScaleType
 from musak_model.tokens.vocabulary import TokenVocabulary
 from musak_model.training.config import (
     CheckpointConfig,
+    EarlyStoppingConfig,
     EventObjectiveConfig,
     GenerationEvaluationConfig,
     MusicalAuxiliaryObjectiveConfig,
@@ -120,6 +122,7 @@ def _training_config(
     epochs: int = 1,
     conditioning: TrainingConditioningConfig | None = None,
     event_objective: EventObjectiveConfig | None = None,
+    early_stopping: EarlyStoppingConfig | None = None,
     save_all_epochs: bool = False,
 ) -> TrainingConfig:
     return TrainingConfig(
@@ -127,6 +130,7 @@ def _training_config(
         event_objective=event_objective if event_objective is not None else _event_objective_config(),
         musical_auxiliary_targets=_musical_auxiliary_target_config(),
         musical_auxiliary_objective=_musical_auxiliary_objective_config(),
+        early_stopping=early_stopping if early_stopping is not None else _early_stopping_config(),
         runtime=RuntimeConfig(num_workers=1, device="cpu"),
         conditioning=conditioning if conditioning is not None else _conditioning_config(),
         checkpoints=CheckpointConfig(
@@ -179,6 +183,10 @@ def _musical_auxiliary_objective_config() -> MusicalAuxiliaryObjectiveConfig:
     )
 
 
+def _early_stopping_config() -> EarlyStoppingConfig:
+    return EarlyStoppingConfig(enabled=False, patience_epochs=10, min_delta=0.0)
+
+
 def _generation_evaluation_config(*, enabled: bool) -> GenerationEvaluationConfig:
     return GenerationEvaluationConfig(
         enabled=enabled,
@@ -209,6 +217,18 @@ class FakeGenerationEvaluator:
     def evaluate(self, model: HierarchicalAutoregressiveModel, *, device: torch.device) -> dict[str, float]:
         self.epochs_seen += 1
         return {"generation/soft/count/samples": 1.0}
+
+
+def _epoch_metric(*, epoch: int, validation_loss: float) -> EpochMetrics:
+    return EpochMetrics(
+        epoch=epoch,
+        train_loss=1.0,
+        train_perplexity=2.0,
+        train_token_accuracy=0.5,
+        validation_loss=validation_loss,
+        validation_perplexity=2.0,
+        validation_token_accuracy=0.5,
+    )
 
 
 def _sample(token_ids: list[int], bar_positions: list[int]) -> EncodedExercise:
@@ -284,6 +304,8 @@ def test_trainer_runs_one_epoch_and_writes_checkpoints(tmp_path: Path) -> None:
     assert (tmp_path / "latest.pt").exists()
     assert (tmp_path / "best.pt").exists()
     assert not (tmp_path / "epoch_0000.pt").exists()
+    latest_checkpoint = torch.load(tmp_path / "latest.pt", map_location=torch.device("cpu"))
+    assert latest_checkpoint["best_validation_loss"] == result.metrics[0].validation_loss
 
 
 def test_trainer_logs_to_tracker(tmp_path: Path) -> None:
@@ -360,6 +382,35 @@ def test_trainer_logs_generation_evaluation_on_configured_cadence(tmp_path: Path
 
     assert evaluator.epochs_seen == 1
     assert tracker.generation_evaluations == [(4, {"generation/soft/count/samples": 1.0})]
+
+
+def test_trainer_stops_early_after_validation_loss_patience(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    model = HierarchicalAutoregressiveModel(_small_model_config())
+    trainer = PretrainingTrainer(
+        model=model,
+        config=_training_config(
+            tmp_path,
+            epochs=5,
+            early_stopping=EarlyStoppingConfig(enabled=True, patience_epochs=2, min_delta=0.0),
+        ),
+        train_loader=_loader(),
+        validation_loader=_loader(),
+    )
+    validation_losses = {0: 1.0, 1: 1.1, 2: 1.2, 3: 1.3, 4: 1.4}
+
+    def run_epoch(*, epoch: int) -> EpochMetrics:
+        return _epoch_metric(epoch=epoch, validation_loss=validation_losses[epoch])
+
+    monkeypatch.setattr(trainer, "_run_epoch", run_epoch)
+
+    result = trainer.train()
+
+    assert [metric.epoch for metric in result.metrics] == [0, 1, 2]
+    assert result.latest_checkpoint_path == tmp_path / "latest.pt"
+    assert result.best_checkpoint_path == tmp_path / "best.pt"
 
 
 def test_trainer_resumes_from_checkpoint(tmp_path: Path) -> None:

@@ -8,6 +8,7 @@ from musak_model.model.config import ModelOutputMode
 from musak_model.tokens.schema import ScaleType
 from musak_model.training.config import (
     CheckpointConfig,
+    EarlyStoppingConfig,
     EventObjectiveConfig,
     FinetuningCheckpointConfig,
     FinetuningTrainingConfig,
@@ -63,6 +64,7 @@ def _training_config(checkpoint_directory: Path, *, epochs: int = 25) -> Trainin
         event_objective=_event_objective_config(),
         musical_auxiliary_targets=_musical_auxiliary_target_config(),
         musical_auxiliary_objective=_musical_auxiliary_objective_config(),
+        early_stopping=_early_stopping_config(),
         runtime=RuntimeConfig(num_workers=2, device="cuda"),
         checkpoints=CheckpointConfig(checkpoint_directory=checkpoint_directory),
         conditioning=_conditioning_config(use_time_signature=True, use_scale_type=True),
@@ -82,6 +84,7 @@ def _finetuning_config(
         event_objective=_event_objective_config(),
         musical_auxiliary_targets=_musical_auxiliary_target_config(),
         musical_auxiliary_objective=_musical_auxiliary_objective_config(),
+        early_stopping=_early_stopping_config(),
         runtime=RuntimeConfig(num_workers=4, device="cuda"),
         checkpoints=FinetuningCheckpointConfig(
             checkpoint_directory=checkpoint_directory,
@@ -141,6 +144,10 @@ def _musical_auxiliary_target_config() -> MusicalAuxiliaryTargetConfig:
         voice_independence_bucket_boundaries=(0.2, 0.4, 0.6, 0.8),
         hand_span_bucket_boundaries=(3, 5, 8, 12, 16),
     )
+
+
+def _early_stopping_config() -> EarlyStoppingConfig:
+    return EarlyStoppingConfig(enabled=False, patience_epochs=10, min_delta=0.0)
 
 
 def _generation_evaluation_config() -> GenerationEvaluationConfig:

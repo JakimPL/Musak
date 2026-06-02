@@ -141,6 +141,10 @@ counts are persisted under the generated artifact root and reused by compatible 
 artifacts are available under the processed encoded run, generation evaluation also logs figure comparison metrics;
 figure profiles are not generation constraints and do not change sampling.
 
+The default finetuning config enables validation-loss early stopping. `FINETUNE_EPOCHS` is therefore a maximum epoch
+count, not a guarantee that every epoch will run. Use the finetuning `best.pt` checkpoint for generation unless you
+are deliberately inspecting the final stopped state.
+
 ## Inspect Output
 
 Use the model output explorer notebook to sample from a checkpoint and inspect generated music:

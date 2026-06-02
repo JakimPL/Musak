@@ -1,4 +1,5 @@
 import logging
+from dataclasses import dataclass
 from pathlib import Path
 from time import perf_counter
 
@@ -54,6 +55,12 @@ from musak_model.training.tracking import NoOpTrainingTracker, TrainingTracker, 
 from musak_model.training.validity import TrainingValidityMaskBuilder
 
 _LOGGER = logging.getLogger(__name__)
+
+
+@dataclass
+class EarlyStoppingState:
+    best_validation_loss: float | None
+    stale_epoch_count: int = 0
 
 
 class TrainingResult(BaseModel):
@@ -118,6 +125,7 @@ class PretrainingTrainer:
         metrics: list[EpochMetrics] = []
         best_checkpoint_path: Path | None = None
         latest_checkpoint_path = self._config.checkpoints.checkpoint_directory / "latest.pt"
+        early_stopping_state = EarlyStoppingState(best_validation_loss=best_validation_loss)
 
         for epoch in range(start_epoch, self._config.optimization.epochs):
             metric = self._run_epoch(epoch=epoch)
@@ -129,6 +137,8 @@ class PretrainingTrainer:
                 best_checkpoint_path=best_checkpoint_path,
                 latest_checkpoint_path=latest_checkpoint_path,
             )
+            if self._should_stop_early(metric=metric, state=early_stopping_state):
+                break
 
         return self._finish_training(
             metrics=metrics,
@@ -140,6 +150,13 @@ class PretrainingTrainer:
     def _log_training_shape(self) -> None:
         _LOGGER.info("Training batches per epoch: %s", len(self._train_loader))
         _LOGGER.info("Validation batches per epoch: %s", len(self._validation_loader))
+        early_stopping = self._config.early_stopping
+        if early_stopping.enabled:
+            _LOGGER.info(
+                "Early stopping enabled: monitor=validation_loss patience_epochs=%s min_delta=%s",
+                early_stopping.patience_epochs,
+                early_stopping.min_delta,
+            )
 
     def _resume_training_state(self) -> tuple[int, float | None]:
         if self._config.checkpoints.resume_checkpoint is None:
@@ -400,15 +417,16 @@ class PretrainingTrainer:
         best_checkpoint_path: Path | None,
         latest_checkpoint_path: Path,
     ) -> tuple[float | None, Path | None]:
-        self._save_checkpoint(latest_checkpoint_path, epoch=epoch, best_validation_loss=best_validation_loss)
-        _LOGGER.info("Saved latest checkpoint: %s", latest_checkpoint_path)
-        self._save_epoch_checkpoint(epoch=epoch, best_validation_loss=best_validation_loss)
-        return self._save_best_checkpoint(
+        best_validation_loss, best_checkpoint_path = self._save_best_checkpoint(
             epoch=epoch,
             metric=metric,
             best_validation_loss=best_validation_loss,
             best_checkpoint_path=best_checkpoint_path,
         )
+        self._save_checkpoint(latest_checkpoint_path, epoch=epoch, best_validation_loss=best_validation_loss)
+        _LOGGER.info("Saved latest checkpoint: %s", latest_checkpoint_path)
+        self._save_epoch_checkpoint(epoch=epoch, best_validation_loss=best_validation_loss)
+        return best_validation_loss, best_checkpoint_path
 
     def _save_checkpoint(self, path: Path, *, epoch: int, best_validation_loss: float | None) -> None:
         save_checkpoint(
@@ -444,6 +462,37 @@ class PretrainingTrainer:
         self._save_checkpoint(best_checkpoint_path, epoch=epoch, best_validation_loss=best_validation_loss)
         _LOGGER.info("Saved best checkpoint: %s", best_checkpoint_path)
         return best_validation_loss, best_checkpoint_path
+
+    def _should_stop_early(self, *, metric: EpochMetrics, state: EarlyStoppingState) -> bool:
+        early_stopping = self._config.early_stopping
+        if not early_stopping.enabled:
+            return False
+
+        if metric.validation_loss is None:
+            return False
+
+        if _validation_loss_improved(
+            validation_loss=metric.validation_loss,
+            best_validation_loss=state.best_validation_loss,
+            min_delta=early_stopping.min_delta,
+        ):
+            state.best_validation_loss = metric.validation_loss
+            state.stale_epoch_count = 0
+            return False
+
+        state.stale_epoch_count += 1
+        _LOGGER.info(
+            "Early stopping patience: stale_epochs=%s/%s best_validation_loss=%s current_validation_loss=%s",
+            state.stale_epoch_count,
+            early_stopping.patience_epochs,
+            state.best_validation_loss,
+            metric.validation_loss,
+        )
+        if state.stale_epoch_count < early_stopping.patience_epochs:
+            return False
+
+        _LOGGER.info("Stopping early after epoch %s", metric.epoch + 1)
+        return True
 
     def _finish_training(
         self,
@@ -902,3 +951,15 @@ def _move_batch_to_device(batch: TrainingBatch, *, device: torch.device) -> Trai
         conditioning_scale_type_ids=batch.conditioning_scale_type_ids.to(device),
         conditioning_time_signature_ids=batch.conditioning_time_signature_ids.to(device),
     )
+
+
+def _validation_loss_improved(
+    *,
+    validation_loss: float,
+    best_validation_loss: float | None,
+    min_delta: float,
+) -> bool:
+    if best_validation_loss is None:
+        return True
+
+    return validation_loss < best_validation_loss - min_delta

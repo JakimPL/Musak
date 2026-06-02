@@ -495,6 +495,8 @@ Implementation tasks:
 
 - Implement conditioning dropout if `cfg_dropout_probability` remains part of the config.
 - Add early stopping or best-checkpoint selection based on validation loss plus generated-sample diagnostics.
+  - Done: training has validation-loss early stopping in config; pretraining disables it by default and finetuning
+    enables it with a 10-epoch patience window.
 - Audit unused augmentation helpers and either wire useful ones into training intentionally or remove them from the
   training story.
 - Compare model shapes only after Phases 3 and 4 are available:

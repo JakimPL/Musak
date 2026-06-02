@@ -26,6 +26,10 @@ musical_auxiliary_objective:
   uses_accidentals_weight: 1.0
   dotted_duration_weight: 1.0
   hand_span_weight: 1.0
+early_stopping:
+  enabled: true
+  patience_epochs: 10
+  min_delta: 0.0
 runtime:
   num_workers: 12
   device: cuda
