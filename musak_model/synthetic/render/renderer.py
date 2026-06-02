@@ -21,7 +21,12 @@ from musak_model.synthetic.render.figure_selection import figure_fits_slot, sele
 from musak_model.synthetic.render.slots import RenderSlot, render_slots
 from musak_model.synthetic.structure.form import FormTree
 from musak_model.synthetic.structure.harmony_grammar import HarmonyGrammarSampler
-from musak_model.synthetic.structure.meter import MetricalLeafType, MetricalNode, MetricalTreeSampler
+from musak_model.synthetic.structure.meter import (
+    MetricalLeafType,
+    MetricalNode,
+    MetricalTree,
+    MetricalTreeSampler,
+)
 from musak_model.synthetic.substitution.emission import anchor_figure_to_tokens, hold_tokens, rest_tokens
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import BarToken, EndToken, Hand, HandToken, ScaleType, Token
@@ -54,6 +59,45 @@ def phrase_harmony(
     return tuple(chords)
 
 
+def class_metrical_tree(
+    metrical_sampler: MetricalTreeSampler,
+    form: FormTree,
+    *,
+    time_numerator: int,
+    time_denominator: int,
+    rng: Generator,
+) -> MetricalTree:
+    bar_duration = Fraction(time_numerator, time_denominator)
+    class_trees: dict[tuple[int, int], MetricalTree] = {}
+    bars: list[MetricalNode] = []
+    for segment in form.segments:
+        key = (segment.class_label, segment.bar_span)
+        class_tree = class_trees.get(key)
+        if class_tree is None:
+            class_tree = metrical_sampler.sample(
+                time_numerator=time_numerator,
+                time_denominator=time_denominator,
+                bar_count=segment.bar_span,
+                rng=rng,
+            )
+            class_trees[key] = class_tree
+
+        offset = segment.start_bar * bar_duration
+        bars.extend(_translate_node(bar, offset) for bar in class_tree.bars)
+
+    return MetricalTree(time_numerator, time_denominator, tuple(bars))
+
+
+def _translate_node(node: MetricalNode, offset: Fraction) -> MetricalNode:
+    return MetricalNode(
+        offset=node.offset + offset,
+        duration=node.duration,
+        weight=node.weight,
+        children=tuple(_translate_node(child, offset) for child in node.children),
+        leaf_type=node.leaf_type,
+    )
+
+
 @dataclass(frozen=True)
 class SurfaceRenderer:
     config: RenderConfig
@@ -79,8 +123,12 @@ class SurfaceRenderer:
     ) -> Segment:
         bar_count = form.bar_count
         bar_duration = Fraction(time_numerator, time_denominator)
-        tree = self.metrical_sampler.sample(
-            time_numerator=time_numerator, time_denominator=time_denominator, bar_count=bar_count, rng=rng
+        tree = class_metrical_tree(
+            self.metrical_sampler,
+            form,
+            time_numerator=time_numerator,
+            time_denominator=time_denominator,
+            rng=rng,
         )
         frontier = tree.harmonic_frontier(harmonic_slot_duration)
         chords = phrase_harmony(

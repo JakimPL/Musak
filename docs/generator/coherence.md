@@ -534,7 +534,7 @@ verbose names, `Final` constants, `uv run` tooling, tests mirror the package lay
 - **Phase 4 — Motif reuse-with-variation.** Per-class trees (§16.2 order); seed render + seed-selection `Q`;
   variation operators; re-grounding; `similarity_fit` + edit-distance neighborhood. *Verify:* restatements
   recognizable but not identical; repeated-figure-family & variation-after-repeat rates match corpus; **TV
-  preserved at `λ_sim=0`**.
+  preserved at `λ_sim=0`**. **Concrete design:** [phase-4-motif-variation.md](phase-4-motif-variation.md).
 - **Phase 5 — Couplings, controls, calibration.** Re-home `hand_coupling` (region gate + subtree-sharing); wire the
   global knobs; fit harmony `θ` (inside-outside + Dirichlet); calibrate `λ`s (incl. `λ_sim`) vs TV + structural
   metrics. *Verify:* controls move output as intended; TV under target; structural suite logged.

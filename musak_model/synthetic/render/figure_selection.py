@@ -9,6 +9,7 @@ from scipy.special import softmax
 from musak_model.n_grams.figure.schema import FigureNGram
 from musak_model.synthetic.figures import FigureVocabularyEntry
 from musak_model.synthetic.render.config import RenderConfig
+from musak_model.synthetic.render.similarity import figure_edit_distance
 from musak_model.synthetic.substitution.scoring import accent_fit, onset_chord_tone_fraction, slope_fit
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import ScaleType, scale_size_for_type
@@ -51,25 +52,22 @@ def select_figure(
     weight: float,
     config: RenderConfig,
     rng: Generator,
+    intended: FigureNGram | None = None,
 ) -> FigureVocabularyEntry:
-    if not entries:
-        raise ValueError("entries must be non-empty")
-
-    probabilities = softmax(
-        _tilted_log_probabilities(
-            entries,
-            anchor=anchor,
-            target_slope=target_slope,
-            scale_type=scale_type,
-            chord_pitch_classes=chord_pitch_classes,
-            weight=weight,
-            config=config,
-        )
-    )
-    return entries[int(rng.choice(len(entries), p=probabilities))]
+    return select_scored_figure(
+        entries,
+        anchor=anchor,
+        target_slope=target_slope,
+        scale_type=scale_type,
+        chord_pitch_classes=chord_pitch_classes,
+        weight=weight,
+        config=config,
+        rng=rng,
+        intended=intended,
+    )[0]
 
 
-def _tilted_log_probabilities(
+def select_scored_figure(
     entries: Sequence[FigureVocabularyEntry],
     *,
     anchor: int,
@@ -78,6 +76,36 @@ def _tilted_log_probabilities(
     chord_pitch_classes: frozenset[int],
     weight: float,
     config: RenderConfig,
+    rng: Generator,
+    intended: FigureNGram | None = None,
+) -> tuple[FigureVocabularyEntry, float]:
+    if not entries:
+        raise ValueError("entries must be non-empty")
+
+    scores = figure_log_scores(
+        entries,
+        anchor=anchor,
+        target_slope=target_slope,
+        scale_type=scale_type,
+        chord_pitch_classes=chord_pitch_classes,
+        weight=weight,
+        config=config,
+        intended=intended,
+    )
+    index = int(rng.choice(len(entries), p=softmax(scores)))
+    return entries[index], float(scores[index])
+
+
+def figure_log_scores(
+    entries: Sequence[FigureVocabularyEntry],
+    *,
+    anchor: int,
+    target_slope: int,
+    scale_type: ScaleType,
+    chord_pitch_classes: frozenset[int],
+    weight: float,
+    config: RenderConfig,
+    intended: FigureNGram | None = None,
 ) -> NDArray[np.float64]:
     counts = np.fromiter((entry.count for entry in entries), dtype=np.float64, count=len(entries))
     slopes = np.fromiter(
@@ -109,12 +137,21 @@ def _tilted_log_probabilities(
         dtype=np.float64,
         count=len(entries),
     )
-    return (
+    scores = (
         config.commonness_bias * np.log(counts)
         + config.lambda_curve * slopes
         + config.lambda_harmonic * harmonics
         + config.lambda_accent * accents
     )
+    if intended is not None and config.lambda_similarity != 0.0:
+        similarities = np.fromiter(
+            (-figure_edit_distance(entry.figure, intended) for entry in entries),
+            dtype=np.float64,
+            count=len(entries),
+        )
+        scores = scores + config.lambda_similarity * similarities
+
+    return scores
 
 
 def _chord_tone_coverage(

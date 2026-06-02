@@ -10,10 +10,15 @@ from musak_model.n_grams.figure.schema import FigureNGram
 from musak_model.synthetic.figures import FigureVocabulary, FigureVocabularyEntry, FigureVocabularyGroup
 from musak_model.synthetic.processes.pitch import RegisterCurveConfig, RegisterCurveSampler
 from musak_model.synthetic.render.config import RenderConfig
-from musak_model.synthetic.render.renderer import SurfaceRenderer, phrase_harmony
+from musak_model.synthetic.render.renderer import SurfaceRenderer, class_metrical_tree, phrase_harmony
 from musak_model.synthetic.structure.form import ClosingChoice, FormPrior, FormSampler, FormTree, WeightedSpan
 from musak_model.synthetic.structure.harmony_grammar import HarmonyGrammarConfig, HarmonyGrammarSampler
-from musak_model.synthetic.structure.meter import MetricalGrammarConfig, MetricalTreeSampler
+from musak_model.synthetic.structure.meter import (
+    MetricalGrammarConfig,
+    MetricalLeafType,
+    MetricalNode,
+    MetricalTreeSampler,
+)
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import Hand, HoldToken, NoteToken, ScaleType
 from musak_shared.elements import HarmonicFunction, degrees_for_function
@@ -166,3 +171,26 @@ def test_phrase_harmony_reproduces_the_period() -> None:
     assert len(chords) == 8
     assert chords[3].root_degree in _DOMINANT_DEGREES  # antecedent half cadence
     assert chords[7].root_degree in _TONIC_DEGREES  # consequent authentic cadence
+
+
+def test_restated_segments_share_rhythm() -> None:
+    prior = FormPrior(
+        phrase_lengths=(WeightedSpan(bars=4, weight=1.0),),
+        segment_lengths=(WeightedSpan(bars=2, weight=1.0),),
+        closings=(
+            ClosingChoice(is_final=False, functions=_HALF, weight=1.0),
+            ClosingChoice(is_final=True, functions=_AUTHENTIC, weight=1.0),
+        ),
+        repeat_probability=1.0,
+        variation_probability=0.0,
+    )
+    form = FormSampler(prior).sample(bar_count=4, rng=default_rng(0))
+    assert [segment.class_label for segment in form.segments] == [0, 0]
+
+    sampler = MetricalTreeSampler(config=MetricalGrammarConfig.load())
+    tree = class_metrical_tree(sampler, form, time_numerator=4, time_denominator=4, rng=default_rng(3))
+
+    def leaf_signature(bar: MetricalNode) -> list[tuple[Fraction, float, MetricalLeafType | None]]:
+        return [(leaf.duration, leaf.weight, leaf.leaf_type) for leaf in bar.leaves()]
+
+    assert [leaf_signature(bar) for bar in tree.bars[0:2]] == [leaf_signature(bar) for bar in tree.bars[2:4]]
