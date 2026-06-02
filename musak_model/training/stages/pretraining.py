@@ -115,6 +115,13 @@ class PretrainingTrainer:
                 f"training objective mode {config.event_objective.mode.value!r}"
             )
 
+        if self._model.uses_harmony_conditioning != config.conditioning.use_harmony_conditioning:
+            raise ValueError(
+                "model harmony conditioning must match training use_harmony_conditioning "
+                f"(model={self._model.uses_harmony_conditioning}, "
+                f"training={config.conditioning.use_harmony_conditioning})"
+            )
+
         self._validity_mask_builder = validity_mask_builder
         self._generation_evaluator = generation_evaluator
 
@@ -636,6 +643,7 @@ class PretrainingTrainer:
             structural_control_ids=(
                 batch.structural_control_ids if self._config.conditioning.use_structural_conditioning else None
             ),
+            harmonic_plan=batch.harmonic_plan if self._config.conditioning.use_harmony_conditioning else None,
             token_padding_mask=batch.token_padding_mask,
         )
 
@@ -935,6 +943,7 @@ def pretrain(
 
 def _move_batch_to_device(batch: TrainingBatch, *, device: torch.device) -> TrainingBatch:
     difficulty_ids = batch.difficulty_ids.to(device) if batch.difficulty_ids is not None else None
+    harmonic_plan = batch.harmonic_plan.to(device) if batch.harmonic_plan is not None else None
     return TrainingBatch(
         input_token_ids=batch.input_token_ids.to(device),
         target_token_ids=batch.target_token_ids.to(device),
@@ -945,6 +954,7 @@ def _move_batch_to_device(batch: TrainingBatch, *, device: torch.device) -> Trai
         bar_relative_ticks=batch.bar_relative_ticks.to(device),
         bar_duration_ticks=batch.bar_duration_ticks.to(device),
         active_hand_ids=batch.active_hand_ids.to(device),
+        harmonic_plan=harmonic_plan,
         structural_control_ids=batch.structural_control_ids.to(device),
         scale_roots=batch.scale_roots.to(device),
         scale_type_ids=batch.scale_type_ids.to(device),

@@ -1,4 +1,5 @@
 import logging
+from dataclasses import dataclass
 from typing import Final
 
 import torch
@@ -11,11 +12,17 @@ from musak_model.auxiliary.targets import (
     musical_auxiliary_target_ids_from_difficulty_features,
     musical_auxiliary_target_tensors_from_ids,
 )
+from musak_model.conditioning.harmony.alignment import harmonic_plan_tensors_from_decoder_coordinates
+from musak_model.conditioning.harmony.extraction import harmonic_plan_windows_from_segment
+from musak_model.conditioning.harmony.schema import HarmonicPlanInputTensors
 from musak_model.conditioning.structural.features import extract_structural_control_features
 from musak_model.conditioning.structural.vocabulary import StructuralControlVocabulary
 from musak_model.conditioning.time_signature import TimeSignatureVocabulary
+from musak_model.data.schema import Segment
 from musak_model.generation.constraints import GenerationConstraints
-from musak_model.generation.coordinates import decoder_input_coordinates_from_token_ids
+from musak_model.generation.coordinates import DecoderInputCoordinates, decoder_input_coordinates_from_token_ids
+from musak_model.harmony.decoding import ChordDecoderConfig, ViterbiChordDecoder
+from musak_model.harmony.vocabulary import ChordVocabularyConfig
 from musak_model.tokens.duration import duration_tick_denominator
 from musak_model.tokens.vocabulary import TokenVocabulary
 from musak_model.training.conditioning import difficulty_level_to_id, scale_type_to_id, time_signature_to_id
@@ -26,6 +33,12 @@ from musak_model.training.ingestion.schema import EncodedExercise
 
 _START_BAR_POSITION: Final[int] = 0
 _LOGGER = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class _HarmonicPlanDatasetContext:
+    decoder: ViterbiChordDecoder
+    vocabulary: ChordVocabularyConfig
 
 
 class EncodedExerciseDataset(Dataset[TrainingExample]):
@@ -51,6 +64,7 @@ class EncodedExerciseDataset(Dataset[TrainingExample]):
             time_signature_vocabulary=time_signature_vocabulary,
             max_sequence_length=max_sequence_length,
         )
+        harmonic_plan_context = _harmonic_plan_context(conditioning)
 
         self._examples = [
             _to_training_example(
@@ -62,6 +76,7 @@ class EncodedExerciseDataset(Dataset[TrainingExample]):
                 token_vocabulary=token_vocabulary,
                 musical_auxiliary_targets=musical_auxiliary_targets,
                 structural_control_vocabulary=structural_control_vocabulary,
+                harmonic_plan_context=harmonic_plan_context,
             )
             for sample in samples
             if _sample_is_usable(
@@ -89,6 +104,7 @@ def _to_training_example(
     token_vocabulary: TokenVocabulary,
     musical_auxiliary_targets: MusicalAuxiliaryTargetConfig,
     structural_control_vocabulary: StructuralControlVocabulary | None,
+    harmonic_plan_context: _HarmonicPlanDatasetContext | None,
 ) -> TrainingExample:
     token_ids = torch.tensor(sample.token_ids, dtype=torch.long)
     bar_positions = torch.tensor(sample.bar_positions, dtype=torch.long)
@@ -99,17 +115,20 @@ def _to_training_example(
 
     input_token_ids = _prepend_start_token(token_ids, token_vocabulary=token_vocabulary)
     input_bar_positions = _prepend_start_bar_position(bar_positions)
+    constraints = GenerationConstraints(
+        time_numerator=sample.time_numerator,
+        time_denominator=sample.time_denominator,
+        bar_count=sample.metadata.bar_count,
+        bar_durations=sample.metadata.bar_durations,
+    )
+    duration_vocabulary = token_vocabulary.duration_vocabulary
+    tick_denominator = duration_tick_denominator(duration_vocabulary)
     input_coordinates = decoder_input_coordinates_from_token_ids(
         sample.token_ids[:-1],
-        constraints=GenerationConstraints(
-            time_numerator=sample.time_numerator,
-            time_denominator=sample.time_denominator,
-            bar_count=sample.metadata.bar_count,
-            bar_durations=sample.metadata.bar_durations,
-        ),
+        constraints=constraints,
         token_vocabulary=token_vocabulary,
-        duration_vocabulary=token_vocabulary.duration_vocabulary,
-        duration_tick_denominator=duration_tick_denominator(token_vocabulary.duration_vocabulary),
+        duration_vocabulary=duration_vocabulary,
+        duration_tick_denominator=tick_denominator,
     )
     structural_control_ids = _structural_control_ids(
         sample,
@@ -129,6 +148,14 @@ def _to_training_example(
         else 0
     )
     segment = sample.to_segment(token_vocabulary=token_vocabulary)
+    harmonic_plan = _harmonic_plan_input_tensors(
+        segment,
+        context=harmonic_plan_context,
+        constraints=constraints,
+        coordinates=input_coordinates,
+        tick_denominator=tick_denominator,
+        token_vocabulary=token_vocabulary,
+    )
     return TrainingExample(
         input_token_ids=input_token_ids,
         target_token_ids=token_ids,
@@ -149,6 +176,7 @@ def _to_training_example(
         bar_relative_ticks=torch.tensor(input_coordinates.bar_relative_ticks, dtype=torch.long),
         bar_duration_ticks=torch.tensor(input_coordinates.bar_duration_ticks, dtype=torch.long),
         active_hand_ids=torch.tensor(input_coordinates.active_hand_ids, dtype=torch.long),
+        harmonic_plan=harmonic_plan,
         structural_control_ids=structural_control_ids,
         scale_root=sample.scale_root,
         scale_type_id=scale_type_to_id(sample.scale_type),
@@ -159,6 +187,42 @@ def _to_training_example(
         difficulty_id=difficulty_id,
         conditioning_scale_type_id=scale_type_id,
         conditioning_time_signature_id=time_signature_id,
+    )
+
+
+def _harmonic_plan_context(conditioning: TrainingConditioningConfig) -> _HarmonicPlanDatasetContext | None:
+    if not conditioning.use_harmony_conditioning:
+        return None
+
+    return _HarmonicPlanDatasetContext(
+        decoder=ViterbiChordDecoder(ChordDecoderConfig.load()),
+        vocabulary=ChordVocabularyConfig.load(),
+    )
+
+
+def _harmonic_plan_input_tensors(
+    segment: Segment,
+    *,
+    context: _HarmonicPlanDatasetContext | None,
+    constraints: GenerationConstraints,
+    coordinates: DecoderInputCoordinates,
+    tick_denominator: int,
+    token_vocabulary: TokenVocabulary,
+) -> HarmonicPlanInputTensors | None:
+    if context is None:
+        return None
+
+    windows = harmonic_plan_windows_from_segment(
+        segment,
+        decoder=context.decoder,
+        duration_vocabulary=token_vocabulary.duration_vocabulary,
+        vocabulary=context.vocabulary,
+    )
+    return harmonic_plan_tensors_from_decoder_coordinates(
+        windows,
+        constraints=constraints,
+        coordinates=coordinates,
+        duration_tick_denominator=tick_denominator,
     )
 
 

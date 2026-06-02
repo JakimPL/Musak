@@ -18,11 +18,18 @@ class DifficultyConfig(BaseModel):
     max_level: int = Field(ge=0)
 
 
+class HarmonicConditioningConfig(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    enabled: bool
+
+
 class ConditioningConfig(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     difficulty: DifficultyConfig
     time_signature: TimeSignatureVocabularyConfig
+    harmony: HarmonicConditioningConfig
     structural: StructuralConditioningConfig = StructuralConditioningConfig()
     cfg_dropout_probability: float = Field(ge=0.0, lt=1.0)
 

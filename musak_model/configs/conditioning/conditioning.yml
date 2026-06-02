@@ -3,6 +3,8 @@ difficulty:
 time_signature:
   max_denominator: 16
   relative_numerator_range: 2
+harmony:
+  enabled: true
 structural:
   shortest_note_duration:
     thresholds: [16, 8, 4, 2]

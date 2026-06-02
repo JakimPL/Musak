@@ -106,6 +106,7 @@ def _conditioning_config(
         use_scale_type=use_scale_type,
         use_difficulty=False,
         use_structural_conditioning=False,
+        use_harmony_conditioning=False,
         use_validity_penalty=False,
         validity_penalty_weight=0.05,
     )

@@ -6,6 +6,7 @@ from typing import Protocol
 import torch
 from torch import Tensor
 
+from musak_model.conditioning.harmony.schema import HarmonicPlanInputTensors
 from musak_model.evaluation.generation.schema import GenerationEvaluationResult
 from musak_model.tokens.schema import ScaleType
 
@@ -58,6 +59,7 @@ class GenerationModel(Protocol):
         scale_type_ids: Tensor | None = None,
         time_signature_ids: Tensor | None = None,
         structural_control_ids: Tensor | None = None,
+        harmonic_plan: HarmonicPlanInputTensors | None = None,
         token_padding_mask: Tensor | None = None,
     ) -> Tensor: ...
 

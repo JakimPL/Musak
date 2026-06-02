@@ -6,7 +6,7 @@ from typing import Any
 import pytest
 
 from musak_model.auxiliary.config import MusicalAuxiliaryTargetConfig
-from musak_model.conditioning.config import ConditioningConfig, DifficultyConfig
+from musak_model.conditioning.config import ConditioningConfig, DifficultyConfig, HarmonicConditioningConfig
 from musak_model.conditioning.time_signature import TimeSignatureVocabularyConfig
 from musak_model.data.schema import SegmentMetadata
 from musak_model.data.tokenization_context import tokenization_context_from_scale
@@ -98,6 +98,7 @@ def _training_config(tmp_path: Path, *, enable_mlflow: bool = True, tracking_uri
             use_scale_type=False,
             use_difficulty=False,
             use_structural_conditioning=False,
+            use_harmony_conditioning=False,
             use_validity_penalty=False,
             validity_penalty_weight=0.05,
         ),
@@ -162,6 +163,7 @@ def _model_config() -> ModelConfig:
         conditioning=ConditioningConfig(
             difficulty=DifficultyConfig(max_level=5),
             time_signature=TimeSignatureVocabularyConfig(max_denominator=4, relative_numerator_range=2),
+            harmony=HarmonicConditioningConfig(enabled=False),
             cfg_dropout_probability=0.0,
         ),
     )

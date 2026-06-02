@@ -15,6 +15,8 @@ def test_conditioning_config_loads_yaml_and_derives_vocab_sizes(tmp_path: Path) 
                 "time_signature:",
                 "  max_denominator: 4",
                 "  relative_numerator_range: 2",
+                "harmony:",
+                "  enabled: true",
                 "cfg_dropout_probability: 0.1",
             ]
         )
@@ -25,6 +27,7 @@ def test_conditioning_config_loads_yaml_and_derives_vocab_sizes(tmp_path: Path) 
     assert config.num_difficulty_levels == 6
     assert config.num_scale_types == 3
     assert config.num_time_signatures == 11
+    assert config.harmony.enabled is True
 
 
 def test_conditioning_config_requires_semantic_fields() -> None:
@@ -32,6 +35,7 @@ def test_conditioning_config_requires_semantic_fields() -> None:
         ConditioningConfig.model_validate(
             {
                 "time_signature": {"max_denominator": 4, "relative_numerator_range": 2},
+                "harmony": {"enabled": True},
                 "cfg_dropout_probability": 0.1,
             }
         )
@@ -40,6 +44,16 @@ def test_conditioning_config_requires_semantic_fields() -> None:
         ConditioningConfig.model_validate(
             {
                 "difficulty": {"max_level": 5},
+                "harmony": {"enabled": True},
+                "cfg_dropout_probability": 0.1,
+            }
+        )
+
+    with pytest.raises(ValueError, match="harmony"):
+        ConditioningConfig.model_validate(
+            {
+                "difficulty": {"max_level": 5},
+                "time_signature": {"max_denominator": 4, "relative_numerator_range": 2},
                 "cfg_dropout_probability": 0.1,
             }
         )
@@ -51,6 +65,7 @@ def test_conditioning_config_rejects_derived_scalar_fields() -> None:
             {
                 "difficulty": {"max_level": 5},
                 "time_signature": {"max_denominator": 4, "relative_numerator_range": 2},
+                "harmony": {"enabled": True},
                 "num_time_signatures": 11,
                 "cfg_dropout_probability": 0.1,
             }

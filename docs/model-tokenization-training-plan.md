@@ -153,9 +153,13 @@ This section is the durable resumption point if work continues after context com
   internal `bar_indices` so harmonic alignment uses the same post-prefix cursor semantics as generation. Padding
   coordinates and plan gaps map to the unknown harmonic-plan ID. No training, dataset, or generation path consumes
   these IDs yet.
-- Next: inspect Phase 5B/5C/6A metrics and Phase 6B artifacts on one short pretraining run, then start
-  Structural-bias Phase 4 by adding harmonic-plan tensors to training examples, batches, and model conditioning behind
-  a config flag.
+- Completed: Structural-bias Phase 4 wires harmonic-plan tensors into training examples, collation, device movement,
+  model protocols, and model forward/training paths. `TrainingConditioningConfig.use_harmony_conditioning` controls
+  dataset/batch usage; `conditioning.harmony.enabled` controls whether the model instantiates harmonic-plan embedding
+  tables. The embeddings are added as per-step token context and the event objective is unchanged. Generation still
+  receives all-unknown harmony until Phase 5 supplies an explicit plan.
+- Next: implement Structural-bias Phase 5 by adding a generation plan provider and passing aligned harmonic-plan
+  tensors at each sampling step.
 
 Early non-unit validation for Phase 2A:
 

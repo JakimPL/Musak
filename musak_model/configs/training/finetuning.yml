@@ -38,6 +38,7 @@ conditioning:
   use_scale_type: true
   use_difficulty: false
   use_structural_conditioning: true
+  use_harmony_conditioning: true
   use_validity_penalty: true
   validity_penalty_weight: 0.02
 checkpoints:

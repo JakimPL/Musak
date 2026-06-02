@@ -6,7 +6,7 @@ import pytest
 from torch.optim import AdamW
 
 from musak_model.auxiliary.config import MusicalAuxiliaryTargetConfig
-from musak_model.conditioning.config import ConditioningConfig, DifficultyConfig
+from musak_model.conditioning.config import ConditioningConfig, DifficultyConfig, HarmonicConditioningConfig
 from musak_model.conditioning.time_signature import TimeSignatureVocabularyConfig
 from musak_model.data.config import SegmentationConfig
 from musak_model.data.scale_matcher.config import ScaleMatcherConfig
@@ -94,6 +94,7 @@ def _small_model_config() -> ModelConfig:
         conditioning=ConditioningConfig(
             difficulty=DifficultyConfig(max_level=5),
             time_signature=TimeSignatureVocabularyConfig(max_denominator=4, relative_numerator_range=2),
+            harmony=HarmonicConditioningConfig(enabled=False),
             cfg_dropout_probability=0.0,
         ),
     )
@@ -186,6 +187,7 @@ def test_train_finetuning_loads_pretraining_checkpoint_and_runs_epoch(
                 use_scale_type=True,
                 use_difficulty=False,
                 use_structural_conditioning=True,
+                use_harmony_conditioning=False,
                 use_validity_penalty=False,
                 validity_penalty_weight=0.05,
             ),

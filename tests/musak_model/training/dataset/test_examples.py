@@ -6,6 +6,7 @@ import pytest
 from musak_model.auxiliary.config import MusicalAuxiliaryTargetConfig
 from musak_model.auxiliary.schema import MUSICAL_AUXILIARY_TARGET_IGNORE_ID
 from musak_model.conditioning.config import ConditioningConfig
+from musak_model.conditioning.harmony.vocabulary import HARMONIC_PLAN_UNKNOWN_ID, id_to_root_degree
 from musak_model.conditioning.structural.constants import UNKNOWN_CONTROL_ID, StructuralControlName
 from musak_model.conditioning.structural.vocabulary import StructuralControlVocabulary
 from musak_model.conditioning.time_signature import TimeSignatureVocabulary, TimeSignatureVocabularyConfig
@@ -13,7 +14,16 @@ from musak_model.data.schema import DifficultyFeatures, SegmentMetadata
 from musak_model.data.tokenization_context import tokenization_context_from_scale
 from musak_model.tokens.duration import DurationVocabulary, duration_fraction_to_ticks, duration_tick_denominator
 from musak_model.tokens.factorized import ABSENT_ATTRIBUTE_ID, TokenKindId
-from musak_model.tokens.schema import BarToken, EndToken, Hand, HandToken, NoteToken, RestToken, ScaleType
+from musak_model.tokens.schema import (
+    BarToken,
+    EndToken,
+    Hand,
+    HandToken,
+    JoinWithPreviousToken,
+    NoteToken,
+    RestToken,
+    ScaleType,
+)
 from musak_model.tokens.vocabulary import TokenVocabulary
 from musak_model.training.conditioning import difficulty_level_to_id, scale_type_to_id, time_signature_to_id
 from musak_model.training.config import TrainingConditioningConfig
@@ -28,6 +38,7 @@ def _conditioning_config(
     use_scale_type: bool = False,
     use_difficulty: bool = False,
     use_structural_conditioning: bool = False,
+    use_harmony_conditioning: bool = False,
     use_validity_penalty: bool = False,
 ) -> TrainingConditioningConfig:
     return TrainingConditioningConfig(
@@ -35,6 +46,7 @@ def _conditioning_config(
         use_scale_type=use_scale_type,
         use_difficulty=use_difficulty,
         use_structural_conditioning=use_structural_conditioning,
+        use_harmony_conditioning=use_harmony_conditioning,
         use_validity_penalty=use_validity_penalty,
         validity_penalty_weight=0.05,
     )
@@ -242,6 +254,36 @@ def test_dataset_builds_decoder_coordinate_features(
     assert example.active_hand_ids.tolist() == [0, 0, 0, 0, 1]
 
 
+def test_dataset_builds_harmonic_plan_inputs_when_enabled(
+    duration_vocabulary: DurationVocabulary,
+    token_vocabulary: TokenVocabulary,
+) -> None:
+    whole_id = duration_vocabulary.fraction_to_id(Fraction(1, 1))
+    token_ids = token_vocabulary.encode(
+        [
+            NoteToken(degree=5, accidental=0, octave_offset=0, duration_id=whole_id),
+            NoteToken(degree=7, accidental=0, octave_offset=0, duration_id=whole_id),
+            JoinWithPreviousToken(),
+            NoteToken(degree=2, accidental=0, octave_offset=0, duration_id=whole_id),
+            JoinWithPreviousToken(),
+            BarToken(),
+        ]
+    )
+    dataset = EncodedExerciseDataset(
+        [_sample(token_ids, [0] * len(token_ids))],
+        time_signature_vocabulary=_time_signature_vocabulary(),
+        token_vocabulary=token_vocabulary,
+        musical_auxiliary_targets=_musical_auxiliary_target_config(),
+        conditioning=_conditioning_config(use_harmony_conditioning=True),
+    )
+
+    harmonic_plan = dataset[0].harmonic_plan
+
+    assert harmonic_plan is not None
+    assert harmonic_plan.shape == dataset[0].input_token_ids.shape
+    assert id_to_root_degree(int(harmonic_plan.root_degree_ids[0].item())) == 5
+
+
 def test_dataset_keeps_single_token_samples_for_start_token_training(token_vocabulary: TokenVocabulary) -> None:
     dataset = EncodedExerciseDataset(
         [_sample([1], [0])],
@@ -423,6 +465,36 @@ def test_collate_pads_tokens_and_bar_positions(token_vocabulary: TokenVocabulary
     assert batch.musical_auxiliary_targets.bar_targets.note_density_ids.tolist()[0][1] == -1
     assert batch.structural_control_ids.tolist() == [[], []]
     assert batch.token_padding_mask.tolist() == [[False, False, False], [False, False, True]]
+
+
+def test_collate_pads_harmonic_plan_inputs(
+    duration_vocabulary: DurationVocabulary,
+    token_vocabulary: TokenVocabulary,
+) -> None:
+    whole_id = duration_vocabulary.fraction_to_id(Fraction(1, 1))
+    long_token_ids = token_vocabulary.encode(
+        [
+            NoteToken(degree=1, accidental=0, octave_offset=0, duration_id=whole_id),
+            BarToken(),
+        ]
+    )
+    short_token_ids = token_vocabulary.encode([RestToken(duration_id=whole_id)])
+    dataset = EncodedExerciseDataset(
+        [
+            _sample(long_token_ids, [0] * len(long_token_ids)),
+            _sample(short_token_ids, [0] * len(short_token_ids)),
+        ],
+        time_signature_vocabulary=_time_signature_vocabulary(),
+        token_vocabulary=token_vocabulary,
+        musical_auxiliary_targets=_musical_auxiliary_target_config(),
+        conditioning=_conditioning_config(use_harmony_conditioning=True),
+    )
+
+    batch = collate_training_examples([dataset[0], dataset[1]])
+
+    assert batch.harmonic_plan is not None
+    assert batch.harmonic_plan.shape == batch.input_token_ids.shape
+    assert int(batch.harmonic_plan.root_degree_ids[1, -1].item()) == HARMONIC_PLAN_UNKNOWN_ID
 
 
 def test_dataset_builds_structural_control_ids_when_enabled(

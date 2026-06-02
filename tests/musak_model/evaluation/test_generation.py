@@ -7,7 +7,8 @@ import torch
 from torch import Tensor
 
 from musak_model.auxiliary.config import MusicalAuxiliaryTargetConfig
-from musak_model.conditioning.config import ConditioningConfig, DifficultyConfig
+from musak_model.conditioning.config import ConditioningConfig, DifficultyConfig, HarmonicConditioningConfig
+from musak_model.conditioning.harmony.schema import HarmonicPlanInputTensors
 from musak_model.conditioning.time_signature import TimeSignatureVocabularyConfig
 from musak_model.evaluation.generation import GenerationSuiteEvaluator
 from musak_model.model.config import (
@@ -70,6 +71,7 @@ def _conditioning_config() -> TrainingConditioningConfig:
         use_scale_type=False,
         use_difficulty=False,
         use_structural_conditioning=False,
+        use_harmony_conditioning=False,
         use_validity_penalty=False,
         validity_penalty_weight=0.05,
     )
@@ -111,6 +113,7 @@ class ScriptedModel:
         scale_type_ids: Tensor | None = None,
         time_signature_ids: Tensor | None = None,
         structural_control_ids: Tensor | None = None,
+        harmonic_plan: HarmonicPlanInputTensors | None = None,
         token_padding_mask: Tensor | None = None,
     ) -> Tensor:
         logits = torch.full((1, token_ids.size(1), self._vocabulary_size), -1000.0)
@@ -380,6 +383,7 @@ def _model_config(vocabulary_size: int) -> ModelConfig:
         conditioning=ConditioningConfig(
             difficulty=DifficultyConfig(max_level=5),
             time_signature=TimeSignatureVocabularyConfig(max_denominator=4, relative_numerator_range=2),
+            harmony=HarmonicConditioningConfig(enabled=False),
             cfg_dropout_probability=0.0,
         ),
     )

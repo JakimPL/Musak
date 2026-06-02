@@ -71,6 +71,7 @@ class TrainingConditioningConfig(BaseModel):
     use_scale_type: bool
     use_difficulty: bool
     use_structural_conditioning: bool
+    use_harmony_conditioning: bool
     use_validity_penalty: bool
     validity_penalty_weight: float = Field(ge=0.0)
 

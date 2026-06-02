@@ -7,7 +7,9 @@ from torch import Tensor
 
 from musak_model.auxiliary.config import MusicalAuxiliaryTargetConfig
 from musak_model.auxiliary.schema import MusicalAuxiliaryLogits
-from musak_model.conditioning.config import ConditioningConfig, DifficultyConfig
+from musak_model.conditioning.config import ConditioningConfig, DifficultyConfig, HarmonicConditioningConfig
+from musak_model.conditioning.harmony.fields import HARMONIC_PLAN_TENSOR_FIELDS
+from musak_model.conditioning.harmony.schema import HarmonicPlanInputTensors
 from musak_model.conditioning.time_signature import TimeSignatureVocabularyConfig
 from musak_model.model import HierarchicalAutoregressiveModel
 from musak_model.model.config import (
@@ -43,6 +45,7 @@ def _small_config(
     input_embedding_mode: TokenInputEmbeddingMode = TokenInputEmbeddingMode.FLAT,
     vocabulary_size: int = VOCAB,
     duration_vocabulary_size: int = 1,
+    harmony_enabled: bool = False,
 ) -> ModelConfig:
     return ModelConfig(
         vocabulary_size=vocabulary_size,
@@ -63,6 +66,7 @@ def _small_config(
         conditioning=ConditioningConfig(
             difficulty=DifficultyConfig(max_level=5),
             time_signature=TimeSignatureVocabularyConfig(max_denominator=4, relative_numerator_range=2),
+            harmony=HarmonicConditioningConfig(enabled=harmony_enabled),
             cfg_dropout_probability=0.0,
         ),
     )
@@ -97,6 +101,18 @@ def _training_logits_kwargs(token_ids: Tensor, *, bar_positions: Tensor) -> dict
         "target_bar_positions": bar_positions,
         "bar_counts": bar_positions.max(dim=1).values + 1,
     }
+
+
+def _harmonic_plan(token_ids: Tensor) -> HarmonicPlanInputTensors:
+    ids = torch.ones_like(token_ids)
+    return HarmonicPlanInputTensors(
+        harmonic_function_ids=ids,
+        root_degree_ids=ids,
+        root_accidental_ids=ids,
+        quality_ids=ids,
+        extension_ids=ids,
+        chord_change_ids=ids,
+    )
 
 
 def _musical_auxiliary_logits_sum(logits: MusicalAuxiliaryLogits) -> Tensor:
@@ -232,6 +248,35 @@ class TestForwardOutputShape:
 
         with pytest.raises(ValueError, match="factorized input attribute table size"):
             HierarchicalAutoregressiveModel(config)
+
+    def test_harmonic_plan_conditioning_returns_flat_output_shape(self) -> None:
+        config = _small_config(harmony_enabled=True)
+        model = HierarchicalAutoregressiveModel(config)
+        token_ids = torch.randint(0, VOCAB, (2, 8))
+        bar_positions = _uniform_bar_positions(2, 8, 2)
+
+        logits = model(
+            token_ids,
+            bar_positions=bar_positions,
+            **_coordinate_kwargs(token_ids),
+            harmonic_plan=_harmonic_plan(token_ids),
+        )
+
+        assert logits.shape == (2, 8, VOCAB)
+
+    def test_harmonic_plan_inputs_require_enabled_conditioning(self) -> None:
+        config = _small_config(harmony_enabled=False)
+        model = HierarchicalAutoregressiveModel(config)
+        token_ids = torch.randint(0, VOCAB, (2, 8))
+        bar_positions = _uniform_bar_positions(2, 8, 2)
+
+        with pytest.raises(ValueError, match="harmony conditioning"):
+            model(
+                token_ids,
+                bar_positions=bar_positions,
+                **_coordinate_kwargs(token_ids),
+                harmonic_plan=_harmonic_plan(token_ids),
+            )
 
 
 class TestForwardBarLayouts:
@@ -414,6 +459,24 @@ class TestForwardBehaviour:
         assert "_input_embeddings._kind_embedding.weight" in gradient_names
         assert "_input_embeddings._duration_embedding.weight" in gradient_names
         assert "_input_embeddings._degree_embedding.weight" in gradient_names
+
+    def test_gradients_flow_through_harmonic_plan_embeddings(self) -> None:
+        config = _small_config(harmony_enabled=True)
+        model = HierarchicalAutoregressiveModel(config)
+        token_ids = torch.randint(0, VOCAB, (2, 8))
+        bar_positions = _uniform_bar_positions(2, 8, 2)
+        logits = model.training_logits(
+            token_ids,
+            bar_positions=bar_positions,
+            **_training_logits_kwargs(token_ids, bar_positions=bar_positions),
+            harmonic_plan=_harmonic_plan(token_ids),
+        )
+
+        _backward(logits.flat_logits.sum() + _musical_auxiliary_logits_sum(logits.musical_auxiliary_logits))
+
+        gradient_names = {name for name, parameter in model.named_parameters() if parameter.grad is not None}
+        for field in HARMONIC_PLAN_TENSOR_FIELDS:
+            assert f"_harmonic_plan_embeddings._embeddings.{field.name}.weight" in gradient_names
 
     def test_future_tokens_do_not_change_earlier_logits(self) -> None:
         torch.manual_seed(0)

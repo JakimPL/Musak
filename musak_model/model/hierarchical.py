@@ -6,9 +6,11 @@ from torch import Tensor
 from torch.nn.utils.rnn import pad_sequence
 
 from musak_model.auxiliary.schema import MusicalAuxiliaryLogits, MusicalBarAuxiliaryLogits
+from musak_model.conditioning.harmony.schema import HarmonicPlanInputTensors
 from musak_model.model.cnn import LocalConvEncoder
 from musak_model.model.config import ModelConfig, ModelOutputMode
 from musak_model.model.gru import BarGRUEncoder, BarPrefixGRUEncoder
+from musak_model.model.harmony import HarmonicPlanEmbeddings
 from musak_model.model.input import TokenInputEmbeddings
 from musak_model.model.output import (
     FactorizedTokenLogits,
@@ -35,6 +37,11 @@ class HierarchicalAutoregressiveModel(nn.Module):
         self._input_embeddings = TokenInputEmbeddings(config)
         self._bar_position_projection = nn.Linear(2, config.transformer.hidden_size)
         self._active_hand_embedding = nn.Embedding(HAND_ATTRIBUTE_COUNT, config.transformer.hidden_size)
+        self._harmonic_plan_embeddings = (
+            HarmonicPlanEmbeddings(hidden_size=config.transformer.hidden_size)
+            if config.conditioning.harmony.enabled
+            else None
+        )
         local_hidden_size = config.cnn.out_channels if config.cnn.enabled else config.transformer.hidden_size
         if config.cnn.enabled:
             self._to_local_hidden = nn.Linear(config.transformer.hidden_size, config.cnn.out_channels)
@@ -130,6 +137,7 @@ class HierarchicalAutoregressiveModel(nn.Module):
         scale_type_ids: Tensor | None = None,
         time_signature_ids: Tensor | None = None,
         structural_control_ids: Tensor | None = None,
+        harmonic_plan: HarmonicPlanInputTensors | None = None,
         token_padding_mask: Tensor | None = None,
     ) -> Tensor:
         decoded_embeddings = self._decoded_embeddings(
@@ -142,6 +150,7 @@ class HierarchicalAutoregressiveModel(nn.Module):
             scale_type_ids=scale_type_ids,
             time_signature_ids=time_signature_ids,
             structural_control_ids=structural_control_ids,
+            harmonic_plan=harmonic_plan,
             token_padding_mask=token_padding_mask,
         )
         match self._config.output.mode:
@@ -153,6 +162,10 @@ class HierarchicalAutoregressiveModel(nn.Module):
     @property
     def output_mode(self) -> ModelOutputMode:
         return self._config.output.mode
+
+    @property
+    def uses_harmony_conditioning(self) -> bool:
+        return self._harmonic_plan_embeddings is not None
 
     def factorized_logits(
         self,
@@ -166,6 +179,7 @@ class HierarchicalAutoregressiveModel(nn.Module):
         scale_type_ids: Tensor | None = None,
         time_signature_ids: Tensor | None = None,
         structural_control_ids: Tensor | None = None,
+        harmonic_plan: HarmonicPlanInputTensors | None = None,
         token_padding_mask: Tensor | None = None,
     ) -> FactorizedTokenLogits:
         if self._config.output.mode != ModelOutputMode.FACTORIZED:
@@ -181,6 +195,7 @@ class HierarchicalAutoregressiveModel(nn.Module):
             scale_type_ids=scale_type_ids,
             time_signature_ids=time_signature_ids,
             structural_control_ids=structural_control_ids,
+            harmonic_plan=harmonic_plan,
             token_padding_mask=token_padding_mask,
         )
         return self._factorized_logits_from_embeddings(decoded_embeddings)
@@ -205,6 +220,7 @@ class HierarchicalAutoregressiveModel(nn.Module):
         scale_type_ids: Tensor | None = None,
         time_signature_ids: Tensor | None = None,
         structural_control_ids: Tensor | None = None,
+        harmonic_plan: HarmonicPlanInputTensors | None = None,
         token_padding_mask: Tensor | None = None,
     ) -> ModelTrainingLogits:
         decoded_embeddings = self._decoded_embeddings(
@@ -217,6 +233,7 @@ class HierarchicalAutoregressiveModel(nn.Module):
             scale_type_ids=scale_type_ids,
             time_signature_ids=time_signature_ids,
             structural_control_ids=structural_control_ids,
+            harmonic_plan=harmonic_plan,
             token_padding_mask=token_padding_mask,
         )
         musical_auxiliary_logits = self._musical_auxiliary_logits_from_embeddings(
@@ -254,6 +271,7 @@ class HierarchicalAutoregressiveModel(nn.Module):
         scale_type_ids: Tensor | None,
         time_signature_ids: Tensor | None,
         structural_control_ids: Tensor | None,
+        harmonic_plan: HarmonicPlanInputTensors | None,
         token_padding_mask: Tensor | None,
     ) -> Tensor:
         token_embeddings = self._input_embeddings(token_ids)
@@ -265,6 +283,11 @@ class HierarchicalAutoregressiveModel(nn.Module):
             bar_relative_ticks=bar_relative_ticks,
             bar_duration_ticks=bar_duration_ticks,
             active_hand_ids=active_hand_ids,
+            dtype=token_embeddings.dtype,
+        )
+        token_embeddings = token_embeddings + self._harmonic_plan_embedding(
+            harmonic_plan,
+            token_ids=token_ids,
             dtype=token_embeddings.dtype,
         )
         conditioning_prefix = self._build_conditioning_prefix(
@@ -315,6 +338,25 @@ class HierarchicalAutoregressiveModel(nn.Module):
         active_hand_embeddings = self._active_hand_embedding(safe_active_hand_ids)
         active_hand_mask = (active_hand_ids >= 0).to(dtype=dtype).unsqueeze(-1)
         return cast(Tensor, bar_position_embeddings + active_hand_embeddings * active_hand_mask)
+
+    def _harmonic_plan_embedding(
+        self,
+        harmonic_plan: HarmonicPlanInputTensors | None,
+        *,
+        token_ids: Tensor,
+        dtype: torch.dtype,
+    ) -> Tensor:
+        if self._harmonic_plan_embeddings is None:
+            if harmonic_plan is not None:
+                raise ValueError("harmonic plan inputs require harmony conditioning to be enabled")
+
+            return torch.zeros(
+                (*token_ids.shape, self._config.transformer.hidden_size),
+                device=token_ids.device,
+                dtype=dtype,
+            )
+
+        return cast(Tensor, self._harmonic_plan_embeddings(harmonic_plan, token_ids=token_ids, dtype=dtype))
 
     def _factorized_logits_from_embeddings(self, decoded_embeddings: Tensor) -> FactorizedTokenLogits:
         return FactorizedTokenLogits(

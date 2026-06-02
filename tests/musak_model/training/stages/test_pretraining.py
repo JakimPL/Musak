@@ -7,7 +7,7 @@ import torch
 from torch.utils.data import DataLoader
 
 from musak_model.auxiliary.config import MusicalAuxiliaryTargetConfig
-from musak_model.conditioning.config import ConditioningConfig, DifficultyConfig
+from musak_model.conditioning.config import ConditioningConfig, DifficultyConfig, HarmonicConditioningConfig
 from musak_model.conditioning.time_signature import TimeSignatureVocabulary, TimeSignatureVocabularyConfig
 from musak_model.data.schema import SegmentMetadata
 from musak_model.data.tokenization_context import tokenization_context_from_scale
@@ -105,7 +105,11 @@ class FakeTracker:
         self.invalid_files_logged = True
 
 
-def _small_model_config(output_mode: ModelOutputMode = ModelOutputMode.FACTORIZED) -> ModelConfig:
+def _small_model_config(
+    output_mode: ModelOutputMode = ModelOutputMode.FACTORIZED,
+    *,
+    harmony_enabled: bool = False,
+) -> ModelConfig:
     token_vocabulary = _token_vocabulary()
     return ModelConfig(
         vocabulary_size=token_vocabulary.vocabulary_size,
@@ -126,6 +130,7 @@ def _small_model_config(output_mode: ModelOutputMode = ModelOutputMode.FACTORIZE
         conditioning=ConditioningConfig(
             difficulty=DifficultyConfig(max_level=5),
             time_signature=TimeSignatureVocabularyConfig(max_denominator=4, relative_numerator_range=2),
+            harmony=HarmonicConditioningConfig(enabled=harmony_enabled),
             cfg_dropout_probability=0.0,
         ),
     )
@@ -160,6 +165,7 @@ def _training_config(
 
 def _conditioning_config(
     *,
+    use_harmony_conditioning: bool = False,
     use_validity_penalty: bool = False,
     validity_penalty_weight: float = 0.05,
 ) -> TrainingConditioningConfig:
@@ -168,6 +174,7 @@ def _conditioning_config(
         use_scale_type=False,
         use_difficulty=False,
         use_structural_conditioning=False,
+        use_harmony_conditioning=use_harmony_conditioning,
         use_validity_penalty=use_validity_penalty,
         validity_penalty_weight=validity_penalty_weight,
     )
@@ -372,6 +379,30 @@ def test_trainer_keeps_flat_objective_runnable(tmp_path: Path) -> None:
 
     assert result.metrics[0].train_loss > 0
     assert result.metrics[0].train_event_kind_loss is None
+
+
+@pytest.mark.parametrize(
+    ("model_harmony_enabled", "training_harmony_enabled"),
+    [(False, True), (True, False)],
+)
+def test_trainer_rejects_harmony_conditioning_mismatch(
+    tmp_path: Path,
+    *,
+    model_harmony_enabled: bool,
+    training_harmony_enabled: bool,
+) -> None:
+    model = HierarchicalAutoregressiveModel(_small_model_config(harmony_enabled=model_harmony_enabled))
+
+    with pytest.raises(ValueError, match="harmony conditioning"):
+        PretrainingTrainer(
+            model=model,
+            config=_training_config(
+                tmp_path,
+                conditioning=_conditioning_config(use_harmony_conditioning=training_harmony_enabled),
+            ),
+            train_loader=_loader(),
+            validation_loader=_loader(),
+        )
 
 
 def test_trainer_saves_epoch_checkpoints_when_enabled(tmp_path: Path) -> None:

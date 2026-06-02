@@ -25,6 +25,7 @@ def _conditioning_config() -> TrainingConditioningConfig:
         use_scale_type=False,
         use_difficulty=False,
         use_structural_conditioning=False,
+        use_harmony_conditioning=False,
         use_validity_penalty=False,
         validity_penalty_weight=0.05,
     )

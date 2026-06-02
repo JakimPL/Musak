@@ -4,6 +4,8 @@ import torch
 from torch import Tensor
 
 from musak_model.auxiliary.targets import stack_musical_auxiliary_targets
+from musak_model.conditioning.harmony.schema import HarmonicPlanInputTensors
+from musak_model.conditioning.harmony.tensors import pad_harmonic_plan_input_tensors
 from musak_model.training.dataset.factorized import pad_token_attribute_targets
 from musak_model.training.dataset.schema import TrainingBatch, TrainingExample
 
@@ -76,6 +78,7 @@ def collate_training_examples(examples: list[TrainingExample]) -> TrainingBatch:
         bar_relative_ticks=bar_relative_ticks,
         bar_duration_ticks=bar_duration_ticks,
         active_hand_ids=active_hand_ids,
+        harmonic_plan=_collate_harmonic_plan(examples, max_length=max_length),
         structural_control_ids=structural_control_ids,
         scale_roots=scale_roots,
         scale_type_ids=scale_type_ids,
@@ -87,6 +90,24 @@ def collate_training_examples(examples: list[TrainingExample]) -> TrainingBatch:
         difficulty_ids=difficulty_ids,
         conditioning_scale_type_ids=conditioning_scale_type_ids,
         conditioning_time_signature_ids=conditioning_time_signature_ids,
+    )
+
+
+def _collate_harmonic_plan(
+    examples: list[TrainingExample],
+    *,
+    max_length: int,
+) -> HarmonicPlanInputTensors | None:
+    plans = [example.harmonic_plan for example in examples]
+    if all(plan is None for plan in plans):
+        return None
+
+    if any(plan is None for plan in plans):
+        raise ValueError("all examples must include harmonic plans when any example includes one")
+
+    return pad_harmonic_plan_input_tensors(
+        [plan for plan in plans if plan is not None],
+        max_length=max_length,
     )
 
 
