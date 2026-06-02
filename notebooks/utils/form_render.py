@@ -11,6 +11,7 @@ from musak_model.data.schema import Segment
 from musak_model.generation.constraints import GenerationConstraintError, GenerationConstraints
 from musak_model.harmony.vocabulary import ChordVocabularyConfig
 from musak_model.synthetic.fitting.form.fit import FormFittingConfig
+from musak_model.synthetic.processes.density import RhythmicDensityConfig, RhythmicDensitySampler
 from musak_model.synthetic.processes.pitch import RegisterCurveConfig, RegisterCurveSampler
 from musak_model.synthetic.render.config import RenderConfig
 from musak_model.synthetic.render.motif import MotifConfig
@@ -141,6 +142,8 @@ def _build_renderer(
         figure_vocabulary=inputs.figure_vocabulary,
         duration_vocabulary=inputs.duration_vocabulary,
         chord_vocabulary=chord_vocabulary,
+        base_duration_distribution=inputs.base_duration_distribution,
+        rhythmic_density_sampler=RhythmicDensitySampler(config=RhythmicDensityConfig.load()),
         motif_config=motif_config,
     )
 

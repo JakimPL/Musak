@@ -25,15 +25,16 @@ def _two_half_note_bar() -> MetricalTree:
     return MetricalTree(4, 4, (bar,))
 
 
-def test_one_chord_per_frontier_slot_spreads_over_its_leaves() -> None:
+def test_whole_bar_frontier_is_a_single_region() -> None:
     tree = _two_half_note_bar()
 
     slots = render_slots(tree, [_TONIC], slot_duration=Fraction(1))
 
-    assert len(slots) == 2
-    assert all(slot.chord == _TONIC for slot in slots)
-    assert [slot.offset for slot in slots] == [Fraction(0), Fraction(1, 2)]
-    assert [slot.leaf_type for slot in slots] == [MetricalLeafType.SOUND, MetricalLeafType.REST]
+    assert len(slots) == 1
+    assert slots[0].chord == _TONIC
+    assert slots[0].offset == Fraction(0)
+    assert slots[0].duration == Fraction(1)
+    assert slots[0].leaf_type == MetricalLeafType.SOUND
 
 
 def test_finer_frontier_assigns_distinct_chords() -> None:
@@ -55,7 +56,7 @@ def test_rejects_chord_count_not_matching_the_frontier() -> None:
         render_slots(tree, [_TONIC], slot_duration=Fraction(1, 2))
 
 
-def test_slots_cover_every_leaf_for_a_sampled_tree() -> None:
+def test_slots_cover_the_frontier_for_a_sampled_tree() -> None:
     config = MetricalGrammarConfig.load().model_copy(update={"subdivision_probability": 1.0, "subdivision_decay": 1.0})
     tree = MetricalTreeSampler(config=config).sample(
         time_numerator=4, time_denominator=4, bar_count=2, rng=default_rng(0)
@@ -65,6 +66,6 @@ def test_slots_cover_every_leaf_for_a_sampled_tree() -> None:
 
     slots = render_slots(tree, frontier_chords, slot_duration=Fraction(1, 4))
 
-    assert len(slots) == len(tree.leaves())
+    assert len(slots) == len(frontier)
     assert {slot.chord for slot in slots} == {_TONIC, _DOMINANT}
     assert sum((slot.duration for slot in slots), Fraction(0)) == tree.duration

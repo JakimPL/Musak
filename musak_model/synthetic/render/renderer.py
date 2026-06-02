@@ -14,15 +14,15 @@ from musak_model.generation.constraints import (
 from musak_model.harmony.expansion import chord_pitch_class_set
 from musak_model.harmony.schema import Chord
 from musak_model.harmony.vocabulary import ChordVocabularyConfig
-from musak_model.n_grams.figure.schema import FigureNGram
+from musak_model.synthetic.base_durations import BaseDurationDistribution, choose_base_duration
 from musak_model.synthetic.figures import FigureVocabulary, FigureVocabularyEntry
+from musak_model.synthetic.processes.density import RhythmicDensitySampler
 from musak_model.synthetic.processes.pitch import RegisterCurveSampler
 from musak_model.synthetic.render.config import RenderConfig
-from musak_model.synthetic.render.figure_selection import figure_fits_slot, select_figure, slot_base_duration
-from musak_model.synthetic.render.motif import MotifConfig, MotifSchema, MotifSlot, ground_motif, select_motif_seed
+from musak_model.synthetic.render.figure_selection import figure_span_units, select_figure
+from musak_model.synthetic.render.motif import MotifConfig
 from musak_model.synthetic.render.slots import RenderSlot, render_slots
-from musak_model.synthetic.render.variation import vary_motif
-from musak_model.synthetic.structure.form import FormTree, SegmentNode, VariationKind
+from musak_model.synthetic.structure.form import FormTree
 from musak_model.synthetic.structure.harmony_grammar import HarmonyGrammarSampler
 from musak_model.synthetic.structure.meter import (
     MetricalLeafType,
@@ -30,33 +30,11 @@ from musak_model.synthetic.structure.meter import (
     MetricalTree,
     MetricalTreeSampler,
 )
-from musak_model.synthetic.substitution.emission import anchor_figure_to_tokens, hold_tokens, rest_tokens
+from musak_model.synthetic.substitution.emission import anchor_figure_to_tokens, rest_tokens
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import BarToken, EndToken, Hand, HandToken, ScaleType, Token
 
 _HANDS: tuple[Hand, ...] = (Hand.RIGHT, Hand.LEFT)
-
-
-@dataclass(frozen=True)
-class _SlotMotif:
-    figure: FigureNGram
-    reuse: bool
-
-
-@dataclass(frozen=True)
-class _ClassSchema:
-    schema: MotifSchema
-    sound_slot_count: int
-
-
-@dataclass(frozen=True)
-class _MotifPlanContext:
-    slots: tuple[RenderSlot, ...]
-    sound_slot_indices: tuple[int, ...]
-    chord_pitch_classes: tuple[frozenset[int], ...]
-    shortest_note_duration: Fraction
-    scale_type: ScaleType
-    bar_duration: Fraction
 
 
 def phrase_harmony(
@@ -127,16 +105,6 @@ def _target_slope(anchors: tuple[int, ...], index: int) -> int:
     return anchors[index + 1] - anchors[index] if index + 1 < len(anchors) else 0
 
 
-def _segment_sound_indices(segment: SegmentNode, context: _MotifPlanContext) -> list[int]:
-    start = segment.start_bar * context.bar_duration
-    end = (segment.start_bar + segment.bar_span) * context.bar_duration
-    return [index for index in context.sound_slot_indices if start <= context.slots[index].offset < end]
-
-
-def _is_restatement(stored: _ClassSchema, segment: SegmentNode, segment_indices: list[int]) -> bool:
-    return stored.sound_slot_count == len(segment_indices) and segment.variation is not VariationKind.FRESH
-
-
 @dataclass(frozen=True)
 class SurfaceRenderer:
     config: RenderConfig
@@ -146,6 +114,8 @@ class SurfaceRenderer:
     figure_vocabulary: FigureVocabulary
     duration_vocabulary: DurationVocabulary
     chord_vocabulary: ChordVocabularyConfig
+    base_duration_distribution: BaseDurationDistribution
+    rhythmic_density_sampler: RhythmicDensitySampler
     motif_config: MotifConfig
 
     def render(
@@ -189,24 +159,10 @@ class SurfaceRenderer:
             hand: self.register_curve_sampler.sample(length=len(slots), scale_type=scale_type, hand=hand, rng=rng)
             for hand in _HANDS
         }
+        density = {hand: self.rhythmic_density_sampler.sample(length=len(slots), rng=rng) for hand in _HANDS}
         hand_entries = {
             hand: tuple(self.figure_vocabulary.filter(scale_type=scale_type, hand=hand).entries) for hand in _HANDS
         }
-        motif_plan = (
-            self._plan_motifs(
-                form=form,
-                slots=slots,
-                anchors=anchors,
-                chord_pitch_classes=chord_pitch_classes,
-                hand_entries=hand_entries,
-                shortest_note_duration=shortest_note_duration,
-                scale_type=scale_type,
-                bar_duration=bar_duration,
-                rng=rng,
-            )
-            if self.config.lambda_similarity > 0.0
-            else {}
-        )
 
         state = GenerationConstraintState(constraints=constraints)
         tokens: list[Token] = []
@@ -224,12 +180,13 @@ class SurfaceRenderer:
                         tokens=tokens,
                         slots=slots,
                         slot_index=slot_index,
+                        hand=hand,
                         anchors=anchors[hand],
+                        density_offset=density[hand][slot_index],
                         entries=hand_entries[hand],
                         chord_pitch_classes=chord_pitch_classes[slot_index],
                         scale_type=scale_type,
                         shortest_note_duration=shortest_note_duration,
-                        motif=motif_plan.get((hand, slot_index)),
                         rng=rng,
                     )
             state, tokens = self._append(state, tokens, BarToken())
@@ -249,154 +206,6 @@ class SurfaceRenderer:
             ),
         )
 
-    def _plan_motifs(
-        self,
-        *,
-        form: FormTree,
-        slots: tuple[RenderSlot, ...],
-        anchors: dict[Hand, tuple[int, ...]],
-        chord_pitch_classes: tuple[frozenset[int], ...],
-        hand_entries: dict[Hand, tuple[FigureVocabularyEntry, ...]],
-        shortest_note_duration: Fraction,
-        scale_type: ScaleType,
-        bar_duration: Fraction,
-        rng: Generator,
-    ) -> dict[tuple[Hand, int], _SlotMotif]:
-        context = _MotifPlanContext(
-            slots=slots,
-            sound_slot_indices=tuple(
-                index for index, slot in enumerate(slots) if slot.leaf_type is MetricalLeafType.SOUND
-            ),
-            chord_pitch_classes=chord_pitch_classes,
-            shortest_note_duration=shortest_note_duration,
-            scale_type=scale_type,
-            bar_duration=bar_duration,
-        )
-        plan: dict[tuple[Hand, int], _SlotMotif] = {}
-        for hand in _HANDS:
-            self._plan_hand_motifs(
-                plan, hand, form=form, context=context, anchors_hand=anchors[hand], entries=hand_entries[hand], rng=rng
-            )
-
-        return plan
-
-    def _plan_hand_motifs(
-        self,
-        plan: dict[tuple[Hand, int], _SlotMotif],
-        hand: Hand,
-        *,
-        form: FormTree,
-        context: _MotifPlanContext,
-        anchors_hand: tuple[int, ...],
-        entries: tuple[FigureVocabularyEntry, ...],
-        rng: Generator,
-    ) -> None:
-        schemas: dict[int, _ClassSchema] = {}
-        for segment in form.segments:
-            segment_indices = _segment_sound_indices(segment, context)
-            if not segment_indices:
-                continue
-
-            stored = schemas.get(segment.class_label)
-            if stored is not None and _is_restatement(stored, segment, segment_indices):
-                self._plan_restatement(plan, hand, segment, stored.schema, segment_indices, anchors_hand, rng)
-            else:
-                self._plan_seed(
-                    plan,
-                    hand,
-                    segment,
-                    segment_indices,
-                    schemas,
-                    context=context,
-                    anchors_hand=anchors_hand,
-                    entries=entries,
-                    rng=rng,
-                )
-
-    def _plan_seed(
-        self,
-        plan: dict[tuple[Hand, int], _SlotMotif],
-        hand: Hand,
-        segment: SegmentNode,
-        segment_indices: list[int],
-        schemas: dict[int, _ClassSchema],
-        *,
-        context: _MotifPlanContext,
-        anchors_hand: tuple[int, ...],
-        entries: tuple[FigureVocabularyEntry, ...],
-        rng: Generator,
-    ) -> None:
-        schema = select_motif_seed(
-            self._motif_slots(segment_indices, context=context, anchors_hand=anchors_hand, entries=entries),
-            scale_type=context.scale_type,
-            config=self.config,
-            candidate_count=self.motif_config.seed_candidate_count,
-            rng=rng,
-        )
-        if schema is None:
-            return
-
-        schemas[segment.class_label] = _ClassSchema(schema=schema, sound_slot_count=len(segment_indices))
-        for motif_figure in schema.figures:
-            plan[(hand, segment_indices[motif_figure.slot_index])] = _SlotMotif(figure=motif_figure.figure, reuse=False)
-
-    def _motif_slots(
-        self,
-        segment_indices: list[int],
-        *,
-        context: _MotifPlanContext,
-        anchors_hand: tuple[int, ...],
-        entries: tuple[FigureVocabularyEntry, ...],
-    ) -> list[MotifSlot]:
-        motif_slots: list[MotifSlot] = []
-        for local_index, slot_index in enumerate(segment_indices):
-            slot = context.slots[slot_index]
-            feasible = tuple(
-                entry
-                for entry in entries
-                if figure_fits_slot(
-                    entry.figure,
-                    slot_duration=slot.duration,
-                    shortest_note_duration=context.shortest_note_duration,
-                    duration_vocabulary=self.duration_vocabulary,
-                )
-            )
-            motif_slots.append(
-                MotifSlot(
-                    slot_index=local_index,
-                    anchor=anchors_hand[slot_index],
-                    target_slope=_target_slope(anchors_hand, slot_index),
-                    chord_pitch_classes=context.chord_pitch_classes[slot_index],
-                    weight=slot.weight,
-                    entries=feasible,
-                )
-            )
-
-        return motif_slots
-
-    def _plan_restatement(
-        self,
-        plan: dict[tuple[Hand, int], _SlotMotif],
-        hand: Hand,
-        segment: SegmentNode,
-        schema: MotifSchema,
-        segment_indices: list[int],
-        anchors_hand: tuple[int, ...],
-        rng: Generator,
-    ) -> None:
-        varied = vary_motif(
-            schema,
-            segment.variation,
-            variation_budget=self.motif_config.variation_budget,
-            maximum_transpose=self.motif_config.maximum_transpose,
-            rng=rng,
-        )
-        grounded = ground_motif(varied, base_anchor=anchors_hand[segment_indices[0]])
-        for local_index, slot_index in enumerate(segment_indices):
-            grounded_figure = grounded.get(local_index)
-            if grounded_figure is not None:
-                plan[(hand, slot_index)] = _SlotMotif(figure=grounded_figure.figure, reuse=True)
-
     def _render_slot(
         self,
         *,
@@ -404,116 +213,162 @@ class SurfaceRenderer:
         tokens: list[Token],
         slots: tuple[RenderSlot, ...],
         slot_index: int,
+        hand: Hand,
         anchors: tuple[int, ...],
+        density_offset: float,
         entries: tuple[FigureVocabularyEntry, ...],
         chord_pitch_classes: frozenset[int],
         scale_type: ScaleType,
         shortest_note_duration: Fraction,
-        motif: _SlotMotif | None,
         rng: Generator,
     ) -> tuple[GenerationConstraintState, list[Token]]:
         slot = slots[slot_index]
-        match slot.leaf_type:
-            case MetricalLeafType.REST:
-                return self._emit_or_rest(state, tokens, rest_tokens(slot.duration, self.duration_vocabulary), slot)
-            case MetricalLeafType.TIE:
-                return self._emit_or_rest(state, tokens, hold_tokens(slot.duration, self.duration_vocabulary), slot)
-            case MetricalLeafType.SOUND:
-                return self._render_sound_slot(
-                    state=state,
-                    tokens=tokens,
-                    slots=slots,
-                    slot_index=slot_index,
-                    anchors=anchors,
-                    entries=entries,
-                    chord_pitch_classes=chord_pitch_classes,
-                    scale_type=scale_type,
-                    shortest_note_duration=shortest_note_duration,
-                    motif=motif,
-                    rng=rng,
-                )
+        if slot.leaf_type is MetricalLeafType.REST:
+            return self._emit_or_rest(state, tokens, rest_tokens(slot.duration, self.duration_vocabulary), slot)
 
-    def _render_sound_slot(
+        return self._fill_sound_slot(
+            state=state,
+            tokens=tokens,
+            slot=slot,
+            hand=hand,
+            anchor=anchors[slot_index],
+            target_slope=_target_slope(anchors, slot_index),
+            density_offset=density_offset,
+            entries=entries,
+            chord_pitch_classes=chord_pitch_classes,
+            scale_type=scale_type,
+            shortest_note_duration=shortest_note_duration,
+            rng=rng,
+        )
+
+    def _fill_sound_slot(
         self,
         *,
         state: GenerationConstraintState,
         tokens: list[Token],
-        slots: tuple[RenderSlot, ...],
-        slot_index: int,
-        anchors: tuple[int, ...],
+        slot: RenderSlot,
+        hand: Hand,
+        anchor: int,
+        target_slope: int,
+        density_offset: float,
         entries: tuple[FigureVocabularyEntry, ...],
         chord_pitch_classes: frozenset[int],
         scale_type: ScaleType,
         shortest_note_duration: Fraction,
-        motif: _SlotMotif | None,
         rng: Generator,
     ) -> tuple[GenerationConstraintState, list[Token]]:
-        slot = slots[slot_index]
-        anchor = anchors[slot_index]
-        target_slope = _target_slope(anchors, slot_index)
-        if motif is not None and not motif.reuse:
-            applied, emitted = self._emit_figure(
-                state, tokens, motif.figure, anchor=anchor, slot=slot, scale_type=scale_type
+        remaining = slot.duration
+        while remaining >= shortest_note_duration:
+            feasible = tuple(
+                entry
+                for entry in entries
+                if self._fitting_base(
+                    entry, hand=hand, scale_type=scale_type, density_offset=density_offset, remaining=remaining
+                )
+                is not None
             )
-            if applied is not None:
-                return applied, emitted
-
-        intended = motif.figure if motif is not None and motif.reuse else None
-        feasible = tuple(
-            entry
-            for entry in entries
-            if figure_fits_slot(
-                entry.figure,
-                slot_duration=slot.duration,
-                shortest_note_duration=shortest_note_duration,
-                duration_vocabulary=self.duration_vocabulary,
-            )
-        )
-        for _ in range(self.config.max_resample_retries):
             if not feasible:
                 break
 
+            state, tokens, consumed = self._place_one_figure(
+                state=state,
+                tokens=tokens,
+                feasible=feasible,
+                hand=hand,
+                anchor=anchor,
+                target_slope=target_slope,
+                density_offset=density_offset,
+                remaining=remaining,
+                weight=slot.weight,
+                chord_pitch_classes=chord_pitch_classes,
+                scale_type=scale_type,
+                rng=rng,
+            )
+            if consumed is None:
+                break
+
+            remaining -= consumed
+
+        return self._pad_with_rest(state, tokens, remaining)
+
+    def _place_one_figure(
+        self,
+        *,
+        state: GenerationConstraintState,
+        tokens: list[Token],
+        feasible: tuple[FigureVocabularyEntry, ...],
+        hand: Hand,
+        anchor: int,
+        target_slope: int,
+        density_offset: float,
+        remaining: Fraction,
+        weight: float,
+        chord_pitch_classes: frozenset[int],
+        scale_type: ScaleType,
+        rng: Generator,
+    ) -> tuple[GenerationConstraintState, list[Token], Fraction | None]:
+        for _ in range(self.config.max_resample_retries):
             entry = select_figure(
                 feasible,
                 anchor=anchor,
                 target_slope=target_slope,
                 scale_type=scale_type,
                 chord_pitch_classes=chord_pitch_classes,
-                weight=slot.weight,
+                weight=weight,
                 config=self.config,
                 rng=rng,
-                intended=intended,
             )
-            applied, emitted = self._emit_figure(
-                state, tokens, entry.figure, anchor=anchor, slot=slot, scale_type=scale_type
+            base_duration = self._fitting_base(
+                entry, hand=hand, scale_type=scale_type, density_offset=density_offset, remaining=remaining
             )
+            if base_duration is None:
+                continue
+
+            candidate = anchor_figure_to_tokens(
+                figure=entry.figure,
+                anchor=anchor,
+                base_duration=base_duration,
+                scale_type=scale_type,
+                duration_vocabulary=self.duration_vocabulary,
+            )
+            applied = self._try_apply(state, candidate)
             if applied is not None:
-                return applied, emitted
+                return applied, tokens + candidate, figure_span_units(entry.figure) * base_duration
 
-        return self._emit_or_rest(state, tokens, rest_tokens(slot.duration, self.duration_vocabulary), slot)
+        return state, tokens, None
 
-    def _emit_figure(
+    def _fitting_base(
+        self,
+        entry: FigureVocabularyEntry,
+        *,
+        hand: Hand,
+        scale_type: ScaleType,
+        density_offset: float,
+        remaining: Fraction,
+    ) -> Fraction | None:
+        return choose_base_duration(
+            entry.figure,
+            self.base_duration_distribution.candidates(scale_type=scale_type, hand=hand, figure_length=entry.figure.n),
+            density_offset=density_offset,
+            remaining=remaining,
+            duration_vocabulary=self.duration_vocabulary,
+        )
+
+    def _pad_with_rest(
         self,
         state: GenerationConstraintState,
         tokens: list[Token],
-        figure: FigureNGram,
-        *,
-        anchor: int,
-        slot: RenderSlot,
-        scale_type: ScaleType,
-    ) -> tuple[GenerationConstraintState | None, list[Token]]:
-        candidate = anchor_figure_to_tokens(
-            figure=figure,
-            anchor=anchor,
-            base_duration=slot_base_duration(figure, slot.duration),
-            scale_type=scale_type,
-            duration_vocabulary=self.duration_vocabulary,
-        )
-        applied = self._try_apply(state, candidate)
-        if applied is None:
-            return None, tokens
+        remaining: Fraction,
+    ) -> tuple[GenerationConstraintState, list[Token]]:
+        if remaining <= 0:
+            return state, tokens
 
-        return applied, tokens + candidate
+        rest = rest_tokens(remaining, self.duration_vocabulary)
+        applied = self._try_apply(state, rest) if rest is not None else None
+        if applied is None:
+            raise GenerationConstraintError(f"could not fill a {remaining} remainder with vocabulary durations")
+
+        return applied, tokens + (rest or [])
 
     def _emit_or_rest(
         self,

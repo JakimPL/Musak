@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from fractions import Fraction
 
 from musak_model.harmony.schema import Chord
-from musak_model.synthetic.structure.meter import MetricalLeafType, MetricalTree
+from musak_model.synthetic.structure.meter import MetricalLeafType, MetricalNode, MetricalTree
 
 
 @dataclass(frozen=True)
@@ -25,19 +25,20 @@ def render_slots(
     if len(frontier) != len(frontier_chords):
         raise ValueError(f"frontier has {len(frontier)} slots but {len(frontier_chords)} chords were given")
 
-    slots: list[RenderSlot] = []
-    for node, chord in zip(frontier, frontier_chords, strict=True):
-        for leaf in node.leaves():
-            if leaf.leaf_type is None:
-                raise ValueError("a metrical leaf is missing its leaf type")
-            slots.append(
-                RenderSlot(
-                    offset=leaf.offset,
-                    duration=leaf.duration,
-                    weight=leaf.weight,
-                    leaf_type=leaf.leaf_type,
-                    chord=chord,
-                )
-            )
+    return tuple(
+        RenderSlot(
+            offset=node.offset,
+            duration=node.duration,
+            weight=node.weight,
+            leaf_type=_region_activity(node),
+            chord=chord,
+        )
+        for node, chord in zip(frontier, frontier_chords, strict=True)
+    )
 
-    return tuple(slots)
+
+def _region_activity(node: MetricalNode) -> MetricalLeafType:
+    if all(leaf.leaf_type is MetricalLeafType.REST for leaf in node.leaves()):
+        return MetricalLeafType.REST
+
+    return MetricalLeafType.SOUND

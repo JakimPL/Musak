@@ -7,7 +7,9 @@ from musak_model.data.schema import Segment
 from musak_model.generation.constraints import GenerationConstraints, GenerationConstraintState
 from musak_model.harmony.vocabulary import ChordVocabularyConfig
 from musak_model.n_grams.figure.schema import FigureNGram
+from musak_model.synthetic.base_durations import BaseDurationDistribution
 from musak_model.synthetic.figures import FigureVocabulary, FigureVocabularyEntry, FigureVocabularyGroup
+from musak_model.synthetic.processes.density import RhythmicDensityConfig, RhythmicDensitySampler
 from musak_model.synthetic.processes.pitch import RegisterCurveConfig, RegisterCurveSampler
 from musak_model.synthetic.render.config import RenderConfig
 from musak_model.synthetic.render.motif import MotifConfig
@@ -21,7 +23,7 @@ from musak_model.synthetic.structure.meter import (
     MetricalTreeSampler,
 )
 from musak_model.tokens.duration import DurationVocabulary
-from musak_model.tokens.schema import Hand, HoldToken, NoteToken, ScaleType
+from musak_model.tokens.schema import Hand, NoteToken, ScaleType
 from musak_shared.elements import HarmonicFunction, degrees_for_function
 
 _HALF = (HarmonicFunction.PREDOMINANT, HarmonicFunction.DOMINANT)
@@ -29,6 +31,7 @@ _AUTHENTIC = (HarmonicFunction.DOMINANT, HarmonicFunction.TONIC)
 _SOURCE_FILE = Path("synthetic.mxl")
 _TONIC_DEGREES = degrees_for_function(HarmonicFunction.TONIC, scale_size=7)
 _DOMINANT_DEGREES = degrees_for_function(HarmonicFunction.DOMINANT, scale_size=7)
+_BASE_DURATIONS = (Fraction(1, 8), Fraction(1, 4), Fraction(1, 2))
 
 
 def _ngram(*steps: int) -> FigureNGram:
@@ -42,6 +45,15 @@ def _figure_vocabulary() -> FigureVocabulary:
             group = FigureVocabularyGroup(scale_type=ScaleType.MAJOR, hand=hand, n=len(figure.onsets))
             entries.append(FigureVocabularyEntry(group=group, figure=figure, count=count))
     return FigureVocabulary(entries=tuple(entries))
+
+
+def _base_durations() -> BaseDurationDistribution:
+    weights = {}
+    for hand in (Hand.RIGHT, Hand.LEFT):
+        weights[(ScaleType.MAJOR, hand, 1)] = ((Fraction(1, 4), 1), (Fraction(1, 2), 1))
+        weights[(ScaleType.MAJOR, hand, 2)] = ((Fraction(1, 8), 1), (Fraction(1, 4), 1))
+        weights[(ScaleType.MAJOR, hand, 3)] = ((Fraction(1, 8), 1),)
+    return BaseDurationDistribution(weights_by_group=weights)
 
 
 def _period_prior() -> FormPrior:
@@ -61,31 +73,20 @@ def _harmony_sampler() -> HarmonyGrammarSampler:
     return HarmonyGrammarSampler(config=HarmonyGrammarConfig.load(), vocabulary=ChordVocabularyConfig.load())
 
 
-def _renderer(
-    duration_vocabulary: DurationVocabulary,
-    *,
-    metrical_overrides: dict[str, object] | None = None,
-    render_overrides: dict[str, object] | None = None,
-    motif_overrides: dict[str, object] | None = None,
-) -> SurfaceRenderer:
-    metrical_config = MetricalGrammarConfig.load()
-    if metrical_overrides is not None:
-        metrical_config = metrical_config.model_copy(update=metrical_overrides)
-    render_config = RenderConfig.load()
-    if render_overrides is not None:
-        render_config = render_config.model_copy(update=render_overrides)
-    motif_config = MotifConfig.load()
-    if motif_overrides is not None:
-        motif_config = motif_config.model_copy(update=motif_overrides)
+def _renderer(duration_vocabulary: DurationVocabulary) -> SurfaceRenderer:
     return SurfaceRenderer(
-        config=render_config,
-        metrical_sampler=MetricalTreeSampler(config=metrical_config),
+        config=RenderConfig.load(),
+        metrical_sampler=MetricalTreeSampler(config=MetricalGrammarConfig.load()),
         harmony_sampler=_harmony_sampler(),
         register_curve_sampler=RegisterCurveSampler(config=RegisterCurveConfig.load()),
         figure_vocabulary=_figure_vocabulary(),
         duration_vocabulary=duration_vocabulary,
         chord_vocabulary=ChordVocabularyConfig.load(),
-        motif_config=motif_config,
+        base_duration_distribution=_base_durations(),
+        rhythmic_density_sampler=RhythmicDensitySampler(
+            config=RhythmicDensityConfig(amplitude=1.0, basis_count=2, decay=1.0)
+        ),
+        motif_config=MotifConfig.load(),
     )
 
 
@@ -134,31 +135,17 @@ def test_render_is_deterministic_for_a_seed(duration_vocabulary: DurationVocabul
     assert first.tokens == second.tokens
 
 
-def test_coarse_slots_yield_long_notes(duration_vocabulary: DurationVocabulary) -> None:
-    renderer = _renderer(
-        duration_vocabulary, metrical_overrides={"subdivision_probability": 1.0, "subdivision_decay": 0.0}
-    )
-    segment = _render(renderer, bar_count=4, seed=0)
+def test_note_durations_stay_on_corpus_base_durations(duration_vocabulary: DurationVocabulary) -> None:
+    segment = _render(_renderer(duration_vocabulary), bar_count=8, seed=0)
 
-    half_note_id = duration_vocabulary.require_duration_id(Fraction(1, 2))
-    assert any(isinstance(token, NoteToken) and token.duration_id == half_note_id for token in segment.tokens)
-    _revalidate(segment, duration_vocabulary, bar_count=4)
+    note_durations = {
+        duration_vocabulary.id_to_fraction(token.duration_id)
+        for token in segment.tokens
+        if isinstance(token, NoteToken)
+    }
 
-
-def test_tie_slots_become_held_notes(duration_vocabulary: DurationVocabulary) -> None:
-    renderer = _renderer(
-        duration_vocabulary,
-        metrical_overrides={
-            "subdivision_probability": 1.0,
-            "subdivision_decay": 0.0,
-            "rest_probability": 0.0,
-            "tie_probability": 1.0,
-        },
-    )
-    segment = _render(renderer, bar_count=4, seed=0)
-
-    assert any(isinstance(token, HoldToken) for token in segment.tokens)
-    _revalidate(segment, duration_vocabulary, bar_count=4)
+    assert note_durations
+    assert note_durations <= set(_BASE_DURATIONS)
 
 
 def test_phrase_harmony_reproduces_the_period() -> None:
@@ -204,72 +191,3 @@ def test_restated_segments_share_rhythm() -> None:
         return [(leaf.duration, leaf.weight, leaf.leaf_type) for leaf in bar.leaves()]
 
     assert [leaf_signature(bar) for bar in tree.bars[0:2]] == [leaf_signature(bar) for bar in tree.bars[2:4]]
-
-
-def _repeat_prior() -> FormPrior:
-    return FormPrior(
-        phrase_lengths=(WeightedSpan(bars=4, weight=1.0),),
-        segment_lengths=(WeightedSpan(bars=2, weight=1.0),),
-        closings=(
-            ClosingChoice(is_final=False, functions=_HALF, weight=1.0),
-            ClosingChoice(is_final=True, functions=_AUTHENTIC, weight=1.0),
-        ),
-        repeat_probability=1.0,
-        variation_probability=0.5,
-    )
-
-
-def _render_form(renderer: SurfaceRenderer, form: FormTree, *, seed: int) -> Segment:
-    return renderer.render(
-        time_numerator=4,
-        time_denominator=4,
-        scale_root=0,
-        scale_type=ScaleType.MAJOR,
-        form=form,
-        harmonic_slot_duration=Fraction(1),
-        constraints=_constraints(form.bar_count),
-        source_file=_SOURCE_FILE,
-        rng=default_rng(seed),
-    )
-
-
-def test_motif_layer_is_inert_at_zero_similarity(duration_vocabulary: DurationVocabulary) -> None:
-    form = FormSampler(_repeat_prior()).sample(bar_count=8, rng=default_rng(0))
-    lean = _render_form(
-        _renderer(
-            duration_vocabulary,
-            render_overrides={"lambda_similarity": 0.0},
-            motif_overrides={"seed_candidate_count": 1, "variation_budget": 0.0},
-        ),
-        form,
-        seed=0,
-    )
-    rich = _render_form(
-        _renderer(
-            duration_vocabulary,
-            render_overrides={"lambda_similarity": 0.0},
-            motif_overrides={"seed_candidate_count": 8, "variation_budget": 1.0},
-        ),
-        form,
-        seed=0,
-    )
-
-    assert lean.tokens == rich.tokens
-
-
-def test_similarity_path_renders_a_valid_segment(duration_vocabulary: DurationVocabulary) -> None:
-    form = FormSampler(_repeat_prior()).sample(bar_count=8, rng=default_rng(0))
-    renderer = _renderer(duration_vocabulary, render_overrides={"lambda_similarity": 8.0})
-
-    segment = _render_form(renderer, form, seed=0)
-
-    assert segment.metadata.bar_count == 8
-    assert any(isinstance(token, NoteToken) for token in segment.tokens)
-    _revalidate(segment, duration_vocabulary, bar_count=8)
-
-
-def test_similarity_path_is_deterministic_for_a_seed(duration_vocabulary: DurationVocabulary) -> None:
-    form = FormSampler(_repeat_prior()).sample(bar_count=8, rng=default_rng(0))
-    renderer = _renderer(duration_vocabulary, render_overrides={"lambda_similarity": 8.0})
-
-    assert _render_form(renderer, form, seed=3).tokens == _render_form(renderer, form, seed=3).tokens
