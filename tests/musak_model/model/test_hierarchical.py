@@ -14,8 +14,10 @@ from musak_model.model.config import (
     CNNConfig,
     GRUConfig,
     ModelConfig,
+    ModelInputConfig,
     ModelOutputConfig,
     ModelOutputMode,
+    TokenInputEmbeddingMode,
     TransformerConfig,
 )
 from musak_model.tokens.factorized import TOKEN_KIND_COUNT, flat_vocabulary_attributes
@@ -38,12 +40,14 @@ def _musical_auxiliary_target_config() -> MusicalAuxiliaryTargetConfig:
 def _small_config(
     *,
     output_mode: ModelOutputMode = ModelOutputMode.FLAT,
+    input_embedding_mode: TokenInputEmbeddingMode = TokenInputEmbeddingMode.FLAT,
     vocabulary_size: int = VOCAB,
     duration_vocabulary_size: int = 1,
 ) -> ModelConfig:
     return ModelConfig(
         vocabulary_size=vocabulary_size,
         duration_vocabulary_size=duration_vocabulary_size,
+        input=ModelInputConfig(embedding_mode=input_embedding_mode),
         output=ModelOutputConfig(mode=output_mode),
         musical_auxiliary_targets=_musical_auxiliary_target_config(),
         cnn=CNNConfig(enabled=True, out_channels=H, kernel_sizes=(3,), num_layers=1, dropout=0.0),
@@ -110,6 +114,10 @@ def _musical_auxiliary_logits_sum(logits: MusicalAuxiliaryLogits) -> Tensor:
         + logits.bar.dotted_duration.sum()
         + logits.bar.hand_span.sum()
     )
+
+
+def _backward(loss: Tensor) -> None:
+    loss.backward()  # type: ignore[no-untyped-call]
 
 
 @dataclass(frozen=True)
@@ -204,6 +212,26 @@ class TestForwardOutputShape:
         assert factorized_logits.kind.shape == (2, 8, TOKEN_KIND_COUNT)
         assert factorized_logits.duration.shape == (2, 8, FACTORIZED_DURATION_VOCAB)
         assert training_logits.musical_auxiliary_logits.bar.note_density.shape == (2, 2, 7)
+
+    def test_factorized_input_embedding_mode_returns_flat_output_shape(self) -> None:
+        config = _small_config(
+            input_embedding_mode=TokenInputEmbeddingMode.FLAT_PLUS_FACTORIZED,
+            vocabulary_size=FACTORIZED_VOCAB,
+            duration_vocabulary_size=FACTORIZED_DURATION_VOCAB,
+        )
+        model = HierarchicalAutoregressiveModel(config)
+        token_ids = torch.randint(0, FACTORIZED_VOCAB, (2, 8))
+        bar_positions = _uniform_bar_positions(2, 8, 2)
+
+        logits = model(token_ids, bar_positions=bar_positions, **_coordinate_kwargs(token_ids))
+
+        assert logits.shape == (2, 8, FACTORIZED_VOCAB)
+
+    def test_factorized_input_embedding_mode_requires_matching_vocabulary_shape(self) -> None:
+        config = _small_config(input_embedding_mode=TokenInputEmbeddingMode.FLAT_PLUS_FACTORIZED)
+
+        with pytest.raises(ValueError, match="factorized input attribute table size"):
+            HierarchicalAutoregressiveModel(config)
 
 
 class TestForwardBarLayouts:
@@ -361,9 +389,31 @@ class TestForwardBehaviour:
                 dtype=torch.long,
             ),
         )
-        (logits.flat_logits.sum() + _musical_auxiliary_logits_sum(logits.musical_auxiliary_logits)).backward()
+        _backward(logits.flat_logits.sum() + _musical_auxiliary_logits_sum(logits.musical_auxiliary_logits))
         params_without_grad = [name for name, p in model.named_parameters() if p.grad is None]
         assert params_without_grad == [], f"No gradient for: {params_without_grad}"
+
+    def test_gradients_flow_through_factorized_input_embeddings(self) -> None:
+        config = _small_config(
+            input_embedding_mode=TokenInputEmbeddingMode.FLAT_PLUS_FACTORIZED,
+            vocabulary_size=FACTORIZED_VOCAB,
+            duration_vocabulary_size=FACTORIZED_DURATION_VOCAB,
+        )
+        model = HierarchicalAutoregressiveModel(config)
+        token_ids = torch.arange(16, dtype=torch.long).remainder(FACTORIZED_VOCAB).view(2, 8)
+        bar_positions = _uniform_bar_positions(2, 8, 2)
+        logits = model.training_logits(
+            token_ids,
+            bar_positions=bar_positions,
+            **_training_logits_kwargs(token_ids, bar_positions=bar_positions),
+        )
+
+        _backward(logits.flat_logits.sum() + _musical_auxiliary_logits_sum(logits.musical_auxiliary_logits))
+
+        gradient_names = {name for name, parameter in model.named_parameters() if parameter.grad is not None}
+        assert "_input_embeddings._kind_embedding.weight" in gradient_names
+        assert "_input_embeddings._duration_embedding.weight" in gradient_names
+        assert "_input_embeddings._degree_embedding.weight" in gradient_names
 
     def test_future_tokens_do_not_change_earlier_logits(self) -> None:
         torch.manual_seed(0)
@@ -477,7 +527,7 @@ class TestEncoderBypass:
                 dtype=torch.long,
             ),
         )
-        (logits.flat_logits.sum() + _musical_auxiliary_logits_sum(logits.musical_auxiliary_logits)).backward()
+        _backward(logits.flat_logits.sum() + _musical_auxiliary_logits_sum(logits.musical_auxiliary_logits))
 
         params_without_grad = [name for name, parameter in model.named_parameters() if parameter.grad is None]
         assert logits.flat_logits.shape == (2, 16, VOCAB)

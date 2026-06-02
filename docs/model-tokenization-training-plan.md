@@ -138,8 +138,13 @@ This section is the durable resumption point if work continues after context com
 - Completed: Phase 6B logs generated-sample artifacts to MLflow under `generation/epoch_NNNN/`: a JSONL manifest,
   token-text files, and MusicXML files for samples that decode cleanly through the existing `Segment` to MusicXML
   conversion path. MIDI export is intentionally deferred because there is no model-owned conversion primitive yet.
-- Next: inspect Phase 5B/5C/6A metrics and Phase 6B artifacts on one short pretraining run before broadening the
-  auxiliary target set beyond the current density, rhythm, texture, chromaticity, dotted-duration, and span targets.
+- Completed: Structural-bias Phase 1 added config-selectable factorized input embeddings behind
+  `model/input.yml`. `flat_plus_factorized` still consumes flat token IDs, but augments each previous-token embedding
+  with token-kind, duration, degree, accidental, octave-offset, and hand embeddings derived from the tokenizer
+  vocabulary. Encoded artifact shape, generation legality constraints, and the event objective remain unchanged.
+- Next: inspect Phase 5B/5C/6A metrics and Phase 6B artifacts on one short pretraining run, then start
+  Structural-bias Phase 2 by adding harmonic-plan schema and low-cardinality vocabulary types without conditioning
+  the model yet.
 
 Early non-unit validation for Phase 2A:
 

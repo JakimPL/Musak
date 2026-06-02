@@ -9,6 +9,7 @@ from musak_model.auxiliary.schema import MusicalAuxiliaryLogits, MusicalBarAuxil
 from musak_model.model.cnn import LocalConvEncoder
 from musak_model.model.config import ModelConfig, ModelOutputMode
 from musak_model.model.gru import BarGRUEncoder, BarPrefixGRUEncoder
+from musak_model.model.input import TokenInputEmbeddings
 from musak_model.model.output import (
     FactorizedTokenLogits,
     FlatTokenAttributeBuffers,
@@ -31,7 +32,7 @@ class HierarchicalAutoregressiveModel(nn.Module):
         super().__init__()
         self._config = config
 
-        self._token_embedding = nn.Embedding(config.vocabulary_size, config.transformer.hidden_size)
+        self._input_embeddings = TokenInputEmbeddings(config)
         self._bar_position_projection = nn.Linear(2, config.transformer.hidden_size)
         self._active_hand_embedding = nn.Embedding(HAND_ATTRIBUTE_COUNT, config.transformer.hidden_size)
         local_hidden_size = config.cnn.out_channels if config.cnn.enabled else config.transformer.hidden_size
@@ -255,7 +256,7 @@ class HierarchicalAutoregressiveModel(nn.Module):
         structural_control_ids: Tensor | None,
         token_padding_mask: Tensor | None,
     ) -> Tensor:
-        token_embeddings = self._token_embedding(token_ids)
+        token_embeddings = self._input_embeddings(token_ids)
         self._validate_bar_input_shapes(bar_embeddings=token_embeddings, bar_positions=bar_positions)
         self._validate_bar_input_shapes(bar_embeddings=token_embeddings, bar_positions=bar_relative_ticks)
         self._validate_bar_input_shapes(bar_embeddings=token_embeddings, bar_positions=bar_duration_ticks)

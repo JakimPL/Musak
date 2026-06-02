@@ -13,8 +13,10 @@ from musak_model.model.config import (
     CNNConfig,
     GRUConfig,
     ModelConfig,
+    ModelInputConfig,
     ModelOutputConfig,
     ModelOutputMode,
+    TokenInputEmbeddingMode,
     TransformerConfig,
 )
 from musak_model.tokens.config import TokenizationConfig
@@ -24,6 +26,7 @@ from musak_model.training.checkpoint import save_checkpoint
 from musak_model.training.checkpoint_migration import CheckpointMigrationError, migrate_checkpoint_to_model
 
 HIDDEN_SIZE: Final[int] = 16
+FLAT_INPUT_EMBEDDING_WEIGHT_KEY: Final[str] = "_input_embeddings._flat_embedding.weight"
 
 
 def _musical_auxiliary_target_config() -> MusicalAuxiliaryTargetConfig:
@@ -44,6 +47,7 @@ def _small_model_config() -> ModelConfig:
     return ModelConfig(
         vocabulary_size=_token_vocabulary().vocabulary_size,
         duration_vocabulary_size=_token_vocabulary().duration_vocabulary.vocabulary_size(),
+        input=ModelInputConfig(embedding_mode=TokenInputEmbeddingMode.FLAT),
         output=ModelOutputConfig(mode=ModelOutputMode.FLAT),
         musical_auxiliary_targets=_musical_auxiliary_target_config(),
         cnn=CNNConfig(enabled=True, out_channels=HIDDEN_SIZE, kernel_sizes=(3,), num_layers=1, dropout=0.0),
@@ -95,8 +99,8 @@ def test_migrate_checkpoint_initializes_missing_target_weights(tmp_path: Path) -
     migrated_state = migrated["model_state_dict"]
     assert torch.equal(migrated_state[missing_key], target_model.state_dict()[missing_key])
     assert torch.equal(
-        migrated_state["_token_embedding.weight"],
-        old_model.state_dict()["_token_embedding.weight"],
+        migrated_state[FLAT_INPUT_EMBEDDING_WEIGHT_KEY],
+        old_model.state_dict()[FLAT_INPUT_EMBEDDING_WEIGHT_KEY],
     )
     assert migrated["optimizer_state_dict"] == {}
     assert report.ignored_source_keys == ("unused.weight",)

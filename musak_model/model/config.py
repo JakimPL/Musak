@@ -16,6 +16,17 @@ class ModelOutputMode(StrEnum):
     FACTORIZED = "factorized"
 
 
+class TokenInputEmbeddingMode(StrEnum):
+    FLAT = "flat"
+    FLAT_PLUS_FACTORIZED = "flat_plus_factorized"
+
+
+class ModelInputConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    embedding_mode: TokenInputEmbeddingMode
+
+
 class ModelOutputConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -58,6 +69,7 @@ class ModelConfig(BaseModel):
 
     vocabulary_size: int = Field(ge=1)
     duration_vocabulary_size: int = Field(ge=1)
+    input: ModelInputConfig
     output: ModelOutputConfig
     musical_auxiliary_targets: MusicalAuxiliaryTargetConfig
     cnn: CNNConfig
@@ -79,6 +91,7 @@ class ModelConfig(BaseModel):
         return cls(
             vocabulary_size=vocabulary_size,
             duration_vocabulary_size=duration_vocabulary_size,
+            input=ModelInputConfig.model_validate(load_yaml_config(config_directory / "input.yml")),
             output=ModelOutputConfig(mode=output_mode),
             musical_auxiliary_targets=musical_auxiliary_targets,
             cnn=CNNConfig.model_validate(load_yaml_config(config_directory / "cnn.yml")),

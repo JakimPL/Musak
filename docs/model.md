@@ -63,6 +63,18 @@ Training can run either the legacy flat-token objective or the factorized event 
 The default pretraining and finetuning configs use the factorized objective. The flat objective remains available as a
 baseline by setting `event_objective.mode: flat`; normal CLI construction will create a matching flat-output model.
 
+Model input embeddings are controlled separately by `model/input.yml`:
+
+- `flat` embeds the previous flat token ID directly.
+- `flat_plus_factorized` embeds the previous flat token ID and adds embeddings derived from its token kind, duration,
+  degree, accidental, octave offset, and hand attributes.
+
+The factorized input mode still consumes the same teacher-forced flat token IDs and does not change encoded artifact
+shape, generation constraints, or the event objective. It only gives the decoder access to the reusable structure
+inside the previous event instead of forcing that structure to live entirely inside one opaque ID embedding. The mode
+requires `vocabulary_size` to match the vocabulary implied by the active duration vocabulary, because the per-ID
+attribute table is derived from the tokenizer vocabulary.
+
 Training also has a musical auxiliary objective. Target bucket boundaries are controlled by
 `musical_auxiliary_targets`, and the loss weights are controlled by `musical_auxiliary_objective`. The objective is
 enabled by default with a small overall weight. The current auxiliary heads predict the same target families at two

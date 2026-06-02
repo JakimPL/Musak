@@ -14,8 +14,10 @@ from musak_model.model.config import (
     CNNConfig,
     GRUConfig,
     ModelConfig,
+    ModelInputConfig,
     ModelOutputConfig,
     ModelOutputMode,
+    TokenInputEmbeddingMode,
     TransformerConfig,
 )
 from musak_model.tokens.schema import ScaleType
@@ -144,6 +146,7 @@ def _model_config() -> ModelConfig:
     return ModelConfig(
         vocabulary_size=32,
         duration_vocabulary_size=1,
+        input=ModelInputConfig(embedding_mode=TokenInputEmbeddingMode.FLAT),
         output=ModelOutputConfig(mode=ModelOutputMode.FLAT),
         musical_auxiliary_targets=_musical_auxiliary_target_config(),
         cnn=CNNConfig(enabled=True, out_channels=16, kernel_sizes=(3,), num_layers=1, dropout=0.0),
