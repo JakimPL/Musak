@@ -89,12 +89,12 @@ def _analysis_config_path(tmp_path: Path) -> Path:
     path.write_text(
         "\n".join(
             [
-                "figure:",
+                "figure_analysis:",
                 "  min_n: 1",
                 "  max_n: 1",
                 "  limit_per_group: null",
                 "  common_mass_threshold: 0.80",
-                "rhythm:",
+                "rhythm_analysis:",
                 "  min_n: 2",
                 "  max_n: 2",
                 "  grid_alignment_denominators:",
@@ -103,7 +103,7 @@ def _analysis_config_path(tmp_path: Path) -> Path:
                 "    - 4",
                 "  strong_beat_offsets:",
                 "    - 0",
-                "register:",
+                "register_analysis:",
                 "  arch_basis_count: 3",
                 "execution:",
                 "  workers: 1",

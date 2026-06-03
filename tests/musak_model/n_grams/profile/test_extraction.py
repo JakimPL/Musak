@@ -381,12 +381,12 @@ def _stale_analysis_config_path(tmp_path: Path) -> Path:
 def _analysis_config_yaml(*, min_n: int, max_n: int, workers: int) -> str:
     return "\n".join(
         [
-            "figure:",
+            "figure_analysis:",
             f"  min_n: {min_n}",
             f"  max_n: {max_n}",
             "  limit_per_group: null",
             "  common_mass_threshold: 0.80",
-            "rhythm:",
+            "rhythm_analysis:",
             "  min_n: 2",
             "  max_n: 2",
             "  grid_alignment_denominators:",
@@ -395,7 +395,7 @@ def _analysis_config_yaml(*, min_n: int, max_n: int, workers: int) -> str:
             "    - 4",
             "  strong_beat_offsets:",
             "    - 0",
-            "register:",
+            "register_analysis:",
             "  arch_basis_count: 3",
             "execution:",
             f"  workers: {workers}",
