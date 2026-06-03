@@ -5,7 +5,7 @@ from numpy.random import default_rng
 from musak_model.n_grams.figure.schema import FigureNGram
 from musak_model.synthetic.figures import FigureVocabularyEntry, FigureVocabularyGroup
 from musak_model.synthetic.render.config import RenderConfig
-from musak_model.synthetic.render.figure_selection import figure_fits_slot, select_figure
+from musak_model.synthetic.render.figure_selection import figure_fits_slot, figure_log_scores, select_figure
 from musak_model.tokens.config import TokenizationConfig
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import Hand, ScaleType
@@ -90,3 +90,51 @@ def test_harmonic_lambda_prefers_chord_tone_figures() -> None:
     ]
 
     assert sum(1 for entry in draws if entry.figure == chord_tone_figure) > 180
+
+
+def _chord_then_passing() -> FigureNGram:
+    # A chord tone (C) on the first onset, a non-chord tone (D) on the second.
+    return FigureNGram(onsets=((((0, 0),), Fraction(1)), (((1, 0),), Fraction(1))))
+
+
+def _harmonic_score(figure: FigureNGram, *, metrical_position: int) -> float:
+    config = _config(commonness_bias=0.0, lambda_curve=0.0, lambda_harmonic=1.0, lambda_accent=0.0)
+    scores = figure_log_scores(
+        (_entry(figure, count=1),),
+        anchor=0,
+        target_slope=0,
+        scale_type=ScaleType.MAJOR,
+        chord_pitch_classes=_TONIC_PITCH_CLASSES,
+        weight=1.0,
+        config=config,
+        metrical_position=metrical_position,
+        grid_count_per_bar=4,
+    )
+    return float(scores[0])
+
+
+def test_strong_beat_sharpens_chord_tone_preference() -> None:
+    # The chord tone falls on the downbeat at position 0, but on a weak cell at position 1.
+    assert _harmonic_score(_chord_then_passing(), metrical_position=0) > _harmonic_score(
+        _chord_then_passing(), metrical_position=1
+    )
+
+
+def test_metrical_harmony_is_inert_at_zero_lambda() -> None:
+    entries = (_entry(_ngram(0, 1), count=3), _entry(_ngram(0, 2), count=1))
+    config = _config(commonness_bias=1.0, lambda_curve=0.0, lambda_harmonic=0.0, lambda_accent=0.0)
+
+    def scores(metrical_position: int | None) -> list[float]:
+        return figure_log_scores(
+            entries,
+            anchor=0,
+            target_slope=0,
+            scale_type=ScaleType.MAJOR,
+            chord_pitch_classes=_TONIC_PITCH_CLASSES,
+            weight=1.0,
+            config=config,
+            metrical_position=metrical_position,
+            grid_count_per_bar=4,
+        ).tolist()
+
+    assert scores(0) == scores(2) == scores(None)

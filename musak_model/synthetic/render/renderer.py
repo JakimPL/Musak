@@ -34,6 +34,7 @@ from musak_model.synthetic.structure.meter import (
     MetricalTreeSampler,
 )
 from musak_model.synthetic.substitution.emission import anchor_figure_to_tokens, rest_tokens
+from musak_model.synthetic.substitution.scoring import figure_net_contour
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import BarToken, EndToken, Hand, HandToken, ScaleType, Token
 
@@ -238,6 +239,7 @@ class SurfaceRenderer:
         tokens: list[Token] = []
         motif_enabled = self.config.lambda_similarity > 0.0
         class_motifs: dict[tuple[int, int], dict[Hand, MotifSchema]] = {}
+        carried_pitches: dict[Hand, int | None] = {hand: None for hand in _HANDS}
         for segment_index, segment in enumerate(form.segments):
             class_key = (segment.class_label, segment.bar_span)
             motif_walks = self._segment_motif_walks(
@@ -257,7 +259,7 @@ class SurfaceRenderer:
                 ]
                 for hand in _HANDS:
                     state, tokens = self._append(state, tokens, HandToken(hand=hand))
-                    state, tokens = self._fill_hand_bar(
+                    state, tokens, carried_pitches[hand] = self._fill_hand_bar(
                         state=state,
                         tokens=tokens,
                         slots=slots,
@@ -274,6 +276,7 @@ class SurfaceRenderer:
                         cell_duration=cell_duration,
                         entries=hand_entries[hand],
                         motif_walk=motif_walks.get(hand),
+                        carried_pitch=carried_pitches[hand],
                         rng=rng,
                     )
                 state, tokens = self._append(state, tokens, BarToken())
@@ -436,8 +439,9 @@ class SurfaceRenderer:
         cell_duration: Fraction,
         entries: tuple[FigureVocabularyEntry, ...],
         motif_walk: _MotifWalk | None,
+        carried_pitch: int | None,
         rng: Generator,
-    ) -> tuple[GenerationConstraintState, list[Token]]:
+    ) -> tuple[GenerationConstraintState, list[Token], int | None]:
         bar_start = state.constraints.bar_start(bar_index)
         bar_end = state.constraints.bar_end(bar_index)
         while state.cursor(hand) < bar_end:
@@ -453,7 +457,8 @@ class SurfaceRenderer:
                 cursor=cursor,
             )
             if fired_position is None:
-                return self._emit_rest(state, tokens, bar_end - cursor)
+                state, tokens = self._emit_rest(state, tokens, bar_end - cursor)
+                return state, tokens, carried_pitch
 
             fired_offset = bar_start + fired_position * cell_duration
             if fired_offset > cursor:
@@ -466,31 +471,45 @@ class SurfaceRenderer:
                 entries, hand=hand, scale_type=scale_type, density_offset=density[slot_index], remaining=remaining
             )
             if not feasible:
-                return self._emit_rest(state, tokens, remaining)
+                state, tokens = self._emit_rest(state, tokens, remaining)
+                return state, tokens, carried_pitch
 
             cell_index = bar_index * grid_count_per_bar + fired_position
-            anchor, intended = self._motif_anchor_and_intent(motif_walk, default_anchor=anchors[slot_index])
+            register_anchor = anchors[slot_index]
+            continuity_anchor = self._continuity_anchor(register_anchor, carried_pitch)
+            anchor, intended = self._motif_anchor_and_intent(motif_walk, default_anchor=continuity_anchor)
+            target_slope = (register_anchor - anchor) + _target_slope(anchors, slot_index)
             state, tokens, consumed, entry = self._place_one_figure(
                 state=state,
                 tokens=tokens,
                 feasible=feasible,
                 hand=hand,
                 anchor=anchor,
-                target_slope=_target_slope(anchors, slot_index),
+                target_slope=target_slope,
                 density_offset=density[slot_index],
                 remaining=remaining,
                 weight=accent_weights[cell_index],
                 chord_pitch_classes=chord_pitch_classes[slot_index],
                 scale_type=scale_type,
                 intended=intended,
+                metrical_position=fired_position,
+                grid_count_per_bar=grid_count_per_bar,
                 rng=rng,
             )
-            if consumed is None:
+            if consumed is None or entry is None:
                 state, tokens = self._emit_rest(state, tokens, min(cell_duration, bar_end - state.cursor(hand)))
-            elif motif_walk is not None and entry is not None:
-                self._record_motif_figure(motif_walk, entry=entry, anchor=anchor)
+            else:
+                carried_pitch = anchor + figure_net_contour(entry.figure)
+                if motif_walk is not None:
+                    self._record_motif_figure(motif_walk, entry=entry, anchor=anchor)
 
-        return state, tokens
+        return state, tokens, carried_pitch
+
+    def _continuity_anchor(self, register_anchor: int, carried_pitch: int | None) -> int:
+        if carried_pitch is None:
+            return register_anchor
+
+        return round(register_anchor + self.config.melodic_continuity * (carried_pitch - register_anchor))
 
     @staticmethod
     def _motif_anchor_and_intent(
@@ -584,6 +603,8 @@ class SurfaceRenderer:
         chord_pitch_classes: frozenset[int],
         scale_type: ScaleType,
         intended: FigureNGram | None,
+        metrical_position: int,
+        grid_count_per_bar: int,
         rng: Generator,
     ) -> tuple[GenerationConstraintState, list[Token], Fraction | None, FigureVocabularyEntry | None]:
         for _ in range(self.config.max_resample_retries):
@@ -596,6 +617,8 @@ class SurfaceRenderer:
                 weight=weight,
                 config=self.config,
                 intended=intended,
+                metrical_position=metrical_position,
+                grid_count_per_bar=grid_count_per_bar,
                 rng=rng,
             )
             base_duration = self._fitting_base(

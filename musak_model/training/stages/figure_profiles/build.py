@@ -40,8 +40,8 @@ def build_split_artifacts(
         split_name,
         len(samples),
         task_count,
-        config.figure.min_n,
-        config.figure.max_n,
+        config.figure_analysis.min_n,
+        config.figure_analysis.max_n,
         config.execution.workers,
         paths.root_directory,
     )

@@ -18,10 +18,10 @@ checkpoints:
   resume_checkpoint: null
   save_all_epochs: true
 mlflow:
-  enable_mlflow: true
-  mlflow_experiment_name: musak-pretrain
-  mlflow_run_name: null
-  mlflow_tracking_uri: null
+  enabled: true
+  experiment_name: musak-pretrain
+  run_name: null
+  tracking_uri: null
 generation_evaluation:
   enabled: true
   every_epochs: 5

@@ -92,9 +92,14 @@ def _renderer(
     lambda_similarity: float = 0.0,
     variation_budget: float = 0.0,
     maximum_transpose: int = 0,
+    melodic_continuity: float | None = None,
 ) -> SurfaceRenderer:
+    config_update: dict[str, float] = {"lambda_similarity": lambda_similarity}
+    if melodic_continuity is not None:
+        config_update["melodic_continuity"] = melodic_continuity
+
     return SurfaceRenderer(
-        config=RenderConfig.load().model_copy(update={"lambda_similarity": lambda_similarity}),
+        config=RenderConfig.load().model_copy(update=config_update),
         metrical_sampler=MetricalTreeSampler(config=MetricalGrammarConfig.load()),
         harmony_sampler=_harmony_sampler(),
         register_curve_sampler=RegisterCurveSampler(config=RegisterCurveConfig.load()),
@@ -271,6 +276,21 @@ def test_similarity_changes_output_for_repeats(duration_vocabulary: DurationVoca
     engaged = _render_form(_renderer(duration_vocabulary, lambda_similarity=50.0), form, bar_count=4, seed=0)
 
     assert inert.tokens != engaged.tokens
+
+
+def test_continuity_anchor_blends_register_and_carried(duration_vocabulary: DurationVocabulary) -> None:
+    half = _renderer(duration_vocabulary, melodic_continuity=0.5)
+    assert half._continuity_anchor(10, None) == 10  # no carried pitch yet → register anchor
+    assert half._continuity_anchor(10, 20) == 15  # halfway between register and carried
+    full = _renderer(duration_vocabulary, melodic_continuity=1.0)
+    assert full._continuity_anchor(10, 20) == 20  # fully connected → previous ending pitch
+
+
+def test_melodic_continuity_changes_output(duration_vocabulary: DurationVocabulary) -> None:
+    connected = _render(_renderer(duration_vocabulary, melodic_continuity=1.0), bar_count=8, seed=0)
+    reset = _render(_renderer(duration_vocabulary, melodic_continuity=0.0), bar_count=8, seed=0)
+
+    assert connected.tokens != reset.tokens
 
 
 def test_phrase_harmony_reproduces_the_period() -> None:

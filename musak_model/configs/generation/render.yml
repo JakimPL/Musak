@@ -3,4 +3,5 @@ lambda_curve: 2.0
 lambda_harmonic: 4.0
 lambda_accent: 0.5
 lambda_similarity: 0.0
+melodic_continuity: 0.6
 max_resample_retries: 8

@@ -10,7 +10,7 @@ from musak_model.n_grams.figure.schema import FigureNGram
 from musak_model.synthetic.figures import FigureVocabularyEntry
 from musak_model.synthetic.render.config import RenderConfig
 from musak_model.synthetic.render.similarity import figure_edit_distance
-from musak_model.synthetic.substitution.scoring import accent_fit, onset_chord_tone_fraction, slope_fit
+from musak_model.synthetic.substitution.scoring import accent_fit, harmonic_fit, onset_chord_tone_fraction, slope_fit
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import ScaleType, scale_size_for_type
 
@@ -53,6 +53,8 @@ def select_figure(
     config: RenderConfig,
     rng: Generator,
     intended: FigureNGram | None = None,
+    metrical_position: int | None = None,
+    grid_count_per_bar: int | None = None,
 ) -> FigureVocabularyEntry:
     return select_scored_figure(
         entries,
@@ -64,6 +66,8 @@ def select_figure(
         config=config,
         rng=rng,
         intended=intended,
+        metrical_position=metrical_position,
+        grid_count_per_bar=grid_count_per_bar,
     )[0]
 
 
@@ -78,6 +82,8 @@ def select_scored_figure(
     config: RenderConfig,
     rng: Generator,
     intended: FigureNGram | None = None,
+    metrical_position: int | None = None,
+    grid_count_per_bar: int | None = None,
 ) -> tuple[FigureVocabularyEntry, float]:
     if not entries:
         raise ValueError("entries must be non-empty")
@@ -91,6 +97,8 @@ def select_scored_figure(
         weight=weight,
         config=config,
         intended=intended,
+        metrical_position=metrical_position,
+        grid_count_per_bar=grid_count_per_bar,
     )
     index = int(rng.choice(len(entries), p=softmax(scores)))
     return entries[index], float(scores[index])
@@ -106,6 +114,8 @@ def figure_log_scores(
     weight: float,
     config: RenderConfig,
     intended: FigureNGram | None = None,
+    metrical_position: int | None = None,
+    grid_count_per_bar: int | None = None,
 ) -> NDArray[np.float64]:
     counts = np.fromiter((entry.count for entry in entries), dtype=np.float64, count=len(entries))
     slopes = np.fromiter(
@@ -113,16 +123,26 @@ def figure_log_scores(
         dtype=np.float64,
         count=len(entries),
     )
-    harmonics = np.fromiter(
-        (
+    if metrical_position is not None and grid_count_per_bar is not None:
+        harmonic_values = [
+            harmonic_fit(
+                figure=entry.figure,
+                anchor=anchor,
+                scale_type=scale_type,
+                chord_pitch_classes=chord_pitch_classes,
+                metrical_position=metrical_position,
+                grid_count_per_bar=grid_count_per_bar,
+            )
+            for entry in entries
+        ]
+    else:
+        harmonic_values = [
             _chord_tone_coverage(
                 entry.figure, anchor=anchor, scale_type=scale_type, chord_pitch_classes=chord_pitch_classes
             )
             for entry in entries
-        ),
-        dtype=np.float64,
-        count=len(entries),
-    )
+        ]
+    harmonics = np.asarray(harmonic_values, dtype=np.float64)
     accents = np.fromiter(
         (
             accent_fit(

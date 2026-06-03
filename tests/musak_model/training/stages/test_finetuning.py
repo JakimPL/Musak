@@ -10,6 +10,7 @@ from musak_model.conditioning.time_signature import TimeSignatureVocabularyConfi
 from musak_model.data.config import SegmentationConfig
 from musak_model.data.scale_matcher.config import ScaleMatcherConfig
 from musak_model.data.schema import SegmentMetadata
+from musak_model.mlflow import MlflowRunConfig
 from musak_model.model import HierarchicalAutoregressiveModel
 from musak_model.model.config import CNNConfig, GRUConfig, ModelConfig, TransformerConfig
 from musak_model.tokens.config import TokenizationConfig
@@ -21,7 +22,6 @@ from musak_model.training.config import (
     FinetuningCheckpointConfig,
     FinetuningTrainingConfig,
     GenerationEvaluationConfig,
-    MlflowConfig,
     OptimizationConfig,
     RuntimeConfig,
     TrainingConditioningConfig,
@@ -138,7 +138,7 @@ def test_train_finetuning_loads_pretraining_checkpoint_and_runs_epoch(
                 use_validity_penalty=False,
                 validity_penalty_weight=0.05,
             ),
-            mlflow=MlflowConfig(enable_mlflow=False),
+            mlflow=MlflowRunConfig(enabled=False),
             generation_evaluation=GenerationEvaluationConfig(
                 enabled=False,
                 every_epochs=5,

@@ -1,16 +1,13 @@
-import importlib
 import logging
 import math
-import os
 from dataclasses import dataclass
 from pathlib import Path
 from time import perf_counter
 from types import TracebackType
-from typing import Final, Protocol, Self
+from typing import Final, Self
 
-from musak_model.mlflow import local_mlflow_tracking_uri
+from musak_model.mlflow import MlflowRun, MlflowRunConfig
 from musak_model.n_grams.profile.extraction import FigureExtractionResult
-from musak_model.paths import DEFAULT_MLFLOW_DB_PATH
 from musak_model.processing.dataset import ProcessDatasetResult
 from musak_model.processing.fingerprint import encoded_samples_jsonl_fingerprint, file_sha256
 from musak_model.processing.manifest import (
@@ -23,7 +20,6 @@ from musak_model.processing.manifest import (
 from musak_model.processing.paths import ENCODED_JSONL_NAME
 
 _LOGGER = logging.getLogger(__name__)
-_MLFLOW_TRACKING_URI_ENV: Final[str] = "MLFLOW_TRACKING_URI"
 _TRUE_TEXT: Final[str] = "True"
 _DIAGNOSTIC_BOOLEAN_FIELDS: Final[tuple[EncodedManifestField, ...]] = (
     EncodedManifestField.EMPTY_SCORE,
@@ -127,48 +123,17 @@ _BOOLEAN_METRIC_NAMES: Final[dict[EncodedManifestField, str]] = {
 }
 
 
-class _MlflowLogger(Protocol):
-    def log_artifact(
-        self,
-        local_path: str,
-        *,
-        artifact_path: str | None = None,
-    ) -> None: ...
-
-
-@dataclass(frozen=True)
-class ProcessingMlflowConfig:
-    enabled: bool = True
-    experiment_name: str = "musak-process"
-    run_name: str | None = None
-    tracking_uri: str | None = None
-
-
 class ProcessingTracker:
     def __init__(
         self,
         *,
-        config: ProcessingMlflowConfig,
+        config: MlflowRunConfig,
         tracking_root: Path | None = None,
     ) -> None:
-        self._config = config
-        self._tracking_root = tracking_root or Path.cwd()
-        self._mlflow = importlib.import_module("mlflow")
+        self._run = MlflowRun(config, tracking_root=tracking_root)
 
     def __enter__(self) -> Self:
-        tracking_uri = _resolve_tracking_uri(
-            configured_uri=self._config.tracking_uri,
-            tracking_root=self._tracking_root,
-        )
-        _LOGGER.info(
-            "Starting MLflow processing run: experiment=%s run_name=%s tracking_uri=%s",
-            self._config.experiment_name,
-            self._config.run_name,
-            tracking_uri,
-        )
-        self._mlflow.set_tracking_uri(tracking_uri)
-        self._mlflow.set_experiment(self._config.experiment_name)
-        self._mlflow.start_run(run_name=self._config.run_name)
+        self._run.__enter__()
         return self
 
     def __exit__(
@@ -177,8 +142,7 @@ class ProcessingTracker:
         exc_value: BaseException | None,
         traceback: TracebackType | None,
     ) -> None:
-        status = "FAILED" if exc_type is not None else "FINISHED"
-        self._mlflow.end_run(status=status)
+        self._run.__exit__(exc_type, exc_value, traceback)
 
     def log_processing_result(
         self,
@@ -191,35 +155,32 @@ class ProcessingTracker:
     ) -> None:
         _LOGGER.info("Logging processing metrics and artifacts to MLflow")
         started_at = perf_counter()
-        params = _processing_params(
-            result=result,
-            data_dir=data_directory,
-            processed_root=processed_root,
-            stage=stage,
-            overwrite=overwrite,
+        self._run.log_params(
+            _processing_params(
+                result=result,
+                data_dir=data_directory,
+                processed_root=processed_root,
+                stage=stage,
+                overwrite=overwrite,
+            )
         )
-        metrics = _processing_metrics(result=result)
-        self._mlflow.log_params(params)
-        for name, value in metrics.items():
-            if math.isfinite(value):
-                self._mlflow.log_metric(name, value)
-
-        _log_artifact_if_exists(self._mlflow, result.parsed_manifest_path, artifact_path="dataset")
-        _log_artifact_if_exists(self._mlflow, result.encoded_manifest_path, artifact_path="dataset")
-        _log_artifact_if_exists(self._mlflow, result.tokenizer_snapshot_path, artifact_path="dataset")
+        self._run.log_metrics(_processing_metrics(result=result))
+        self._run.log_artifact(result.parsed_manifest_path, artifact_path="dataset")
+        _log_optional_artifact(self._run, result.encoded_manifest_path, artifact_path="dataset")
+        _log_optional_artifact(self._run, result.tokenizer_snapshot_path, artifact_path="dataset")
         _LOGGER.info("Logged processing metrics and artifacts to MLflow in %.1fs", perf_counter() - started_at)
 
     def log_figure_extraction_result(self, result: FigureExtractionResult) -> None:
         _LOGGER.info("Logging figure extraction metrics and artifacts to MLflow")
         started_at = perf_counter()
-        self._mlflow.log_metric("dataset/figure/count/encoded_samples", float(result.encoded_sample_count))
-        self._mlflow.log_metric("dataset/figure/count/profile_groups", float(result.profile_group_count))
-        self._mlflow.log_metric("dataset/figure/count/sample_profiles", float(result.sample_profile_count))
-        _log_artifact_if_exists(self._mlflow, result.artifact_paths.config_path, artifact_path="dataset/figure")
-        _log_artifact_if_exists(self._mlflow, result.artifact_paths.by_sample_path, artifact_path="dataset/figure")
-        _log_artifact_if_exists(self._mlflow, result.artifact_paths.counts_path, artifact_path="dataset/figure/all")
-        _log_artifact_if_exists(self._mlflow, result.artifact_paths.profile_path, artifact_path="dataset/figure/all")
-        _log_artifact_if_exists(self._mlflow, result.extra_output_path, artifact_path="dataset/figure/extra")
+        self._run.log_metric("dataset/figure/count/encoded_samples", float(result.encoded_sample_count))
+        self._run.log_metric("dataset/figure/count/profile_groups", float(result.profile_group_count))
+        self._run.log_metric("dataset/figure/count/sample_profiles", float(result.sample_profile_count))
+        self._run.log_artifact(result.artifact_paths.config_path, artifact_path="dataset/figure")
+        self._run.log_artifact(result.artifact_paths.by_sample_path, artifact_path="dataset/figure")
+        self._run.log_artifact(result.artifact_paths.counts_path, artifact_path="dataset/figure/all")
+        self._run.log_artifact(result.artifact_paths.profile_path, artifact_path="dataset/figure/all")
+        _log_optional_artifact(self._run, result.extra_output_path, artifact_path="dataset/figure/extra")
         _LOGGER.info("Logged figure extraction metrics and artifacts to MLflow in %.1fs", perf_counter() - started_at)
 
 
@@ -252,13 +213,18 @@ class NoOpProcessingTracker:
 
 def build_processing_tracker(
     *,
-    config: ProcessingMlflowConfig,
+    config: MlflowRunConfig,
     tracking_root: Path | None = None,
 ) -> ProcessingTracker | NoOpProcessingTracker:
     if not config.enabled:
         return NoOpProcessingTracker()
 
     return ProcessingTracker(config=config, tracking_root=tracking_root)
+
+
+def _log_optional_artifact(run: MlflowRun, path: Path | None, *, artifact_path: str) -> None:
+    if path is not None:
+        run.log_artifact(path, artifact_path=artifact_path)
 
 
 def _processing_params(
@@ -440,31 +406,3 @@ def _rate(numerator: float, denominator: int) -> float:
         return math.nan
 
     return numerator / denominator
-
-
-def _resolve_tracking_uri(
-    *,
-    configured_uri: str | None,
-    tracking_root: Path,
-) -> str:
-    if configured_uri is not None:
-        return configured_uri
-
-    environment_uri = os.getenv(_MLFLOW_TRACKING_URI_ENV)
-    if environment_uri:
-        return environment_uri
-
-    return local_mlflow_tracking_uri(
-        database_path=DEFAULT_MLFLOW_DB_PATH,
-        tracking_root=tracking_root,
-    )
-
-
-def _log_artifact_if_exists(
-    mlflow: _MlflowLogger,
-    path: Path | None,
-    *,
-    artifact_path: str,
-) -> None:
-    if path is not None and path.exists():
-        mlflow.log_artifact(str(path), artifact_path=artifact_path)

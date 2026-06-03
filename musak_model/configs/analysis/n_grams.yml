@@ -1,9 +1,9 @@
-figure:
+figure_analysis:
   min_n: 1
   max_n: 10
   limit_per_group: null
   common_mass_threshold: 0.80
-rhythm:
+rhythm_analysis:
   min_n: 2
   max_n: 6
   grid_alignment_denominators:
@@ -14,7 +14,7 @@ rhythm:
     - 16
   strong_beat_offsets:
     - 0
-register:
+register_analysis:
   arch_basis_count: 3
 execution:
   workers: 16

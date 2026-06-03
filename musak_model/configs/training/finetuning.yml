@@ -18,10 +18,10 @@ checkpoints:
   resume_checkpoint: null
   save_all_epochs: false
 mlflow:
-  enable_mlflow: true
-  mlflow_experiment_name: musak-finetune
-  mlflow_run_name: null
-  mlflow_tracking_uri: null
+  enabled: true
+  experiment_name: musak-finetune
+  run_name: null
+  tracking_uri: null
 generation_evaluation:
   enabled: true
   every_epochs: 5

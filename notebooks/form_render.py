@@ -139,6 +139,9 @@ def _(FormRenderRequest, ScaleType, mo, set_render_request, synthetic_inputs):
     lambda_harmonic = mo.ui.slider(start=0.0, stop=8.0, step=0.5, value=4.0, label="λ harmonic", show_value=True)
     lambda_accent = mo.ui.slider(start=0.0, stop=4.0, step=0.1, value=0.5, label="λ accent", show_value=True)
     lambda_similarity = mo.ui.slider(start=0.0, stop=12.0, step=0.5, value=6.0, label="λ similarity", show_value=True)
+    melodic_continuity = mo.ui.slider(
+        start=0.0, stop=1.0, step=0.05, value=0.6, label="Melodic continuity", show_value=True
+    )
     variation_budget = mo.ui.slider(
         start=0.0, stop=1.0, step=0.05, value=0.3, label="Variation budget", show_value=True
     )
@@ -168,6 +171,7 @@ def _(FormRenderRequest, ScaleType, mo, set_render_request, synthetic_inputs):
                 variation_budget=float(variation_budget.value),
                 density_amplitude=float(density_amplitude.value),
                 density_basis_count=int(density_basis_count.value),
+                melodic_continuity=float(melodic_continuity.value),
             )
         )
 
@@ -188,7 +192,15 @@ def _(FormRenderRequest, ScaleType, mo, set_render_request, synthetic_inputs):
             mo.hstack([harmonic_slot_denominator, prior_source, bpm, notation_bars], gap=2, wrap=True),
             mo.md("### Figure tilt"),
             mo.hstack(
-                [commonness_bias, lambda_curve, lambda_harmonic, lambda_accent, lambda_similarity, variation_budget],
+                [
+                    commonness_bias,
+                    lambda_curve,
+                    lambda_harmonic,
+                    lambda_accent,
+                    lambda_similarity,
+                    melodic_continuity,
+                    variation_budget,
+                ],
                 gap=2,
                 wrap=True,
             ),

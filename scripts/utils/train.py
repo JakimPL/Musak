@@ -10,7 +10,7 @@ from pathlib import Path
 import torch
 
 from musak_model.data.config import SegmentationMode, load_difficulty_labels, load_segmentation_config
-from musak_model.mlflow import sqlite_tracking_uri
+from musak_model.mlflow import MlflowRunConfig, sqlite_tracking_uri
 from musak_model.paths import (
     CONDITIONING_CONFIG_PATH,
     DEFAULT_FINETUNING_CHECKPOINT_DIRECTORY,
@@ -27,7 +27,6 @@ from musak_model.training.config import (
     CheckpointConfig,
     FinetuningCheckpointConfig,
     FinetuningTrainingConfig,
-    MlflowConfig,
     OptimizationConfig,
     RuntimeConfig,
     TrainingConditioningConfig,
@@ -242,7 +241,7 @@ def resume_command(
         command.append("--no-progress")
     if args.overwrite:
         command.append("--overwrite")
-    if not training_config.mlflow.enable_mlflow:
+    if not training_config.mlflow.enabled:
         command.append("--disable-mlflow")
     if isinstance(training_config, FinetuningTrainingConfig):
         command.extend(["--pretrain-checkpoint", str(training_config.checkpoints.pretraining_checkpoint)])
@@ -425,7 +424,7 @@ def common_training_section_updates(
     *,
     config: TrainingConfig,
     default_checkpoint_directory: Path,
-) -> dict[str, OptimizationConfig | RuntimeConfig | TrainingConditioningConfig | CheckpointConfig | MlflowConfig]:
+) -> dict[str, OptimizationConfig | RuntimeConfig | TrainingConditioningConfig | CheckpointConfig | MlflowRunConfig]:
     return {
         "optimization": OptimizationConfig(
             epochs=args.epochs if args.epochs is not None else config.optimization.epochs,
@@ -449,11 +448,11 @@ def common_training_section_updates(
                 args.save_all_epochs if args.save_all_epochs is not None else config.checkpoints.save_all_epochs
             ),
         ),
-        "mlflow": MlflowConfig(
-            enable_mlflow=not args.disable_mlflow and config.mlflow.enable_mlflow,
-            mlflow_experiment_name=args.mlflow_experiment_name or config.mlflow.mlflow_experiment_name,
-            mlflow_run_name=args.mlflow_run_name if args.mlflow_run_name is not None else config.mlflow.mlflow_run_name,
-            mlflow_tracking_uri=sqlite_tracking_uri(args.mlflow_db),
+        "mlflow": MlflowRunConfig(
+            enabled=not args.disable_mlflow and config.mlflow.enabled,
+            experiment_name=args.mlflow_experiment_name or config.mlflow.experiment_name,
+            run_name=args.mlflow_run_name if args.mlflow_run_name is not None else config.mlflow.run_name,
+            tracking_uri=sqlite_tracking_uri(args.mlflow_db),
         ),
     }
 

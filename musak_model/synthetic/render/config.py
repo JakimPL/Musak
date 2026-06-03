@@ -16,6 +16,7 @@ class RenderConfig(BaseModel):
     lambda_harmonic: float = Field(ge=0.0)
     lambda_accent: float = Field(ge=0.0)
     lambda_similarity: float = Field(ge=0.0)
+    melodic_continuity: float = Field(ge=0.0, le=1.0)
     max_resample_retries: int = Field(gt=0)
 
     @classmethod

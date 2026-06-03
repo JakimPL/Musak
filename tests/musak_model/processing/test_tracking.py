@@ -6,6 +6,7 @@ import pytest
 
 from musak_model.data.scale_matcher.config import ScaleMatcherConfig
 from musak_model.data.schema import SegmentMetadata
+from musak_model.mlflow import MlflowRunConfig
 from musak_model.n_grams.profile.artifacts import FigureArtifactPaths
 from musak_model.n_grams.profile.extraction import FigureExtractionResult
 from musak_model.processing.dataset import ProcessDatasetResult
@@ -19,7 +20,7 @@ from musak_model.processing.manifest import (
     write_encoded_manifest,
     write_parsed_manifest,
 )
-from musak_model.processing.tracking import ProcessingMlflowConfig, ProcessingTracker
+from musak_model.processing.tracking import ProcessingTracker
 from musak_model.tokens.schema import ScaleType
 from musak_model.training.ingestion.schema import EncodedExercise
 
@@ -50,7 +51,7 @@ class FakeMlflow(ModuleType):
     def log_params(self, params: dict[str, str | int | float | bool]) -> None:
         self.params.update(params)
 
-    def log_metric(self, key: str, value: float) -> None:
+    def log_metric(self, key: str, value: float, *, step: int | None = None) -> None:
         self.metrics.append((key, value))
 
     def log_artifact(self, local_path: str, *, artifact_path: str | None = None) -> None:
@@ -105,7 +106,7 @@ def test_processing_tracker_logs_complete_manifest_metrics(
     )
 
     with ProcessingTracker(
-        config=ProcessingMlflowConfig(
+        config=MlflowRunConfig(
             experiment_name="musak-process-test",
             run_name="process-run",
             tracking_uri="file:///tmp/mlruns",
@@ -161,7 +162,7 @@ def test_processing_tracker_uses_sqlite_local_fallback(
     fake_mlflow = FakeMlflow()
     monkeypatch.setitem(sys.modules, "mlflow", fake_mlflow)
 
-    with ProcessingTracker(config=ProcessingMlflowConfig(), tracking_root=tmp_path):
+    with ProcessingTracker(config=MlflowRunConfig(), tracking_root=tmp_path):
         pass
 
     assert fake_mlflow.tracking_uri == f"sqlite:///{tmp_path / 'artifacts/mlflow/mlflow.db'}"
@@ -202,7 +203,7 @@ def test_processing_tracker_logs_figure_artifacts_in_same_run(
         extra_output_path=extra_output_path,
     )
 
-    with ProcessingTracker(config=ProcessingMlflowConfig(run_name="process-run"), tracking_root=tmp_path) as tracker:
+    with ProcessingTracker(config=MlflowRunConfig(run_name="process-run"), tracking_root=tmp_path) as tracker:
         tracker.log_figure_extraction_result(figure_result)
 
     metrics = dict(fake_mlflow.metrics)

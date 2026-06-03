@@ -8,12 +8,12 @@ import pytest
 from musak_model.conditioning.config import ConditioningConfig, DifficultyConfig
 from musak_model.conditioning.time_signature import TimeSignatureVocabularyConfig
 from musak_model.data.schema import SegmentMetadata
+from musak_model.mlflow import MlflowRunConfig
 from musak_model.model.config import CNNConfig, GRUConfig, ModelConfig, TransformerConfig
 from musak_model.tokens.schema import ScaleType
 from musak_model.training.config import (
     CheckpointConfig,
     GenerationEvaluationConfig,
-    MlflowConfig,
     OptimizationConfig,
     RuntimeConfig,
     TrainingConditioningConfig,
@@ -74,10 +74,11 @@ def _training_config(tmp_path: Path, *, enable_mlflow: bool = True, tracking_uri
             validity_penalty_weight=0.05,
         ),
         checkpoints=CheckpointConfig(checkpoint_directory=tmp_path / "checkpoints"),
-        mlflow=MlflowConfig(
-            enable_mlflow=enable_mlflow,
-            mlflow_tracking_uri=tracking_uri,
-            mlflow_run_name="test-run",
+        mlflow=MlflowRunConfig(
+            enabled=enable_mlflow,
+            experiment_name="musak-pretrain",
+            tracking_uri=tracking_uri,
+            run_name="test-run",
         ),
         generation_evaluation=GenerationEvaluationConfig(
             enabled=False,

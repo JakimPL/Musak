@@ -10,6 +10,7 @@ from musak_model.data.config import (
     load_difficulty_labels,
     load_segmentation_config,
 )
+from musak_model.mlflow import MlflowRunConfig
 from musak_model.n_grams.profile.extraction import FigureExtractionResult, extract_figure_artifacts
 from musak_model.paths import (
     DEFAULT_COMBINED_PROCESSING_PROFILE_OUTPUT_DIRECTORY,
@@ -25,7 +26,7 @@ from musak_model.paths import (
 from musak_model.processing.config import ProcessingConfig, processing_config_with_overrides
 from musak_model.processing.dataset import ProcessDatasetResult, process_dataset
 from musak_model.processing.profiler import build_processing_profiler
-from musak_model.processing.tracking import ProcessingMlflowConfig, build_processing_tracker
+from musak_model.processing.tracking import build_processing_tracker
 from musak_model.tokens.config import TokenizationConfig
 from musak_shared.files import collect_musicxml_files
 
@@ -85,7 +86,7 @@ def main() -> None:
     )
     profiler = build_processing_profiler(enabled=args.profile, output_directory=profile_output_directory)
     tracker = build_processing_tracker(
-        config=ProcessingMlflowConfig(
+        config=MlflowRunConfig(
             enabled=not args.disable_mlflow and not args.profile,
             experiment_name=args.mlflow_experiment_name,
             run_name=args.mlflow_run_name,

@@ -3,13 +3,13 @@ from pathlib import Path
 
 import pytest
 
+from musak_model.mlflow import MlflowRunConfig
 from musak_model.tokens.schema import ScaleType
 from musak_model.training.config import (
     CheckpointConfig,
     FinetuningCheckpointConfig,
     FinetuningTrainingConfig,
     GenerationEvaluationConfig,
-    MlflowConfig,
     OptimizationConfig,
     RuntimeConfig,
     TrainingConditioningConfig,
@@ -59,7 +59,7 @@ def _training_config(checkpoint_directory: Path, *, epochs: int = 25) -> Trainin
         runtime=RuntimeConfig(num_workers=2, device="cuda"),
         checkpoints=CheckpointConfig(checkpoint_directory=checkpoint_directory),
         conditioning=_conditioning_config(use_time_signature=True, use_scale_type=True),
-        mlflow=MlflowConfig(enable_mlflow=True),
+        mlflow=MlflowRunConfig(enabled=True),
         generation_evaluation=_generation_evaluation_config(),
     )
 

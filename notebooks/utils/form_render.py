@@ -12,6 +12,7 @@ from musak_model.generation.constraints import GenerationConstraintError, Genera
 from musak_model.harmony.expansion import chord_pitch_class_set
 from musak_model.harmony.vocabulary import ChordVocabularyConfig
 from musak_model.synthetic.fitting.form.fit import FormFittingConfig
+from musak_model.synthetic.inputs import SyntheticInputs
 from musak_model.synthetic.processes.accent import AccentFieldConfig, AccentFieldSampler
 from musak_model.synthetic.processes.density import RhythmicDensityConfig, RhythmicDensitySampler
 from musak_model.synthetic.processes.pitch import RegisterCurveConfig, RegisterCurveSampler
@@ -27,7 +28,6 @@ from musak_shared.elements import PITCHES_PER_OCTAVE
 from notebooks.utils.baselines import chord_label
 from notebooks.utils.model_output import segment_decode_error
 from notebooks.utils.piano_roll import ChordHighlight
-from notebooks.utils.synthetic import SyntheticInputs
 
 _SOURCE_FILE = Path("synthetic-form")
 
@@ -50,6 +50,7 @@ class FormRenderRequest:
     variation_budget: float
     density_amplitude: float
     density_basis_count: int
+    melodic_continuity: float
 
 
 @dataclass(frozen=True)
@@ -106,6 +107,7 @@ def render_form_segment(
             "lambda_harmonic": request.lambda_harmonic,
             "lambda_accent": request.lambda_accent,
             "lambda_similarity": request.lambda_similarity,
+            "melodic_continuity": request.melodic_continuity,
         }
     )
     motif_config = MotifConfig.load().model_copy(update={"variation_budget": request.variation_budget})

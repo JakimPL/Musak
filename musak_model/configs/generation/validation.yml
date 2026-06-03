@@ -1,0 +1,36 @@
+scales:
+  - major
+scale_root: 0
+time_numerator: 4
+time_denominator: 4
+bar_count: 8
+harmonic_slot_denominator: 1
+prior_source: "fitted"
+samples_per_scale: 200
+base_seed: 0
+
+commonness_bias: 1.0
+lambda_curve: 2.0
+lambda_harmonic: 4.0
+lambda_accent: 0.5
+lambda_similarity: 6.0
+melodic_continuity: 0.6
+variation_budget: 0.3
+density_amplitude: 1.0
+density_basis_count: 2
+
+minimum_duration_denominator: null
+allow_dotted_durations: true
+max_notes_per_hand: null
+maximum_onset_span_semitones: null
+maximum_pitch_gap_semitones: null
+maximum_static_hand_span_degrees: null
+
+sample_render_count: 8
+sweep: null
+
+mlflow:
+  enabled: true
+  experiment_name: "musak-validate-synthetic"
+  run_name: null
+  tracking_uri: null

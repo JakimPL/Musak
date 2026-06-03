@@ -79,9 +79,9 @@ class ExecutionConfig(BaseModel):
 class NGramAnalysisConfig(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    figure: FigureAnalysisConfig
-    rhythm: RhythmAnalysisConfig
-    register: RegisterAnalysisConfig
+    figure_analysis: FigureAnalysisConfig
+    rhythm_analysis: RhythmAnalysisConfig
+    register_analysis: RegisterAnalysisConfig
     execution: ExecutionConfig
 
     @classmethod

@@ -4,12 +4,14 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from musak_model.mlflow import MlflowRunConfig
 from musak_model.paths import DEFAULT_PRETRAINING_CHECKPOINT_DIRECTORY, FINETUNING_CONFIG_PATH, PRETRAINING_CONFIG_PATH
 from musak_model.tokens.schema import ScaleType
 from musak_shared.files import load_yaml_config
 from musak_shared.time_signature import validate_time_denominator
 
 DEFAULT_GENERATION_EVALUATION_SEED = 1729
+_DEFAULT_MLFLOW = MlflowRunConfig(experiment_name="musak-pretrain")
 
 
 class OptimizationConfig(BaseModel):
@@ -52,15 +54,6 @@ class FinetuningCheckpointConfig(CheckpointConfig):
 
     save_all_epochs: bool = True
     pretraining_checkpoint: Path = DEFAULT_PRETRAINING_CHECKPOINT_DIRECTORY / "best.pt"
-
-
-class MlflowConfig(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-    enable_mlflow: bool = True
-    mlflow_experiment_name: str = "musak-pretrain"
-    mlflow_run_name: str | None = None
-    mlflow_tracking_uri: str | None = None
 
 
 class GenerationEvaluationConfig(BaseModel):
@@ -108,7 +101,7 @@ class TrainingConfig(BaseModel):
     runtime: RuntimeConfig
     conditioning: TrainingConditioningConfig
     checkpoints: CheckpointConfig
-    mlflow: MlflowConfig = MlflowConfig()
+    mlflow: MlflowRunConfig = _DEFAULT_MLFLOW
     generation_evaluation: GenerationEvaluationConfig
 
     @classmethod

@@ -57,16 +57,16 @@ def export_figure_artifacts(
     limit_per_group: int | None,
     chord_decode: ChordDecodeSpec | None = None,
 ) -> FigureStoreSummary:
-    profile = profile_from_store(store, min_n=config.figure.min_n, max_n=config.figure.max_n)
+    profile = profile_from_store(store, min_n=config.figure_analysis.min_n, max_n=config.figure_analysis.max_n)
     rhythm_counts = rhythm_counts_from_store(store)
     rhythm_paths = rhythm_artifact_paths_for_figure_root(artifact_paths.root_directory)
     rhythm_profile = build_rhythm_profile(
         rhythm_counts,
         metadata=RhythmProfileMetadata(
-            rhythm_min_n=config.rhythm.min_n,
-            rhythm_max_n=config.rhythm.max_n,
-            grid_alignment_denominators=config.rhythm.grid_alignment_denominators,
-            strong_beat_offsets=config.rhythm.strong_beat_offsets,
+            rhythm_min_n=config.rhythm_analysis.min_n,
+            rhythm_max_n=config.rhythm_analysis.max_n,
+            grid_alignment_denominators=config.rhythm_analysis.grid_alignment_denominators,
+            strong_beat_offsets=config.rhythm_analysis.strong_beat_offsets,
             sample_count=store.encoded_sample_count(),
         ),
     )
@@ -79,7 +79,7 @@ def export_figure_artifacts(
     write_register_statistics(store.tables.register_statistics(), register_paths.statistics_path)
     write_register_metadata(
         RegisterProfileMetadata(
-            arch_basis_count=config.register.arch_basis_count,
+            arch_basis_count=config.register_analysis.arch_basis_count,
             sample_count=store.encoded_sample_count(),
         ),
         register_paths.metadata_path,

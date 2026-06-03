@@ -174,7 +174,7 @@ class GenerationSuiteEvaluator:
                 self._figure_profile_artifacts,
                 samples=samples,
                 config=self._config,
-                rhythm_config=NGramAnalysisConfig.load().rhythm,
+                rhythm_config=NGramAnalysisConfig.load().rhythm_analysis,
                 duration_vocabulary=self._duration_vocabulary,
             ),
             **musical_profile_metrics(

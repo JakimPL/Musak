@@ -24,6 +24,15 @@ FIT_FIGURE_DIRECTORY ?=
 FIT_ENCODED_DIRECTORY ?= $(ANALYSIS_ENCODED_DIRECTORY)
 FIT_REGISTER_CONFIG ?=
 FIT_ACCENT_CONFIG ?=
+VALIDATE_CONFIG ?=
+VALIDATE_DATA_DIR ?= $(DATA_DIR)
+VALIDATE_FIGURE_DIRECTORY ?= $(FIT_FIGURE_DIRECTORY)
+VALIDATE_ENCODED_DIRECTORY ?= $(FIT_ENCODED_DIRECTORY)
+VALIDATE_SAMPLES_PER_SCALE ?=
+VALIDATE_DISABLE_MLFLOW ?=
+VALIDATE_MLFLOW_EXPERIMENT ?= musak-validate-synthetic
+VALIDATE_MLFLOW_RUN_NAME ?=
+VALIDATE_MLFLOW_TRACKING_URI ?= $(MLFLOW_TRACKING_URI)
 APP_HOST ?= 127.0.0.1
 APP_PORT ?= 8000
 ARTIFACTS_DIR ?= artifacts
@@ -35,7 +44,7 @@ NOTEBOOK_NAMES := $(subst _,-,$(basename $(notdir $(NOTEBOOK_FILES))))
 NOTEBOOK_TARGETS := $(addprefix notebook-,$(NOTEBOOK_NAMES))
 NOTEBOOK_MODE ?= edit
 
-.PHONY: help install test app parse tokenize process analyze-n-grams fit-generator train pretrain finetune mlflow FORCE
+.PHONY: help install test app parse tokenize process analyze-n-grams fit-generator validate-synthetic train pretrain finetune mlflow FORCE
 
 PRETRAIN_DATA_DIR ?= $(DATA_DIR)
 PRETRAIN_EPOCHS ?= $(EPOCHS)
@@ -258,6 +267,23 @@ define fit_generator_command
 		--grid-denominator "$(FIT_GRID_DENOMINATOR)" \
 		$(call optional_arg,FIT_REGISTER_CONFIG,--register-config) \
 		$(call optional_arg,FIT_ACCENT_CONFIG,--accent-config)
+endef
+
+validate-synthetic:
+	$(if $(or $(VALIDATE_DATA_DIR),$(VALIDATE_FIGURE_DIRECTORY)),,$(error VALIDATE_DATA_DIR/DATA_DIR or VALIDATE_FIGURE_DIRECTORY is required))
+	$(call validate_synthetic_command)
+
+define validate_synthetic_command
+	uv run python scripts/validate_synthetic.py \
+		$(call optional_arg,VALIDATE_DATA_DIR,--data-dir) \
+		$(call optional_arg,VALIDATE_ENCODED_DIRECTORY,--encoded-directory) \
+		$(call optional_arg,VALIDATE_FIGURE_DIRECTORY,--figure-directory) \
+		$(call optional_arg,VALIDATE_CONFIG,--config) \
+		$(call optional_arg,VALIDATE_SAMPLES_PER_SCALE,--samples-per-scale) \
+		$(call optional_arg,VALIDATE_MLFLOW_EXPERIMENT,--mlflow-experiment-name) \
+		$(call optional_arg,VALIDATE_MLFLOW_RUN_NAME,--mlflow-run-name) \
+		$(call optional_arg,VALIDATE_MLFLOW_TRACKING_URI,--mlflow-tracking-uri) \
+		$(call optional_flag,VALIDATE_DISABLE_MLFLOW,--disable-mlflow)
 endef
 
 define process_dataset_command
