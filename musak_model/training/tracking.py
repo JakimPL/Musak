@@ -1,8 +1,4 @@
-from __future__ import annotations
-
-import importlib
 import logging
-import math
 from pathlib import Path
 from time import perf_counter
 from types import TracebackType
@@ -10,7 +6,7 @@ from typing import Final, Protocol, Self
 
 from pydantic import BaseModel
 
-from musak_model.mlflow import flatten_params, resolve_tracking_uri, write_mlflow_run_id
+from musak_model.mlflow import MlflowRun, MlflowRunConfig, flatten_params, write_mlflow_run_id
 from musak_model.model.config import ModelConfig
 from musak_model.processing.fingerprint import encoded_samples_fingerprint
 from musak_model.training.config import TrainingConfig
@@ -116,37 +112,32 @@ class MlflowTrainingTracker:
         tracking_root: Path | None = None,
     ) -> None:
         self._training_config = training_config
-        self._tracking_root = tracking_root or Path.cwd()
-        self._mlflow = importlib.import_module("mlflow")
         self._uses_generated_run_name = (
             training_config.mlflow.mlflow_run_name is None and training_config.mlflow.mlflow_run_id is None
         )
         self._run_name = training_config.mlflow.mlflow_run_name or _mlflow_run_name(training_config)
-        self._run_id = training_config.mlflow.mlflow_run_id
+        self._run = MlflowRun(
+            MlflowRunConfig(
+                enabled=training_config.mlflow.enable_mlflow,
+                experiment_name=training_config.mlflow.mlflow_experiment_name,
+                run_name=self._run_name,
+                run_id=training_config.mlflow.mlflow_run_id,
+                tracking_uri=training_config.mlflow.mlflow_tracking_uri,
+            ),
+            tracking_root=tracking_root,
+        )
+
+    @property
+    def enabled(self) -> bool:
+        return self._run.enabled
 
     def __enter__(self) -> Self:
-        tracking_uri = resolve_tracking_uri(
-            configured_uri=self._training_config.mlflow.mlflow_tracking_uri,
-            tracking_root=self._tracking_root,
-        )
-        _LOGGER.info(
-            "Starting MLflow training run: experiment=%s run_name=%s run_id=%s tracking_uri=%s",
-            self._training_config.mlflow.mlflow_experiment_name,
-            self._run_name,
-            self._run_id,
-            tracking_uri,
-        )
-        self._mlflow.set_tracking_uri(tracking_uri)
-        self._mlflow.set_experiment(self._training_config.mlflow.mlflow_experiment_name)
-        active_run = self._mlflow.start_run(
-            run_id=self._run_id,
-            run_name=None if self._run_id is not None else self._run_name,
-        )
-        self._run_id = active_run.info.run_id
-        write_mlflow_run_id(
-            checkpoint_directory=self._training_config.checkpoints.checkpoint_directory,
-            run_id=self._run_id,
-        )
+        self._run.__enter__()
+        if self._run.run_id is not None:
+            write_mlflow_run_id(
+                checkpoint_directory=self._training_config.checkpoints.checkpoint_directory,
+                run_id=self._run.run_id,
+            )
         return self
 
     def __exit__(
@@ -155,8 +146,7 @@ class MlflowTrainingTracker:
         exc_value: BaseException | None,
         traceback: TracebackType | None,
     ) -> None:
-        status = "FAILED" if exc_type is not None else "FINISHED"
-        self._mlflow.end_run(status=status)
+        self._run.__exit__(exc_type, exc_value, traceback)
 
     def log_setup(
         self,
@@ -165,6 +155,9 @@ class MlflowTrainingTracker:
         model_config: ModelConfig,
         split: IngestionSplit,
     ) -> None:
+        if not self._run.enabled:
+            return
+
         _LOGGER.info(
             "Logging MLflow training setup: train_samples=%s validation_samples=%s invalid_files=%s",
             len(split.train),
@@ -180,7 +173,7 @@ class MlflowTrainingTracker:
                 split=split,
                 fingerprint=fingerprint,
             )
-            self._mlflow.set_tag(_MLFLOW_RUN_NAME_TAG, self._run_name)
+            self._run.set_tag(_MLFLOW_RUN_NAME_TAG, self._run_name)
 
         params = flatten_params(
             {
@@ -194,7 +187,7 @@ class MlflowTrainingTracker:
                 },
             }
         )
-        self._mlflow.log_params(params)
+        self._run.log_params(params)
         _LOGGER.info("Logged MLflow training setup in %.1fs", perf_counter() - started_at)
 
     def log_epoch(
@@ -202,25 +195,29 @@ class MlflowTrainingTracker:
         *,
         metrics: EpochMetrics,
     ) -> None:
-        for name, value in _epoch_metric_values(metrics).items():
-            self._mlflow.log_metric(name, value, step=metrics.epoch)
+        self._run.log_metrics(_epoch_metric_values(metrics), step=metrics.epoch)
 
     def log_generation_evaluation(self, *, metrics: dict[str, float], epoch: int) -> None:
+        if not self._run.enabled:
+            return
+
         _LOGGER.info("Logging %s generation evaluation metric(s) to MLflow", len(metrics))
-        for name, value in metrics.items():
-            if math.isfinite(value):
-                self._mlflow.log_metric(name, value, step=epoch)
+        self._run.log_metrics(metrics, step=epoch)
 
     def log_generation_artifacts(self, *, artifact_directory: Path, epoch: int) -> None:
+        if not self._run.enabled:
+            return
+
         artifact_path = f"{_GENERATION_ARTIFACT_ROOT}/epoch_{epoch:04d}"
         _LOGGER.info("Logging generation evaluation artifacts to MLflow: artifact_path=%s", artifact_path)
-        self._mlflow.log_artifacts(str(artifact_directory), artifact_path=artifact_path)
+        self._run.log_artifacts(artifact_directory, artifact_path=artifact_path)
 
     def log_split_figure_metrics(self, *, metrics: dict[str, float]) -> None:
+        if not self._run.enabled:
+            return
+
         _LOGGER.info("Logging %s split figure metric(s) to MLflow", len(metrics))
-        for name, value in metrics.items():
-            if math.isfinite(value):
-                self._mlflow.log_metric(name, value, step=0)
+        self._run.log_metrics(metrics, step=0)
 
     def log_checkpoints(
         self,
@@ -228,18 +225,24 @@ class MlflowTrainingTracker:
         latest_checkpoint_path: Path | None,
         best_checkpoint_path: Path | None,
     ) -> None:
+        if not self._run.enabled:
+            return
+
         if latest_checkpoint_path is not None and latest_checkpoint_path.exists():
             _LOGGER.info("Logging latest checkpoint artifact to MLflow: %s", latest_checkpoint_path)
-            self._mlflow.log_artifact(str(latest_checkpoint_path), artifact_path="checkpoints")
+            self._run.log_artifact(latest_checkpoint_path, artifact_path="checkpoints")
 
         if best_checkpoint_path is not None and best_checkpoint_path.exists():
             _LOGGER.info("Logging best checkpoint artifact to MLflow: %s", best_checkpoint_path)
-            self._mlflow.log_artifact(str(best_checkpoint_path), artifact_path="checkpoints")
+            self._run.log_artifact(best_checkpoint_path, artifact_path="checkpoints")
 
     def log_invalid_files(self, *, invalid_files: list[IngestionErrorRecord]) -> None:
+        if not self._run.enabled:
+            return
+
         if invalid_files:
             _LOGGER.info("Logging invalid file report to MLflow: invalid_files=%s", len(invalid_files))
-            self._mlflow.log_dict(
+            self._run.log_dict(
                 {"invalid_files": [_serializable_dump(record) for record in invalid_files]},
                 "invalid_files.json",
             )
@@ -250,9 +253,6 @@ def build_training_tracker(
     training_config: TrainingConfig,
     tracking_root: Path | None = None,
 ) -> TrainingTracker:
-    if not training_config.mlflow.enable_mlflow:
-        return NoOpTrainingTracker()
-
     return MlflowTrainingTracker(training_config=training_config, tracking_root=tracking_root)
 
 

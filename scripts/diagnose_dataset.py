@@ -13,21 +13,16 @@ from musak_model.paths import (
 from musak_model.processing.config import ProcessingConfig
 from musak_model.processing.diagnostic_report import DEFAULT_TOP_ROWS, write_dataset_diagnostic_report
 from musak_model.processing.encoded_runs import resolve_encoded_directory
+from scripts.utils.logger import DEFAULT_LOG_LEVEL, LOG_LEVEL_CHOICES, configure_logging
 
 _LOGGER = logging.getLogger(__name__)
-_LOG_LEVELS = {
-    "DEBUG": logging.DEBUG,
-    "INFO": logging.INFO,
-    "WARNING": logging.WARNING,
-    "ERROR": logging.ERROR,
-}
 _EXIT_FAILURE: Final[int] = 1
 _DEFAULT_MAX_SEQUENCE_LENGTH: Final[int] = 1024
 
 
 def main() -> None:
     args = _parse_args()
-    _configure_logging(args.log_level)
+    configure_logging(args.log_level)
     try:
         encoded_directory = resolve_encoded_directory(
             data_directory=args.data_dir,
@@ -185,18 +180,11 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--disable-mlflow-lookup", action="store_true", help="Skip MLflow database lookup.")
     parser.add_argument(
         "--log-level",
-        choices=("DEBUG", "INFO", "WARNING", "ERROR"),
-        default="INFO",
+        choices=LOG_LEVEL_CHOICES,
+        default=DEFAULT_LOG_LEVEL,
         help="Minimum logging level.",
     )
     return parser.parse_args(argv)
-
-
-def _configure_logging(level: str) -> None:
-    logging.basicConfig(
-        level=_LOG_LEVELS[level],
-        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-    )
 
 
 if __name__ == "__main__":

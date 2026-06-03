@@ -25,6 +25,16 @@ from musak_model.tokens.schema import ScaleType
 from musak_model.training.ingestion.schema import EncodedExercise
 
 
+class FakeRunInfo:
+    def __init__(self, run_id: str) -> None:
+        self.run_id = run_id
+
+
+class FakeActiveRun:
+    def __init__(self, run_id: str) -> None:
+        self.info = FakeRunInfo(run_id)
+
+
 class FakeMlflow(ModuleType):
     def __init__(self) -> None:
         super().__init__("mlflow")
@@ -42,8 +52,9 @@ class FakeMlflow(ModuleType):
     def set_experiment(self, experiment_name: str) -> None:
         self.experiment_name = experiment_name
 
-    def start_run(self, *, run_name: str | None = None) -> None:
+    def start_run(self, *, run_id: str | None = None, run_name: str | None = None) -> FakeActiveRun:
         self.run_name = run_name
+        return FakeActiveRun(run_id or "generated-run-id")
 
     def end_run(self, *, status: str) -> None:
         self.ended_status = status

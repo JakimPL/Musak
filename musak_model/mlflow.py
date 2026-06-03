@@ -1,13 +1,150 @@
+from __future__ import annotations
+
+import importlib
+import logging
+import math
 import os
+from collections.abc import Mapping
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Final
+from types import TracebackType
+from typing import Final, Protocol, Self, cast
 
 from musak_model.paths import DEFAULT_MLFLOW_DB_PATH, ROOT_DIRECTORY
 
+_LOGGER = logging.getLogger(__name__)
 _MLFLOW_TRACKING_URI_ENV: Final[str] = "MLFLOW_TRACKING_URI"
 MLFLOW_RUN_ID_FILE_NAME: Final[str] = "mlflow_run_id.txt"
 
 type ParamValue = str | int | float | bool
+
+
+class _MlflowRunInfo(Protocol):
+    run_id: str
+
+
+class _ActiveMlflowRun(Protocol):
+    info: _MlflowRunInfo
+
+
+class _MlflowModule(Protocol):
+    def set_tracking_uri(self, tracking_uri: str) -> None: ...
+
+    def set_experiment(self, experiment_name: str) -> None: ...
+
+    def start_run(
+        self,
+        *,
+        run_id: str | None = None,
+        run_name: str | None = None,
+    ) -> _ActiveMlflowRun: ...
+
+    def end_run(self, *, status: str) -> None: ...
+
+    def set_tag(self, key: str, value: str) -> None: ...
+
+    def log_params(self, params: dict[str, ParamValue]) -> None: ...
+
+    def log_metric(self, key: str, value: float, *, step: int | None = None) -> None: ...
+
+    def log_dict(self, dictionary: dict[str, object], artifact_file: str) -> None: ...
+
+    def log_artifact(self, local_path: str, *, artifact_path: str | None = None) -> None: ...
+
+    def log_artifacts(self, local_dir: str, *, artifact_path: str | None = None) -> None: ...
+
+
+@dataclass(frozen=True)
+class MlflowRunConfig:
+    enabled: bool
+    experiment_name: str
+    run_name: str | None
+    run_id: str | None
+    tracking_uri: str | None
+
+
+class MlflowRun:
+    def __init__(self, config: MlflowRunConfig, *, tracking_root: Path | None = None) -> None:
+        self._config = config
+        self._tracking_root = tracking_root or Path.cwd()
+        self._mlflow = cast(_MlflowModule, importlib.import_module("mlflow")) if config.enabled else None
+        self._run_id: str | None = config.run_id
+
+    @property
+    def enabled(self) -> bool:
+        return self._mlflow is not None
+
+    @property
+    def run_id(self) -> str | None:
+        return self._run_id
+
+    def __enter__(self) -> Self:
+        if self._mlflow is None:
+            return self
+
+        tracking_uri = resolve_tracking_uri(
+            configured_uri=self._config.tracking_uri,
+            tracking_root=self._tracking_root,
+        )
+        _LOGGER.info(
+            "Starting MLflow run: experiment=%s run_name=%s run_id=%s tracking_uri=%s",
+            self._config.experiment_name,
+            self._config.run_name,
+            self._config.run_id,
+            tracking_uri,
+        )
+        self._mlflow.set_tracking_uri(tracking_uri)
+        self._mlflow.set_experiment(self._config.experiment_name)
+        active_run = self._mlflow.start_run(
+            run_id=self._config.run_id,
+            run_name=None if self._config.run_id is not None else self._config.run_name,
+        )
+        self._run_id = active_run.info.run_id
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
+        if self._mlflow is None:
+            return
+
+        self._mlflow.end_run(status="FAILED" if exc_type is not None else "FINISHED")
+
+    def set_tag(self, key: str, value: str) -> None:
+        if self._mlflow is not None:
+            self._mlflow.set_tag(key, value)
+
+    def log_params(self, params: Mapping[str, ParamValue]) -> None:
+        if self._mlflow is not None:
+            self._mlflow.log_params(dict(params))
+
+    def log_metric(self, name: str, value: float, *, step: int | None = None) -> None:
+        if self._mlflow is None or not math.isfinite(value):
+            return
+
+        if step is None:
+            self._mlflow.log_metric(name, value)
+        else:
+            self._mlflow.log_metric(name, value, step=step)
+
+    def log_metrics(self, metrics: Mapping[str, float], *, step: int | None = None) -> None:
+        for name, value in metrics.items():
+            self.log_metric(name, value, step=step)
+
+    def log_dict(self, payload: dict[str, object], artifact_file: str) -> None:
+        if self._mlflow is not None:
+            self._mlflow.log_dict(payload, artifact_file)
+
+    def log_artifact(self, path: Path | None, *, artifact_path: str | None = None) -> None:
+        if self._mlflow is not None and path is not None and path.exists():
+            self._mlflow.log_artifact(str(path), artifact_path=artifact_path)
+
+    def log_artifacts(self, directory: Path, *, artifact_path: str | None = None) -> None:
+        if self._mlflow is not None and directory.exists():
+            self._mlflow.log_artifacts(str(directory), artifact_path=artifact_path)
 
 
 def sqlite_tracking_uri(database_path: Path) -> str:

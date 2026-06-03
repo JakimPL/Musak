@@ -20,20 +20,15 @@ from musak_model.synthetic.fitting.fit import fit_generator_config
 from musak_model.synthetic.processes.accent import AccentFieldConfig
 from musak_model.synthetic.processes.pitch import RegisterCurveConfig
 from scripts.extract_figures import resolve_encoded_directory
+from scripts.utils.logger import DEFAULT_LOG_LEVEL, LOG_LEVEL_CHOICES, configure_logging
 
 _LOGGER = logging.getLogger(__name__)
-_LOG_LEVELS = {
-    "DEBUG": logging.DEBUG,
-    "INFO": logging.INFO,
-    "WARNING": logging.WARNING,
-    "ERROR": logging.ERROR,
-}
 _EXIT_FAILURE: Final[int] = 1
 
 
 def main() -> None:
     args = _parse_args()
-    _configure_logging(args.log_level)
+    configure_logging(args.log_level)
     try:
         figure_directory = _resolve_figure_directory(args)
         register_default = _load_register_config(args.register_config)
@@ -160,18 +155,11 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--log-level",
-        choices=("DEBUG", "INFO", "WARNING", "ERROR"),
-        default="INFO",
+        choices=LOG_LEVEL_CHOICES,
+        default=DEFAULT_LOG_LEVEL,
         help="Minimum logging level.",
     )
     return parser.parse_args(argv)
-
-
-def _configure_logging(level: str) -> None:
-    logging.basicConfig(
-        level=_LOG_LEVELS[level],
-        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-    )
 
 
 if __name__ == "__main__":

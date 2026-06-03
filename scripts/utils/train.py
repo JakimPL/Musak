@@ -36,6 +36,7 @@ from musak_model.training.config import (
 from musak_model.training.ingestion.config import IngestionConfig
 from musak_model.training.stages.finetuning import finetune
 from musak_model.training.stages.pretraining import TrainingResult, pretrain
+from scripts.utils.logger import DEFAULT_LOG_LEVEL, LOG_LEVEL_CHOICES, configure_logging
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -359,8 +360,8 @@ def add_common_training_arguments(
     parser.add_argument("--difficulty-labels", type=Path, default=None, help="Optional YAML difficulty-label mapping.")
     parser.add_argument(
         "--log-level",
-        choices=("DEBUG", "INFO", "WARNING", "ERROR"),
-        default="INFO",
+        choices=LOG_LEVEL_CHOICES,
+        default=DEFAULT_LOG_LEVEL,
         help="Minimum logging level.",
     )
     parser.add_argument("--no-progress", action="store_true", help="Disable tqdm progress bars.")
@@ -486,13 +487,6 @@ def resolve_device(requested_device: str) -> str:
         return "mps"
 
     return "cpu"
-
-
-def configure_logging(level: str) -> None:
-    logging.basicConfig(
-        level=getattr(logging, level),
-        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-    )
 
 
 def log_training_start(

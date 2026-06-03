@@ -28,14 +28,9 @@ from musak_model.processing.profiler import build_processing_profiler
 from musak_model.processing.tracking import ProcessingMlflowConfig, build_processing_tracker
 from musak_model.tokens.config import TokenizationConfig
 from musak_shared.files import collect_musicxml_files
+from scripts.utils.logger import DEFAULT_LOG_LEVEL, LOG_LEVEL_CHOICES, configure_logging
 
 _LOGGER = logging.getLogger(__name__)
-_LOG_LEVELS = {
-    "DEBUG": logging.DEBUG,
-    "INFO": logging.INFO,
-    "WARNING": logging.WARNING,
-    "ERROR": logging.ERROR,
-}
 _EXIT_FAILURE: Final[int] = 1
 _PARSING_STAGES: Final[frozenset[str]] = frozenset({"parse", "process"})
 _DEFAULT_PROFILE_OUTPUT_DIRECTORIES: Final[dict[str, Path]] = {
@@ -54,7 +49,7 @@ class _ProcessDatasetHelpFormatter(
 
 def main() -> None:
     args = _parse_args()
-    _configure_logging(args.log_level)
+    configure_logging(args.log_level)
     segmentation_config = load_segmentation_config(
         args.segmentation_config,
         window_bars=args.window_bars,
@@ -371,8 +366,8 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--log-level",
-        choices=("DEBUG", "INFO", "WARNING", "ERROR"),
-        default="INFO",
+        choices=LOG_LEVEL_CHOICES,
+        default=DEFAULT_LOG_LEVEL,
         help="Minimum logging level.",
     )
     parser.add_argument("--no-progress", action="store_true", help="Disable tqdm progress bars.")
@@ -418,13 +413,6 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--mlflow-run-name", default=None, help="Optional MLflow run name for processing metrics.")
     parser.add_argument("--mlflow-tracking-uri", default=None, help="Optional MLflow tracking URI.")
     return parser.parse_args(argv)
-
-
-def _configure_logging(level: str) -> None:
-    logging.basicConfig(
-        level=_LOG_LEVELS[level],
-        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-    )
 
 
 if __name__ == "__main__":

@@ -248,7 +248,8 @@ def _split() -> IngestionSplit:
 def test_build_training_tracker_can_disable_mlflow(tmp_path: Path) -> None:
     tracker = build_training_tracker(training_config=_training_config(tmp_path, enable_mlflow=False))
 
-    assert tracker.__class__.__name__ == "NoOpTrainingTracker"
+    assert isinstance(tracker, MlflowTrainingTracker)
+    assert not tracker.enabled
 
 
 def test_mlflow_tracker_logs_setup_metrics_artifacts_and_invalid_files(

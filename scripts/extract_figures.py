@@ -11,20 +11,15 @@ from musak_model.paths import DEFAULT_PROCESSED_ROOT, N_GRAM_ANALYSIS_CONFIG_PAT
 from musak_model.processing.encoded_runs import encoded_run_directories as _encoded_run_directories
 from musak_model.processing.encoded_runs import resolve_encoded_directory as _resolve_encoded_directory
 from musak_model.processing.paths import ENCODED_JSONL_NAME, TOKENIZER_SNAPSHOT_NAME
+from scripts.utils.logger import DEFAULT_LOG_LEVEL, LOG_LEVEL_CHOICES, configure_logging
 
 _LOGGER = logging.getLogger(__name__)
-_LOG_LEVELS = {
-    "DEBUG": logging.DEBUG,
-    "INFO": logging.INFO,
-    "WARNING": logging.WARNING,
-    "ERROR": logging.ERROR,
-}
 _EXIT_FAILURE: Final[int] = 1
 
 
 def main() -> None:
     args = _parse_args()
-    _configure_logging(args.log_level)
+    configure_logging(args.log_level)
     _LOGGER.info("Starting figure n-gram extraction")
     _LOGGER.info("Data directory: %s", args.data_dir)
     _LOGGER.info("Processed root: %s", args.processed_root)
@@ -154,25 +149,21 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--output",
         type=Path,
-        help="Extra figure-count table output path (parquet or csv by suffix). Canonical counts are always written under <encoded-directory>/figure/all/counts.parquet.",
+        help=(
+            "Extra figure-count table output path (parquet or csv by suffix). Canonical counts are always written "
+            "under <encoded-directory>/figure/all/counts.parquet."
+        ),
     )
     parser.add_argument(
         "--log-level",
-        choices=("DEBUG", "INFO", "WARNING", "ERROR"),
-        default="INFO",
+        choices=LOG_LEVEL_CHOICES,
+        default=DEFAULT_LOG_LEVEL,
         help="Minimum logging level.",
     )
     parser.add_argument("--no-progress", action="store_true", help="Disable tqdm progress bars.")
     parser.add_argument("--overwrite", action="store_true", help="Overwrite existing figure artifacts and work state.")
     parser.add_argument("--resume", action="store_true", help="Resume an incomplete figure extraction.")
     return parser.parse_args(argv)
-
-
-def _configure_logging(level: str) -> None:
-    logging.basicConfig(
-        level=_LOG_LEVELS[level],
-        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-    )
 
 
 if __name__ == "__main__":
