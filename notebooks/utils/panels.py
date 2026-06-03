@@ -71,6 +71,7 @@ def piano_roll_player_panel(
     exporter: Exporter | None = None,
     scale_pitch_classes: frozenset[int] | None = None,
     chord_highlights: Sequence[ChordHighlight] = (),
+    show_chord_labels: bool = False,
 ) -> Any:
     if view_data is None:
         return mo.md("")
@@ -114,6 +115,7 @@ def piano_roll_player_panel(
             hands=selected_hands,
             scale_pitch_classes=scale_pitch_classes,
             chord_highlights=chord_highlights,
+            show_chord_labels=show_chord_labels,
         ),
         chart_selection=False,
         legend_selection=False,

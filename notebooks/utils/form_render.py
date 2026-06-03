@@ -9,19 +9,24 @@ from numpy.random import default_rng
 
 from musak_model.data.schema import Segment
 from musak_model.generation.constraints import GenerationConstraintError, GenerationConstraints
+from musak_model.harmony.expansion import chord_pitch_class_set
 from musak_model.harmony.vocabulary import ChordVocabularyConfig
 from musak_model.synthetic.fitting.form.fit import FormFittingConfig
+from musak_model.synthetic.processes.accent import AccentFieldConfig, AccentFieldSampler
 from musak_model.synthetic.processes.density import RhythmicDensityConfig, RhythmicDensitySampler
 from musak_model.synthetic.processes.pitch import RegisterCurveConfig, RegisterCurveSampler
 from musak_model.synthetic.render.config import RenderConfig
 from musak_model.synthetic.render.motif import MotifConfig
-from musak_model.synthetic.render.renderer import SurfaceRenderer
+from musak_model.synthetic.render.renderer import RenderedChord, SurfaceRenderer
 from musak_model.synthetic.structure.form import FormPrior, FormSampler, FormTree
 from musak_model.synthetic.structure.harmony_grammar import HarmonyGrammarConfig, HarmonyGrammarSampler
 from musak_model.synthetic.structure.meter import MetricalGrammarConfig, MetricalTreeSampler
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import ScaleType
+from musak_shared.elements import PITCHES_PER_OCTAVE
+from notebooks.utils.baselines import chord_label
 from notebooks.utils.model_output import segment_decode_error
+from notebooks.utils.piano_roll import ChordHighlight
 from notebooks.utils.synthetic import SyntheticInputs
 
 _SOURCE_FILE = Path("synthetic-form")
@@ -43,6 +48,8 @@ class FormRenderRequest:
     lambda_accent: float
     lambda_similarity: float
     variation_budget: float
+    density_amplitude: float
+    density_basis_count: int
 
 
 @dataclass(frozen=True)
@@ -55,6 +62,31 @@ class FormRenderOutput:
     decode_error: str | None
     status_message: str
     status_kind: Literal["success", "warn"]
+    chord_highlights: tuple[ChordHighlight, ...] = ()
+
+
+def _chord_highlights(
+    chords: tuple[RenderedChord, ...],
+    *,
+    scale_root: int,
+    scale_type: ScaleType,
+    bar_duration: Fraction,
+    vocabulary: ChordVocabularyConfig,
+) -> tuple[ChordHighlight, ...]:
+    return tuple(
+        ChordHighlight(
+            start_in_bars=float(1 + rendered.offset / bar_duration),
+            end_in_bars=float(1 + (rendered.offset + rendered.duration) / bar_duration),
+            pitch_classes=frozenset(
+                (scale_root + interval_class) % PITCHES_PER_OCTAVE
+                for interval_class in chord_pitch_class_set(
+                    rendered.chord, scale_type=scale_type, vocabulary=vocabulary
+                )
+            ),
+            label=chord_label(rendered.chord),
+        )
+        for rendered in chords
+    )
 
 
 def render_form_segment(
@@ -77,7 +109,12 @@ def render_form_segment(
         }
     )
     motif_config = MotifConfig.load().model_copy(update={"variation_budget": request.variation_budget})
-    renderer = _build_renderer(inputs, render_config=render_config, motif_config=motif_config)
+    density_config = RhythmicDensityConfig.load().model_copy(
+        update={"amplitude": request.density_amplitude, "basis_count": request.density_basis_count}
+    )
+    renderer = _build_renderer(
+        inputs, render_config=render_config, motif_config=motif_config, density_config=density_config
+    )
     form = FormSampler(prior).sample(bar_count=request.bar_count, rng=default_rng(request.seed))
     constraints = GenerationConstraints(
         time_numerator=request.time_numerator,
@@ -85,7 +122,7 @@ def render_form_segment(
         bar_count=request.bar_count,
     )
     try:
-        segment = renderer.render(
+        result = renderer.render_plan(
             time_numerator=request.time_numerator,
             time_denominator=request.time_denominator,
             scale_root=request.scale_root,
@@ -108,6 +145,14 @@ def render_form_segment(
             status_kind="warn",
         )
 
+    segment = result.segment
+    chord_highlights = _chord_highlights(
+        result.chords,
+        scale_root=request.scale_root,
+        scale_type=scale_type,
+        bar_duration=Fraction(request.time_numerator, request.time_denominator),
+        vocabulary=ChordVocabularyConfig.load(),
+    )
     decode_error = segment_decode_error(segment, duration_vocabulary=inputs.duration_vocabulary)
     base_status = (
         f"Rendered {segment.bar_count} bar(s), {len(segment.tokens)} tokens, {len(form.phrases)} phrase(s) | "
@@ -122,6 +167,7 @@ def render_form_segment(
         decode_error=decode_error,
         status_message=_with_warning(base_status, warning),
         status_kind="success" if decode_error is None and warning is None else "warn",
+        chord_highlights=chord_highlights,
     )
 
 
@@ -130,6 +176,7 @@ def _build_renderer(
     *,
     render_config: RenderConfig,
     motif_config: MotifConfig,
+    density_config: RhythmicDensityConfig,
 ) -> SurfaceRenderer:
     chord_vocabulary = ChordVocabularyConfig.load()
     return SurfaceRenderer(
@@ -143,7 +190,11 @@ def _build_renderer(
         duration_vocabulary=inputs.duration_vocabulary,
         chord_vocabulary=chord_vocabulary,
         base_duration_distribution=inputs.base_duration_distribution,
-        rhythmic_density_sampler=RhythmicDensitySampler(config=RhythmicDensityConfig.load()),
+        rhythmic_density_sampler=RhythmicDensitySampler(config=density_config),
+        accent_field_sampler=AccentFieldSampler(
+            config=AccentFieldConfig.load(), overrides=inputs.fitted.accent_overrides
+        ),
+        grid_denominator=inputs.fitted.grid_denominator,
         motif_config=motif_config,
     )
 

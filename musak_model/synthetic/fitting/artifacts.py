@@ -14,6 +14,7 @@ from musak_model.synthetic.structure.form import FormPrior
 from musak_model.tokens.schema import ScaleType
 
 FITTED_GENERATOR_CONFIG_NAME: Final[str] = "fitted_generator.json"
+DEFAULT_GRID_DENOMINATOR: Final[int] = 4
 
 
 class FittedChordTransitions(BaseModel):
@@ -53,6 +54,7 @@ class FittedGeneratorConfig(BaseModel):
     accent_overrides: tuple[AccentFieldOverride, ...] = ()
     chord_transitions: dict[ScaleType, FittedChordTransitions] = {}
     form_priors: dict[ScaleType, FormPrior] = {}
+    grid_denominator: int = DEFAULT_GRID_DENOMINATOR
 
     def chord_transition_model(self, scale_type: ScaleType) -> ChordTransitionModel | None:
         fitted = self.chord_transitions.get(scale_type)

@@ -9,6 +9,7 @@ from musak_model.harmony.vocabulary import ChordVocabularyConfig
 from musak_model.n_grams.figure.schema import FigureNGram
 from musak_model.synthetic.base_durations import BaseDurationDistribution
 from musak_model.synthetic.figures import FigureVocabulary, FigureVocabularyEntry, FigureVocabularyGroup
+from musak_model.synthetic.processes.accent import AccentFieldConfig, AccentFieldSampler
 from musak_model.synthetic.processes.density import RhythmicDensityConfig, RhythmicDensitySampler
 from musak_model.synthetic.processes.pitch import RegisterCurveConfig, RegisterCurveSampler
 from musak_model.synthetic.render.config import RenderConfig
@@ -23,7 +24,7 @@ from musak_model.synthetic.structure.meter import (
     MetricalTreeSampler,
 )
 from musak_model.tokens.duration import DurationVocabulary
-from musak_model.tokens.schema import Hand, NoteToken, ScaleType
+from musak_model.tokens.schema import BarToken, EndToken, Hand, NoteToken, RestToken, ScaleType, Token
 from musak_shared.elements import HarmonicFunction, degrees_for_function
 
 _HALF = (HarmonicFunction.PREDOMINANT, HarmonicFunction.DOMINANT)
@@ -73,9 +74,27 @@ def _harmony_sampler() -> HarmonyGrammarSampler:
     return HarmonyGrammarSampler(config=HarmonyGrammarConfig.load(), vocabulary=ChordVocabularyConfig.load())
 
 
-def _renderer(duration_vocabulary: DurationVocabulary) -> SurfaceRenderer:
+def _accent_config(*, baseline_logit: float) -> AccentFieldConfig:
+    return AccentFieldConfig(
+        baseline_logit=baseline_logit,
+        metric_gain=0.0,
+        metric_exponent=1.0,
+        envelope_basis_count=1,
+        envelope_amplitude=0.0,
+        envelope_decay=1.0,
+    )
+
+
+def _renderer(
+    duration_vocabulary: DurationVocabulary,
+    *,
+    accent_config: AccentFieldConfig | None = None,
+    lambda_similarity: float = 0.0,
+    variation_budget: float = 0.0,
+    maximum_transpose: int = 0,
+) -> SurfaceRenderer:
     return SurfaceRenderer(
-        config=RenderConfig.load(),
+        config=RenderConfig.load().model_copy(update={"lambda_similarity": lambda_similarity}),
         metrical_sampler=MetricalTreeSampler(config=MetricalGrammarConfig.load()),
         harmony_sampler=_harmony_sampler(),
         register_curve_sampler=RegisterCurveSampler(config=RegisterCurveConfig.load()),
@@ -86,7 +105,11 @@ def _renderer(duration_vocabulary: DurationVocabulary) -> SurfaceRenderer:
         rhythmic_density_sampler=RhythmicDensitySampler(
             config=RhythmicDensityConfig(amplitude=1.0, basis_count=2, decay=1.0)
         ),
-        motif_config=MotifConfig.load(),
+        accent_field_sampler=AccentFieldSampler(config=accent_config or AccentFieldConfig.load()),
+        grid_denominator=4,
+        motif_config=MotifConfig.load().model_copy(
+            update={"variation_budget": variation_budget, "maximum_transpose": maximum_transpose}
+        ),
     )
 
 
@@ -110,6 +133,47 @@ def _render(renderer: SurfaceRenderer, *, bar_count: int, seed: int) -> Segment:
         source_file=_SOURCE_FILE,
         rng=default_rng(seed),
     )
+
+
+def _repeat_form(*, bar_count: int, seed: int) -> FormTree:
+    prior = FormPrior(
+        phrase_lengths=(WeightedSpan(bars=4, weight=1.0),),
+        segment_lengths=(WeightedSpan(bars=2, weight=1.0),),
+        closings=(
+            ClosingChoice(is_final=False, functions=_HALF, weight=1.0),
+            ClosingChoice(is_final=True, functions=_AUTHENTIC, weight=1.0),
+        ),
+        repeat_probability=1.0,
+        variation_probability=0.0,
+    )
+    return FormSampler(prior).sample(bar_count=bar_count, rng=default_rng(seed))
+
+
+def _render_form(renderer: SurfaceRenderer, form: FormTree, *, bar_count: int, seed: int) -> Segment:
+    return renderer.render(
+        time_numerator=4,
+        time_denominator=4,
+        scale_root=0,
+        scale_type=ScaleType.MAJOR,
+        form=form,
+        harmonic_slot_duration=Fraction(1),
+        constraints=_constraints(bar_count),
+        source_file=_SOURCE_FILE,
+        rng=default_rng(seed),
+    )
+
+
+def _bar_token_groups(segment: Segment) -> list[list[Token]]:
+    groups: list[list[Token]] = []
+    current: list[Token] = []
+    for token in segment.tokens:
+        if isinstance(token, BarToken):
+            groups.append(current)
+            current = []
+        elif not isinstance(token, EndToken):
+            current.append(token)
+
+    return groups
 
 
 def _revalidate(segment: Segment, duration_vocabulary: DurationVocabulary, *, bar_count: int) -> None:
@@ -146,6 +210,67 @@ def test_note_durations_stay_on_corpus_base_durations(duration_vocabulary: Durat
 
     assert note_durations
     assert note_durations <= set(_BASE_DURATIONS)
+
+
+def _rest_duration_fraction(segment: Segment, duration_vocabulary: DurationVocabulary) -> float:
+    rest = sum(
+        (
+            duration_vocabulary.id_to_fraction(token.duration_id)
+            for token in segment.tokens
+            if isinstance(token, RestToken)
+        ),
+        Fraction(0),
+    )
+    note = sum(
+        (
+            duration_vocabulary.id_to_fraction(token.duration_id)
+            for token in segment.tokens
+            if isinstance(token, NoteToken)
+        ),
+        Fraction(0),
+    )
+    total = rest + note
+    return float(rest / total) if total > 0 else 0.0
+
+
+def test_render_emits_rests_with_default_config(duration_vocabulary: DurationVocabulary) -> None:
+    segment = _render(_renderer(duration_vocabulary), bar_count=8, seed=0)
+
+    assert any(isinstance(token, RestToken) for token in segment.tokens)
+
+
+def test_lower_baseline_logit_increases_rests(duration_vocabulary: DurationVocabulary) -> None:
+    sparse = _render(
+        _renderer(duration_vocabulary, accent_config=_accent_config(baseline_logit=-6.0)), bar_count=8, seed=0
+    )
+    dense = _render(
+        _renderer(duration_vocabulary, accent_config=_accent_config(baseline_logit=6.0)), bar_count=8, seed=0
+    )
+
+    assert _rest_duration_fraction(sparse, duration_vocabulary) > _rest_duration_fraction(dense, duration_vocabulary)
+    _revalidate(sparse, duration_vocabulary, bar_count=8)
+    _revalidate(dense, duration_vocabulary, bar_count=8)
+
+
+def test_repeats_reuse_motif_at_high_similarity(duration_vocabulary: DurationVocabulary) -> None:
+    renderer = _renderer(duration_vocabulary, lambda_similarity=50.0)
+    form = _repeat_form(bar_count=4, seed=0)
+    assert [segment.class_label for segment in form.segments] == [0, 0]
+
+    segment = _render_form(renderer, form, bar_count=4, seed=0)
+    bars = _bar_token_groups(segment)
+
+    assert len(bars) == 4
+    assert bars[0:2] == bars[2:4]
+
+
+def test_similarity_changes_output_for_repeats(duration_vocabulary: DurationVocabulary) -> None:
+    form = _repeat_form(bar_count=4, seed=0)
+
+    inert = _render_form(_renderer(duration_vocabulary, lambda_similarity=0.0), form, bar_count=4, seed=0)
+    engaged = _render_form(_renderer(duration_vocabulary, lambda_similarity=50.0), form, bar_count=4, seed=0)
+
+    assert inert.tokens != engaged.tokens
 
 
 def test_phrase_harmony_reproduces_the_period() -> None:

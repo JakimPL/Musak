@@ -26,10 +26,12 @@ _SCALE_HIGHLIGHT_FILL: Final[str] = "#43a047"
 _SCALE_HIGHLIGHT_STROKE: Final[str] = "#2e7d32"
 _SCALE_HIGHLIGHT_FILL_OPACITY: Final[float] = 0.10
 _SCALE_HIGHLIGHT_STROKE_OPACITY: Final[float] = 0.35
-_CHORD_HIGHLIGHT_FILL: Final[str] = "#7e57c2"
-_CHORD_HIGHLIGHT_STROKE: Final[str] = "#4527a0"
-_CHORD_HIGHLIGHT_FILL_OPACITY: Final[float] = 0.22
-_CHORD_HIGHLIGHT_STROKE_OPACITY: Final[float] = 0.5
+_CHORD_HIGHLIGHT_FILL: Final[str] = "#b388ff"
+_CHORD_HIGHLIGHT_STROKE: Final[str] = "#d1b3ff"
+_CHORD_HIGHLIGHT_FILL_OPACITY: Final[float] = 0.34
+_CHORD_HIGHLIGHT_STROKE_OPACITY: Final[float] = 0.85
+_CHORD_LABEL_COLOR: Final[str] = "#ede7f6"
+_CHORD_LABEL_OUTLINE: Final[str] = "#4a148c"
 _HIGHLIGHT_STROKE_WIDTH: Final[float] = 0.5
 _PITCH_BAND_HALF_HEIGHT: Final[float] = 0.5
 _SHARP_PITCH_NAMES: Final[tuple[str, ...]] = ("C-", "C#", "D-", "D#", "E-", "F-", "F#", "G-", "G#", "A-", "A#", "B-")
@@ -172,6 +174,7 @@ def piano_roll_chart(
     height: int = 400,
     scale_pitch_classes: frozenset[int] | None = None,
     chord_highlights: Sequence[ChordHighlight] = (),
+    show_chord_labels: bool = False,
 ) -> Any:
     frame = filter_piano_roll_dataframe(view_data.dataframe, hands=hands)
     label_expression = pitch_label_expression(view_data.pitch_spelling)
@@ -237,6 +240,7 @@ def piano_roll_chart(
         pitch_spelling=view_data.pitch_spelling,
         scale_pitch_classes=scale_pitch_classes,
         chord_highlights=chord_highlights,
+        show_chord_labels=show_chord_labels,
     )
     return (
         alt.layer(*highlight_layers, note_bars, seconds_axis)
@@ -253,6 +257,7 @@ def _highlight_layers(
     pitch_spelling: PitchSpelling,
     scale_pitch_classes: frozenset[int] | None,
     chord_highlights: Sequence[ChordHighlight],
+    show_chord_labels: bool = False,
 ) -> list[Any]:
     layers: list[Any] = []
     if scale_pitch_classes:
@@ -303,6 +308,30 @@ def _highlight_layers(
                     alt.Tooltip("label:N", title="Chord"),
                     alt.Tooltip("pitch:N", title="Chord pitch"),
                 ],
+            )
+        )
+
+    if show_chord_labels and chord_highlights:
+        label_rows = [
+            {"mid_in_bars": (highlight.start_in_bars + highlight.end_in_bars) / 2, "label": highlight.label}
+            for highlight in chord_highlights
+        ]
+        layers.append(
+            alt.Chart(pd.DataFrame(label_rows))
+            .mark_text(
+                baseline="top",
+                dy=2,
+                fontSize=14,
+                fontWeight="bold",
+                color=_CHORD_LABEL_COLOR,
+                stroke=_CHORD_LABEL_OUTLINE,
+                strokeWidth=0.4,
+            )
+            .encode(
+                x=alt.X("mid_in_bars:Q", axis=None, scale=alt.Scale(domain=list(bar_domain))),
+                y=alt.value(0),
+                text=alt.Text("label:N"),
+                tooltip=[alt.Tooltip("label:N", title="Chord")],
             )
         )
 

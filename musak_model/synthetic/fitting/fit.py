@@ -51,6 +51,7 @@ def fit_generator_config(
             figure_root_directory, chord_fit=chord_fit, chord_vocabulary=chord_vocabulary
         ),
         form_priors=_fit_form_priors_from_store(figure_root_directory, form_fitting=form_fitting),
+        grid_denominator=grid_denominator,
     )
 
 

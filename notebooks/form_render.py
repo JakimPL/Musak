@@ -142,6 +142,10 @@ def _(FormRenderRequest, ScaleType, mo, set_render_request, synthetic_inputs):
     variation_budget = mo.ui.slider(
         start=0.0, stop=1.0, step=0.05, value=0.3, label="Variation budget", show_value=True
     )
+    density_amplitude = mo.ui.slider(
+        start=0.0, stop=4.0, step=0.1, value=1.0, label="Density amplitude", show_value=True
+    )
+    density_basis_count = mo.ui.number(start=1, stop=8, step=1, value=2, label="Density oscillations")
     bpm = mo.ui.slider(start=30, stop=240, step=1, value=80, label="BPM", show_value=True)
     notation_bars = mo.ui.slider(start=1, stop=32, step=1, value=8, label="Notation bars", show_value=True)
 
@@ -162,6 +166,8 @@ def _(FormRenderRequest, ScaleType, mo, set_render_request, synthetic_inputs):
                 lambda_accent=float(lambda_accent.value),
                 lambda_similarity=float(lambda_similarity.value),
                 variation_budget=float(variation_budget.value),
+                density_amplitude=float(density_amplitude.value),
+                density_basis_count=int(density_basis_count.value),
             )
         )
 
@@ -186,6 +192,8 @@ def _(FormRenderRequest, ScaleType, mo, set_render_request, synthetic_inputs):
                 gap=2,
                 wrap=True,
             ),
+            mo.md("### Rhythm (density drift of the phrasing tempo)"),
+            mo.hstack([density_amplitude, density_basis_count], gap=2, wrap=True),
             render_button,
         ],
         gap=2,
@@ -287,6 +295,8 @@ def _(
             bpm=bpm.value,
             controls=output_hand_controls,
             scale_pitch_classes=scale_pitch_class_set(output.scale_root, output.scale_type),
+            chord_highlights=output.chord_highlights,
+            show_chord_labels=True,
         )
 
     piano_roll_output

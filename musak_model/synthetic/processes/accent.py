@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
 from dataclasses import dataclass
 from fractions import Fraction
 from pathlib import Path
@@ -85,6 +86,12 @@ class AccentFieldSampler:
                 return override.config
 
         return self.config
+
+
+def draw_onset_mask(weights: Sequence[float], *, rng: Generator) -> tuple[bool, ...]:
+    probabilities = np.asarray(weights, dtype=np.float64)
+    draws = rng.random(probabilities.size)
+    return tuple(bool(fired) for fired in draws < probabilities)
 
 
 def indispensability_per_position(grid_count_per_bar: int) -> NDArray[np.float64]:

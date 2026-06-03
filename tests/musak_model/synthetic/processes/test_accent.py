@@ -2,7 +2,7 @@ import pytest
 from numpy.random import Generator, default_rng
 from pydantic import ValidationError
 
-from musak_model.synthetic.processes.accent import AccentFieldConfig, AccentFieldSampler
+from musak_model.synthetic.processes.accent import AccentFieldConfig, AccentFieldSampler, draw_onset_mask
 from musak_model.tokens.schema import Hand, ScaleType
 
 
@@ -94,3 +94,37 @@ def test_sample_weights_rejects_non_positive_dimensions() -> None:
 def test_config_rejects_negative_metric_gain() -> None:
     with pytest.raises(ValidationError):
         _config(metric_gain=-0.1)
+
+
+def _transition_count(mask: tuple[bool, ...]) -> int:
+    return sum(1 for previous, current in zip(mask, mask[1:]) if previous != current)
+
+
+def test_draw_onset_mask_is_deterministic_for_a_given_seed() -> None:
+    weights = _sample_weights(
+        AccentFieldSampler(config=AccentFieldConfig.load()), bar_count=4, grid_count_per_bar=16, rng=default_rng(1)
+    )
+
+    first = draw_onset_mask(weights, rng=default_rng(3))
+    second = draw_onset_mask(weights, rng=default_rng(3))
+
+    assert first == second
+
+
+def test_draw_onset_mask_density_tracks_weights() -> None:
+    dense = draw_onset_mask((0.9,) * 200, rng=default_rng(0))
+    sparse = draw_onset_mask((0.1,) * 200, rng=default_rng(0))
+
+    assert sum(dense) > 150
+    assert sum(sparse) < 50
+
+
+def test_clustered_weights_yield_clustered_onsets() -> None:
+    half = 16
+    clustered_weights = tuple(0.97 if index < half else 0.03 for index in range(2 * half))
+    flat_weights = (0.5,) * (2 * half)
+
+    clustered_mask = draw_onset_mask(clustered_weights, rng=default_rng(5))
+    flat_mask = draw_onset_mask(flat_weights, rng=default_rng(5))
+
+    assert _transition_count(clustered_mask) < _transition_count(flat_mask)
