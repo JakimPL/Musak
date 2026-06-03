@@ -4,6 +4,7 @@ from musak_model.harmony.vocabulary import ChordVocabularyConfig
 from musak_model.synthetic.base_durations import BaseDurationDistribution
 from musak_model.synthetic.figures import AnchoredFigureVocabulary, FigureVocabulary
 from musak_model.synthetic.fitting.artifacts import FittedChordTransitions, FittedGeneratorConfig
+from musak_model.synthetic.inputs import SyntheticInputs
 from musak_model.synthetic.processes.chord_track import (
     ChordTransitionModel,
     functional_transition_model,
@@ -13,7 +14,7 @@ from musak_model.synthetic.substitution import FigureByChordModel
 from musak_model.tokens.config import TokenizationConfig
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import ScaleType
-from notebooks.utils.synthetic import SyntheticGenerationRequest, SyntheticInputs, _chord_transition_model
+from notebooks.utils.synthetic import SyntheticGenerationRequest, _chord_transition_model
 
 
 def _major_chords() -> tuple[Chord, ...]:

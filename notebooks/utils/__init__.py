@@ -1,3 +1,4 @@
+from musak_model.synthetic.inputs import SyntheticInputs, load_synthetic_inputs
 from musak_model.synthetic.substitution import GenerationTrace
 from notebooks.utils.baselines import (
     BaselineOverlayViewData,
@@ -136,9 +137,7 @@ from notebooks.utils.statistics import (
 from notebooks.utils.synthetic import (
     SyntheticGeneratedOutput,
     SyntheticGenerationRequest,
-    SyntheticInputs,
     generate_synthetic_segment,
-    load_synthetic_inputs,
 )
 from notebooks.utils.tokens import default_duration_vocabulary, token_label, token_rows
 
