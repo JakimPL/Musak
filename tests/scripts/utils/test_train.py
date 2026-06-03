@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 from musak_model.auxiliary.config import MusicalAuxiliaryTargetConfig
+from musak_model.mlflow import write_mlflow_run_id
 from musak_model.model.config import ModelOutputMode
 from musak_model.tokens.schema import ScaleType
 from musak_model.training.config import (
@@ -51,6 +52,7 @@ def _args(**overrides: object) -> argparse.Namespace:
         "difficulty_labels": None,
         "mlflow_experiment_name": None,
         "mlflow_run_name": None,
+        "mlflow_run_id": None,
         "overwrite": False,
         "resume_checkpoint": None,
     }
@@ -196,6 +198,51 @@ def test_resume_command_for_pretraining_copies_resolved_arguments(tmp_path: Path
     assert "--no-progress" in command
 
 
+def test_resume_command_does_not_copy_overwrite_flag(tmp_path: Path) -> None:
+    checkpoint = tmp_path / "pretraining" / "latest.pt"
+    config = _training_config(checkpoint.parent, epochs=25)
+
+    command = resume_command(
+        stage=TrainingStage.PRETRAINING,
+        args=_args(overwrite=True),
+        training_config=config,
+        checkpoint_path=checkpoint,
+    )
+
+    assert "--resume-checkpoint" in command
+    assert "--overwrite" not in command
+
+
+def test_resume_command_includes_saved_mlflow_run_id(tmp_path: Path) -> None:
+    checkpoint = tmp_path / "pretraining" / "latest.pt"
+    checkpoint.parent.mkdir(parents=True)
+    write_mlflow_run_id(checkpoint_directory=checkpoint.parent, run_id="abc123")
+    config = _training_config(checkpoint.parent, epochs=25)
+
+    command = resume_command(
+        stage=TrainingStage.PRETRAINING,
+        args=_args(),
+        training_config=config,
+        checkpoint_path=checkpoint,
+    )
+
+    assert "--mlflow-run-id abc123" in command
+
+
+def test_resume_command_preserves_cli_mlflow_run_id(tmp_path: Path) -> None:
+    checkpoint = tmp_path / "pretraining" / "latest.pt"
+    config = _training_config(checkpoint.parent, epochs=25)
+
+    command = resume_command(
+        stage=TrainingStage.PRETRAINING,
+        args=_args(mlflow_run_id="cli-run-id"),
+        training_config=config,
+        checkpoint_path=checkpoint,
+    )
+
+    assert "--mlflow-run-id cli-run-id" in command
+
+
 def test_resume_command_for_finetuning_includes_pretrain_checkpoint(tmp_path: Path) -> None:
     latest_checkpoint = tmp_path / "finetuning" / "latest.pt"
     pretrain_checkpoint = tmp_path / "pretraining" / "best.pt"
@@ -250,6 +297,28 @@ def test_keyboard_interrupt_prints_resume_command_when_latest_checkpoint_exists(
     output = capsys.readouterr().out
     assert "Training interrupted." in output
     assert f"--resume-checkpoint {checkpoint}" in output
+
+
+def test_keyboard_interrupt_prints_resume_command_with_saved_mlflow_run_id(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    checkpoint = tmp_path / "pretraining" / "latest.pt"
+    checkpoint.parent.mkdir(parents=True)
+    checkpoint.write_text("checkpoint", encoding="utf-8")
+    write_mlflow_run_id(checkpoint_directory=checkpoint.parent, run_id="abc123")
+    config = _training_config(checkpoint.parent)
+
+    with pytest.raises(SystemExit):
+        run_training_safely(
+            lambda: (_ for _ in ()).throw(KeyboardInterrupt()),
+            stage=TrainingStage.PRETRAINING,
+            args=_args(),
+            training_config=config,
+        )
+
+    output = capsys.readouterr().out
+    assert "--mlflow-run-id abc123" in output
 
 
 def test_keyboard_interrupt_reports_missing_latest_checkpoint(

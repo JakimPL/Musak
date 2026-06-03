@@ -97,6 +97,7 @@ class MlflowConfig(BaseModel):
     enable_mlflow: bool = True
     mlflow_experiment_name: str = "musak-pretrain"
     mlflow_run_name: str | None = None
+    mlflow_run_id: str | None = None
     mlflow_tracking_uri: str | None = None
 
 

@@ -10,7 +10,7 @@ from pathlib import Path
 import torch
 
 from musak_model.data.config import SegmentationMode, load_difficulty_labels, load_segmentation_config
-from musak_model.mlflow import sqlite_tracking_uri
+from musak_model.mlflow import read_mlflow_run_id, sqlite_tracking_uri
 from musak_model.paths import (
     CONDITIONING_CONFIG_PATH,
     DEFAULT_FINETUNING_CHECKPOINT_DIRECTORY,
@@ -238,10 +238,10 @@ def resume_command(
     command.extend(_optional_path_argument("--difficulty-labels", args.difficulty_labels))
     command.extend(_optional_value_argument("--mlflow-experiment-name", args.mlflow_experiment_name))
     command.extend(_optional_value_argument("--mlflow-run-name", args.mlflow_run_name))
+    if training_config.mlflow.enable_mlflow:
+        command.extend(_optional_value_argument("--mlflow-run-id", resume_mlflow_run_id(args, training_config)))
     if args.no_progress:
         command.append("--no-progress")
-    if args.overwrite:
-        command.append("--overwrite")
     if not training_config.mlflow.enable_mlflow:
         command.append("--disable-mlflow")
     if isinstance(training_config, FinetuningTrainingConfig):
@@ -335,6 +335,12 @@ def add_common_training_arguments(
     parser.add_argument("--disable-mlflow", action="store_true", help="Disable MLflow tracking.")
     parser.add_argument("--mlflow-experiment-name", type=str, default=None, help="Override MLflow experiment name.")
     parser.add_argument("--mlflow-run-name", type=str, default=None, help="Override MLflow run name.")
+    parser.add_argument(
+        "--mlflow-run-id",
+        type=str,
+        default=None,
+        help="Attach training logs to an existing MLflow run ID instead of creating a new run.",
+    )
     parser.add_argument("--device", choices=("auto", "cpu", "cuda", "mps"), default=None, help="Training device.")
     parser.add_argument("--epochs", type=int, default=None, help="Override epoch count.")
     parser.add_argument("--batch-size", type=int, default=None, help="Override batch size.")
@@ -453,9 +459,20 @@ def common_training_section_updates(
             enable_mlflow=not args.disable_mlflow and config.mlflow.enable_mlflow,
             mlflow_experiment_name=args.mlflow_experiment_name or config.mlflow.mlflow_experiment_name,
             mlflow_run_name=args.mlflow_run_name if args.mlflow_run_name is not None else config.mlflow.mlflow_run_name,
+            mlflow_run_id=args.mlflow_run_id if args.mlflow_run_id is not None else config.mlflow.mlflow_run_id,
             mlflow_tracking_uri=sqlite_tracking_uri(args.mlflow_db),
         ),
     }
+
+
+def resume_mlflow_run_id(args: argparse.Namespace, training_config: TrainingConfig) -> str | None:
+    if args.mlflow_run_id is not None:
+        return str(args.mlflow_run_id)
+
+    if training_config.mlflow.mlflow_run_id is not None:
+        return training_config.mlflow.mlflow_run_id
+
+    return read_mlflow_run_id(training_config.checkpoints.checkpoint_directory)
 
 
 def resolve_device(requested_device: str) -> str:

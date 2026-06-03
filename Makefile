@@ -147,6 +147,7 @@ help:
 	@printf '%s\n' '  PRETRAIN_RESUME_CHECKPOINT, FINETUNE_RESUME_CHECKPOINT override resume paths.'
 	@printf '%s\n' '  PRETRAIN_EPOCHS, PRETRAIN_DEVICE, PRETRAIN_NUM_WORKERS override pretrain only.'
 	@printf '%s\n' '  FINETUNE_EPOCHS, FINETUNE_DEVICE, FINETUNE_NUM_WORKERS override finetune only.'
+	@printf '%s\n' '  PRETRAIN_MLFLOW_RUN_ID, FINETUNE_MLFLOW_RUN_ID attach resumed training to an existing MLflow run.'
 	@printf '%s\n' '  NOTEBOOK_MODE         Marimo subcommand for notebook targets. Default: edit'
 
 install:
@@ -199,6 +200,7 @@ pretrain:
 		$(call optional_arg,PRETRAIN_DEVICE,--device) \
 		$(call optional_arg,PRETRAIN_NUM_WORKERS,--num-workers) \
 		$(call optional_arg,PRETRAIN_DIFFICULTY_LABELS,--difficulty-labels) \
+		$(call optional_arg,PRETRAIN_MLFLOW_RUN_ID,--mlflow-run-id) \
 		$(call optional_flag,PRETRAIN_WHOLE_FILE_SEGMENTS,--whole-file-segments) \
 		$(call optional_resume_checkpoint,PRETRAIN_RESUME_CHECKPOINT) \
 		$(call optional_non_resume_flag,PRETRAIN_OVERWRITE,--overwrite)
@@ -214,6 +216,7 @@ finetune:
 		$(call optional_arg,FINETUNE_DEVICE,--device) \
 		$(call optional_arg,FINETUNE_NUM_WORKERS,--num-workers) \
 		--difficulty-labels "$(FINETUNE_DIFFICULTY_LABELS)" \
+		$(call optional_arg,FINETUNE_MLFLOW_RUN_ID,--mlflow-run-id) \
 		$(call optional_flag,FINETUNE_WHOLE_FILE_SEGMENTS,--whole-file-segments) \
 		$(call optional_resume_checkpoint,FINETUNE_RESUME_CHECKPOINT)
 

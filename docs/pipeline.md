@@ -143,6 +143,11 @@ counts are persisted under the generated artifact root and reused by compatible 
 artifacts are available under the processed encoded run, generation evaluation also logs figure comparison metrics;
 figure profiles are not generation constraints and do not change sampling.
 
+Training can attach to an existing MLflow run with `--mlflow-run-id <run-id>`. When MLflow is enabled, the active run
+ID is also written to `mlflow_run_id.txt` in the checkpoint directory; if training is interrupted after `latest.pt`
+exists, the printed resume command includes that run ID so resumed metrics and artifacts continue in the same MLflow
+run.
+
 The default finetuning config enables validation-loss early stopping. `FINETUNE_EPOCHS` is therefore a maximum epoch
 count, not a guarantee that every epoch will run. Use the finetuning `best.pt` checkpoint for generation unless you
 are deliberately inspecting the final stopped state.

@@ -10,6 +10,7 @@ from musak_model.conditioning.config import ConditioningConfig, DifficultyConfig
 from musak_model.conditioning.time_signature import TimeSignatureVocabularyConfig
 from musak_model.data.schema import SegmentMetadata
 from musak_model.data.tokenization_context import tokenization_context_from_scale
+from musak_model.mlflow import read_mlflow_run_id
 from musak_model.model.config import (
     CNNConfig,
     GRUConfig,
@@ -38,12 +39,23 @@ from musak_model.training.metrics import EpochMetrics
 from musak_model.training.tracking import MlflowTrainingTracker, build_training_tracker
 
 
+class FakeRunInfo:
+    def __init__(self, run_id: str) -> None:
+        self.run_id = run_id
+
+
+class FakeActiveRun:
+    def __init__(self, run_id: str) -> None:
+        self.info = FakeRunInfo(run_id)
+
+
 class FakeMlflow(ModuleType):
     def __init__(self) -> None:
         super().__init__("mlflow")
         self.tracking_uri: str | None = None
         self.experiment_name: str | None = None
         self.run_name: str | None = None
+        self.run_id: str | None = None
         self.ended_status: str | None = None
         self.params: dict[str, str | int | float | bool] = {}
         self.metrics: list[tuple[str, float, int]] = []
@@ -58,8 +70,10 @@ class FakeMlflow(ModuleType):
     def set_experiment(self, experiment_name: str) -> None:
         self.experiment_name = experiment_name
 
-    def start_run(self, *, run_name: str | None = None) -> None:
+    def start_run(self, *, run_id: str | None = None, run_name: str | None = None) -> FakeActiveRun:
+        self.run_id = run_id or "generated-run-id"
         self.run_name = run_name
+        return FakeActiveRun(self.run_id)
 
     def end_run(self, *, status: str) -> None:
         self.ended_status = status
@@ -85,7 +99,13 @@ class FakeMlflow(ModuleType):
         self.logged_dicts.append((dictionary, artifact_file))
 
 
-def _training_config(tmp_path: Path, *, enable_mlflow: bool = True, tracking_uri: str | None = None) -> TrainingConfig:
+def _training_config(
+    tmp_path: Path,
+    *,
+    enable_mlflow: bool = True,
+    tracking_uri: str | None = None,
+    run_id: str | None = None,
+) -> TrainingConfig:
     return TrainingConfig(
         optimization=OptimizationConfig(epochs=1, batch_size=2, learning_rate=0.001, weight_decay=0.0),
         event_objective=_event_objective_config(),
@@ -107,6 +127,7 @@ def _training_config(tmp_path: Path, *, enable_mlflow: bool = True, tracking_uri
             enable_mlflow=enable_mlflow,
             mlflow_tracking_uri=tracking_uri,
             mlflow_run_name="test-run",
+            mlflow_run_id=run_id,
         ),
         generation_evaluation=GenerationEvaluationConfig(
             enabled=False,
@@ -279,6 +300,8 @@ def test_mlflow_tracker_logs_setup_metrics_artifacts_and_invalid_files(
     assert fake_mlflow.run_name == "test-run"
     assert fake_mlflow.ended_status == "FINISHED"
     assert fake_mlflow.params["training.optimization.epochs"] == 1
+    assert "training.checkpoints.resume_checkpoint" not in fake_mlflow.params
+    assert "training.mlflow.mlflow_run_id" not in fake_mlflow.params
     assert fake_mlflow.params["data.train_samples"] == 1
     assert "data.encoded_samples_fingerprint" in fake_mlflow.params
     assert ("model/train/mean/loss", 1.25, 3) in fake_mlflow.metrics
@@ -300,6 +323,32 @@ def test_mlflow_tracker_logs_setup_metrics_artifacts_and_invalid_files(
     assert fake_mlflow.artifacts == [(str(checkpoint), "checkpoints")]
     assert fake_mlflow.artifact_directories == [(str(generation_artifact_directory), "generation/epoch_0003")]
     assert fake_mlflow.logged_dicts[0][1] == "invalid_files.json"
+    assert read_mlflow_run_id(tmp_path / "checkpoints") == "generated-run-id"
+
+
+def test_mlflow_tracker_attaches_to_existing_run_id(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_mlflow = FakeMlflow()
+    monkeypatch.setitem(sys.modules, "mlflow", fake_mlflow)
+    training_config = _training_config(tmp_path, tracking_uri="file:///tmp/mlruns", run_id="abc123").model_copy(
+        update={
+            "checkpoints": CheckpointConfig(
+                checkpoint_directory=tmp_path / "checkpoints",
+                resume_checkpoint=tmp_path / "checkpoints" / "latest.pt",
+            )
+        }
+    )
+
+    with MlflowTrainingTracker(training_config=training_config, tracking_root=tmp_path) as tracker:
+        tracker.log_setup(training_config=training_config, model_config=_model_config(), split=_split())
+
+    assert fake_mlflow.run_id == "abc123"
+    assert fake_mlflow.run_name is None
+    assert "training.checkpoints.resume_checkpoint" not in fake_mlflow.params
+    assert "mlflow.runName" not in fake_mlflow.tags
+    assert read_mlflow_run_id(tmp_path / "checkpoints") == "abc123"
 
 
 def test_mlflow_tracker_generates_informative_default_run_name(

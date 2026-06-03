@@ -1,16 +1,14 @@
 import importlib
 import logging
 import math
-import os
 from dataclasses import dataclass
 from pathlib import Path
 from time import perf_counter
 from types import TracebackType
 from typing import Final, Protocol, Self
 
-from musak_model.mlflow import local_mlflow_tracking_uri
+from musak_model.mlflow import resolve_tracking_uri
 from musak_model.n_grams.profile.extraction import FigureExtractionResult
-from musak_model.paths import DEFAULT_MLFLOW_DB_PATH
 from musak_model.processing.dataset import ProcessDatasetResult
 from musak_model.processing.fingerprint import encoded_samples_jsonl_fingerprint, file_sha256
 from musak_model.processing.manifest import (
@@ -23,7 +21,6 @@ from musak_model.processing.manifest import (
 from musak_model.processing.paths import ENCODED_JSONL_NAME
 
 _LOGGER = logging.getLogger(__name__)
-_MLFLOW_TRACKING_URI_ENV: Final[str] = "MLFLOW_TRACKING_URI"
 _TRUE_TEXT: Final[str] = "True"
 _DIAGNOSTIC_BOOLEAN_FIELDS: Final[tuple[EncodedManifestField, ...]] = (
     EncodedManifestField.EMPTY_SCORE,
@@ -156,7 +153,7 @@ class ProcessingTracker:
         self._mlflow = importlib.import_module("mlflow")
 
     def __enter__(self) -> Self:
-        tracking_uri = _resolve_tracking_uri(
+        tracking_uri = resolve_tracking_uri(
             configured_uri=self._config.tracking_uri,
             tracking_root=self._tracking_root,
         )
@@ -440,24 +437,6 @@ def _rate(numerator: float, denominator: int) -> float:
         return math.nan
 
     return numerator / denominator
-
-
-def _resolve_tracking_uri(
-    *,
-    configured_uri: str | None,
-    tracking_root: Path,
-) -> str:
-    if configured_uri is not None:
-        return configured_uri
-
-    environment_uri = os.getenv(_MLFLOW_TRACKING_URI_ENV)
-    if environment_uri:
-        return environment_uri
-
-    return local_mlflow_tracking_uri(
-        database_path=DEFAULT_MLFLOW_DB_PATH,
-        tracking_root=tracking_root,
-    )
 
 
 def _log_artifact_if_exists(

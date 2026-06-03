@@ -3,7 +3,6 @@ from __future__ import annotations
 import importlib
 import logging
 import math
-import os
 from pathlib import Path
 from time import perf_counter
 from types import TracebackType
@@ -11,16 +10,14 @@ from typing import Final, Protocol, Self
 
 from pydantic import BaseModel
 
-from musak_model.mlflow import local_mlflow_tracking_uri
+from musak_model.mlflow import flatten_params, resolve_tracking_uri, write_mlflow_run_id
 from musak_model.model.config import ModelConfig
-from musak_model.paths import DEFAULT_MLFLOW_DB_PATH
 from musak_model.processing.fingerprint import encoded_samples_fingerprint
 from musak_model.training.config import TrainingConfig
 from musak_model.training.ingestion.schema import IngestionErrorRecord, IngestionSplit
 from musak_model.training.metrics import EpochMetrics
 
 _LOGGER = logging.getLogger(__name__)
-_MLFLOW_TRACKING_URI_ENV: Final[str] = "MLFLOW_TRACKING_URI"
 _MLFLOW_RUN_NAME_TAG: Final[str] = "mlflow.runName"
 _MUSAK_EXPERIMENT_PREFIX: Final[str] = "musak-"
 _FINGERPRINT_NAME_LENGTH: Final[int] = 8
@@ -121,23 +118,35 @@ class MlflowTrainingTracker:
         self._training_config = training_config
         self._tracking_root = tracking_root or Path.cwd()
         self._mlflow = importlib.import_module("mlflow")
-        self._uses_generated_run_name = training_config.mlflow.mlflow_run_name is None
+        self._uses_generated_run_name = (
+            training_config.mlflow.mlflow_run_name is None and training_config.mlflow.mlflow_run_id is None
+        )
         self._run_name = training_config.mlflow.mlflow_run_name or _mlflow_run_name(training_config)
+        self._run_id = training_config.mlflow.mlflow_run_id
 
     def __enter__(self) -> Self:
-        tracking_uri = _resolve_tracking_uri(
+        tracking_uri = resolve_tracking_uri(
             configured_uri=self._training_config.mlflow.mlflow_tracking_uri,
             tracking_root=self._tracking_root,
         )
         _LOGGER.info(
-            "Starting MLflow training run: experiment=%s run_name=%s tracking_uri=%s",
+            "Starting MLflow training run: experiment=%s run_name=%s run_id=%s tracking_uri=%s",
             self._training_config.mlflow.mlflow_experiment_name,
             self._run_name,
+            self._run_id,
             tracking_uri,
         )
         self._mlflow.set_tracking_uri(tracking_uri)
         self._mlflow.set_experiment(self._training_config.mlflow.mlflow_experiment_name)
-        self._mlflow.start_run(run_name=self._run_name)
+        active_run = self._mlflow.start_run(
+            run_id=self._run_id,
+            run_name=None if self._run_id is not None else self._run_name,
+        )
+        self._run_id = active_run.info.run_id
+        write_mlflow_run_id(
+            checkpoint_directory=self._training_config.checkpoints.checkpoint_directory,
+            run_id=self._run_id,
+        )
         return self
 
     def __exit__(
@@ -173,9 +182,9 @@ class MlflowTrainingTracker:
             )
             self._mlflow.set_tag(_MLFLOW_RUN_NAME_TAG, self._run_name)
 
-        params = _flatten_params(
+        params = flatten_params(
             {
-                "training": _serializable_dump(training_config),
+                "training": _training_config_param_dump(training_config),
                 "model": _serializable_dump(model_config),
                 "data": {
                     "train_samples": len(split.train),
@@ -247,23 +256,18 @@ def build_training_tracker(
     return MlflowTrainingTracker(training_config=training_config, tracking_root=tracking_root)
 
 
-def _resolve_tracking_uri(
-    *,
-    configured_uri: str | None,
-    tracking_root: Path,
-) -> str:
-    if configured_uri is not None:
-        return configured_uri
-
-    environment_uri = os.getenv(_MLFLOW_TRACKING_URI_ENV)
-    if environment_uri:
-        return environment_uri
-
-    return local_mlflow_tracking_uri(database_path=DEFAULT_MLFLOW_DB_PATH, tracking_root=tracking_root)
-
-
 def _serializable_dump(model: BaseModel) -> dict[str, object]:
     return model.model_dump(mode="json")
+
+
+def _training_config_param_dump(training_config: TrainingConfig) -> dict[str, object]:
+    return training_config.model_dump(
+        mode="json",
+        exclude={
+            "checkpoints": {"resume_checkpoint"},
+            "mlflow": {"mlflow_run_id"},
+        },
+    )
 
 
 def _mlflow_run_name(training_config: TrainingConfig) -> str:
@@ -420,32 +424,3 @@ _EPOCH_METRIC_NAME_MAP: Final[dict[str, str]] = {
     "validation_invalid_probability_mass": "model/validation/mean/invalid_probability_mass",
     "validation_invalid_target_rate": "model/validation/rate/invalid_target",
 }
-
-
-def _flatten_params(values: dict[str, object]) -> dict[str, str | int | float | bool]:
-    flattened: dict[str, str | int | float | bool] = {}
-    _flatten_into(flattened=flattened, prefix="", value=values)
-    return flattened
-
-
-def _flatten_into(
-    *,
-    flattened: dict[str, str | int | float | bool],
-    prefix: str,
-    value: object,
-) -> None:
-    if isinstance(value, dict):
-        for key, nested_value in value.items():
-            nested_prefix = f"{prefix}.{key}" if prefix else str(key)
-            _flatten_into(flattened=flattened, prefix=nested_prefix, value=nested_value)
-        return
-
-    if isinstance(value, (str, int, float, bool)):
-        flattened[prefix] = value
-        return
-
-    if value is None:
-        flattened[prefix] = "null"
-        return
-
-    flattened[prefix] = str(value)

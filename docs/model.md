@@ -98,6 +98,10 @@ under `generation/musical_auxiliary/*` so sampled material can be compared again
 Training setup also logs train/validation auxiliary bucket distributions and total-variation distances under
 `model/split/musical_auxiliary/*`; these split metrics are reference diagnostics, not gradient terms.
 
+Training MLflow logging can be attached to an existing run with `--mlflow-run-id`. The active run ID is written to
+`mlflow_run_id.txt` in the checkpoint directory so an interrupted run can emit a resume command that keeps subsequent
+metrics, checkpoints, and generation artifacts in the same MLflow run.
+
 Generation evaluation also logs an interpretable lower-is-better sample penalty under
 `generation/<soft|hard>/mean/sample_penalty` plus named penalty terms. The current terms cover decode and constraint
 failures, incomplete or wrong-bar-count samples, silent or one-hand-only texture, hand imbalance, chromaticity,
