@@ -18,6 +18,7 @@ from musak_model.conditioning.time_signature import TimeSignatureVocabulary
 from musak_model.evaluation.diagnostics import SegmentDiagnostics, diagnose_segment
 from musak_model.evaluation.generation.artifacts import write_generation_sample_artifacts
 from musak_model.evaluation.generation.auxiliary_metrics import musical_auxiliary_bucket_metrics
+from musak_model.evaluation.generation.coherence_metrics import coherence_profile_metrics
 from musak_model.evaluation.generation.figure_metrics import figure_profile_metrics
 from musak_model.evaluation.generation.harmony_metrics import harmonic_plan_metrics
 from musak_model.evaluation.generation.musical_metrics import musical_profile_metrics
@@ -212,6 +213,18 @@ class GenerationSuiteEvaluator:
                 config=self._config,
                 duration_vocabulary=self._duration_vocabulary,
                 rhythm_config=n_gram_analysis_config.rhythm_analysis,
+            ),
+            **coherence_profile_metrics(
+                _SOFT_SUITE_NAME,
+                suites.soft_samples,
+                config=self._config,
+                duration_vocabulary=self._duration_vocabulary,
+            ),
+            **coherence_profile_metrics(
+                _HARD_SUITE_NAME,
+                suites.hard_samples,
+                config=self._config,
+                duration_vocabulary=self._duration_vocabulary,
             ),
             **figure_profile_metrics(
                 self._figure_profile_artifacts,

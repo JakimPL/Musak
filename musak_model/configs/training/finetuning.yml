@@ -1,7 +1,7 @@
 optimization:
   epochs: 5
   batch_size: 16
-  learning_rate: 1e-4
+  learning_rate: 3e-5
   weight_decay: 0.01
 event_objective:
   mode: factorized
