@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from enum import StrEnum
 from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -18,10 +19,22 @@ class DifficultyConfig(BaseModel):
     max_level: int = Field(ge=0)
 
 
+class HarmonicFusionMode(StrEnum):
+    ADDITIVE = "additive"
+    GATED_RESIDUAL = "gated_residual"
+
+
 class HarmonicConditioningConfig(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     enabled: bool
+    fusion: HarmonicFusionMode
+    plan_encoder_layers: int = Field(ge=1)
+    plan_encoder_heads: int = Field(ge=1)
+    plan_encoder_dropout: float = Field(ge=0.0, lt=1.0)
+    gate_init_bias: float
+    harmony_adherence_alpha: float = Field(ge=0.0)
+    plan_field_dropout: float = Field(ge=0.0, lt=1.0)
 
 
 class ConditioningConfig(BaseModel):

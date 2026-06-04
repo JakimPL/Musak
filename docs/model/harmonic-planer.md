@@ -438,7 +438,7 @@ Suggested starting config:
 
 ```yaml
 harmony_conditioning:
-  fusion: gated_cross_attention
+  fusion: gated_residual
   plan_encoder_layers: 2
   plan_encoder_heads: 4
   plan_encoder_dropout: 0.10
@@ -449,6 +449,10 @@ harmony_conditioning:
 
 `gate_init_bias: -1.50` starts the gate near `0.18`, so the new path does not dominate the pretrained decoder at the
 start of training.
+
+The first implemented version uses `gated_residual`: the already aligned per-step plan embeddings are encoded by a
+small Transformer encoder and added to token embeddings through a learned gate. Full slot-memory cross-attention is
+still a later option if per-step residual fusion proves too weak.
 
 Expose `harmony_adherence_alpha` in generation config later:
 
@@ -836,6 +840,8 @@ Implementation notes:
 
 ### Phase 4: Harmonic Relation Targets And Loss
 
+Status: implemented for teacher-forced training.
+
 - Derive relation labels from target notes and active plan windows.
 - Add relation head and weighted CE loss.
 - Log relation accuracy, macro F1, and relation distribution.
@@ -846,7 +852,22 @@ Acceptance:
 - Generated strong-beat and weak-beat relation distributions move in the intended direction without becoming all
   chord tones.
 
+Implementation notes:
+
+- `HarmonicRelationTargetTensors` are derived during dataset construction whenever training harmony conditioning is
+  enabled. Labels are ignored for non-note targets and positions without an aligned harmonic window.
+- Relation classes are intentionally coarse: root, third, fifth, seventh, diatonic non-chord, chromatic neighbor, and
+  other chromatic. Passing/suspension/anticipation labels remain deferred because they require local resolution context
+  rather than a single-note chord relation.
+- `harmonic_relation_objective` weights the CE loss by beat strength, active hand, slot role, and optional
+  plan-confidence buckets. Default pretraining/finetuning weights keep the objective auxiliary: `0.03` for pretraining
+  and `0.05` for finetuning.
+- Training logs relation loss, accuracy, macro F1, target distribution, and prediction distribution for both train and
+  validation splits.
+
 ### Phase 5: Gated Plan Encoder
+
+Status: implemented as gated residual fusion.
 
 - Add harmonic-plan encoder.
 - Add gated cross-attention or gated residual fusion.
@@ -857,6 +878,14 @@ Acceptance:
 
 - Gate is neither always zero nor always one.
 - Generation metrics improve plan adherence or closure without degrading rhythm and melodic diagnostics.
+
+Implementation notes:
+
+- `conditioning.harmony.fusion` supports `additive` and `gated_residual`.
+- `gated_residual` embeds the aligned plan fields, applies plan-field dropout, encodes the per-step sequence with a
+  small Transformer encoder, and adds `harmony_adherence_alpha * sigmoid(gate) * plan_context` to token embeddings.
+- The relation head is attached to the decoded states when harmony conditioning is enabled.
+- Training logs `harmony_gate_mean`; gate regularization remains deferred until the metric shows collapse.
 
 ### Phase 6: Reconstruction And Contrastive Objectives
 

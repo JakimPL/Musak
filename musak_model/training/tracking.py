@@ -6,6 +6,7 @@ from typing import Final, Protocol, Self
 
 from pydantic import BaseModel
 
+from musak_model.conditioning.harmony.relations import HarmonicRelationId
 from musak_model.mlflow import MlflowRun, MlflowRunConfig, flatten_params, write_mlflow_run_id
 from musak_model.model.config import ModelConfig
 from musak_model.processing.fingerprint import encoded_samples_fingerprint
@@ -326,10 +327,44 @@ def _format_run_name_number(value: float) -> str:
 
 
 def _epoch_metric_values(metrics: EpochMetrics) -> dict[str, float]:
-    return {
+    values = {
         metric_name: value
         for field_name, metric_name in _EPOCH_METRIC_NAME_MAP.items()
         if isinstance((value := getattr(metrics, field_name)), float)
+    }
+    values.update(_harmonic_relation_distribution_metric_values(metrics))
+    return values
+
+
+def _harmonic_relation_distribution_metric_values(metrics: EpochMetrics) -> dict[str, float]:
+    values: dict[str, float] = {}
+    for split_name in ("train", "validation"):
+        target_distribution = getattr(metrics, f"{split_name}_harmonic_relation_target_distribution")
+        prediction_distribution = getattr(metrics, f"{split_name}_harmonic_relation_prediction_distribution")
+        values.update(
+            _named_distribution_metrics(
+                target_distribution,
+                metric_prefix=f"model/{split_name}/distribution/harmonic_relation/target",
+            )
+        )
+        values.update(
+            _named_distribution_metrics(
+                prediction_distribution,
+                metric_prefix=f"model/{split_name}/distribution/harmonic_relation/prediction",
+            )
+        )
+
+    return values
+
+
+def _named_distribution_metrics(distribution: tuple[float, ...] | None, *, metric_prefix: str) -> dict[str, float]:
+    if distribution is None:
+        return {}
+
+    return {
+        f"{metric_prefix}/{relation_id.name.lower()}": distribution[int(relation_id)]
+        for relation_id in HarmonicRelationId
+        if int(relation_id) < len(distribution)
     }
 
 
@@ -374,6 +409,10 @@ _EPOCH_METRIC_NAME_MAP: Final[dict[str, str]] = {
     "train_bar_dotted_duration_accuracy": "model/train/rate/bar_dotted_duration_accuracy",
     "train_bar_hand_span_loss": "model/train/mean/bar_hand_span_loss",
     "train_bar_hand_span_accuracy": "model/train/rate/bar_hand_span_accuracy",
+    "train_harmonic_relation_loss": "model/train/mean/harmonic_relation_loss",
+    "train_harmonic_relation_accuracy": "model/train/rate/harmonic_relation_accuracy",
+    "train_harmonic_relation_macro_f1": "model/train/rate/harmonic_relation_macro_f1",
+    "train_harmony_gate_mean": "model/train/mean/harmony_gate",
     "train_validity_penalty_loss": "model/train/mean/validity_penalty_loss",
     "train_invalid_probability_mass": "model/train/mean/invalid_probability_mass",
     "train_invalid_target_rate": "model/train/rate/invalid_target",
@@ -420,6 +459,10 @@ _EPOCH_METRIC_NAME_MAP: Final[dict[str, str]] = {
     "validation_bar_dotted_duration_accuracy": "model/validation/rate/bar_dotted_duration_accuracy",
     "validation_bar_hand_span_loss": "model/validation/mean/bar_hand_span_loss",
     "validation_bar_hand_span_accuracy": "model/validation/rate/bar_hand_span_accuracy",
+    "validation_harmonic_relation_loss": "model/validation/mean/harmonic_relation_loss",
+    "validation_harmonic_relation_accuracy": "model/validation/rate/harmonic_relation_accuracy",
+    "validation_harmonic_relation_macro_f1": "model/validation/rate/harmonic_relation_macro_f1",
+    "validation_harmony_gate_mean": "model/validation/mean/harmony_gate",
     "validation_validity_penalty_loss": "model/validation/mean/validity_penalty_loss",
     "validation_invalid_probability_mass": "model/validation/mean/invalid_probability_mass",
     "validation_invalid_target_rate": "model/validation/rate/invalid_target",

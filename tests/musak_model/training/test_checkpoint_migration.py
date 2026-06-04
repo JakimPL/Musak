@@ -6,7 +6,12 @@ import torch
 from torch.optim import AdamW
 
 from musak_model.auxiliary.config import MusicalAuxiliaryTargetConfig
-from musak_model.conditioning.config import ConditioningConfig, DifficultyConfig, HarmonicConditioningConfig
+from musak_model.conditioning.config import (
+    ConditioningConfig,
+    DifficultyConfig,
+    HarmonicConditioningConfig,
+    HarmonicFusionMode,
+)
 from musak_model.conditioning.time_signature import TimeSignatureVocabularyConfig
 from musak_model.model import HierarchicalAutoregressiveModel
 from musak_model.model.config import (
@@ -63,9 +68,22 @@ def _small_model_config() -> ModelConfig:
         conditioning=ConditioningConfig(
             difficulty=DifficultyConfig(max_level=5),
             time_signature=TimeSignatureVocabularyConfig(max_denominator=4, relative_numerator_range=2),
-            harmony=HarmonicConditioningConfig(enabled=False),
+            harmony=_harmony_config(enabled=False),
             cfg_dropout_probability=0.0,
         ),
+    )
+
+
+def _harmony_config(*, enabled: bool) -> HarmonicConditioningConfig:
+    return HarmonicConditioningConfig(
+        enabled=enabled,
+        fusion=HarmonicFusionMode.GATED_RESIDUAL,
+        plan_encoder_layers=1,
+        plan_encoder_heads=2,
+        plan_encoder_dropout=0.0,
+        gate_init_bias=-1.5,
+        harmony_adherence_alpha=1.0,
+        plan_field_dropout=0.0,
     )
 
 

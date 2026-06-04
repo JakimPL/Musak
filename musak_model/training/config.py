@@ -54,6 +54,24 @@ class MusicalAuxiliaryObjectiveConfig(BaseModel):
     hand_span_weight: float = Field(ge=0.0)
 
 
+class HarmonicRelationObjectiveConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    enabled: bool
+    weight: float = Field(ge=0.0)
+    downbeat_weight: float = Field(ge=0.0)
+    strong_beat_weight: float = Field(ge=0.0)
+    weak_beat_weight: float = Field(ge=0.0)
+    left_hand_weight: float = Field(ge=0.0)
+    right_hand_weight: float = Field(ge=0.0)
+    opening_weight: float = Field(ge=0.0)
+    continuation_weight: float = Field(ge=0.0)
+    cadence_preparation_weight: float = Field(ge=0.0)
+    cadence_weight: float = Field(ge=0.0)
+    use_plan_confidence_weight: bool
+    minimum_plan_confidence_weight: float = Field(ge=0.0, le=1.0)
+
+
 class EarlyStoppingConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -155,6 +173,7 @@ class TrainingConfig(BaseModel):
     event_objective: EventObjectiveConfig
     musical_auxiliary_targets: MusicalAuxiliaryTargetConfig
     musical_auxiliary_objective: MusicalAuxiliaryObjectiveConfig
+    harmonic_relation_objective: HarmonicRelationObjectiveConfig
     early_stopping: EarlyStoppingConfig
     runtime: RuntimeConfig
     conditioning: TrainingConditioningConfig

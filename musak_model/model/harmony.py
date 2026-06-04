@@ -1,9 +1,11 @@
+from dataclasses import dataclass
 from typing import cast
 
 import torch
 import torch.nn as nn
 from torch import Tensor
 
+from musak_model.conditioning.config import HarmonicConditioningConfig, HarmonicFusionMode
 from musak_model.conditioning.harmony.fields import (
     HARMONIC_PLAN_TENSOR_FIELDS,
     HarmonicPlanTensorField,
@@ -11,6 +13,86 @@ from musak_model.conditioning.harmony.fields import (
 )
 from musak_model.conditioning.harmony.schema import HarmonicPlanInputTensors
 from musak_model.conditioning.harmony.vocabulary import HARMONIC_PLAN_UNKNOWN_ID
+
+
+@dataclass(frozen=True)
+class HarmonicPlanConditioningOutput:
+    embedding_delta: Tensor
+    gate_values: Tensor | None = None
+
+
+class HarmonicPlanConditioning(nn.Module):
+    def __init__(
+        self,
+        config: HarmonicConditioningConfig,
+        *,
+        hidden_size: int,
+    ) -> None:
+        super().__init__()
+        self._config = config
+        self._hidden_size = hidden_size
+        self._embeddings = HarmonicPlanEmbeddings(hidden_size=hidden_size)
+        self._field_dropout = nn.Dropout(config.plan_field_dropout)
+        self._plan_encoder: nn.TransformerEncoder | None = None
+        self._gate: nn.Linear | None = None
+        if config.fusion == HarmonicFusionMode.GATED_RESIDUAL:
+            encoder_layer = nn.TransformerEncoderLayer(
+                d_model=hidden_size,
+                nhead=config.plan_encoder_heads,
+                dim_feedforward=hidden_size * 4,
+                dropout=config.plan_encoder_dropout,
+                batch_first=True,
+            )
+            self._plan_encoder = nn.TransformerEncoder(encoder_layer, num_layers=config.plan_encoder_layers)
+            self._gate = nn.Linear(hidden_size * 2, hidden_size)
+            nn.init.constant_(self._gate.bias, config.gate_init_bias)
+
+    def forward(
+        self,
+        harmonic_plan: HarmonicPlanInputTensors | None,
+        *,
+        token_embeddings: Tensor,
+        token_ids: Tensor,
+        token_padding_mask: Tensor | None,
+    ) -> HarmonicPlanConditioningOutput:
+        plan_embeddings = self._embeddings(
+            harmonic_plan,
+            token_ids=token_ids,
+            dtype=token_embeddings.dtype,
+        )
+        if harmonic_plan is None:
+            return HarmonicPlanConditioningOutput(embedding_delta=plan_embeddings)
+
+        plan_embeddings = self._field_dropout(plan_embeddings)
+        match self._config.fusion:
+            case HarmonicFusionMode.ADDITIVE:
+                return HarmonicPlanConditioningOutput(embedding_delta=plan_embeddings)
+            case HarmonicFusionMode.GATED_RESIDUAL:
+                return self._gated_residual_output(
+                    plan_embeddings,
+                    token_embeddings=token_embeddings,
+                    token_padding_mask=token_padding_mask,
+                )
+
+    def _gated_residual_output(
+        self,
+        plan_embeddings: Tensor,
+        *,
+        token_embeddings: Tensor,
+        token_padding_mask: Tensor | None,
+    ) -> HarmonicPlanConditioningOutput:
+        if self._plan_encoder is None or self._gate is None:
+            raise ValueError("gated harmonic fusion requires a plan encoder and gate")
+
+        plan_context = self._plan_encoder(
+            plan_embeddings,
+            src_key_padding_mask=token_padding_mask,
+        )
+        gate_values = torch.sigmoid(self._gate(torch.cat((token_embeddings, plan_embeddings), dim=-1)))
+        return HarmonicPlanConditioningOutput(
+            embedding_delta=self._config.harmony_adherence_alpha * gate_values * plan_context,
+            gate_values=gate_values,
+        )
 
 
 class HarmonicPlanEmbeddings(nn.Module):

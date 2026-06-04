@@ -14,6 +14,7 @@ from musak_model.training.config import (
     FinetuningCheckpointConfig,
     FinetuningTrainingConfig,
     GenerationEvaluationConfig,
+    HarmonicRelationObjectiveConfig,
     MlflowConfig,
     MusicalAuxiliaryObjectiveConfig,
     OptimizationConfig,
@@ -66,6 +67,7 @@ def _training_config(checkpoint_directory: Path, *, epochs: int = 25) -> Trainin
         event_objective=_event_objective_config(),
         musical_auxiliary_targets=_musical_auxiliary_target_config(),
         musical_auxiliary_objective=_musical_auxiliary_objective_config(),
+        harmonic_relation_objective=_harmonic_relation_objective_config(),
         early_stopping=_early_stopping_config(),
         runtime=RuntimeConfig(num_workers=2, device="cuda"),
         checkpoints=CheckpointConfig(checkpoint_directory=checkpoint_directory),
@@ -86,6 +88,7 @@ def _finetuning_config(
         event_objective=_event_objective_config(),
         musical_auxiliary_targets=_musical_auxiliary_target_config(),
         musical_auxiliary_objective=_musical_auxiliary_objective_config(),
+        harmonic_relation_objective=_harmonic_relation_objective_config(),
         early_stopping=_early_stopping_config(),
         runtime=RuntimeConfig(num_workers=4, device="cuda"),
         checkpoints=FinetuningCheckpointConfig(
@@ -137,6 +140,24 @@ def _musical_auxiliary_objective_config() -> MusicalAuxiliaryObjectiveConfig:
         uses_accidentals_weight=1.0,
         dotted_duration_weight=1.0,
         hand_span_weight=1.0,
+    )
+
+
+def _harmonic_relation_objective_config() -> HarmonicRelationObjectiveConfig:
+    return HarmonicRelationObjectiveConfig(
+        enabled=True,
+        weight=0.03,
+        downbeat_weight=1.5,
+        strong_beat_weight=1.2,
+        weak_beat_weight=0.7,
+        left_hand_weight=1.2,
+        right_hand_weight=1.0,
+        opening_weight=1.0,
+        continuation_weight=1.0,
+        cadence_preparation_weight=1.2,
+        cadence_weight=1.5,
+        use_plan_confidence_weight=True,
+        minimum_plan_confidence_weight=0.5,
     )
 
 

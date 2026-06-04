@@ -7,7 +7,12 @@ import torch
 from torch import Tensor
 
 from musak_model.auxiliary.config import MusicalAuxiliaryTargetConfig
-from musak_model.conditioning.config import ConditioningConfig, DifficultyConfig, HarmonicConditioningConfig
+from musak_model.conditioning.config import (
+    ConditioningConfig,
+    DifficultyConfig,
+    HarmonicConditioningConfig,
+    HarmonicFusionMode,
+)
 from musak_model.conditioning.harmony.schema import HarmonicPlanInputTensors
 from musak_model.conditioning.time_signature import TimeSignatureVocabularyConfig
 from musak_model.evaluation.generation import GenerationSuiteEvaluator
@@ -435,7 +440,20 @@ def _model_config(vocabulary_size: int, *, harmony_enabled: bool = False) -> Mod
         conditioning=ConditioningConfig(
             difficulty=DifficultyConfig(max_level=5),
             time_signature=TimeSignatureVocabularyConfig(max_denominator=4, relative_numerator_range=2),
-            harmony=HarmonicConditioningConfig(enabled=harmony_enabled),
+            harmony=_harmony_config(enabled=harmony_enabled),
             cfg_dropout_probability=0.0,
         ),
+    )
+
+
+def _harmony_config(*, enabled: bool) -> HarmonicConditioningConfig:
+    return HarmonicConditioningConfig(
+        enabled=enabled,
+        fusion=HarmonicFusionMode.GATED_RESIDUAL,
+        plan_encoder_layers=1,
+        plan_encoder_heads=2,
+        plan_encoder_dropout=0.0,
+        gate_init_bias=-1.5,
+        harmony_adherence_alpha=1.0,
+        plan_field_dropout=0.0,
     )

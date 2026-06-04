@@ -4,6 +4,10 @@ import torch
 from torch import Tensor
 
 from musak_model.auxiliary.targets import stack_musical_auxiliary_targets
+from musak_model.conditioning.harmony.relations import (
+    HARMONIC_RELATION_IGNORE_ID,
+    HarmonicRelationTargetTensors,
+)
 from musak_model.conditioning.harmony.schema import HarmonicPlanInputTensors
 from musak_model.conditioning.harmony.tensors import pad_harmonic_plan_input_tensors
 from musak_model.training.dataset.factorized import pad_token_attribute_targets
@@ -79,6 +83,7 @@ def collate_training_examples(examples: list[TrainingExample]) -> TrainingBatch:
         bar_duration_ticks=bar_duration_ticks,
         active_hand_ids=active_hand_ids,
         harmonic_plan=_collate_harmonic_plan(examples, max_length=max_length),
+        harmonic_relation_targets=_collate_harmonic_relation_targets(examples, max_length=max_length),
         structural_control_ids=structural_control_ids,
         scale_roots=scale_roots,
         scale_type_ids=scale_type_ids,
@@ -109,6 +114,33 @@ def _collate_harmonic_plan(
         [plan for plan in plans if plan is not None],
         max_length=max_length,
     )
+
+
+def _collate_harmonic_relation_targets(
+    examples: list[TrainingExample],
+    *,
+    max_length: int,
+) -> HarmonicRelationTargetTensors | None:
+    targets = [example.harmonic_relation_targets for example in examples]
+    if all(target is None for target in targets):
+        return None
+
+    if any(target is None for target in targets):
+        raise ValueError("all examples must include harmonic relation targets when any example includes them")
+
+    present_targets = [target for target in targets if target is not None]
+    output = torch.full((len(examples), max_length), HARMONIC_RELATION_IGNORE_ID, dtype=torch.long)
+    for row_index, target in enumerate(present_targets):
+        if target.relation_ids.ndim != 1:
+            raise ValueError("harmonic relation targets must be 1D tensors")
+
+        length = target.relation_ids.size(0)
+        if length > max_length:
+            raise ValueError(f"harmonic relation target length exceeds max_length={max_length}")
+
+        output[row_index, :length] = target.relation_ids.to(dtype=torch.long)
+
+    return HarmonicRelationTargetTensors(relation_ids=output)
 
 
 def _optional_tensor(values: list[int | None]) -> Tensor | None:

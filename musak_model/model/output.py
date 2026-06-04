@@ -24,6 +24,8 @@ class ModelTrainingLogits:
     flat_logits: Tensor
     musical_auxiliary_logits: MusicalAuxiliaryLogits
     factorized_logits: FactorizedTokenLogits | None = None
+    harmonic_relation_logits: Tensor | None = None
+    harmony_gate_values: Tensor | None = None
 
 
 @dataclass(frozen=True)

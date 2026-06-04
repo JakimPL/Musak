@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from musak_model.conditioning.config import ConditioningConfig
+from musak_model.conditioning.config import ConditioningConfig, HarmonicFusionMode
 
 
 def test_conditioning_config_loads_yaml_and_derives_vocab_sizes(tmp_path: Path) -> None:
@@ -17,6 +17,13 @@ def test_conditioning_config_loads_yaml_and_derives_vocab_sizes(tmp_path: Path) 
                 "  relative_numerator_range: 2",
                 "harmony:",
                 "  enabled: true",
+                "  fusion: gated_residual",
+                "  plan_encoder_layers: 2",
+                "  plan_encoder_heads: 4",
+                "  plan_encoder_dropout: 0.1",
+                "  gate_init_bias: -1.5",
+                "  harmony_adherence_alpha: 1.0",
+                "  plan_field_dropout: 0.15",
                 "cfg_dropout_probability: 0.1",
             ]
         )
@@ -28,6 +35,7 @@ def test_conditioning_config_loads_yaml_and_derives_vocab_sizes(tmp_path: Path) 
     assert config.num_scale_types == 3
     assert config.num_time_signatures == 11
     assert config.harmony.enabled is True
+    assert config.harmony.fusion == HarmonicFusionMode.GATED_RESIDUAL
 
 
 def test_conditioning_config_requires_semantic_fields() -> None:
@@ -35,7 +43,7 @@ def test_conditioning_config_requires_semantic_fields() -> None:
         ConditioningConfig.model_validate(
             {
                 "time_signature": {"max_denominator": 4, "relative_numerator_range": 2},
-                "harmony": {"enabled": True},
+                "harmony": _harmony_config(),
                 "cfg_dropout_probability": 0.1,
             }
         )
@@ -44,7 +52,7 @@ def test_conditioning_config_requires_semantic_fields() -> None:
         ConditioningConfig.model_validate(
             {
                 "difficulty": {"max_level": 5},
-                "harmony": {"enabled": True},
+                "harmony": _harmony_config(),
                 "cfg_dropout_probability": 0.1,
             }
         )
@@ -65,8 +73,21 @@ def test_conditioning_config_rejects_derived_scalar_fields() -> None:
             {
                 "difficulty": {"max_level": 5},
                 "time_signature": {"max_denominator": 4, "relative_numerator_range": 2},
-                "harmony": {"enabled": True},
+                "harmony": _harmony_config(),
                 "num_time_signatures": 11,
                 "cfg_dropout_probability": 0.1,
             }
         )
+
+
+def _harmony_config() -> dict[str, object]:
+    return {
+        "enabled": True,
+        "fusion": "gated_residual",
+        "plan_encoder_layers": 2,
+        "plan_encoder_heads": 4,
+        "plan_encoder_dropout": 0.1,
+        "gate_init_bias": -1.5,
+        "harmony_adherence_alpha": 1.0,
+        "plan_field_dropout": 0.15,
+    }

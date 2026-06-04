@@ -195,8 +195,21 @@ same slot-role, distance-to-end, cadence, tension, and confidence fields used by
 the teacher-forcing input cursor, pads it with unknown IDs during collation, moves it with the batch, and passes it
 into the model. `remaining_bars` is derived from the decoder cursor and the requested bar count; `remaining_harmonic_slots`
 is derived from the active plan window's distance to the end of the harmonic horizon. The model has a separate
-architectural `conditioning.harmony.enabled` flag; when enabled, all registered harmonic-plan field embeddings are
-added to token embeddings as per-step context. The event objective is unchanged.
+architectural `conditioning.harmony.enabled` flag. Harmony fusion is controlled by `conditioning.harmony.fusion`:
+`additive` keeps the Phase 3 baseline where registered harmonic-plan field embeddings are added directly to token
+embeddings, while `gated_residual` encodes the aligned per-step plan embeddings with a small Transformer encoder and
+adds them through a learned sigmoid gate. The gate is initialized with a negative bias so the plan path starts softly,
+and `harmony_adherence_alpha` scales the residual contribution without turning harmony into a hard legality rule. The
+event objective is unchanged.
+
+When harmony conditioning is enabled, training examples also carry optional `HarmonicRelationTargetTensors`.
+Relation targets are derived from the target note token and the active aligned plan window; non-note targets and
+positions without a known window are ignored. The current relation classes are chord root, third, fifth, seventh,
+diatonic non-chord, chromatic neighbor, and other chromatic. The model predicts these classes from decoder states
+through an auxiliary relation head. The relation loss is weighted by beat strength, active hand, harmonic slot role,
+and optional plan-confidence buckets, then added with `harmonic_relation_objective.weight`. Training logs relation
+loss, accuracy, macro F1, target/prediction relation distributions, and mean harmony-gate activation for both train
+and validation splits.
 
 Generation supplies a harmonic plan when both `TrainingConditioningConfig.use_harmony_conditioning` and
 `conditioning.harmony.enabled` are true. The current provider builds a finite-horizon harmonic plan over the full

@@ -4,6 +4,7 @@ from fractions import Fraction
 from torch import Tensor
 
 from musak_model.auxiliary.schema import MusicalAuxiliaryTargetTensors
+from musak_model.conditioning.harmony.relations import HarmonicRelationTargetTensors
 from musak_model.conditioning.harmony.schema import HarmonicPlanInputTensors
 from musak_model.training.dataset.factorized import TokenAttributeTargetTensors
 
@@ -20,6 +21,7 @@ class TrainingExample:
     bar_duration_ticks: Tensor
     active_hand_ids: Tensor
     harmonic_plan: HarmonicPlanInputTensors | None
+    harmonic_relation_targets: HarmonicRelationTargetTensors | None
     structural_control_ids: Tensor
     scale_root: int
     scale_type_id: int
@@ -44,6 +46,7 @@ class TrainingBatch:
     bar_duration_ticks: Tensor
     active_hand_ids: Tensor
     harmonic_plan: HarmonicPlanInputTensors | None
+    harmonic_relation_targets: HarmonicRelationTargetTensors | None
     structural_control_ids: Tensor
     scale_roots: Tensor
     scale_type_ids: Tensor

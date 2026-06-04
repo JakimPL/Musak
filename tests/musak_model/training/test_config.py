@@ -11,6 +11,7 @@ from musak_model.training.config import (
     EarlyStoppingConfig,
     EventObjectiveConfig,
     GenerationEvaluationConfig,
+    HarmonicRelationObjectiveConfig,
     MusicalAuxiliaryObjectiveConfig,
     OptimizationConfig,
     RuntimeConfig,
@@ -80,6 +81,24 @@ def _musical_auxiliary_objective_config() -> MusicalAuxiliaryObjectiveConfig:
     )
 
 
+def _harmonic_relation_objective_config() -> HarmonicRelationObjectiveConfig:
+    return HarmonicRelationObjectiveConfig(
+        enabled=True,
+        weight=0.03,
+        downbeat_weight=1.5,
+        strong_beat_weight=1.2,
+        weak_beat_weight=0.7,
+        left_hand_weight=1.2,
+        right_hand_weight=1.0,
+        opening_weight=1.0,
+        continuation_weight=1.0,
+        cadence_preparation_weight=1.2,
+        cadence_weight=1.5,
+        use_plan_confidence_weight=True,
+        minimum_plan_confidence_weight=0.5,
+    )
+
+
 def _musical_auxiliary_target_config() -> MusicalAuxiliaryTargetConfig:
     return MusicalAuxiliaryTargetConfig(
         note_density_bucket_boundaries=(0.25, 0.5, 0.75, 1.0, 1.5, 2.0),
@@ -99,6 +118,7 @@ def test_training_config_accepts_nested_constructor() -> None:
         event_objective=_event_objective_config(),
         musical_auxiliary_targets=_musical_auxiliary_target_config(),
         musical_auxiliary_objective=_musical_auxiliary_objective_config(),
+        harmonic_relation_objective=_harmonic_relation_objective_config(),
         early_stopping=_early_stopping_config(),
         runtime=RuntimeConfig(num_workers=0, device="cpu"),
         conditioning=_conditioning_config(),
@@ -132,6 +152,7 @@ def test_training_config_rejects_old_conditioning_field() -> None:
             event_objective=_event_objective_config(),
             musical_auxiliary_targets=_musical_auxiliary_target_config(),
             musical_auxiliary_objective=_musical_auxiliary_objective_config(),
+            harmonic_relation_objective=_harmonic_relation_objective_config(),
             early_stopping=_early_stopping_config(),
             runtime=RuntimeConfig(num_workers=1, device="cpu"),
             checkpoints=CheckpointConfig(checkpoint_directory=Path("checkpoints")),

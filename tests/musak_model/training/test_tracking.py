@@ -6,7 +6,12 @@ from typing import Any
 import pytest
 
 from musak_model.auxiliary.config import MusicalAuxiliaryTargetConfig
-from musak_model.conditioning.config import ConditioningConfig, DifficultyConfig, HarmonicConditioningConfig
+from musak_model.conditioning.config import (
+    ConditioningConfig,
+    DifficultyConfig,
+    HarmonicConditioningConfig,
+    HarmonicFusionMode,
+)
 from musak_model.conditioning.time_signature import TimeSignatureVocabularyConfig
 from musak_model.data.schema import SegmentMetadata
 from musak_model.data.tokenization_context import tokenization_context_from_scale
@@ -27,6 +32,7 @@ from musak_model.training.config import (
     EarlyStoppingConfig,
     EventObjectiveConfig,
     GenerationEvaluationConfig,
+    HarmonicRelationObjectiveConfig,
     MlflowConfig,
     MusicalAuxiliaryObjectiveConfig,
     OptimizationConfig,
@@ -111,6 +117,7 @@ def _training_config(
         event_objective=_event_objective_config(),
         musical_auxiliary_targets=_musical_auxiliary_target_config(),
         musical_auxiliary_objective=_musical_auxiliary_objective_config(),
+        harmonic_relation_objective=_harmonic_relation_objective_config(),
         early_stopping=EarlyStoppingConfig(enabled=False, patience_epochs=10, min_delta=0.0),
         runtime=RuntimeConfig(num_workers=1, device="cpu"),
         conditioning=TrainingConditioningConfig(
@@ -184,7 +191,7 @@ def _model_config() -> ModelConfig:
         conditioning=ConditioningConfig(
             difficulty=DifficultyConfig(max_level=5),
             time_signature=TimeSignatureVocabularyConfig(max_denominator=4, relative_numerator_range=2),
-            harmony=HarmonicConditioningConfig(enabled=False),
+            harmony=_harmony_config(enabled=False),
             cfg_dropout_probability=0.0,
         ),
     )
@@ -202,6 +209,19 @@ def _event_objective_config() -> EventObjectiveConfig:
     )
 
 
+def _harmony_config(*, enabled: bool) -> HarmonicConditioningConfig:
+    return HarmonicConditioningConfig(
+        enabled=enabled,
+        fusion=HarmonicFusionMode.GATED_RESIDUAL,
+        plan_encoder_layers=1,
+        plan_encoder_heads=2,
+        plan_encoder_dropout=0.0,
+        gate_init_bias=-1.5,
+        harmony_adherence_alpha=1.0,
+        plan_field_dropout=0.0,
+    )
+
+
 def _musical_auxiliary_objective_config() -> MusicalAuxiliaryObjectiveConfig:
     return MusicalAuxiliaryObjectiveConfig(
         enabled=True,
@@ -213,6 +233,24 @@ def _musical_auxiliary_objective_config() -> MusicalAuxiliaryObjectiveConfig:
         uses_accidentals_weight=1.0,
         dotted_duration_weight=1.0,
         hand_span_weight=1.0,
+    )
+
+
+def _harmonic_relation_objective_config() -> HarmonicRelationObjectiveConfig:
+    return HarmonicRelationObjectiveConfig(
+        enabled=True,
+        weight=0.03,
+        downbeat_weight=1.5,
+        strong_beat_weight=1.2,
+        weak_beat_weight=0.7,
+        left_hand_weight=1.2,
+        right_hand_weight=1.0,
+        opening_weight=1.0,
+        continuation_weight=1.0,
+        cadence_preparation_weight=1.2,
+        cadence_weight=1.5,
+        use_plan_confidence_weight=True,
+        minimum_plan_confidence_weight=0.5,
     )
 
 
@@ -281,6 +319,8 @@ def test_mlflow_tracker_logs_setup_metrics_artifacts_and_invalid_files(
                 train_musical_auxiliary_loss=2.5,
                 train_note_density_accuracy=0.8,
                 train_bar_note_density_accuracy=0.7,
+                train_harmonic_relation_target_distribution=(0.5, 0.5, 0.0, 0.0, 0.0, 0.0, 0.0),
+                train_harmonic_relation_prediction_distribution=(0.25, 0.75, 0.0, 0.0, 0.0, 0.0, 0.0),
                 train_cnn_gradient_norm=0.1,
                 train_gru_gradient_norm=0.2,
                 train_transformer_gradient_norm=0.3,
@@ -312,6 +352,8 @@ def test_mlflow_tracker_logs_setup_metrics_artifacts_and_invalid_files(
     assert ("model/train/mean/musical_auxiliary_loss", 2.5, 3) in fake_mlflow.metrics
     assert ("model/train/rate/note_density_accuracy", 0.8, 3) in fake_mlflow.metrics
     assert ("model/train/rate/bar_note_density_accuracy", 0.7, 3) in fake_mlflow.metrics
+    assert ("model/train/distribution/harmonic_relation/target/chord_root", 0.5, 3) in fake_mlflow.metrics
+    assert ("model/train/distribution/harmonic_relation/prediction/chord_third", 0.75, 3) in fake_mlflow.metrics
     assert ("model/train/mean/cnn_gradient_norm", 0.1, 3) in fake_mlflow.metrics
     assert ("model/train/mean/gru_gradient_norm", 0.2, 3) in fake_mlflow.metrics
     assert ("model/train/mean/transformer_gradient_norm", 0.3, 3) in fake_mlflow.metrics

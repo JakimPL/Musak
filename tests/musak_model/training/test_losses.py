@@ -1,6 +1,8 @@
 from typing import Final
 
 import torch
+import torch.nn.functional as functional
+from pytest import approx
 
 from musak_model.auxiliary.schema import (
     MUSICAL_AUXILIARY_TARGET_IGNORE_ID,
@@ -9,6 +11,15 @@ from musak_model.auxiliary.schema import (
     MusicalBarAuxiliaryLogits,
     MusicalBarAuxiliaryTargetTensors,
 )
+from musak_model.conditioning.harmony.fields import HARMONIC_PLAN_TENSOR_FIELDS
+from musak_model.conditioning.harmony.relations import (
+    HARMONIC_RELATION_CLASS_COUNT,
+    HARMONIC_RELATION_IGNORE_ID,
+    HarmonicRelationId,
+    HarmonicRelationTargetTensors,
+)
+from musak_model.conditioning.harmony.schema import HarmonicPlanInputTensors, HarmonicSlotRole
+from musak_model.conditioning.harmony.vocabulary import plan_confidence_to_id, slot_role_to_id
 from musak_model.model.config import ModelOutputMode
 from musak_model.model.output import FactorizedTokenLogits
 from musak_model.tokens.factorized import (
@@ -18,10 +29,16 @@ from musak_model.tokens.factorized import (
     HAND_ATTRIBUTE_COUNT,
     OCTAVE_OFFSET_ATTRIBUTE_COUNT,
     TOKEN_KIND_COUNT,
+    hand_to_attribute_id,
 )
-from musak_model.training.config import EventObjectiveConfig, MusicalAuxiliaryObjectiveConfig
+from musak_model.tokens.schema import Hand
+from musak_model.training.config import (
+    EventObjectiveConfig,
+    HarmonicRelationObjectiveConfig,
+    MusicalAuxiliaryObjectiveConfig,
+)
 from musak_model.training.dataset.factorized import TokenAttributeTargetTensors
-from musak_model.training.losses import factorized_event_loss, musical_auxiliary_loss
+from musak_model.training.losses import factorized_event_loss, harmonic_relation_loss, musical_auxiliary_loss
 
 DURATION_ATTRIBUTE_COUNT: Final[int] = 4
 
@@ -50,6 +67,32 @@ def _auxiliary_objective_config() -> MusicalAuxiliaryObjectiveConfig:
         dotted_duration_weight=1.0,
         hand_span_weight=1.0,
     )
+
+
+def _harmonic_relation_objective_config() -> HarmonicRelationObjectiveConfig:
+    return HarmonicRelationObjectiveConfig(
+        enabled=True,
+        weight=0.03,
+        downbeat_weight=2.0,
+        strong_beat_weight=1.0,
+        weak_beat_weight=0.5,
+        left_hand_weight=1.0,
+        right_hand_weight=1.0,
+        opening_weight=1.0,
+        continuation_weight=1.0,
+        cadence_preparation_weight=1.0,
+        cadence_weight=3.0,
+        use_plan_confidence_weight=True,
+        minimum_plan_confidence_weight=0.5,
+    )
+
+
+def _harmonic_plan(slot_role_ids: torch.Tensor, plan_confidence_ids: torch.Tensor) -> HarmonicPlanInputTensors:
+    ids = torch.zeros_like(slot_role_ids)
+    values = {field.name: ids for field in HARMONIC_PLAN_TENSOR_FIELDS}
+    values["slot_role_ids"] = slot_role_ids
+    values["plan_confidence_ids"] = plan_confidence_ids
+    return HarmonicPlanInputTensors(**values)
 
 
 def test_factorized_event_loss_masks_inactive_attribute_targets() -> None:
@@ -128,3 +171,82 @@ def test_musical_auxiliary_loss_masks_missing_targets_and_counts_matches() -> No
     assert loss.bar_rhythmic_diversity_target_count == 4
     assert loss.bar_rhythmic_diversity_match_count == 4
     assert loss.loss.item() > 0.0
+
+
+def test_harmonic_relation_loss_weights_active_note_targets() -> None:
+    logits = torch.tensor(
+        [
+            [
+                [3.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                [0.0, 0.5, 2.5, 0.0, 0.0, 0.0, 0.0],
+                [0.0, 0.0, 3.0, 0.0, 0.0, 0.0, 0.0],
+                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            ]
+        ]
+    )
+    targets = HarmonicRelationTargetTensors(
+        relation_ids=torch.tensor(
+            [
+                [
+                    HarmonicRelationId.CHORD_ROOT,
+                    HarmonicRelationId.CHORD_THIRD,
+                    HarmonicRelationId.CHORD_FIFTH,
+                    HARMONIC_RELATION_IGNORE_ID,
+                ]
+            ],
+            dtype=torch.long,
+        )
+    )
+    harmonic_plan = _harmonic_plan(
+        torch.tensor(
+            [
+                [
+                    slot_role_to_id(HarmonicSlotRole.OPENING),
+                    slot_role_to_id(HarmonicSlotRole.CADENCE),
+                    slot_role_to_id(HarmonicSlotRole.CONTINUATION),
+                    slot_role_to_id(HarmonicSlotRole.CADENCE),
+                ]
+            ],
+            dtype=torch.long,
+        ),
+        torch.tensor(
+            [
+                [
+                    plan_confidence_to_id(1.0),
+                    plan_confidence_to_id(1.0),
+                    plan_confidence_to_id(1.0),
+                    plan_confidence_to_id(1.0),
+                ]
+            ],
+            dtype=torch.long,
+        ),
+    )
+
+    loss = harmonic_relation_loss(
+        logits,
+        targets=targets,
+        harmonic_plan=harmonic_plan,
+        bar_relative_ticks=torch.tensor([[0, 2, 1, 0]]),
+        bar_duration_ticks=torch.tensor([[4, 4, 4, 4]]),
+        active_hand_ids=torch.tensor(
+            [
+                [
+                    hand_to_attribute_id(Hand.RIGHT),
+                    hand_to_attribute_id(Hand.LEFT),
+                    hand_to_attribute_id(Hand.RIGHT),
+                    hand_to_attribute_id(Hand.RIGHT),
+                ]
+            ]
+        ),
+        config=_harmonic_relation_objective_config(),
+    )
+
+    token_losses = functional.cross_entropy(logits[0, :3], targets.relation_ids[0, :3], reduction="none")
+    expected_weights = torch.tensor([2.0, 3.0, 0.5])
+    expected_loss = (token_losses * expected_weights).sum() / expected_weights.sum()
+    assert loss.loss.item() == approx(expected_loss.item())
+    assert loss.match_count == 2
+    assert loss.target_count == 3
+    assert loss.target_counts == (1, 1, 1, 0, 0, 0, 0)
+    assert loss.prediction_counts == (1, 0, 2, 0, 0, 0, 0)
+    assert len(loss.target_counts) == HARMONIC_RELATION_CLASS_COUNT

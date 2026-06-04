@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from math import exp
 
+from musak_model.conditioning.harmony.relations import HARMONIC_RELATION_CLASS_COUNT
 from musak_model.training.metrics.schema import BatchMetrics, EpochSplitMetrics
 
 
@@ -72,6 +73,14 @@ class MetricsAccumulator:
     bar_hand_span_loss_sum: float | None = None
     bar_hand_span_match_count: int | None = None
     bar_hand_span_target_count: int | None = None
+    harmonic_relation_loss_sum: float | None = None
+    harmonic_relation_match_count: int | None = None
+    harmonic_relation_target_count: int | None = None
+    harmonic_relation_macro_f1_sum: float | None = None
+    harmonic_relation_target_counts: list[int] | None = None
+    harmonic_relation_prediction_counts: list[int] | None = None
+    harmony_gate_mean_sum: float | None = None
+    harmony_gate_token_count: int | None = None
     validity_penalty_loss_sum: float | None = None
     invalid_probability_mass_sum: float | None = None
     invalid_target_count: int | None = None
@@ -294,6 +303,39 @@ class MetricsAccumulator:
             match_count=batch_metrics.bar_hand_span_match_count,
             target_count=batch_metrics.bar_hand_span_target_count,
         )
+        (
+            self.harmonic_relation_loss_sum,
+            self.harmonic_relation_match_count,
+            self.harmonic_relation_target_count,
+        ) = _add_optional_auxiliary_metric(
+            self.harmonic_relation_loss_sum,
+            self.harmonic_relation_match_count,
+            self.harmonic_relation_target_count,
+            value=batch_metrics.harmonic_relation_loss,
+            match_count=batch_metrics.harmonic_relation_match_count,
+            target_count=batch_metrics.harmonic_relation_target_count,
+        )
+        self.harmonic_relation_macro_f1_sum = _add_optional_weighted_metric(
+            self.harmonic_relation_macro_f1_sum,
+            value=batch_metrics.harmonic_relation_macro_f1,
+            weight=batch_metrics.harmonic_relation_target_count or 0,
+        )
+        self.harmonic_relation_target_counts = _add_optional_class_counts(
+            self.harmonic_relation_target_counts,
+            counts=batch_metrics.harmonic_relation_target_counts,
+            class_count=HARMONIC_RELATION_CLASS_COUNT,
+        )
+        self.harmonic_relation_prediction_counts = _add_optional_class_counts(
+            self.harmonic_relation_prediction_counts,
+            counts=batch_metrics.harmonic_relation_prediction_counts,
+            class_count=HARMONIC_RELATION_CLASS_COUNT,
+        )
+        self.harmony_gate_mean_sum, self.harmony_gate_token_count = _add_optional_weighted_loss(
+            self.harmony_gate_mean_sum,
+            self.harmony_gate_token_count,
+            value=batch_metrics.harmony_gate_mean,
+            target_count=batch_metrics.harmony_gate_token_count,
+        )
         if batch_metrics.validity_penalty_token_count is not None:
             if self.validity_penalty_token_count is None:
                 self.validity_penalty_token_count = 0
@@ -457,6 +499,24 @@ class MetricsAccumulator:
                 self.bar_hand_span_match_count,
                 target_count=self.bar_hand_span_target_count,
             ),
+            harmonic_relation_loss=_weighted_optional_average(
+                self.harmonic_relation_loss_sum,
+                weight=self.harmonic_relation_target_count,
+            ),
+            harmonic_relation_accuracy=_optional_rate(
+                self.harmonic_relation_match_count,
+                target_count=self.harmonic_relation_target_count,
+            ),
+            harmonic_relation_macro_f1=_weighted_optional_average(
+                self.harmonic_relation_macro_f1_sum,
+                weight=self.harmonic_relation_target_count,
+            ),
+            harmonic_relation_target_distribution=_optional_distribution(self.harmonic_relation_target_counts),
+            harmonic_relation_prediction_distribution=_optional_distribution(self.harmonic_relation_prediction_counts),
+            harmony_gate_mean=_weighted_optional_average(
+                self.harmony_gate_mean_sum,
+                weight=self.harmony_gate_token_count,
+            ),
             validity_penalty_loss=_optional_validity_average(
                 self.validity_penalty_loss_sum,
                 token_count=self.validity_penalty_token_count,
@@ -527,6 +587,36 @@ def _add_optional_auxiliary_metric(
         (current_match_count or 0) + match_count,
         (current_target_count or 0) + target_count,
     )
+
+
+def _add_optional_class_counts(
+    current_counts: list[int] | None,
+    *,
+    counts: tuple[int, ...] | None,
+    class_count: int,
+) -> list[int] | None:
+    if counts is None:
+        return current_counts
+
+    if len(counts) != class_count:
+        raise ValueError(f"class count vector must have length {class_count}")
+
+    output = current_counts or [0] * class_count
+    for class_index, count in enumerate(counts):
+        output[class_index] += count
+
+    return output
+
+
+def _optional_distribution(counts: list[int] | None) -> tuple[float, ...] | None:
+    if counts is None:
+        return None
+
+    total = sum(counts)
+    if total == 0:
+        return None
+
+    return tuple(count / total for count in counts)
 
 
 def _optional_rate(

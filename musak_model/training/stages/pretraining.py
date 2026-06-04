@@ -33,8 +33,10 @@ from musak_model.training.ingestion.schema import IngestionErrorRecord
 from musak_model.training.ingestion.split import build_split
 from musak_model.training.losses import (
     FactorizedEventLoss,
+    HarmonicRelationLoss,
     MusicalAuxiliaryLoss,
     factorized_event_loss,
+    harmonic_relation_loss,
     musical_auxiliary_loss,
 )
 from musak_model.training.metrics import (
@@ -240,6 +242,12 @@ class PretrainingTrainer:
             train_bar_dotted_duration_accuracy=train_metrics.bar_dotted_duration_accuracy,
             train_bar_hand_span_loss=train_metrics.bar_hand_span_loss,
             train_bar_hand_span_accuracy=train_metrics.bar_hand_span_accuracy,
+            train_harmonic_relation_loss=train_metrics.harmonic_relation_loss,
+            train_harmonic_relation_accuracy=train_metrics.harmonic_relation_accuracy,
+            train_harmonic_relation_macro_f1=train_metrics.harmonic_relation_macro_f1,
+            train_harmonic_relation_target_distribution=train_metrics.harmonic_relation_target_distribution,
+            train_harmonic_relation_prediction_distribution=train_metrics.harmonic_relation_prediction_distribution,
+            train_harmony_gate_mean=train_metrics.harmony_gate_mean,
             train_validity_penalty_loss=train_metrics.validity_penalty_loss,
             train_invalid_probability_mass=train_metrics.invalid_probability_mass,
             train_invalid_target_rate=train_metrics.invalid_target_rate,
@@ -343,6 +351,24 @@ class PretrainingTrainer:
             ),
             validation_bar_hand_span_accuracy=(
                 validation_metrics.bar_hand_span_accuracy if validation_metrics is not None else None
+            ),
+            validation_harmonic_relation_loss=(
+                validation_metrics.harmonic_relation_loss if validation_metrics is not None else None
+            ),
+            validation_harmonic_relation_accuracy=(
+                validation_metrics.harmonic_relation_accuracy if validation_metrics is not None else None
+            ),
+            validation_harmonic_relation_macro_f1=(
+                validation_metrics.harmonic_relation_macro_f1 if validation_metrics is not None else None
+            ),
+            validation_harmonic_relation_target_distribution=(
+                validation_metrics.harmonic_relation_target_distribution if validation_metrics is not None else None
+            ),
+            validation_harmonic_relation_prediction_distribution=(
+                validation_metrics.harmonic_relation_prediction_distribution if validation_metrics is not None else None
+            ),
+            validation_harmony_gate_mean=(
+                validation_metrics.harmony_gate_mean if validation_metrics is not None else None
             ),
             validation_validity_penalty_loss=(
                 validation_metrics.validity_penalty_loss if validation_metrics is not None else None
@@ -597,6 +623,10 @@ class PretrainingTrainer:
         if auxiliary_loss is not None:
             loss = loss + self._config.musical_auxiliary_objective.weight * auxiliary_loss.loss
 
+        relation_loss = self._harmonic_relation_loss(model_logits, batch=batch)
+        if relation_loss is not None:
+            loss = loss + self._config.harmonic_relation_objective.weight * relation_loss.loss
+
         log_probabilities = nn.functional.log_softmax(logits, dim=-1)
         batch_metrics = batch_metrics_from_logits(
             logits,
@@ -608,6 +638,8 @@ class PretrainingTrainer:
         )
         batch_metrics = self._add_factorized_loss_metrics(batch_metrics, factorized_loss=factorized_loss)
         batch_metrics = self._add_musical_auxiliary_loss_metrics(batch_metrics, auxiliary_loss=auxiliary_loss)
+        batch_metrics = self._add_harmonic_relation_loss_metrics(batch_metrics, relation_loss=relation_loss)
+        batch_metrics = self._add_harmony_gate_metrics(batch_metrics, model_logits=model_logits, batch=batch)
         if self._config.conditioning.use_validity_penalty:
             validity_metrics = self._validity_penalty_metrics(
                 log_probabilities,
@@ -707,6 +739,34 @@ class PretrainingTrainer:
             config=self._config.musical_auxiliary_objective,
         )
 
+    def _harmonic_relation_loss(
+        self,
+        model_logits: ModelTrainingLogits,
+        *,
+        batch: TrainingBatch,
+    ) -> HarmonicRelationLoss | None:
+        if not self._config.harmonic_relation_objective.enabled:
+            return None
+
+        if not self._config.conditioning.use_harmony_conditioning:
+            return None
+
+        if model_logits.harmonic_relation_logits is None or batch.harmonic_relation_targets is None:
+            return None
+
+        if batch.harmonic_plan is None:
+            return None
+
+        return harmonic_relation_loss(
+            model_logits.harmonic_relation_logits,
+            targets=batch.harmonic_relation_targets,
+            harmonic_plan=batch.harmonic_plan,
+            bar_relative_ticks=batch.bar_relative_ticks,
+            bar_duration_ticks=batch.bar_duration_ticks,
+            active_hand_ids=batch.active_hand_ids,
+            config=self._config.harmonic_relation_objective,
+        )
+
     def _add_factorized_loss_metrics(
         self,
         batch_metrics: BatchMetrics,
@@ -796,6 +856,50 @@ class PretrainingTrainer:
                 "bar_hand_span_loss": float(auxiliary_loss.bar_hand_span_loss.detach().item()),
                 "bar_hand_span_match_count": auxiliary_loss.bar_hand_span_match_count,
                 "bar_hand_span_target_count": auxiliary_loss.bar_hand_span_target_count,
+            }
+        )
+
+    def _add_harmonic_relation_loss_metrics(
+        self,
+        batch_metrics: BatchMetrics,
+        *,
+        relation_loss: HarmonicRelationLoss | None,
+    ) -> BatchMetrics:
+        if relation_loss is None:
+            return batch_metrics
+
+        return batch_metrics.model_copy(
+            update={
+                "harmonic_relation_loss": float(relation_loss.loss.detach().item()),
+                "harmonic_relation_match_count": relation_loss.match_count,
+                "harmonic_relation_target_count": relation_loss.target_count,
+                "harmonic_relation_macro_f1": relation_loss.macro_f1,
+                "harmonic_relation_target_counts": relation_loss.target_counts,
+                "harmonic_relation_prediction_counts": relation_loss.prediction_counts,
+            }
+        )
+
+    def _add_harmony_gate_metrics(
+        self,
+        batch_metrics: BatchMetrics,
+        *,
+        model_logits: ModelTrainingLogits,
+        batch: TrainingBatch,
+    ) -> BatchMetrics:
+        gate_values = model_logits.harmony_gate_values
+        if gate_values is None:
+            return batch_metrics
+
+        active_mask = ~batch.token_padding_mask
+        active_count = int(active_mask.sum().item())
+        if active_count == 0:
+            return batch_metrics
+
+        gate_mean = gate_values[active_mask].mean()
+        return batch_metrics.model_copy(
+            update={
+                "harmony_gate_mean": float(gate_mean.detach().item()),
+                "harmony_gate_token_count": active_count,
             }
         )
 
@@ -945,6 +1049,9 @@ def pretrain(
 def _move_batch_to_device(batch: TrainingBatch, *, device: torch.device) -> TrainingBatch:
     difficulty_ids = batch.difficulty_ids.to(device) if batch.difficulty_ids is not None else None
     harmonic_plan = batch.harmonic_plan.to(device) if batch.harmonic_plan is not None else None
+    harmonic_relation_targets = (
+        batch.harmonic_relation_targets.to(device) if batch.harmonic_relation_targets is not None else None
+    )
     return TrainingBatch(
         input_token_ids=batch.input_token_ids.to(device),
         target_token_ids=batch.target_token_ids.to(device),
@@ -956,6 +1063,7 @@ def _move_batch_to_device(batch: TrainingBatch, *, device: torch.device) -> Trai
         bar_duration_ticks=batch.bar_duration_ticks.to(device),
         active_hand_ids=batch.active_hand_ids.to(device),
         harmonic_plan=harmonic_plan,
+        harmonic_relation_targets=harmonic_relation_targets,
         structural_control_ids=batch.structural_control_ids.to(device),
         scale_roots=batch.scale_roots.to(device),
         scale_type_ids=batch.scale_type_ids.to(device),

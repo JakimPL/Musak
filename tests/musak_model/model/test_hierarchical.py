@@ -7,8 +7,14 @@ from torch import Tensor
 
 from musak_model.auxiliary.config import MusicalAuxiliaryTargetConfig
 from musak_model.auxiliary.schema import MusicalAuxiliaryLogits
-from musak_model.conditioning.config import ConditioningConfig, DifficultyConfig, HarmonicConditioningConfig
+from musak_model.conditioning.config import (
+    ConditioningConfig,
+    DifficultyConfig,
+    HarmonicConditioningConfig,
+    HarmonicFusionMode,
+)
 from musak_model.conditioning.harmony.fields import HARMONIC_PLAN_TENSOR_FIELDS
+from musak_model.conditioning.harmony.relations import HARMONIC_RELATION_CLASS_COUNT
 from musak_model.conditioning.harmony.schema import HarmonicPlanInputTensors
 from musak_model.conditioning.time_signature import TimeSignatureVocabularyConfig
 from musak_model.model import HierarchicalAutoregressiveModel
@@ -66,9 +72,22 @@ def _small_config(
         conditioning=ConditioningConfig(
             difficulty=DifficultyConfig(max_level=5),
             time_signature=TimeSignatureVocabularyConfig(max_denominator=4, relative_numerator_range=2),
-            harmony=HarmonicConditioningConfig(enabled=harmony_enabled),
+            harmony=_harmony_config(enabled=harmony_enabled),
             cfg_dropout_probability=0.0,
         ),
+    )
+
+
+def _harmony_config(*, enabled: bool) -> HarmonicConditioningConfig:
+    return HarmonicConditioningConfig(
+        enabled=enabled,
+        fusion=HarmonicFusionMode.GATED_RESIDUAL,
+        plan_encoder_layers=1,
+        plan_encoder_heads=2,
+        plan_encoder_dropout=0.0,
+        gate_init_bias=-1.5,
+        harmony_adherence_alpha=1.0,
+        plan_field_dropout=0.0,
     )
 
 
@@ -254,8 +273,18 @@ class TestForwardOutputShape:
             **_coordinate_kwargs(token_ids),
             harmonic_plan=_harmonic_plan(token_ids),
         )
+        training_logits = model.training_logits(
+            token_ids,
+            bar_positions=bar_positions,
+            **_training_logits_kwargs(token_ids, bar_positions=bar_positions),
+            harmonic_plan=_harmonic_plan(token_ids),
+        )
 
         assert logits.shape == (2, 8, VOCAB)
+        assert training_logits.harmonic_relation_logits is not None
+        assert training_logits.harmonic_relation_logits.shape == (2, 8, HARMONIC_RELATION_CLASS_COUNT)
+        assert training_logits.harmony_gate_values is not None
+        assert training_logits.harmony_gate_values.shape == (2, 8, H)
 
     def test_harmonic_plan_inputs_require_enabled_conditioning(self) -> None:
         config = _small_config(harmony_enabled=False)
@@ -465,11 +494,22 @@ class TestForwardBehaviour:
             harmonic_plan=_harmonic_plan(token_ids),
         )
 
-        _backward(logits.flat_logits.sum() + _musical_auxiliary_logits_sum(logits.musical_auxiliary_logits))
+        assert logits.harmonic_relation_logits is not None
+        assert logits.harmony_gate_values is not None
+        _backward(
+            logits.flat_logits.sum()
+            + _musical_auxiliary_logits_sum(logits.musical_auxiliary_logits)
+            + logits.harmonic_relation_logits.sum()
+            + logits.harmony_gate_values.sum()
+        )
 
         gradient_names = {name for name, parameter in model.named_parameters() if parameter.grad is not None}
         for field in HARMONIC_PLAN_TENSOR_FIELDS:
-            assert f"_harmonic_plan_embeddings._embeddings.{field.name}.weight" in gradient_names
+            assert f"_harmonic_plan_conditioning._embeddings._embeddings.{field.name}.weight" in gradient_names
+
+        assert "_harmonic_plan_conditioning._gate.weight" in gradient_names
+        assert "_harmonic_plan_conditioning._plan_encoder.layers.0.self_attn.in_proj_weight" in gradient_names
+        assert "_harmonic_relation_head.weight" in gradient_names
 
     def test_future_tokens_do_not_change_earlier_logits(self) -> None:
         torch.manual_seed(0)

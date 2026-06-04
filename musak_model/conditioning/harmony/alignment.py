@@ -83,32 +83,24 @@ def harmonic_plan_ids_from_decoder_coordinates(
     _validate_windows(windows)
 
     window_ids = harmonic_plan_ids_from_windows(windows)
+    aligned_windows = harmonic_plan_windows_from_decoder_coordinates(
+        windows,
+        constraints=constraints,
+        coordinates=coordinates,
+        duration_tick_denominator=duration_tick_denominator,
+        strict_in_span=strict_in_span,
+    )
     aligned_ids: list[HarmonicPlanIds] = []
-    for bar_index, bar_relative_tick in zip(
+    for bar_index, window in zip(
         coordinates.bar_indices,
-        coordinates.bar_relative_ticks,
+        aligned_windows,
         strict=True,
     ):
-        if _is_padding_coordinate(bar_index, bar_relative_tick):
+        if window is None:
             aligned_ids.append(unknown_harmonic_plan_ids())
             continue
 
-        score_position = constraints.bar_start(bar_index) + Fraction(bar_relative_tick, duration_tick_denominator)
-        window_index = _window_index_at_position(windows, score_position)
-        if (
-            window_index is None
-            and strict_in_span
-            and _is_requested_score_position(
-                score_position,
-                constraints=constraints,
-            )
-        ):
-            raise ValueError(f"no harmonic plan window covers in-span position {score_position}")
-
-        if window_index is None:
-            aligned_ids.append(unknown_harmonic_plan_ids())
-            continue
-
+        window_index = windows.index(window)
         aligned_ids.append(
             _ids_for_coordinate(
                 window_ids[window_index],
@@ -118,6 +110,45 @@ def harmonic_plan_ids_from_decoder_coordinates(
         )
 
     return tuple(aligned_ids)
+
+
+def harmonic_plan_windows_from_decoder_coordinates(
+    windows: Sequence[HarmonicPlanWindow],
+    *,
+    constraints: GenerationConstraints,
+    coordinates: DecoderInputCoordinates,
+    duration_tick_denominator: int,
+    strict_in_span: bool = False,
+) -> tuple[HarmonicPlanWindow | None, ...]:
+    _validate_coordinate_shapes(coordinates)
+    _validate_duration_tick_denominator(duration_tick_denominator)
+    _validate_windows(windows)
+
+    aligned_windows: list[HarmonicPlanWindow | None] = []
+    for bar_index, bar_relative_tick in zip(
+        coordinates.bar_indices,
+        coordinates.bar_relative_ticks,
+        strict=True,
+    ):
+        if _is_padding_coordinate(bar_index, bar_relative_tick):
+            aligned_windows.append(None)
+            continue
+
+        score_position = constraints.bar_start(bar_index) + Fraction(bar_relative_tick, duration_tick_denominator)
+        window = _window_at_position(windows, score_position)
+        if (
+            window is None
+            and strict_in_span
+            and _is_requested_score_position(
+                score_position,
+                constraints=constraints,
+            )
+        ):
+            raise ValueError(f"no harmonic plan window covers in-span position {score_position}")
+
+        aligned_windows.append(window)
+
+    return tuple(aligned_windows)
 
 
 def _validate_coordinate_shapes(coordinates: DecoderInputCoordinates) -> None:
@@ -171,12 +202,12 @@ def _remaining_bar_count(bar_index: int, *, constraints: GenerationConstraints) 
     return max(constraints.bar_count - bar_index - 1, 0)
 
 
-def _window_index_at_position(windows: Sequence[HarmonicPlanWindow], position: Fraction) -> int | None:
-    for index, window in enumerate(windows):
+def _window_at_position(windows: Sequence[HarmonicPlanWindow], position: Fraction) -> HarmonicPlanWindow | None:
+    for window in windows:
         if window.start <= position < window.end:
-            return index
+            return window
 
     if windows and position == windows[-1].end:
-        return len(windows) - 1
+        return windows[-1]
 
     return None

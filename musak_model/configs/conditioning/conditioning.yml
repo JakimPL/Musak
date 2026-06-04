@@ -5,6 +5,13 @@ time_signature:
   relative_numerator_range: 2
 harmony:
   enabled: true
+  fusion: gated_residual
+  plan_encoder_layers: 2
+  plan_encoder_heads: 4
+  plan_encoder_dropout: 0.10
+  gate_init_bias: -1.50
+  harmony_adherence_alpha: 1.0
+  plan_field_dropout: 0.15
 structural:
   shortest_note_duration:
     thresholds: [16, 8, 4, 2]

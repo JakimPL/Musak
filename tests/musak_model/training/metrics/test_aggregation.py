@@ -1,5 +1,6 @@
 from pytest import approx
 
+from musak_model.conditioning.harmony.relations import HARMONIC_RELATION_CLASS_COUNT
 from musak_model.training.metrics import BatchMetrics, MetricsAccumulator
 
 
@@ -64,6 +65,14 @@ def test_metrics_accumulator_averages_loss_accuracy_and_gradient_norms() -> None
             bar_hand_span_loss=1.2,
             bar_hand_span_match_count=1,
             bar_hand_span_target_count=2,
+            harmonic_relation_loss=0.9,
+            harmonic_relation_match_count=1,
+            harmonic_relation_target_count=2,
+            harmonic_relation_macro_f1=0.5,
+            harmonic_relation_target_counts=(1, 1, 0, 0, 0, 0, 0),
+            harmonic_relation_prediction_counts=(1, 0, 1, 0, 0, 0, 0),
+            harmony_gate_mean=0.25,
+            harmony_gate_token_count=2,
             validity_penalty_loss=0.2,
             invalid_probability_mass=0.4,
             invalid_target_count=1,
@@ -131,6 +140,14 @@ def test_metrics_accumulator_averages_loss_accuracy_and_gradient_norms() -> None
             bar_hand_span_loss=2.4,
             bar_hand_span_match_count=3,
             bar_hand_span_target_count=4,
+            harmonic_relation_loss=1.5,
+            harmonic_relation_match_count=3,
+            harmonic_relation_target_count=4,
+            harmonic_relation_macro_f1=0.75,
+            harmonic_relation_target_counts=(1, 0, 3, 0, 0, 0, 0),
+            harmonic_relation_prediction_counts=(0, 2, 2, 0, 0, 0, 0),
+            harmony_gate_mean=0.75,
+            harmony_gate_token_count=6,
             validity_penalty_loss=0.6,
             invalid_probability_mass=0.8,
             invalid_target_count=2,
@@ -178,6 +195,13 @@ def test_metrics_accumulator_averages_loss_accuracy_and_gradient_norms() -> None
     assert metrics.bar_dotted_duration_accuracy == approx(2 / 6)
     assert metrics.bar_hand_span_loss == 2.0
     assert metrics.bar_hand_span_accuracy == approx(4 / 6)
+    assert metrics.harmonic_relation_loss == approx(1.3)
+    assert metrics.harmonic_relation_accuracy == approx(4 / 6)
+    assert metrics.harmonic_relation_macro_f1 == approx(2 / 3)
+    assert metrics.harmonic_relation_target_distribution == approx((2 / 6, 1 / 6, 3 / 6, 0, 0, 0, 0))
+    assert metrics.harmonic_relation_prediction_distribution == approx((1 / 6, 2 / 6, 3 / 6, 0, 0, 0, 0))
+    assert len(metrics.harmonic_relation_target_distribution or ()) == HARMONIC_RELATION_CLASS_COUNT
+    assert metrics.harmony_gate_mean == approx(0.625)
     assert metrics.validity_penalty_loss == approx(0.5)
     assert metrics.invalid_probability_mass == approx(0.7)
     assert metrics.invalid_target_rate == 0.375
