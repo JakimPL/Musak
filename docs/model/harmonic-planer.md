@@ -3,8 +3,8 @@
 This document is the implementation plan for replacing blind harmonic sampling with directional harmonic planning and
 for teaching the neural decoder to realize that plan without snapping every note to chord tones.
 
-It refines the harmony-related parts of [musical-coherence-plan.md](../musical-coherence-plan.md). The implementation
-must keep hard legality constraints separate from musicality and must update [model.md](../model.md) whenever model
+It refines the harmony-related parts of [coherence-plan.md](coherence-plan.md). The implementation
+must keep hard legality constraints separate from musicality and must update [model.md](model.md) whenever model
 inputs, training losses, generation behavior, or artifacts change.
 
 ## Problem
@@ -98,6 +98,16 @@ p(C_i | C_{i-1})
 
 because the final slot and cadence-preparation slots can affect earlier choices. Pair transitions remain useful, but
 only as one term inside the sequence score.
+
+Finite-horizon planning has three concrete implementation requirements:
+
+1. The planner receives `bar_count` and `harmonic_resolution` before chord decoding starts.
+2. The planner derives `slot_role` and `distance_to_end` from the full horizon before scoring candidate chords.
+3. The planner emits windows that cover the complete requested score span exactly.
+
+The third point is not cosmetic. If generation is still inside the requested bar span but harmonic alignment has already
+fallen off the end of the plan, the model will receive unknown harmonic context at the exact point where it most needs
+cadential direction. That must be treated as a planner/alignment bug, not as a valid fallback.
 
 ### Harmonic Entity
 
@@ -371,6 +381,35 @@ plan_confidence
 Existing harmony fields can remain. New fields should be added behind config flags and logged in dataset examples and
 generation artifacts.
 
+Length awareness must be explicit. Hard generation constraints already know the requested `bar_count`, and the planner
+knows the full horizon, but the neural decoder should not have to infer target length only from prefix tokens.
+
+The decoder should receive these per-step or per-sample controls:
+
+```text
+current_bar_index
+total_bar_count
+remaining_bars
+remaining_harmonic_slots
+slot_role_id
+distance_to_end_id
+cadence_strength_id
+```
+
+`total_bar_count` may stay bucketed through structural conditioning, but `remaining_bars` and
+`remaining_harmonic_slots` should be low-cardinality per-step IDs. They are different from legality constraints:
+legality says when the model must stop; these controls tell the model that it is approaching a musical ending.
+
+During generation, plan alignment must satisfy:
+
+```text
+requested_score_start <= aligned_position < requested_score_end
+  => known harmonic slot
+```
+
+If this invariant fails, generation should fail loudly in strict mode. Silent unknown fallback is acceptable only for
+padding positions and explicitly disabled harmony conditioning.
+
 ## Model Conditioning
 
 ### Baseline Path
@@ -420,6 +459,31 @@ harmony_adherence_alpha: 1.5   # stronger harmonic pull
 ```
 
 Do not expose it as a hard legality constraint.
+
+### Planner End Versus Model Continuation
+
+The planner and hard sampler have different responsibilities:
+
+- the planner supplies musical direction through the requested horizon;
+- hard generation constraints enforce the exact bar count and decide when `EndToken` is legal;
+- the neural decoder proposes tokens under both of those signals.
+
+If the model proposes more notes after the requested bars are complete, the hard sampler should mask those tokens out.
+At that point only legal completion tokens should remain. This protects legality but not musicality.
+
+The more important musical failure happens before the hard end: the model may be inside the final planned slot and still
+write busy, directionless material. That is legal but incoherent. The final-slot conditioning and harmonic-relation
+losses must therefore teach cadence behavior inside the last slot:
+
+```text
+slot_role = cadence
+distance_to_end = 0
+remaining_harmonic_slots = 0
+cadence_strength = high
+```
+
+Expected behavior is not necessarily a whole note or a frozen texture. It is stable bass support, reduced harmonic
+ambiguity on strong beats, and idiomatic final melodic motion.
 
 ## Loss Functions
 
@@ -639,6 +703,8 @@ Log for generated plans and decoded corpus plans:
 - final tonic-area rate;
 - cadence-preparation dominant or predominant rate;
 - dominant-to-tonic final approach rate;
+- final-slot known-alignment rate;
+- requested-span plan coverage rate;
 - mean role compatibility score;
 - mean transition score;
 - mean terminal cadence score;
@@ -667,7 +733,10 @@ Log for generated music:
 - relation-head accuracy and macro F1;
 - relation distribution total variation distance to corpus;
 - gate mean by hand, beat strength, and slot role;
-- plan-corruption sensitivity.
+- plan-corruption sensitivity;
+- final-slot token count by hand;
+- final-slot strong-beat chord-tone coverage;
+- final-slot bass support rate;
 
 `plan-corruption sensitivity` means evaluating whether the same prefix with a corrupted plan changes note
 probabilities in the expected direction. If corrupting the plan barely changes logits, the model is ignoring harmony.
@@ -708,12 +777,15 @@ The goal is not maximum chord-tone coverage. The goal is strong-beat clarity wit
 - Implement beam search with logged score terms.
 - Keep empirical transitions optional.
 - Return full plan alternatives in artifacts.
+- Validate that plan windows cover the full requested score span exactly.
+- Add strict alignment failure for in-span positions that receive unknown harmony.
 
 Acceptance:
 
 - Two-bar plans prefer cadence-directed shapes over arbitrary local pairs.
 - Four- and eight-bar plans expose roles and terminal scores.
-- Unit tests cover short horizons, cadence preference, stasis penalty, and deterministic seeded sampling.
+- Unit tests cover short horizons, cadence preference, stasis penalty, deterministic seeded sampling, full-span
+  coverage, and no unknown harmony inside the requested span.
 
 ### Phase 2: Planner Inspection
 
@@ -728,6 +800,7 @@ Acceptance:
 ### Phase 3: Extended Plan Conditioning Fields
 
 - Add `slot_role`, `distance_to_end`, `cadence_strength`, `tension_level`, and `plan_confidence` IDs.
+- Add per-step `remaining_bars` and `remaining_harmonic_slots` IDs.
 - Align them with the existing decoder cursor path.
 - Keep additive embeddings as the initial ablation.
 
@@ -735,6 +808,7 @@ Acceptance:
 
 - Training and generation run with the extended fields.
 - Metrics show non-unknown field coverage.
+- Generation evaluation logs final-slot behavior separately from all-slot averages.
 
 ### Phase 4: Harmonic Relation Targets And Loss
 

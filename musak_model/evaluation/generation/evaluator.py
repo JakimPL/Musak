@@ -10,7 +10,7 @@ import torch
 from torch import Tensor
 
 from musak_model.conditioning.harmony.alignment import harmonic_plan_tensors_from_decoder_coordinates
-from musak_model.conditioning.harmony.generation import FunctionalHarmonicPlanProvider, HarmonicPlanProvider
+from musak_model.conditioning.harmony.generation import FiniteHorizonHarmonicPlanProvider, HarmonicPlanProvider
 from musak_model.conditioning.harmony.schema import HarmonicPlanInputTensors, HarmonicPlanWindow
 from musak_model.conditioning.structural.schema import StructuralControlFeatures
 from musak_model.conditioning.structural.vocabulary import StructuralControlVocabulary
@@ -433,6 +433,7 @@ class GenerationSuiteEvaluator:
                 constraints=constraints,
                 coordinates=coordinates,
                 duration_tick_denominator=self._duration_tick_denominator,
+                strict_in_span=True,
             ),
             device=device,
         )
@@ -546,7 +547,7 @@ def _harmonic_plan_provider(
     if not conditioning.use_harmony_conditioning:
         return None
 
-    return FunctionalHarmonicPlanProvider.load()
+    return FiniteHorizonHarmonicPlanProvider.load()
 
 
 def _batch_harmonic_plan_input_tensors(

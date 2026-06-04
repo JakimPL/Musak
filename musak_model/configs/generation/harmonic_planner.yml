@@ -1,0 +1,28 @@
+harmonic_resolution: 1
+beam_size: 64
+candidate_limit_per_slot: 16
+alternatives_to_log: 8
+sample_from_top_k_plans: 4
+plan_temperature: 0.8
+seventh_prior_penalty: 0.7
+weights:
+  prior: 0.5
+  role: 0.8
+  cadence: 1.5
+  tension: 0.25
+  extension: 0.3
+  empirical_transition: 0.6
+  functional_transition: 0.8
+  root_motion: 0.2
+  stasis: 0.25
+  cadence_approach: 1.0
+  terminal: 2.0
+  repetition: 0.25
+  diversity: 0.2
+  shape: 0.3
+cadence_scores:
+  final_tonic: 2.0
+  final_non_tonic: -1.0
+  dominant_to_tonic_final: 1.25
+  predominant_to_dominant_preparation: 0.75
+  continuation_to_tonic: 0.1

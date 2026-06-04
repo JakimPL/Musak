@@ -11,6 +11,7 @@ N_GRAM_ANALYSIS_CONFIG_PATH: Final[Path] = CONFIGS_DIRECTORY / "analysis" / "n_g
 CHORD_VOCABULARY_CONFIG_PATH: Final[Path] = CONFIGS_DIRECTORY / "generation" / "chords.yml"
 CHORD_DECODING_CONFIG_PATH: Final[Path] = CONFIGS_DIRECTORY / "generation" / "chord_decoding.yml"
 CHORD_FIT_CONFIG_PATH: Final[Path] = CONFIGS_DIRECTORY / "generation" / "chord_fit.yml"
+HARMONIC_PLANNER_CONFIG_PATH: Final[Path] = CONFIGS_DIRECTORY / "generation" / "harmonic_planner.yml"
 REGISTER_CURVE_CONFIG_PATH: Final[Path] = CONFIGS_DIRECTORY / "generation" / "register_curve.yml"
 ACCENT_FIELD_CONFIG_PATH: Final[Path] = CONFIGS_DIRECTORY / "generation" / "accent_field.yml"
 HAND_COUPLING_CONFIG_PATH: Final[Path] = CONFIGS_DIRECTORY / "generation" / "hand_coupling.yml"

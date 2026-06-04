@@ -104,6 +104,30 @@ def test_harmonic_plan_alignment_returns_unknown_for_padding_and_gaps() -> None:
     assert ids[1].harmonic_function_id == harmonic_function_to_id(HarmonicFunction.DOMINANT)
 
 
+def test_harmonic_plan_alignment_rejects_unknown_in_requested_span_when_strict() -> None:
+    coordinates = DecoderInputCoordinates(
+        bar_indices=(0,),
+        bar_relative_ticks=(3,),
+        bar_duration_ticks=(4,),
+        active_hand_ids=(0,),
+    )
+
+    with pytest.raises(ValueError, match="in-span position"):
+        harmonic_plan_ids_from_decoder_coordinates(
+            (
+                HarmonicPlanWindow(
+                    start=Fraction(0),
+                    end=Fraction(1, 2),
+                    chord=Chord(root_degree=1, root_accidental=0, quality=ChordQuality.MAJOR),
+                ),
+            ),
+            constraints=GenerationConstraints(time_numerator=4, time_denominator=4, bar_count=1),
+            coordinates=coordinates,
+            duration_tick_denominator=4,
+            strict_in_span=True,
+        )
+
+
 def test_harmonic_plan_alignment_rejects_overlapping_windows() -> None:
     coordinates = DecoderInputCoordinates(
         bar_indices=(0,),

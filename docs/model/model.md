@@ -188,12 +188,17 @@ root-accidental, quality, extension, and chord-change embeddings are added to to
 The event objective is unchanged.
 
 Generation supplies a harmonic plan when both `TrainingConditioningConfig.use_harmony_conditioning` and
-`conditioning.harmony.enabled` are true. The current provider samples a deterministic-per-seed diatonic chord track
-from the existing functional transition prior, using `chord_fit.yml` for functional strength/stickiness and
-`chord_decoding.yml` for harmonic rhythm resolution. It converts that track into `HarmonicPlanWindow`s over
-`GenerationConstraints`, aligns the windows to the current generated-prefix cursor at every sampling step, and passes
-batched `HarmonicPlanInputTensors` into the model call. If harmony conditioning is disabled, generation passes no
-harmonic plan. Empirical chord-transition artifacts remain deferred.
+`conditioning.harmony.enabled` are true. The current provider builds a finite-horizon harmonic plan over the full
+requested `GenerationConstraints` span before note sampling starts. It uses `harmonic_planner.yml` for harmonic
+resolution, beam search, top-plan sampling, and scoring weights; `chord_fit.yml` still shapes the functional transition
+backoff through functional strength and stickiness. The planner scores whole chord sequences with slot roles,
+distance-to-end, cadence preference, functional transitions, stasis, and diversity terms, then samples a
+deterministic-per-seed plan from the configured top alternatives. It converts the selected plan into
+`HarmonicPlanWindow`s, aligns the windows to the current generated-prefix cursor at every sampling step, and passes
+batched `HarmonicPlanInputTensors` into the model call. Generation uses strict in-span harmonic alignment: if a planned
+window does not cover a requested score position, generation raises instead of silently substituting unknown harmony.
+If harmony conditioning is disabled, generation passes no harmonic plan. Empirical chord-transition artifacts remain
+deferred.
 
 Generation evaluation keeps the sampled harmonic plan on each `GenerationSample`, writes it to the sample artifact
 manifest, and logs plan-aware metrics under `generation/<soft|hard>/harmony/*`. The metrics compare the sampled plan

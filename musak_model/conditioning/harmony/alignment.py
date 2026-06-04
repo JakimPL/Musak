@@ -55,6 +55,7 @@ def harmonic_plan_tensors_from_decoder_coordinates(
     constraints: GenerationConstraints,
     coordinates: DecoderInputCoordinates,
     duration_tick_denominator: int,
+    strict_in_span: bool = False,
 ) -> HarmonicPlanInputTensors:
     return harmonic_plan_tensors_from_ids(
         harmonic_plan_ids_from_decoder_coordinates(
@@ -62,6 +63,7 @@ def harmonic_plan_tensors_from_decoder_coordinates(
             constraints=constraints,
             coordinates=coordinates,
             duration_tick_denominator=duration_tick_denominator,
+            strict_in_span=strict_in_span,
         )
     )
 
@@ -72,6 +74,7 @@ def harmonic_plan_ids_from_decoder_coordinates(
     constraints: GenerationConstraints,
     coordinates: DecoderInputCoordinates,
     duration_tick_denominator: int,
+    strict_in_span: bool = False,
 ) -> tuple[HarmonicPlanIds, ...]:
     _validate_coordinate_shapes(coordinates)
     _validate_duration_tick_denominator(duration_tick_denominator)
@@ -90,6 +93,16 @@ def harmonic_plan_ids_from_decoder_coordinates(
 
         score_position = constraints.bar_start(bar_index) + Fraction(bar_relative_tick, duration_tick_denominator)
         window_index = _window_index_at_position(windows, score_position)
+        if (
+            window_index is None
+            and strict_in_span
+            and _is_requested_score_position(
+                score_position,
+                constraints=constraints,
+            )
+        ):
+            raise ValueError(f"no harmonic plan window covers in-span position {score_position}")
+
         aligned_ids.append(unknown_harmonic_plan_ids() if window_index is None else window_ids[window_index])
 
     return tuple(aligned_ids)
@@ -121,6 +134,13 @@ def _validate_windows(windows: Sequence[HarmonicPlanWindow]) -> None:
 
 def _is_padding_coordinate(bar_index: int, bar_relative_tick: int) -> bool:
     return bar_index < _PADDING_COORDINATE_LIMIT or bar_relative_tick < _PADDING_COORDINATE_LIMIT
+
+
+def _is_requested_score_position(position: Fraction, *, constraints: GenerationConstraints) -> bool:
+    if constraints.bar_count <= 0:
+        return False
+
+    return constraints.bar_start(0) <= position <= constraints.bar_end(constraints.bar_count - 1)
 
 
 def _window_index_at_position(windows: Sequence[HarmonicPlanWindow], position: Fraction) -> int | None:

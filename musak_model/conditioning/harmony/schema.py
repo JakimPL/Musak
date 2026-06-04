@@ -2,16 +2,24 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from enum import StrEnum
 from fractions import Fraction
 from typing import Self
 
 import torch
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from torch import Tensor
 
 from musak_model.harmony.decoding.schema import ChordWindow
 from musak_model.harmony.schema import Chord
 from musak_shared.elements import HARMONIC_FUNCTION_BY_DEGREE, HarmonicFunction
+
+
+class HarmonicSlotRole(StrEnum):
+    OPENING = "opening"
+    CONTINUATION = "continuation"
+    CADENCE_PREPARATION = "cadence_preparation"
+    CADENCE = "cadence"
 
 
 class HarmonicPlanWindow(BaseModel):
@@ -20,6 +28,12 @@ class HarmonicPlanWindow(BaseModel):
     start: Fraction
     end: Fraction
     chord: Chord
+    slot_role: HarmonicSlotRole | None = None
+    distance_to_end: int | None = Field(default=None, ge=0)
+    cadence_strength: float | None = Field(default=None, ge=0.0)
+    tension_level: float | None = Field(default=None, ge=0.0)
+    plan_confidence: float | None = Field(default=None, ge=0.0, le=1.0)
+    score_terms: dict[str, float] = Field(default_factory=dict)
 
     @property
     def harmonic_function(self) -> HarmonicFunction | None:

@@ -1,6 +1,9 @@
 from fractions import Fraction
 
-from musak_model.conditioning.harmony.generation import FunctionalHarmonicPlanProvider, harmonic_plan_window_bounds
+from musak_model.conditioning.harmony.generation import (
+    FunctionalHarmonicPlanProvider,
+    harmonic_plan_window_bounds,
+)
 from musak_model.generation.constraints import GenerationConstraints
 from musak_model.harmony.decoding import ChordDecoderConfig
 from musak_model.harmony.diatonic import diatonic_triads

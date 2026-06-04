@@ -8,6 +8,7 @@ from musak_model.conditioning.harmony.schema import (
     HarmonicPlanIds,
     HarmonicPlanInputTensors,
     HarmonicPlanWindow,
+    HarmonicSlotRole,
     harmonic_function_for_chord,
     harmonic_plan_windows_from_chord_windows,
 )
@@ -49,6 +50,7 @@ __all__ = [
     "HarmonicPlanIds",
     "HarmonicPlanInputTensors",
     "HarmonicPlanWindow",
+    "HarmonicSlotRole",
     "chord_change_to_id",
     "chord_extension_to_id",
     "chord_quality_to_id",
