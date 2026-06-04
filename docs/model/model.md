@@ -127,7 +127,9 @@ diagnostics and future reranking; it is not used as a training loss or sampling 
 When generation evaluation runs during training, MLflow also receives a sample artifact bundle under
 `generation/epoch_NNNN/`. The bundle contains `samples.jsonl`, token-text files for every soft and hard sample, and
 MusicXML files for samples that decode cleanly through the model-owned `Segment` to MusicXML conversion path. Samples
-with decode errors remain in the manifest and token-text files but do not get notation artifacts.
+with decode errors remain in the manifest and token-text files but do not get notation artifacts. When harmony
+conditioning is active, the sample manifest includes the selected harmonic-plan windows, role/distance/cadence fields,
+per-window score terms, a compact plan summary, and top planner alternatives for inspection.
 
 Each encoded JSONL row is an `EncodedExercise`:
 
@@ -205,6 +207,8 @@ manifest, and logs plan-aware metrics under `generation/<soft|hard>/harmony/*`. 
 against chords decoded from the generated token stream by duration overlap, then separately measure planned
 chord-tone coverage, strong-beat chord-tone coverage, triadic/perfect coincident-onset consonance, and final-slot
 closure. These metrics are diagnostics only; they do not constrain sampling or change the training loss.
+Notebook harmonic inspection can also render explicit generated plan windows as role-labeled piano-roll chord
+highlights. Without explicit plan windows, it keeps decoding harmony from the segment for dataset-quality inspection.
 
 Generation evaluation also logs musical-coherence diagnostics under `generation/<soft|hard>/coherence/*`. These
 metrics measure long-note stasis, whole-bar notes, literal whole-note-or-longer durations, melodic contour,

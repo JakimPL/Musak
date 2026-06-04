@@ -11,6 +11,7 @@ from torch import Tensor
 
 from musak_model.conditioning.harmony.alignment import harmonic_plan_tensors_from_decoder_coordinates
 from musak_model.conditioning.harmony.generation import FiniteHorizonHarmonicPlanProvider, HarmonicPlanProvider
+from musak_model.conditioning.harmony.planner import HarmonicPlan
 from musak_model.conditioning.harmony.schema import HarmonicPlanInputTensors, HarmonicPlanWindow
 from musak_model.conditioning.structural.schema import StructuralControlFeatures
 from musak_model.conditioning.structural.vocabulary import StructuralControlVocabulary
@@ -76,6 +77,7 @@ class _SampledTokenIds:
     token_ids: list[int]
     constraint_error: str | None
     harmonic_plan_windows: tuple[HarmonicPlanWindow, ...] | None
+    harmonic_plan: HarmonicPlan | None
 
 
 @dataclass(frozen=True)
@@ -305,6 +307,7 @@ class GenerationSuiteEvaluator:
             decoded_sample,
             constraint_error=sampled_token_ids.constraint_error,
             harmonic_plan_windows=sampled_token_ids.harmonic_plan_windows,
+            harmonic_plan=sampled_token_ids.harmonic_plan,
             constraints=constraints,
         )
 
@@ -321,7 +324,8 @@ class GenerationSuiteEvaluator:
         generator.manual_seed(seed)
         token_ids: list[int] = []
         constraint_error: str | None = None
-        harmonic_plan_windows = self._harmonic_plan_windows(constraints, seed=seed)
+        harmonic_plan = self._harmonic_plan(constraints, seed=seed)
+        harmonic_plan_windows = None if harmonic_plan is None else harmonic_plan.windows
 
         for _ in range(self._config.max_new_tokens):
             if self._prefix_exceeds_model_context(token_ids):
@@ -360,6 +364,7 @@ class GenerationSuiteEvaluator:
             token_ids=token_ids,
             constraint_error=constraint_error,
             harmonic_plan_windows=harmonic_plan_windows,
+            harmonic_plan=harmonic_plan,
         )
 
     def _prefix_exceeds_model_context(self, token_ids: list[int]) -> bool:
@@ -405,16 +410,16 @@ class GenerationSuiteEvaluator:
             harmonic_plan=harmonic_plan,
         )[0, -1]
 
-    def _harmonic_plan_windows(
+    def _harmonic_plan(
         self,
         constraints: GenerationConstraints,
         *,
         seed: int,
-    ) -> tuple[HarmonicPlanWindow, ...] | None:
+    ) -> HarmonicPlan | None:
         if self._harmonic_plan_provider is None:
             return None
 
-        return self._harmonic_plan_provider.plan_windows(constraints=constraints, seed=seed)
+        return self._harmonic_plan_provider.plan(constraints=constraints, seed=seed)
 
     def _harmonic_plan_tensor(
         self,
@@ -478,6 +483,7 @@ class GenerationSuiteEvaluator:
         *,
         constraint_error: str | None,
         harmonic_plan_windows: tuple[HarmonicPlanWindow, ...] | None,
+        harmonic_plan: HarmonicPlan | None,
         constraints: GenerationConstraints,
     ) -> GenerationSample:
         return GenerationSample(
@@ -495,6 +501,7 @@ class GenerationSuiteEvaluator:
             harmonic_plan_windows=harmonic_plan_windows,
             completed_bars=sum(isinstance(token, BarToken) for token in decoded_sample.tokens),
             target_bar_count=self._config.bar_count,
+            harmonic_plan=harmonic_plan,
         )
 
     def _scale_type_tensor(self, *, device: torch.device) -> Tensor | None:

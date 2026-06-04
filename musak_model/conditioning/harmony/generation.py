@@ -19,6 +19,13 @@ from musak_model.synthetic.processes.chord_track import functional_transition_mo
 
 
 class HarmonicPlanProvider(Protocol):
+    def plan(
+        self,
+        *,
+        constraints: GenerationConstraints,
+        seed: int,
+    ) -> HarmonicPlan: ...
+
     def plan_windows(
         self,
         *,

@@ -33,6 +33,11 @@ _WINDOW_COLUMNS: Final[tuple[str, ...]] = (
     "end_bar",
     "label",
     "function",
+    "role",
+    "distance_to_end",
+    "cadence_strength",
+    "tension_level",
+    "plan_confidence",
     "quality",
     "extension",
     "chord_pitch_classes",
@@ -41,6 +46,7 @@ _WINDOW_COLUMNS: Final[tuple[str, ...]] = (
     "chord_tone_coverage",
     "strong_beat_chord_tone_coverage",
     "strong_beat_non_chord_notes",
+    "score_terms",
 )
 _NOTE_COLUMNS: Final[tuple[str, ...]] = (
     "hand",
@@ -90,22 +96,25 @@ def harmonic_plan_inspection(
     segment: Segment,
     *,
     duration_vocabulary: DurationVocabulary,
+    windows: Sequence[HarmonicPlanWindow] | None = None,
     pitch_spelling: PitchSpelling = PitchSpelling.SHARPS,
 ) -> HarmonicPlanInspection:
     chord_vocabulary = ChordVocabularyConfig.load()
-    decoder = ViterbiChordDecoder(config=ChordDecoderConfig.load())
-    windows = harmonic_plan_windows_from_segment(
-        segment,
-        decoder=decoder,
-        duration_vocabulary=duration_vocabulary,
-        vocabulary=chord_vocabulary,
+    plan_windows = (
+        tuple(windows)
+        if windows is not None
+        else _decoded_harmonic_plan_windows(
+            segment,
+            duration_vocabulary=duration_vocabulary,
+            chord_vocabulary=chord_vocabulary,
+        )
     )
     events = tuple(segment_to_piano_roll_events(segment, duration_vocabulary=duration_vocabulary))
     strong_beat_offsets = NGramAnalysisConfig.load().rhythm_analysis.strong_beat_offsets
     note_frame = _note_frame(
         segment,
         events=events,
-        windows=windows,
+        windows=plan_windows,
         duration_vocabulary=duration_vocabulary,
         chord_vocabulary=chord_vocabulary,
         strong_beat_offsets=strong_beat_offsets,
@@ -114,17 +123,18 @@ def harmonic_plan_inspection(
     window_frame = _window_frame(
         segment,
         events=events,
-        windows=windows,
+        windows=plan_windows,
         chord_vocabulary=chord_vocabulary,
         strong_beat_offsets=strong_beat_offsets,
         pitch_spelling=pitch_spelling,
     )
     return HarmonicPlanInspection(
-        windows=windows,
+        windows=plan_windows,
         chord_highlights=harmonic_plan_chord_highlights(
             segment,
-            windows=windows,
+            windows=plan_windows,
             vocabulary=chord_vocabulary,
+            include_roles=windows is not None,
         ),
         window_frame=window_frame,
         note_frame=note_frame,
@@ -141,6 +151,7 @@ def harmonic_plan_chord_highlights(
     *,
     windows: Sequence[HarmonicPlanWindow],
     vocabulary: ChordVocabularyConfig,
+    include_roles: bool = False,
 ) -> tuple[ChordHighlight, ...]:
     measure_duration = Fraction(segment.time_numerator, segment.time_denominator)
     return tuple(
@@ -148,7 +159,7 @@ def harmonic_plan_chord_highlights(
             start_in_bars=_display_bar(segment, window.start, measure_duration=measure_duration),
             end_in_bars=_display_bar(segment, window.end, measure_duration=measure_duration),
             pitch_classes=_absolute_chord_pitch_classes(segment, window, vocabulary=vocabulary),
-            label=chord_label(window.chord),
+            label=_chord_highlight_label(window, include_role=include_roles),
         )
         for window in windows
     )
@@ -236,6 +247,11 @@ def _window_frame(
                 "end_bar": _display_bar(segment, window.end, measure_duration=measure_duration),
                 "label": chord_label(window.chord),
                 "function": _harmonic_function_text(window),
+                "role": "" if window.slot_role is None else window.slot_role.value,
+                "distance_to_end": window.distance_to_end,
+                "cadence_strength": window.cadence_strength,
+                "tension_level": window.tension_level,
+                "plan_confidence": window.plan_confidence,
                 "quality": window.chord.quality.value,
                 "extension": window.chord.extension.value,
                 "chord_pitch_classes": _pitch_class_set_text(chord_pitch_classes),
@@ -250,10 +266,26 @@ def _window_frame(
                     denominator=coverage.strong_beat_notes,
                 ),
                 "strong_beat_non_chord_notes": coverage.strong_beat_notes - coverage.strong_beat_chord_tones,
+                "score_terms": _score_terms_text(window),
             }
         )
 
     return pd.DataFrame(rows, columns=list(_WINDOW_COLUMNS))
+
+
+def _decoded_harmonic_plan_windows(
+    segment: Segment,
+    *,
+    duration_vocabulary: DurationVocabulary,
+    chord_vocabulary: ChordVocabularyConfig,
+) -> tuple[HarmonicPlanWindow, ...]:
+    decoder = ViterbiChordDecoder(config=ChordDecoderConfig.load())
+    return harmonic_plan_windows_from_segment(
+        segment,
+        decoder=decoder,
+        duration_vocabulary=duration_vocabulary,
+        vocabulary=chord_vocabulary,
+    )
 
 
 def _summary_rows(
@@ -421,6 +453,18 @@ def _harmonic_function_text(window: HarmonicPlanWindow | None) -> str:
         return ""
 
     return window.harmonic_function.value
+
+
+def _chord_highlight_label(window: HarmonicPlanWindow, *, include_role: bool) -> str:
+    label = chord_label(window.chord)
+    if not include_role or window.slot_role is None:
+        return label
+
+    return f"{label} ({window.slot_role.value})"
+
+
+def _score_terms_text(window: HarmonicPlanWindow) -> str:
+    return ", ".join(f"{name}={value:.3f}" for name, value in sorted(window.score_terms.items()))
 
 
 def _pitch_class_set_text(pitch_classes: frozenset[int]) -> str:

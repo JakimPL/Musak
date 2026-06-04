@@ -1,8 +1,10 @@
 from fractions import Fraction
 from pathlib import Path
 
+from musak_model.conditioning.harmony.schema import HarmonicPlanWindow, HarmonicSlotRole
 from musak_model.data.schema import Segment, SegmentMetadata
 from musak_model.data.tokenization_context import tokenization_context_from_scale
+from musak_model.harmony.schema import Chord, ChordQuality
 from musak_model.tokens.duration import DurationVocabulary
 from musak_model.tokens.schema import (
     BarToken,
@@ -23,10 +25,12 @@ def test_harmonic_plan_inspection_decodes_chord_windows_and_note_diagnostics(
 
     inspection = harmonic_plan_inspection(segment, duration_vocabulary=duration_vocabulary)
 
-    assert [highlight.label for highlight in inspection.chord_highlights] == ["I"]
+    assert [highlight.label for highlight in inspection.chord_highlights] == ["I", "I"]
     assert inspection.chord_highlights[0].pitch_classes == frozenset({0, 4, 7})
     assert inspection.chord_highlights[0].start_in_bars == 3.0
-    assert inspection.chord_highlights[0].end_in_bars == 4.0
+    assert inspection.chord_highlights[0].end_in_bars == 3.5
+    assert inspection.chord_highlights[1].start_in_bars == 3.5
+    assert inspection.chord_highlights[1].end_in_bars == 4.0
     assert inspection.window_frame.iloc[0]["label"] == "I"
     assert inspection.window_frame.iloc[0]["function"] == "tonic"
     assert inspection.window_frame.iloc[0]["chord_pitch_classes"] == "C E G"
@@ -35,7 +39,7 @@ def test_harmonic_plan_inspection_decodes_chord_windows_and_note_diagnostics(
     assert inspection.note_frame["chord_tone"].tolist() == [True, True, True, True]
     assert inspection.note_frame["strong_beat"].tolist() == [True, True, True, True]
     assert inspection.summary_rows == [
-        {"Metric": "Decoded chord windows", "Value": "1"},
+        {"Metric": "Decoded chord windows", "Value": "2"},
         {"Metric": "Decoded note events", "Value": "4"},
         {"Metric": "Note-event chord tones", "Value": "100.0% (4/4)"},
         {"Metric": "Strong-beat chord tones", "Value": "100.0% (4/4)"},
@@ -43,6 +47,37 @@ def test_harmonic_plan_inspection_decodes_chord_windows_and_note_diagnostics(
         {"Metric": "Triadic coincident-pair consonance", "Value": "100.0% (3/3)"},
         {"Metric": "Perfect coincident-pair consonance", "Value": "66.7% (2/3)"},
     ]
+
+
+def test_harmonic_plan_inspection_accepts_role_labeled_plan_windows(
+    duration_vocabulary: DurationVocabulary,
+) -> None:
+    segment = _segment(duration_vocabulary)
+    windows = (
+        HarmonicPlanWindow(
+            start=Fraction(0),
+            end=Fraction(1),
+            chord=Chord(root_degree=5, root_accidental=0, quality=ChordQuality.MAJOR),
+            slot_role=HarmonicSlotRole.CADENCE_PREPARATION,
+            distance_to_end=1,
+            cadence_strength=0.75,
+            tension_level=0.85,
+            plan_confidence=1.0,
+            score_terms={"role": 0.8},
+        ),
+    )
+
+    inspection = harmonic_plan_inspection(
+        segment,
+        duration_vocabulary=duration_vocabulary,
+        windows=windows,
+    )
+
+    assert [highlight.label for highlight in inspection.chord_highlights] == ["V (cadence_preparation)"]
+    assert inspection.window_frame.iloc[0]["label"] == "V"
+    assert inspection.window_frame.iloc[0]["role"] == "cadence_preparation"
+    assert inspection.window_frame.iloc[0]["distance_to_end"] == 1
+    assert inspection.window_frame.iloc[0]["score_terms"] == "role=0.800"
 
 
 def _segment(duration_vocabulary: DurationVocabulary) -> Segment:

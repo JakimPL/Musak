@@ -61,7 +61,7 @@ def test_harmonic_plan_metrics_report_plan_agreement_and_harmonic_quality(
     assert metrics["generation/soft/harmony/count/planned_samples"] == 1.0
     assert metrics["generation/soft/harmony/count/decoded_samples"] == 1.0
     assert metrics["generation/soft/harmony/count/planned_windows"] == 1.0
-    assert metrics["generation/soft/harmony/count/decoded_windows"] == 1.0
+    assert metrics["generation/soft/harmony/count/decoded_windows"] == 2.0
     assert metrics["generation/soft/harmony/rate/harmonic_function_agreement"] == 1.0
     assert metrics["generation/soft/harmony/rate/root_degree_agreement"] == 1.0
     assert metrics["generation/soft/harmony/rate/duration_weighted_chord_tone_coverage"] == 1.0

@@ -789,6 +789,8 @@ Acceptance:
 
 ### Phase 2: Planner Inspection
 
+Status: implemented for generation artifacts and reusable notebook utilities.
+
 - Add plan summaries to generation artifacts.
 - Add notebook display for role-labeled plans.
 - Add piano-roll chord cue overlay if reusable code exists; otherwise defer and document the gap.
@@ -796,6 +798,13 @@ Acceptance:
 Acceptance:
 
 - A human can inspect whether the planner failed before listening to the model.
+
+Implementation notes:
+
+- `samples.jsonl` includes selected plan windows, role/end metadata, score terms, compact summaries, and top
+  alternatives when generation uses the finite-horizon planner.
+- `notebooks.utils.harmony.harmonic_plan_inspection` accepts explicit plan windows and can render role-labeled chord
+  cues through the existing piano-roll highlight path.
 
 ### Phase 3: Extended Plan Conditioning Fields
 
