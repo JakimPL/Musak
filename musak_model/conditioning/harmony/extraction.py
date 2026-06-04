@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from musak_model.conditioning.harmony.planner import annotate_harmonic_plan_windows
 from musak_model.conditioning.harmony.schema import HarmonicPlanWindow, harmonic_plan_windows_from_chord_windows
 from musak_model.data.schema import Segment
 from musak_model.harmony.decoding.schema import ChordDecoder
@@ -14,10 +15,12 @@ def harmonic_plan_windows_from_segment(
     duration_vocabulary: DurationVocabulary,
     vocabulary: ChordVocabularyConfig,
 ) -> tuple[HarmonicPlanWindow, ...]:
-    return harmonic_plan_windows_from_chord_windows(
-        decoder.decode(
-            segment,
-            duration_vocabulary=duration_vocabulary,
-            vocabulary=vocabulary,
+    return annotate_harmonic_plan_windows(
+        harmonic_plan_windows_from_chord_windows(
+            decoder.decode(
+                segment,
+                duration_vocabulary=duration_vocabulary,
+                vocabulary=vocabulary,
+            )
         )
     )

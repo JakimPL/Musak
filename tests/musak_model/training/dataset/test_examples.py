@@ -6,7 +6,8 @@ import pytest
 from musak_model.auxiliary.config import MusicalAuxiliaryTargetConfig
 from musak_model.auxiliary.schema import MUSICAL_AUXILIARY_TARGET_IGNORE_ID
 from musak_model.conditioning.config import ConditioningConfig
-from musak_model.conditioning.harmony.vocabulary import HARMONIC_PLAN_UNKNOWN_ID, id_to_root_degree
+from musak_model.conditioning.harmony.schema import HarmonicSlotRole
+from musak_model.conditioning.harmony.vocabulary import HARMONIC_PLAN_UNKNOWN_ID, id_to_root_degree, id_to_slot_role
 from musak_model.conditioning.structural.constants import UNKNOWN_CONTROL_ID, StructuralControlName
 from musak_model.conditioning.structural.vocabulary import StructuralControlVocabulary
 from musak_model.conditioning.time_signature import TimeSignatureVocabulary, TimeSignatureVocabularyConfig
@@ -282,6 +283,9 @@ def test_dataset_builds_harmonic_plan_inputs_when_enabled(
     assert harmonic_plan is not None
     assert harmonic_plan.shape == dataset[0].input_token_ids.shape
     assert id_to_root_degree(int(harmonic_plan.root_degree_ids[0].item())) == 5
+    assert id_to_slot_role(int(harmonic_plan.slot_role_ids[0].item())) == HarmonicSlotRole.CADENCE_PREPARATION
+    assert int(harmonic_plan.remaining_harmonic_slot_ids[0].item()) != HARMONIC_PLAN_UNKNOWN_ID
+    assert int(harmonic_plan.remaining_bar_ids[0].item()) != HARMONIC_PLAN_UNKNOWN_ID
 
 
 def test_dataset_keeps_single_token_samples_for_start_token_training(token_vocabulary: TokenVocabulary) -> None:
@@ -495,6 +499,7 @@ def test_collate_pads_harmonic_plan_inputs(
     assert batch.harmonic_plan is not None
     assert batch.harmonic_plan.shape == batch.input_token_ids.shape
     assert int(batch.harmonic_plan.root_degree_ids[1, -1].item()) == HARMONIC_PLAN_UNKNOWN_ID
+    assert int(batch.harmonic_plan.slot_role_ids[1, -1].item()) == HARMONIC_PLAN_UNKNOWN_ID
 
 
 def test_dataset_builds_structural_control_ids_when_enabled(

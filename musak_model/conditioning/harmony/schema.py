@@ -59,6 +59,13 @@ class HarmonicPlanIds:
     quality_id: int
     extension_id: int
     chord_change_id: int
+    slot_role_id: int
+    distance_to_end_id: int
+    cadence_strength_id: int
+    tension_level_id: int
+    plan_confidence_id: int
+    remaining_bar_id: int
+    remaining_harmonic_slot_id: int
 
 
 @dataclass(frozen=True)
@@ -69,6 +76,13 @@ class HarmonicPlanInputTensors:
     quality_ids: Tensor
     extension_ids: Tensor
     chord_change_ids: Tensor
+    slot_role_ids: Tensor
+    distance_to_end_ids: Tensor
+    cadence_strength_ids: Tensor
+    tension_level_ids: Tensor
+    plan_confidence_ids: Tensor
+    remaining_bar_ids: Tensor
+    remaining_harmonic_slot_ids: Tensor
 
     def to(self, device: torch.device) -> HarmonicPlanInputTensors:
         return HarmonicPlanInputTensors(
@@ -78,6 +92,13 @@ class HarmonicPlanInputTensors:
             quality_ids=self.quality_ids.to(device),
             extension_ids=self.extension_ids.to(device),
             chord_change_ids=self.chord_change_ids.to(device),
+            slot_role_ids=self.slot_role_ids.to(device),
+            distance_to_end_ids=self.distance_to_end_ids.to(device),
+            cadence_strength_ids=self.cadence_strength_ids.to(device),
+            tension_level_ids=self.tension_level_ids.to(device),
+            plan_confidence_ids=self.plan_confidence_ids.to(device),
+            remaining_bar_ids=self.remaining_bar_ids.to(device),
+            remaining_harmonic_slot_ids=self.remaining_harmonic_slot_ids.to(device),
         )
 
     @property

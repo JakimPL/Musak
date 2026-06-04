@@ -105,14 +105,7 @@ def _training_logits_kwargs(token_ids: Tensor, *, bar_positions: Tensor) -> dict
 
 def _harmonic_plan(token_ids: Tensor) -> HarmonicPlanInputTensors:
     ids = torch.ones_like(token_ids)
-    return HarmonicPlanInputTensors(
-        harmonic_function_ids=ids,
-        root_degree_ids=ids,
-        root_accidental_ids=ids,
-        quality_ids=ids,
-        extension_ids=ids,
-        chord_change_ids=ids,
-    )
+    return HarmonicPlanInputTensors(**{field.name: ids for field in HARMONIC_PLAN_TENSOR_FIELDS})
 
 
 def _musical_auxiliary_logits_sum(logits: MusicalAuxiliaryLogits) -> Tensor:

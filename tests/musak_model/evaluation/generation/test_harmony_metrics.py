@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from fractions import Fraction
 
-from musak_model.conditioning.harmony.schema import HarmonicPlanWindow
+from musak_model.conditioning.harmony.schema import HarmonicPlanWindow, HarmonicSlotRole
 from musak_model.evaluation.generation.harmony_metrics import harmonic_plan_metrics
 from musak_model.evaluation.generation.schema import ConstraintReport, GenerationSample
 from musak_model.harmony.schema import Chord, ChordQuality
@@ -62,10 +62,17 @@ def test_harmonic_plan_metrics_report_plan_agreement_and_harmonic_quality(
     assert metrics["generation/soft/harmony/count/decoded_samples"] == 1.0
     assert metrics["generation/soft/harmony/count/planned_windows"] == 1.0
     assert metrics["generation/soft/harmony/count/decoded_windows"] == 2.0
+    assert metrics["generation/soft/harmony/rate/plan_field_known/slot_role"] == 1.0
+    assert metrics["generation/soft/harmony/rate/plan_field_known/distance_to_end"] == 1.0
+    assert metrics["generation/soft/harmony/rate/plan_field_known/cadence_strength"] == 1.0
+    assert metrics["generation/soft/harmony/rate/plan_field_known/tension_level"] == 1.0
+    assert metrics["generation/soft/harmony/rate/plan_field_known/plan_confidence"] == 1.0
     assert metrics["generation/soft/harmony/rate/harmonic_function_agreement"] == 1.0
     assert metrics["generation/soft/harmony/rate/root_degree_agreement"] == 1.0
     assert metrics["generation/soft/harmony/rate/duration_weighted_chord_tone_coverage"] == 1.0
     assert metrics["generation/soft/harmony/rate/strong_beat_chord_tone_coverage"] == 1.0
+    assert metrics["generation/soft/harmony/final_slot/rate/duration_weighted_chord_tone_coverage"] == 1.0
+    assert metrics["generation/soft/harmony/final_slot/rate/strong_beat_chord_tone_coverage"] == 1.0
     assert metrics["generation/soft/harmony/count/coincident_onset_pairs"] == 3.0
     assert metrics["generation/soft/harmony/rate/coincident_onset_triadic_consonance"] == 1.0
     assert metrics["generation/soft/harmony/rate/coincident_onset_perfect_consonance"] == 2 / 3
@@ -98,6 +105,8 @@ def test_harmonic_plan_metrics_detect_non_chord_tone_coverage(
 
     assert metrics["generation/hard/harmony/rate/duration_weighted_chord_tone_coverage"] == 0.0
     assert metrics["generation/hard/harmony/rate/strong_beat_chord_tone_coverage"] == 0.0
+    assert metrics["generation/hard/harmony/final_slot/rate/duration_weighted_chord_tone_coverage"] == 0.0
+    assert metrics["generation/hard/harmony/final_slot/rate/strong_beat_chord_tone_coverage"] == 0.0
     assert metrics["generation/hard/harmony/rate/final_slot_closure"] == 0.0
 
 
@@ -129,6 +138,11 @@ def test_harmonic_plan_metrics_skip_unplanned_and_decode_error_samples(
         "generation/soft/harmony/count/planned_samples": 1.0,
         "generation/soft/harmony/count/decoded_samples": 0.0,
         "generation/soft/harmony/count/planned_windows": 1.0,
+        "generation/soft/harmony/rate/plan_field_known/slot_role": 1.0,
+        "generation/soft/harmony/rate/plan_field_known/distance_to_end": 1.0,
+        "generation/soft/harmony/rate/plan_field_known/cadence_strength": 1.0,
+        "generation/soft/harmony/rate/plan_field_known/tension_level": 1.0,
+        "generation/soft/harmony/rate/plan_field_known/plan_confidence": 1.0,
     }
 
 
@@ -162,6 +176,11 @@ def _tonic_plan() -> tuple[HarmonicPlanWindow, ...]:
             start=Fraction(0),
             end=Fraction(1),
             chord=Chord(root_degree=1, root_accidental=0, quality=ChordQuality.MAJOR),
+            slot_role=HarmonicSlotRole.CADENCE,
+            distance_to_end=0,
+            cadence_strength=1.0,
+            tension_level=0.0,
+            plan_confidence=1.0,
         ),
     )
 

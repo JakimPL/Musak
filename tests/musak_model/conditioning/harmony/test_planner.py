@@ -6,14 +6,15 @@ from musak_model.conditioning.harmony.planner import (
     HarmonicPlannerCadenceScores,
     HarmonicPlannerConfig,
     HarmonicPlannerScoreWeights,
+    annotate_harmonic_plan_windows,
     harmonic_plan_candidate_chords,
     harmonic_plan_slots,
     harmonic_slot_roles,
     plan_harmony,
 )
-from musak_model.conditioning.harmony.schema import HarmonicSlotRole
+from musak_model.conditioning.harmony.schema import HarmonicPlanWindow, HarmonicSlotRole
 from musak_model.generation.constraints import GenerationConstraints
-from musak_model.harmony.schema import ChordExtension, ChordQuality
+from musak_model.harmony.schema import Chord, ChordExtension, ChordQuality
 from musak_model.harmony.vocabulary import ChordVocabularyConfig, ExtensionDefinition, QualityDefinition
 from musak_model.synthetic.processes.chord_track import functional_transition_model, uniform_transition_model
 from musak_model.tokens.schema import ScaleType
@@ -54,6 +55,25 @@ def test_harmonic_plan_slots_cover_requested_span_with_pickup_duration() -> None
     assert slots[0].end == Fraction(1, 2)
     assert slots[1].start == Fraction(1, 2)
     assert slots[1].end == Fraction(3, 2)
+
+
+def test_annotate_harmonic_plan_windows_adds_horizon_fields() -> None:
+    chord = Chord(root_degree=1, root_accidental=0, quality=ChordQuality.MAJOR)
+    windows = (
+        HarmonicPlanWindow(start=Fraction(0), end=Fraction(1), chord=chord),
+        HarmonicPlanWindow(start=Fraction(1), end=Fraction(2), chord=chord),
+        HarmonicPlanWindow(start=Fraction(2), end=Fraction(3), chord=chord),
+    )
+
+    annotated = annotate_harmonic_plan_windows(windows)
+
+    assert tuple(window.slot_role for window in annotated) == (
+        HarmonicSlotRole.OPENING,
+        HarmonicSlotRole.CADENCE_PREPARATION,
+        HarmonicSlotRole.CADENCE,
+    )
+    assert tuple(window.distance_to_end for window in annotated) == (2, 1, 0)
+    assert all(window.plan_confidence == 1.0 for window in annotated)
 
 
 def test_two_bar_plan_prefers_dominant_to_tonic_cadence() -> None:

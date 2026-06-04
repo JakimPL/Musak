@@ -6,13 +6,17 @@ from musak_model.conditioning.harmony.alignment import (
     harmonic_plan_ids_from_decoder_coordinates,
     harmonic_plan_tensors_from_token_ids,
 )
-from musak_model.conditioning.harmony.schema import HarmonicPlanWindow
+from musak_model.conditioning.harmony.schema import HarmonicPlanWindow, HarmonicSlotRole
 from musak_model.conditioning.harmony.vocabulary import (
     HARMONIC_PLAN_UNKNOWN_ID,
+    distance_to_end_to_id,
     harmonic_function_to_id,
     id_to_chord_change,
     id_to_harmonic_function,
     id_to_root_degree,
+    id_to_slot_role,
+    remaining_bar_count_to_id,
+    remaining_harmonic_slot_count_to_id,
 )
 from musak_model.generation.constraints import GenerationConstraints
 from musak_model.generation.coordinates import DecoderInputCoordinates
@@ -60,6 +64,25 @@ def test_harmonic_plan_alignment_uses_decoder_step_cursor(
         True,
         True,
     )
+    assert tuple(id_to_slot_role(int(identifier)) for identifier in tensors.slot_role_ids) == (
+        HarmonicSlotRole.CADENCE_PREPARATION,
+        HarmonicSlotRole.CADENCE_PREPARATION,
+        HarmonicSlotRole.CADENCE,
+        HarmonicSlotRole.CADENCE,
+    )
+    assert tuple(int(identifier) for identifier in tensors.distance_to_end_ids) == (
+        distance_to_end_to_id(1),
+        distance_to_end_to_id(1),
+        distance_to_end_to_id(0),
+        distance_to_end_to_id(0),
+    )
+    assert tuple(int(identifier) for identifier in tensors.remaining_harmonic_slot_ids) == (
+        remaining_harmonic_slot_count_to_id(1),
+        remaining_harmonic_slot_count_to_id(1),
+        remaining_harmonic_slot_count_to_id(0),
+        remaining_harmonic_slot_count_to_id(0),
+    )
+    assert tuple(int(identifier) for identifier in tensors.remaining_bar_ids) == (remaining_bar_count_to_id(0),) * 4
 
 
 def test_harmonic_plan_alignment_uses_bar_duration_constraints() -> None:
@@ -83,6 +106,10 @@ def test_harmonic_plan_alignment_uses_bar_duration_constraints() -> None:
     )
 
     assert tuple(id_to_root_degree(item.root_degree_id) for item in ids) == (1, 5)
+    assert tuple(item.remaining_bar_id for item in ids) == (
+        remaining_bar_count_to_id(1),
+        remaining_bar_count_to_id(0),
+    )
 
 
 def test_harmonic_plan_alignment_returns_unknown_for_padding_and_gaps() -> None:
@@ -101,7 +128,9 @@ def test_harmonic_plan_alignment_returns_unknown_for_padding_and_gaps() -> None:
     )
 
     assert ids[0].harmonic_function_id == HARMONIC_PLAN_UNKNOWN_ID
+    assert ids[0].remaining_bar_id == HARMONIC_PLAN_UNKNOWN_ID
     assert ids[1].harmonic_function_id == harmonic_function_to_id(HarmonicFunction.DOMINANT)
+    assert ids[1].remaining_bar_id == remaining_bar_count_to_id(0)
 
 
 def test_harmonic_plan_alignment_rejects_unknown_in_requested_span_when_strict() -> None:
@@ -162,11 +191,21 @@ def _tonic_to_dominant_windows() -> tuple[HarmonicPlanWindow, ...]:
             start=Fraction(0),
             end=Fraction(1, 2),
             chord=Chord(root_degree=1, root_accidental=0, quality=ChordQuality.MAJOR),
+            slot_role=HarmonicSlotRole.CADENCE_PREPARATION,
+            distance_to_end=1,
+            cadence_strength=0.75,
+            tension_level=0.85,
+            plan_confidence=1.0,
         ),
         HarmonicPlanWindow(
             start=Fraction(1, 2),
             end=Fraction(1),
             chord=Chord(root_degree=5, root_accidental=0, quality=ChordQuality.MAJOR),
+            slot_role=HarmonicSlotRole.CADENCE,
+            distance_to_end=0,
+            cadence_strength=1.0,
+            tension_level=0.0,
+            plan_confidence=1.0,
         ),
     )
 

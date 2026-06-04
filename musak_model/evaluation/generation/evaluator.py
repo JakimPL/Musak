@@ -569,4 +569,11 @@ def _batch_harmonic_plan_input_tensors(
         quality_ids=tensors.quality_ids.unsqueeze(0).to(device),
         extension_ids=tensors.extension_ids.unsqueeze(0).to(device),
         chord_change_ids=tensors.chord_change_ids.unsqueeze(0).to(device),
+        slot_role_ids=tensors.slot_role_ids.unsqueeze(0).to(device),
+        distance_to_end_ids=tensors.distance_to_end_ids.unsqueeze(0).to(device),
+        cadence_strength_ids=tensors.cadence_strength_ids.unsqueeze(0).to(device),
+        tension_level_ids=tensors.tension_level_ids.unsqueeze(0).to(device),
+        plan_confidence_ids=tensors.plan_confidence_ids.unsqueeze(0).to(device),
+        remaining_bar_ids=tensors.remaining_bar_ids.unsqueeze(0).to(device),
+        remaining_harmonic_slot_ids=tensors.remaining_harmonic_slot_ids.unsqueeze(0).to(device),
     )

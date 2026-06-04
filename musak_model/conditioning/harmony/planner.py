@@ -242,6 +242,46 @@ def harmonic_slot_roles(horizon: int) -> tuple[HarmonicSlotRole, ...]:
     )
 
 
+def annotate_harmonic_plan_windows(
+    windows: Sequence[HarmonicPlanWindow],
+) -> tuple[HarmonicPlanWindow, ...]:
+    if not windows:
+        return ()
+
+    roles = harmonic_slot_roles(len(windows))
+    final_index = len(windows) - 1
+    return tuple(
+        _annotated_harmonic_plan_window(
+            window,
+            role=role,
+            fallback_distance_to_end=final_index - index,
+        )
+        for index, (window, role) in enumerate(zip(windows, roles, strict=True))
+    )
+
+
+def _annotated_harmonic_plan_window(
+    window: HarmonicPlanWindow,
+    *,
+    role: HarmonicSlotRole,
+    fallback_distance_to_end: int,
+) -> HarmonicPlanWindow:
+    resolved_role = window.slot_role or role
+    return HarmonicPlanWindow(
+        start=window.start,
+        end=window.end,
+        chord=window.chord,
+        slot_role=resolved_role,
+        distance_to_end=fallback_distance_to_end if window.distance_to_end is None else window.distance_to_end,
+        cadence_strength=(
+            _cadence_strength_for_role(resolved_role) if window.cadence_strength is None else window.cadence_strength
+        ),
+        tension_level=_tension_level_for_role(resolved_role) if window.tension_level is None else window.tension_level,
+        plan_confidence=_DEFAULT_PLAN_CONFIDENCE if window.plan_confidence is None else window.plan_confidence,
+        score_terms=window.score_terms,
+    )
+
+
 def harmonic_plan_window_bounds(
     *,
     constraints: GenerationConstraints,

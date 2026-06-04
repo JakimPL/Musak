@@ -168,6 +168,13 @@ chord windows into `HarmonicPlanWindow` objects, and map each decoder step to lo
 - chord quality;
 - chord extension;
 - chord-change flag.
+- harmonic slot role;
+- distance to the end of the harmonic slot horizon;
+- cadence strength;
+- tension level;
+- plan confidence;
+- remaining requested bars;
+- remaining harmonic slots.
 
 Every harmonic-plan vocabulary reserves ID `0` for unknown or unavailable plan information. Known values start at
 ID `1`. The chord-extension space is intentionally limited to `triad`, `seventh`, and `major_seventh`; upper
@@ -183,11 +190,13 @@ including pickup and short-final-bar durations from `GenerationConstraints`. Pad
 produce the unknown harmonic-plan ID.
 
 Training examples can now carry optional `HarmonicPlanInputTensors`. When training harmony conditioning is enabled,
-dataset construction derives the harmonic plan from the decoded `Segment`, aligns it to the teacher-forcing input
-cursor, pads it with unknown IDs during collation, moves it with the batch, and passes it into the model. The model has
-a separate architectural `conditioning.harmony.enabled` flag; when enabled, harmonic-function, root-degree,
-root-accidental, quality, extension, and chord-change embeddings are added to token embeddings as per-step context.
-The event objective is unchanged.
+dataset construction derives the harmonic plan from the decoded `Segment`, annotates decoded chord windows with the
+same slot-role, distance-to-end, cadence, tension, and confidence fields used by generation plans, aligns the plan to
+the teacher-forcing input cursor, pads it with unknown IDs during collation, moves it with the batch, and passes it
+into the model. `remaining_bars` is derived from the decoder cursor and the requested bar count; `remaining_harmonic_slots`
+is derived from the active plan window's distance to the end of the harmonic horizon. The model has a separate
+architectural `conditioning.harmony.enabled` flag; when enabled, all registered harmonic-plan field embeddings are
+added to token embeddings as per-step context. The event objective is unchanged.
 
 Generation supplies a harmonic plan when both `TrainingConditioningConfig.use_harmony_conditioning` and
 `conditioning.harmony.enabled` are true. The current provider builds a finite-horizon harmonic plan over the full
@@ -206,7 +215,9 @@ Generation evaluation keeps the sampled harmonic plan on each `GenerationSample`
 manifest, and logs plan-aware metrics under `generation/<soft|hard>/harmony/*`. The metrics compare the sampled plan
 against chords decoded from the generated token stream by duration overlap, then separately measure planned
 chord-tone coverage, strong-beat chord-tone coverage, triadic/perfect coincident-onset consonance, and final-slot
-closure. These metrics are diagnostics only; they do not constrain sampling or change the training loss.
+closure. It also logs plan-field known rates for slot role, distance-to-end, cadence strength, tension level, and plan
+confidence, plus final-slot chord-tone coverage split from all-slot averages. These metrics are diagnostics only; they
+do not constrain sampling or change the training loss.
 Notebook harmonic inspection can also render explicit generated plan windows as role-labeled piano-roll chord
 highlights. Without explicit plan windows, it keeps decoding harmony from the segment for dataset-quality inspection.
 

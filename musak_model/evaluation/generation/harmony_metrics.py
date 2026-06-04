@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from fractions import Fraction
 from typing import Final
@@ -79,6 +80,12 @@ def harmonic_plan_metrics(
             sum(len(sample.harmonic_plan_windows or ()) for sample in planned_samples)
         ),
     }
+    metrics.update(
+        _plan_field_coverage_metrics(
+            prefix,
+            tuple(window for sample in planned_samples for window in (sample.harmonic_plan_windows or ())),
+        )
+    )
     if not decoded_samples:
         return metrics
 
@@ -86,6 +93,7 @@ def harmonic_plan_metrics(
     decoder = ViterbiChordDecoder(config=ChordDecoderConfig.load())
     agreement_counts = _AgreementCounts(Fraction(0), Fraction(0), Fraction(0))
     coverage_counts = _CoverageCounts(Fraction(0), Fraction(0), 0, 0)
+    final_slot_coverage_counts = _CoverageCounts(Fraction(0), Fraction(0), 0, 0)
     consonance_counts = _ConsonanceCounts(0, 0, 0)
     decoded_window_count = 0
     final_slot_samples = 0
@@ -119,6 +127,18 @@ def harmonic_plan_metrics(
             ),
         )
         consonance_counts = _add_consonance_counts(consonance_counts, _consonance_counts(note_events))
+        if planned_windows:
+            final_slot_coverage_counts = _add_coverage_counts(
+                final_slot_coverage_counts,
+                _coverage_counts(
+                    note_events,
+                    planned_windows=(planned_windows[-1],),
+                    scale_type=segment.scale_type,
+                    chord_vocabulary=chord_vocabulary,
+                    measure_duration=Fraction(segment.time_numerator, segment.time_denominator),
+                    strong_beat_offsets=rhythm_config.strong_beat_offsets,
+                ),
+            )
 
         closure = _final_slot_closure(
             sample,
@@ -134,6 +154,7 @@ def harmonic_plan_metrics(
     metrics[f"{prefix}/count/decoded_windows"] = float(decoded_window_count)
     metrics.update(_agreement_metrics(prefix, agreement_counts))
     metrics.update(_coverage_metrics(prefix, coverage_counts))
+    metrics.update(_coverage_metrics(f"{prefix}/final_slot", final_slot_coverage_counts))
     metrics.update(_consonance_metrics(prefix, consonance_counts))
     if final_slot_samples > 0:
         metrics[f"{prefix}/rate/final_slot_closure"] = final_slot_closures / final_slot_samples
@@ -146,6 +167,32 @@ def _required_plan_windows(sample: GenerationSample) -> tuple[HarmonicPlanWindow
         raise ValueError("harmonic plan metrics require planned samples")
 
     return sample.harmonic_plan_windows
+
+
+def _plan_field_coverage_metrics(prefix: str, windows: tuple[HarmonicPlanWindow, ...]) -> dict[str, float]:
+    if not windows:
+        return {}
+
+    return {
+        f"{prefix}/rate/plan_field_known/slot_role": _known_rate(window.slot_role is not None for window in windows),
+        f"{prefix}/rate/plan_field_known/distance_to_end": _known_rate(
+            window.distance_to_end is not None for window in windows
+        ),
+        f"{prefix}/rate/plan_field_known/cadence_strength": _known_rate(
+            window.cadence_strength is not None for window in windows
+        ),
+        f"{prefix}/rate/plan_field_known/tension_level": _known_rate(
+            window.tension_level is not None for window in windows
+        ),
+        f"{prefix}/rate/plan_field_known/plan_confidence": _known_rate(
+            window.plan_confidence is not None for window in windows
+        ),
+    }
+
+
+def _known_rate(values: Iterable[bool]) -> float:
+    known_values = tuple(values)
+    return sum(known_values) / len(known_values)
 
 
 def _agreement_counts(

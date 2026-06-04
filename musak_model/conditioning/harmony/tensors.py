@@ -34,6 +34,13 @@ def pad_harmonic_plan_input_tensors(
         quality_ids=padded_by_name["quality_ids"],
         extension_ids=padded_by_name["extension_ids"],
         chord_change_ids=padded_by_name["chord_change_ids"],
+        slot_role_ids=padded_by_name["slot_role_ids"],
+        distance_to_end_ids=padded_by_name["distance_to_end_ids"],
+        cadence_strength_ids=padded_by_name["cadence_strength_ids"],
+        tension_level_ids=padded_by_name["tension_level_ids"],
+        plan_confidence_ids=padded_by_name["plan_confidence_ids"],
+        remaining_bar_ids=padded_by_name["remaining_bar_ids"],
+        remaining_harmonic_slot_ids=padded_by_name["remaining_harmonic_slot_ids"],
     )
 
 

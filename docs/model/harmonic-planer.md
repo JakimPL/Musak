@@ -808,6 +808,8 @@ Implementation notes:
 
 ### Phase 3: Extended Plan Conditioning Fields
 
+Status: implemented for additive harmonic-plan conditioning.
+
 - Add `slot_role`, `distance_to_end`, `cadence_strength`, `tension_level`, and `plan_confidence` IDs.
 - Add per-step `remaining_bars` and `remaining_harmonic_slots` IDs.
 - Align them with the existing decoder cursor path.
@@ -818,6 +820,19 @@ Acceptance:
 - Training and generation run with the extended fields.
 - Metrics show non-unknown field coverage.
 - Generation evaluation logs final-slot behavior separately from all-slot averages.
+
+Implementation notes:
+
+- `HarmonicPlanInputTensors` now contains the original chord/function fields plus slot role, distance-to-end,
+  cadence-strength, tension-level, plan-confidence, remaining-bar, and remaining-harmonic-slot IDs.
+- Harmonic-plan field registration drives model embedding construction, tensor padding, and gradient coverage tests, so
+  additive conditioning automatically includes the extended fields.
+- Decoded corpus chord windows are annotated with finite-horizon slot fields before teacher-forcing alignment. Generated
+  plans already carry these fields from the finite-horizon planner.
+- `remaining_bars` is computed from the decoder cursor and requested bar count during alignment. `remaining_harmonic_slots`
+  comes from the active plan window's `distance_to_end`.
+- Generation harmony metrics include plan-field known rates and final-slot chord-tone coverage alongside the all-slot
+  harmony metrics.
 
 ### Phase 4: Harmonic Relation Targets And Loss
 

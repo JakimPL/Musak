@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from dataclasses import replace
 from fractions import Fraction
 from typing import Final
 
@@ -12,6 +13,7 @@ from musak_model.conditioning.harmony.schema import (
 from musak_model.conditioning.harmony.vocabulary import (
     harmonic_plan_ids_from_windows,
     harmonic_plan_tensors_from_ids,
+    remaining_bar_count_to_id,
     unknown_harmonic_plan_ids,
 )
 from musak_model.generation.constraints import GenerationConstraints
@@ -103,7 +105,17 @@ def harmonic_plan_ids_from_decoder_coordinates(
         ):
             raise ValueError(f"no harmonic plan window covers in-span position {score_position}")
 
-        aligned_ids.append(unknown_harmonic_plan_ids() if window_index is None else window_ids[window_index])
+        if window_index is None:
+            aligned_ids.append(unknown_harmonic_plan_ids())
+            continue
+
+        aligned_ids.append(
+            _ids_for_coordinate(
+                window_ids[window_index],
+                bar_index=bar_index,
+                constraints=constraints,
+            )
+        )
 
     return tuple(aligned_ids)
 
@@ -141,6 +153,22 @@ def _is_requested_score_position(position: Fraction, *, constraints: GenerationC
         return False
 
     return constraints.bar_start(0) <= position <= constraints.bar_end(constraints.bar_count - 1)
+
+
+def _ids_for_coordinate(
+    ids: HarmonicPlanIds,
+    *,
+    bar_index: int,
+    constraints: GenerationConstraints,
+) -> HarmonicPlanIds:
+    return replace(
+        ids,
+        remaining_bar_id=remaining_bar_count_to_id(_remaining_bar_count(bar_index, constraints=constraints)),
+    )
+
+
+def _remaining_bar_count(bar_index: int, *, constraints: GenerationConstraints) -> int:
+    return max(constraints.bar_count - bar_index - 1, 0)
 
 
 def _window_index_at_position(windows: Sequence[HarmonicPlanWindow], position: Fraction) -> int | None:
