@@ -341,20 +341,36 @@ def test_mlflow_tracker_logs_setup_metrics_artifacts_and_invalid_files(
                 epoch=3,
                 train_loss=1.25,
                 train_perplexity=3.49,
+                train_event_loss=1.1,
+                train_event_perplexity=3.0,
+                train_event_loss_contribution=1.1,
+                train_musical_auxiliary_loss_contribution=0.1,
+                train_harmonic_relation_loss_contribution=0.02,
+                train_harmonic_plan_reconstruction_loss_contribution=0.03,
+                train_harmonic_plan_contrastive_loss_contribution=0.04,
+                train_validity_penalty_loss_contribution=0.05,
                 train_token_accuracy=0.5,
                 train_token_kind_accuracy=0.75,
                 train_musical_auxiliary_loss=2.5,
                 train_note_density_accuracy=0.8,
                 train_bar_note_density_accuracy=0.7,
+                train_harmonic_relation_target_count=12,
                 train_harmonic_relation_target_distribution=(0.5, 0.5, 0.0, 0.0, 0.0, 0.0, 0.0),
                 train_harmonic_relation_prediction_distribution=(0.25, 0.75, 0.0, 0.0, 0.0, 0.0, 0.0),
+                train_harmonic_plan_reconstruction_target_count=60,
+                train_harmonic_plan_contrastive_target_count=8,
                 train_cnn_gradient_norm=0.1,
                 train_gru_gradient_norm=0.2,
                 train_transformer_gradient_norm=0.3,
                 validation_loss=1.5,
                 validation_perplexity=4.48,
+                validation_event_loss=1.2,
+                validation_event_perplexity=3.32,
+                validation_event_loss_contribution=1.2,
+                validation_musical_auxiliary_loss_contribution=0.2,
                 validation_token_accuracy=0.4,
                 validation_token_kind_accuracy=0.6,
+                validation_harmonic_relation_target_count=10,
             )
         )
         tracker.log_generation_evaluation(metrics={"generation/soft/rate/end": 0.25}, epoch=3)
@@ -374,11 +390,22 @@ def test_mlflow_tracker_logs_setup_metrics_artifacts_and_invalid_files(
     assert "data.encoded_samples_fingerprint" in fake_mlflow.params
     assert ("model/train/mean/loss", 1.25, 3) in fake_mlflow.metrics
     assert ("model/train/mean/perplexity", 3.49, 3) in fake_mlflow.metrics
+    assert ("model/train/mean/event_loss", 1.1, 3) in fake_mlflow.metrics
+    assert ("model/train/mean/event_perplexity", 3.0, 3) in fake_mlflow.metrics
+    assert ("model/train/mean/loss_contribution/event", 1.1, 3) in fake_mlflow.metrics
+    assert ("model/train/mean/loss_contribution/musical_auxiliary", 0.1, 3) in fake_mlflow.metrics
+    assert ("model/train/mean/loss_contribution/harmonic_relation", 0.02, 3) in fake_mlflow.metrics
+    assert ("model/train/mean/loss_contribution/harmonic_plan_reconstruction", 0.03, 3) in fake_mlflow.metrics
+    assert ("model/train/mean/loss_contribution/harmonic_plan_contrastive", 0.04, 3) in fake_mlflow.metrics
+    assert ("model/train/mean/loss_contribution/validity_penalty", 0.05, 3) in fake_mlflow.metrics
     assert ("model/train/rate/token_accuracy", 0.5, 3) in fake_mlflow.metrics
     assert ("model/train/rate/token_kind_accuracy", 0.75, 3) in fake_mlflow.metrics
     assert ("model/train/mean/musical_auxiliary_loss", 2.5, 3) in fake_mlflow.metrics
     assert ("model/train/rate/note_density_accuracy", 0.8, 3) in fake_mlflow.metrics
     assert ("model/train/rate/bar_note_density_accuracy", 0.7, 3) in fake_mlflow.metrics
+    assert ("model/train/count/harmonic_relation_targets", 12.0, 3) in fake_mlflow.metrics
+    assert ("model/train/count/harmonic_plan_reconstruction_targets", 60.0, 3) in fake_mlflow.metrics
+    assert ("model/train/count/harmonic_plan_contrastive_targets", 8.0, 3) in fake_mlflow.metrics
     assert ("model/train/distribution/harmonic_relation/target/chord_root", 0.5, 3) in fake_mlflow.metrics
     assert ("model/train/distribution/harmonic_relation/prediction/chord_third", 0.75, 3) in fake_mlflow.metrics
     assert ("model/train/mean/cnn_gradient_norm", 0.1, 3) in fake_mlflow.metrics
@@ -386,6 +413,11 @@ def test_mlflow_tracker_logs_setup_metrics_artifacts_and_invalid_files(
     assert ("model/train/mean/transformer_gradient_norm", 0.3, 3) in fake_mlflow.metrics
     assert ("model/validation/mean/loss", 1.5, 3) in fake_mlflow.metrics
     assert ("model/validation/mean/perplexity", 4.48, 3) in fake_mlflow.metrics
+    assert ("model/validation/mean/event_loss", 1.2, 3) in fake_mlflow.metrics
+    assert ("model/validation/mean/event_perplexity", 3.32, 3) in fake_mlflow.metrics
+    assert ("model/validation/mean/loss_contribution/event", 1.2, 3) in fake_mlflow.metrics
+    assert ("model/validation/mean/loss_contribution/musical_auxiliary", 0.2, 3) in fake_mlflow.metrics
+    assert ("model/validation/count/harmonic_relation_targets", 10.0, 3) in fake_mlflow.metrics
     assert ("model/validation/rate/token_accuracy", 0.4, 3) in fake_mlflow.metrics
     assert ("model/validation/rate/token_kind_accuracy", 0.6, 3) in fake_mlflow.metrics
     assert ("generation/soft/rate/end", 0.25, 3) in fake_mlflow.metrics

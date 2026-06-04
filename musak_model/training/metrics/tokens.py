@@ -44,6 +44,7 @@ def batch_metrics_from_logits(
     target_token_ids: Tensor,
     token_padding_mask: Tensor,
     loss: Tensor,
+    event_loss: Tensor,
     token_kind_ids: Tensor | None = None,
     token_attribute_lookup: TokenAttributeTargetTensors | None = None,
 ) -> BatchMetrics:
@@ -66,8 +67,11 @@ def batch_metrics_from_logits(
         token_padding_mask=token_padding_mask,
         token_attribute_lookup=token_attribute_lookup,
     )
+    event_loss_value = float(event_loss.detach().item())
     return BatchMetrics(
         loss=float(loss.detach().item()),
+        event_loss=event_loss_value,
+        event_loss_contribution=event_loss_value,
         token_count=token_count,
         exact_match_count=int(exact_matches.sum().item()),
         token_kind_match_count=token_kind_match_count,

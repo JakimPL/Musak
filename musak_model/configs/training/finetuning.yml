@@ -90,7 +90,7 @@ generation_evaluation:
   scale_type: major
   time_numerator: 4
   time_denominator: 4
-  bar_count: 2
+  bar_count: 4
   minimum_duration_denominator: 16
   allow_dotted_durations: true
   max_notes_per_hand: 5

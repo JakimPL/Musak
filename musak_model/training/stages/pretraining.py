@@ -209,6 +209,18 @@ class PretrainingTrainer:
             epoch=epoch,
             train_loss=train_metrics.loss,
             train_perplexity=train_metrics.perplexity,
+            train_event_loss=train_metrics.event_loss,
+            train_event_perplexity=train_metrics.event_perplexity,
+            train_event_loss_contribution=train_metrics.event_loss_contribution,
+            train_musical_auxiliary_loss_contribution=train_metrics.musical_auxiliary_loss_contribution,
+            train_harmonic_relation_loss_contribution=train_metrics.harmonic_relation_loss_contribution,
+            train_harmonic_plan_reconstruction_loss_contribution=(
+                train_metrics.harmonic_plan_reconstruction_loss_contribution
+            ),
+            train_harmonic_plan_contrastive_loss_contribution=(
+                train_metrics.harmonic_plan_contrastive_loss_contribution
+            ),
+            train_validity_penalty_loss_contribution=train_metrics.validity_penalty_loss_contribution,
             train_token_accuracy=train_metrics.token_accuracy,
             train_token_kind_accuracy=train_metrics.token_kind_accuracy,
             train_event_kind_loss=train_metrics.event_kind_loss,
@@ -250,9 +262,11 @@ class PretrainingTrainer:
             train_harmonic_relation_loss=train_metrics.harmonic_relation_loss,
             train_harmonic_relation_accuracy=train_metrics.harmonic_relation_accuracy,
             train_harmonic_relation_macro_f1=train_metrics.harmonic_relation_macro_f1,
+            train_harmonic_relation_target_count=train_metrics.harmonic_relation_target_count,
             train_harmonic_relation_target_distribution=train_metrics.harmonic_relation_target_distribution,
             train_harmonic_relation_prediction_distribution=train_metrics.harmonic_relation_prediction_distribution,
             train_harmonic_plan_reconstruction_loss=train_metrics.harmonic_plan_reconstruction_loss,
+            train_harmonic_plan_reconstruction_target_count=train_metrics.harmonic_plan_reconstruction_target_count,
             train_harmonic_plan_reconstruction_harmonic_function_accuracy=(
                 train_metrics.harmonic_plan_reconstruction_harmonic_function_accuracy
             ),
@@ -270,6 +284,7 @@ class PretrainingTrainer:
             ),
             train_harmonic_plan_contrastive_loss=train_metrics.harmonic_plan_contrastive_loss,
             train_harmonic_plan_contrastive_accuracy=train_metrics.harmonic_plan_contrastive_accuracy,
+            train_harmonic_plan_contrastive_target_count=train_metrics.harmonic_plan_contrastive_target_count,
             train_harmonic_plan_contrastive_positive_similarity=(
                 train_metrics.harmonic_plan_contrastive_positive_similarity
             ),
@@ -285,6 +300,32 @@ class PretrainingTrainer:
             train_transformer_gradient_norm=train_metrics.transformer_gradient_norm,
             validation_loss=validation_metrics.loss if validation_metrics is not None else None,
             validation_perplexity=validation_metrics.perplexity if validation_metrics is not None else None,
+            validation_event_loss=validation_metrics.event_loss if validation_metrics is not None else None,
+            validation_event_perplexity=(
+                validation_metrics.event_perplexity if validation_metrics is not None else None
+            ),
+            validation_event_loss_contribution=(
+                validation_metrics.event_loss_contribution if validation_metrics is not None else None
+            ),
+            validation_musical_auxiliary_loss_contribution=(
+                validation_metrics.musical_auxiliary_loss_contribution if validation_metrics is not None else None
+            ),
+            validation_harmonic_relation_loss_contribution=(
+                validation_metrics.harmonic_relation_loss_contribution if validation_metrics is not None else None
+            ),
+            validation_harmonic_plan_reconstruction_loss_contribution=(
+                validation_metrics.harmonic_plan_reconstruction_loss_contribution
+                if validation_metrics is not None
+                else None
+            ),
+            validation_harmonic_plan_contrastive_loss_contribution=(
+                validation_metrics.harmonic_plan_contrastive_loss_contribution
+                if validation_metrics is not None
+                else None
+            ),
+            validation_validity_penalty_loss_contribution=(
+                validation_metrics.validity_penalty_loss_contribution if validation_metrics is not None else None
+            ),
             validation_token_accuracy=validation_metrics.token_accuracy if validation_metrics is not None else None,
             validation_token_kind_accuracy=(
                 validation_metrics.token_kind_accuracy if validation_metrics is not None else None
@@ -390,6 +431,9 @@ class PretrainingTrainer:
             validation_harmonic_relation_macro_f1=(
                 validation_metrics.harmonic_relation_macro_f1 if validation_metrics is not None else None
             ),
+            validation_harmonic_relation_target_count=(
+                validation_metrics.harmonic_relation_target_count if validation_metrics is not None else None
+            ),
             validation_harmonic_relation_target_distribution=(
                 validation_metrics.harmonic_relation_target_distribution if validation_metrics is not None else None
             ),
@@ -398,6 +442,9 @@ class PretrainingTrainer:
             ),
             validation_harmonic_plan_reconstruction_loss=(
                 validation_metrics.harmonic_plan_reconstruction_loss if validation_metrics is not None else None
+            ),
+            validation_harmonic_plan_reconstruction_target_count=(
+                validation_metrics.harmonic_plan_reconstruction_target_count if validation_metrics is not None else None
             ),
             validation_harmonic_plan_reconstruction_harmonic_function_accuracy=(
                 validation_metrics.harmonic_plan_reconstruction_harmonic_function_accuracy
@@ -430,6 +477,9 @@ class PretrainingTrainer:
             validation_harmonic_plan_contrastive_accuracy=(
                 validation_metrics.harmonic_plan_contrastive_accuracy if validation_metrics is not None else None
             ),
+            validation_harmonic_plan_contrastive_target_count=(
+                validation_metrics.harmonic_plan_contrastive_target_count if validation_metrics is not None else None
+            ),
             validation_harmonic_plan_contrastive_positive_similarity=(
                 validation_metrics.harmonic_plan_contrastive_positive_similarity
                 if validation_metrics is not None
@@ -458,6 +508,9 @@ class PretrainingTrainer:
         _LOGGER.info(
             (
                 "Epoch %s/%s finished: train_loss=%.6f train_perplexity=%.6f "
+                "train_event_loss=%s train_event_perplexity=%s "
+                "train_loss_contributions=(event=%s aux=%s harmonic_relation=%s "
+                "harmonic_reconstruction=%s harmonic_contrastive=%s validity=%s) "
                 "train_token_accuracy=%.6f train_token_kind_accuracy=%s train_event_kind_loss=%s "
                 "train_duration_loss=%s train_degree_loss=%s train_accidental_loss=%s "
                 "train_octave_offset_loss=%s train_hand_loss=%s train_duration_accuracy=%s "
@@ -465,7 +518,10 @@ class PretrainingTrainer:
                 "train_hand_accuracy=%s train_validity_penalty_loss=%s "
                 "train_invalid_probability_mass=%s train_invalid_target_rate=%s train_cnn_gradient_norm=%s "
                 "train_gru_gradient_norm=%s train_transformer_gradient_norm=%s validation_loss=%s "
-                "validation_perplexity=%s validation_token_accuracy=%s validation_token_kind_accuracy=%s "
+                "validation_perplexity=%s validation_event_loss=%s validation_event_perplexity=%s "
+                "validation_loss_contributions=(event=%s aux=%s harmonic_relation=%s "
+                "harmonic_reconstruction=%s harmonic_contrastive=%s validity=%s) "
+                "validation_token_accuracy=%s validation_token_kind_accuracy=%s "
                 "validation_event_kind_loss=%s validation_duration_loss=%s validation_degree_loss=%s "
                 "validation_accidental_loss=%s validation_octave_offset_loss=%s validation_hand_loss=%s "
                 "validation_duration_accuracy=%s validation_degree_accuracy=%s validation_accidental_accuracy=%s "
@@ -477,6 +533,14 @@ class PretrainingTrainer:
             self._config.optimization.epochs,
             metric.train_loss,
             metric.train_perplexity,
+            metric.train_event_loss,
+            metric.train_event_perplexity,
+            metric.train_event_loss_contribution,
+            metric.train_musical_auxiliary_loss_contribution,
+            metric.train_harmonic_relation_loss_contribution,
+            metric.train_harmonic_plan_reconstruction_loss_contribution,
+            metric.train_harmonic_plan_contrastive_loss_contribution,
+            metric.train_validity_penalty_loss_contribution,
             metric.train_token_accuracy,
             metric.train_token_kind_accuracy,
             metric.train_event_kind_loss,
@@ -498,6 +562,14 @@ class PretrainingTrainer:
             metric.train_transformer_gradient_norm,
             metric.validation_loss,
             metric.validation_perplexity,
+            metric.validation_event_loss,
+            metric.validation_event_perplexity,
+            metric.validation_event_loss_contribution,
+            metric.validation_musical_auxiliary_loss_contribution,
+            metric.validation_harmonic_relation_loss_contribution,
+            metric.validation_harmonic_plan_reconstruction_loss_contribution,
+            metric.validation_harmonic_plan_contrastive_loss_contribution,
+            metric.validation_validity_penalty_loss_contribution,
             metric.validation_token_accuracy,
             metric.validation_token_kind_accuracy,
             metric.validation_event_kind_loss,
@@ -692,31 +764,77 @@ class PretrainingTrainer:
             model_logits=model_logits,
             valid_mask=valid_mask,
         )
+        event_loss = loss
+        loss_contribution_updates: dict[str, float] = {}
         auxiliary_loss = self._musical_auxiliary_loss(model_logits, batch=batch)
         if auxiliary_loss is not None:
-            loss = loss + self._config.musical_auxiliary_objective.weight * auxiliary_loss.loss
+            musical_auxiliary_loss_contribution = self._config.musical_auxiliary_objective.weight * auxiliary_loss.loss
+            loss = loss + musical_auxiliary_loss_contribution
+            loss_contribution_updates["musical_auxiliary_loss_contribution"] = float(
+                musical_auxiliary_loss_contribution.detach().item()
+            )
 
         relation_loss = self._harmonic_relation_loss(model_logits, batch=batch)
         if relation_loss is not None:
-            loss = loss + self._config.harmonic_relation_objective.weight * relation_loss.loss
+            harmonic_relation_loss_contribution = self._config.harmonic_relation_objective.weight * relation_loss.loss
+            loss = loss + harmonic_relation_loss_contribution
+            loss_contribution_updates["harmonic_relation_loss_contribution"] = float(
+                harmonic_relation_loss_contribution.detach().item()
+            )
 
         reconstruction_loss = self._harmonic_plan_reconstruction_loss(model_logits, batch=batch)
         if reconstruction_loss is not None:
-            loss = loss + self._config.harmonic_plan_reconstruction_objective.weight * reconstruction_loss.loss
+            harmonic_plan_reconstruction_loss_contribution = (
+                self._config.harmonic_plan_reconstruction_objective.weight * reconstruction_loss.loss
+            )
+            loss = loss + harmonic_plan_reconstruction_loss_contribution
+            loss_contribution_updates["harmonic_plan_reconstruction_loss_contribution"] = float(
+                harmonic_plan_reconstruction_loss_contribution.detach().item()
+            )
 
         contrastive_loss = self._harmonic_plan_contrastive_loss(model_logits)
         if contrastive_loss is not None:
-            loss = loss + self._config.harmonic_plan_contrastive_objective.weight * contrastive_loss.loss
+            harmonic_plan_contrastive_loss_contribution = (
+                self._config.harmonic_plan_contrastive_objective.weight * contrastive_loss.loss
+            )
+            loss = loss + harmonic_plan_contrastive_loss_contribution
+            loss_contribution_updates["harmonic_plan_contrastive_loss_contribution"] = float(
+                harmonic_plan_contrastive_loss_contribution.detach().item()
+            )
 
         log_probabilities = nn.functional.log_softmax(logits, dim=-1)
+        validity_metric_updates: dict[str, float | int] = {}
+        if self._config.conditioning.use_validity_penalty:
+            validity_metrics = self._validity_penalty_metrics(
+                log_probabilities,
+                batch=batch,
+                valid_mask=valid_mask.reshape(batch.token_padding_mask.shape),
+            )
+            validity_loss_contribution = (
+                self._config.conditioning.validity_penalty_weight * validity_metrics["penalty_loss"]
+            )
+            loss = loss + validity_loss_contribution
+            loss_contribution_updates["validity_penalty_loss_contribution"] = float(
+                validity_loss_contribution.detach().item()
+            )
+            validity_metric_updates = {
+                "validity_penalty_loss": float(validity_metrics["penalty_loss"].detach().item()),
+                "invalid_probability_mass": float(validity_metrics["invalid_mass"].detach().item()),
+                "invalid_target_count": int(validity_metrics["invalid_target_count"].detach().item()),
+                "validity_penalty_token_count": int(validity_metrics["penalty_token_count"].detach().item()),
+            }
+
         batch_metrics = batch_metrics_from_logits(
             logits,
             target_token_ids=batch.target_token_ids,
             token_padding_mask=batch.token_padding_mask,
             loss=loss,
+            event_loss=event_loss,
             token_kind_ids=self._token_kind_ids,
             token_attribute_lookup=self._token_attribute_lookup,
         )
+        if loss_contribution_updates or validity_metric_updates:
+            batch_metrics = batch_metrics.model_copy(update={**loss_contribution_updates, **validity_metric_updates})
         batch_metrics = self._add_factorized_loss_metrics(batch_metrics, factorized_loss=factorized_loss)
         batch_metrics = self._add_musical_auxiliary_loss_metrics(batch_metrics, auxiliary_loss=auxiliary_loss)
         batch_metrics = self._add_harmonic_relation_loss_metrics(batch_metrics, relation_loss=relation_loss)
@@ -729,22 +847,6 @@ class PretrainingTrainer:
             contrastive_loss=contrastive_loss,
         )
         batch_metrics = self._add_harmony_gate_metrics(batch_metrics, model_logits=model_logits, batch=batch)
-        if self._config.conditioning.use_validity_penalty:
-            validity_metrics = self._validity_penalty_metrics(
-                log_probabilities,
-                batch=batch,
-                valid_mask=valid_mask.reshape(batch.token_padding_mask.shape),
-            )
-            loss = loss + self._config.conditioning.validity_penalty_weight * validity_metrics["penalty_loss"]
-            batch_metrics = batch_metrics.model_copy(
-                update={
-                    "loss": float(loss.detach().item()),
-                    "validity_penalty_loss": float(validity_metrics["penalty_loss"].detach().item()),
-                    "invalid_probability_mass": float(validity_metrics["invalid_mass"].detach().item()),
-                    "invalid_target_count": int(validity_metrics["invalid_target_count"].detach().item()),
-                    "validity_penalty_token_count": int(validity_metrics["penalty_token_count"].detach().item()),
-                }
-            )
         return loss, batch_metrics
 
     def _model_training_logits(self, batch: TrainingBatch) -> ModelTrainingLogits:

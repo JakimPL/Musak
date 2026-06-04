@@ -10,6 +10,13 @@ from musak_model.training.metrics.schema import BatchMetrics, EpochSplitMetrics
 @dataclass
 class MetricsAccumulator:
     loss_sum: float = 0.0
+    event_loss_sum: float | None = None
+    event_loss_contribution_sum: float | None = None
+    musical_auxiliary_loss_contribution_sum: float | None = None
+    harmonic_relation_loss_contribution_sum: float | None = None
+    harmonic_plan_reconstruction_loss_contribution_sum: float | None = None
+    harmonic_plan_contrastive_loss_contribution_sum: float | None = None
+    validity_penalty_loss_contribution_sum: float | None = None
     token_count: int = 0
     exact_match_count: int = 0
     token_kind_match_count: int | None = None
@@ -108,6 +115,41 @@ class MetricsAccumulator:
 
     def add(self, batch_metrics: BatchMetrics) -> None:
         self.loss_sum += batch_metrics.loss * batch_metrics.token_count
+        self.event_loss_sum = _add_optional_weighted_metric(
+            self.event_loss_sum,
+            value=batch_metrics.event_loss,
+            weight=batch_metrics.token_count,
+        )
+        self.event_loss_contribution_sum = _add_optional_weighted_metric(
+            self.event_loss_contribution_sum,
+            value=batch_metrics.event_loss_contribution,
+            weight=batch_metrics.token_count,
+        )
+        self.musical_auxiliary_loss_contribution_sum = _add_optional_weighted_metric(
+            self.musical_auxiliary_loss_contribution_sum,
+            value=batch_metrics.musical_auxiliary_loss_contribution,
+            weight=batch_metrics.token_count,
+        )
+        self.harmonic_relation_loss_contribution_sum = _add_optional_weighted_metric(
+            self.harmonic_relation_loss_contribution_sum,
+            value=batch_metrics.harmonic_relation_loss_contribution,
+            weight=batch_metrics.token_count,
+        )
+        self.harmonic_plan_reconstruction_loss_contribution_sum = _add_optional_weighted_metric(
+            self.harmonic_plan_reconstruction_loss_contribution_sum,
+            value=batch_metrics.harmonic_plan_reconstruction_loss_contribution,
+            weight=batch_metrics.token_count,
+        )
+        self.harmonic_plan_contrastive_loss_contribution_sum = _add_optional_weighted_metric(
+            self.harmonic_plan_contrastive_loss_contribution_sum,
+            value=batch_metrics.harmonic_plan_contrastive_loss_contribution,
+            weight=batch_metrics.token_count,
+        )
+        self.validity_penalty_loss_contribution_sum = _add_optional_weighted_metric(
+            self.validity_penalty_loss_contribution_sum,
+            value=batch_metrics.validity_penalty_loss_contribution,
+            weight=batch_metrics.token_count,
+        )
         self.token_count += batch_metrics.token_count
         self.exact_match_count += batch_metrics.exact_match_count
         if batch_metrics.token_kind_match_count is not None:
@@ -470,9 +512,36 @@ class MetricsAccumulator:
             raise ValueError("cannot calculate metrics without tokens")
 
         loss = self.loss_sum / self.token_count
+        event_loss = _weighted_optional_average(self.event_loss_sum, weight=self.token_count)
         return EpochSplitMetrics(
             loss=loss,
             perplexity=exp(loss),
+            event_loss=event_loss,
+            event_perplexity=_optional_exponential(event_loss),
+            event_loss_contribution=_weighted_optional_average(
+                self.event_loss_contribution_sum,
+                weight=self.token_count,
+            ),
+            musical_auxiliary_loss_contribution=_weighted_optional_average(
+                self.musical_auxiliary_loss_contribution_sum,
+                weight=self.token_count,
+            ),
+            harmonic_relation_loss_contribution=_weighted_optional_average(
+                self.harmonic_relation_loss_contribution_sum,
+                weight=self.token_count,
+            ),
+            harmonic_plan_reconstruction_loss_contribution=_weighted_optional_average(
+                self.harmonic_plan_reconstruction_loss_contribution_sum,
+                weight=self.token_count,
+            ),
+            harmonic_plan_contrastive_loss_contribution=_weighted_optional_average(
+                self.harmonic_plan_contrastive_loss_contribution_sum,
+                weight=self.token_count,
+            ),
+            validity_penalty_loss_contribution=_weighted_optional_average(
+                self.validity_penalty_loss_contribution_sum,
+                weight=self.token_count,
+            ),
             token_accuracy=self.exact_match_count / self.token_count,
             token_kind_accuracy=(
                 None if self.token_kind_match_count is None else self.token_kind_match_count / self.token_count
@@ -609,12 +678,14 @@ class MetricsAccumulator:
                 self.harmonic_relation_macro_f1_sum,
                 weight=self.harmonic_relation_target_count,
             ),
+            harmonic_relation_target_count=self.harmonic_relation_target_count,
             harmonic_relation_target_distribution=_optional_distribution(self.harmonic_relation_target_counts),
             harmonic_relation_prediction_distribution=_optional_distribution(self.harmonic_relation_prediction_counts),
             harmonic_plan_reconstruction_loss=_weighted_optional_average(
                 self.harmonic_plan_reconstruction_loss_sum,
                 weight=self.harmonic_plan_reconstruction_target_count,
             ),
+            harmonic_plan_reconstruction_target_count=self.harmonic_plan_reconstruction_target_count,
             harmonic_plan_reconstruction_harmonic_function_accuracy=_optional_rate(
                 self.harmonic_plan_reconstruction_harmonic_function_match_count,
                 target_count=self.harmonic_plan_reconstruction_harmonic_function_target_count,
@@ -643,6 +714,7 @@ class MetricsAccumulator:
                 self.harmonic_plan_contrastive_match_count,
                 target_count=self.harmonic_plan_contrastive_target_count,
             ),
+            harmonic_plan_contrastive_target_count=self.harmonic_plan_contrastive_target_count,
             harmonic_plan_contrastive_positive_similarity=_weighted_optional_average(
                 self.harmonic_plan_contrastive_positive_similarity_sum,
                 weight=self.harmonic_plan_contrastive_target_count,
@@ -777,6 +849,13 @@ def _weighted_optional_average(
         return None
 
     return value / weight
+
+
+def _optional_exponential(value: float | None) -> float | None:
+    if value is None:
+        return None
+
+    return exp(value)
 
 
 def _optional_validity_average(

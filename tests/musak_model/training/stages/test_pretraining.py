@@ -388,6 +388,10 @@ def test_trainer_runs_one_epoch_and_writes_checkpoints(tmp_path: Path) -> None:
     assert len(result.metrics) == 1
     assert result.metrics[0].train_loss > 0
     assert result.metrics[0].train_perplexity > 1
+    assert result.metrics[0].train_event_loss is not None
+    assert result.metrics[0].train_event_perplexity is not None
+    assert result.metrics[0].train_event_loss_contribution is not None
+    assert result.metrics[0].train_musical_auxiliary_loss_contribution is not None
     assert 0 <= result.metrics[0].train_token_accuracy <= 1
     assert result.metrics[0].train_event_kind_loss is not None
     assert result.metrics[0].train_duration_loss is not None
@@ -400,6 +404,10 @@ def test_trainer_runs_one_epoch_and_writes_checkpoints(tmp_path: Path) -> None:
     assert result.metrics[0].train_octave_offset_accuracy is not None
     assert result.metrics[0].validation_loss is not None
     assert result.metrics[0].validation_perplexity is not None
+    assert result.metrics[0].validation_event_loss is not None
+    assert result.metrics[0].validation_event_perplexity is not None
+    assert result.metrics[0].validation_event_loss_contribution is not None
+    assert result.metrics[0].validation_musical_auxiliary_loss_contribution is not None
     assert result.metrics[0].validation_token_accuracy is not None
     assert (tmp_path / "latest.pt").exists()
     assert (tmp_path / "best.pt").exists()
@@ -635,5 +643,6 @@ def test_trainer_reports_validity_penalty_metrics(tmp_path: Path) -> None:
     result = trainer.train()
 
     assert result.metrics[0].train_validity_penalty_loss is not None
+    assert result.metrics[0].train_validity_penalty_loss_contribution is not None
     assert result.metrics[0].train_invalid_probability_mass is not None
     assert result.metrics[0].train_invalid_target_rate is not None

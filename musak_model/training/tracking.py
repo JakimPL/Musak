@@ -327,11 +327,15 @@ def _format_run_name_number(value: float) -> str:
 
 
 def _epoch_metric_values(metrics: EpochMetrics) -> dict[str, float]:
-    values = {
-        metric_name: value
-        for field_name, metric_name in _EPOCH_METRIC_NAME_MAP.items()
-        if isinstance((value := getattr(metrics, field_name)), float)
-    }
+    values: dict[str, float] = {}
+    for field_name, metric_name in _EPOCH_METRIC_NAME_MAP.items():
+        value = getattr(metrics, field_name)
+        if isinstance(value, bool):
+            continue
+
+        if isinstance(value, (int, float)):
+            values[metric_name] = float(value)
+
     values.update(_harmonic_relation_distribution_metric_values(metrics))
     return values
 
@@ -371,6 +375,18 @@ def _named_distribution_metrics(distribution: tuple[float, ...] | None, *, metri
 _EPOCH_METRIC_NAME_MAP: Final[dict[str, str]] = {
     "train_loss": "model/train/mean/loss",
     "train_perplexity": "model/train/mean/perplexity",
+    "train_event_loss": "model/train/mean/event_loss",
+    "train_event_perplexity": "model/train/mean/event_perplexity",
+    "train_event_loss_contribution": "model/train/mean/loss_contribution/event",
+    "train_musical_auxiliary_loss_contribution": "model/train/mean/loss_contribution/musical_auxiliary",
+    "train_harmonic_relation_loss_contribution": "model/train/mean/loss_contribution/harmonic_relation",
+    "train_harmonic_plan_reconstruction_loss_contribution": (
+        "model/train/mean/loss_contribution/harmonic_plan_reconstruction"
+    ),
+    "train_harmonic_plan_contrastive_loss_contribution": (
+        "model/train/mean/loss_contribution/harmonic_plan_contrastive"
+    ),
+    "train_validity_penalty_loss_contribution": "model/train/mean/loss_contribution/validity_penalty",
     "train_token_accuracy": "model/train/rate/token_accuracy",
     "train_token_kind_accuracy": "model/train/rate/token_kind_accuracy",
     "train_event_kind_loss": "model/train/mean/event_kind_loss",
@@ -412,7 +428,9 @@ _EPOCH_METRIC_NAME_MAP: Final[dict[str, str]] = {
     "train_harmonic_relation_loss": "model/train/mean/harmonic_relation_loss",
     "train_harmonic_relation_accuracy": "model/train/rate/harmonic_relation_accuracy",
     "train_harmonic_relation_macro_f1": "model/train/rate/harmonic_relation_macro_f1",
+    "train_harmonic_relation_target_count": "model/train/count/harmonic_relation_targets",
     "train_harmonic_plan_reconstruction_loss": "model/train/mean/harmonic_plan_reconstruction_loss",
+    "train_harmonic_plan_reconstruction_target_count": "model/train/count/harmonic_plan_reconstruction_targets",
     "train_harmonic_plan_reconstruction_harmonic_function_accuracy": (
         "model/train/rate/harmonic_plan_reconstruction_harmonic_function_accuracy"
     ),
@@ -430,6 +448,7 @@ _EPOCH_METRIC_NAME_MAP: Final[dict[str, str]] = {
     ),
     "train_harmonic_plan_contrastive_loss": "model/train/mean/harmonic_plan_contrastive_loss",
     "train_harmonic_plan_contrastive_accuracy": "model/train/rate/harmonic_plan_contrastive_accuracy",
+    "train_harmonic_plan_contrastive_target_count": "model/train/count/harmonic_plan_contrastive_targets",
     "train_harmonic_plan_contrastive_positive_similarity": (
         "model/train/mean/harmonic_plan_contrastive_positive_similarity"
     ),
@@ -445,6 +464,18 @@ _EPOCH_METRIC_NAME_MAP: Final[dict[str, str]] = {
     "train_transformer_gradient_norm": "model/train/mean/transformer_gradient_norm",
     "validation_loss": "model/validation/mean/loss",
     "validation_perplexity": "model/validation/mean/perplexity",
+    "validation_event_loss": "model/validation/mean/event_loss",
+    "validation_event_perplexity": "model/validation/mean/event_perplexity",
+    "validation_event_loss_contribution": "model/validation/mean/loss_contribution/event",
+    "validation_musical_auxiliary_loss_contribution": "model/validation/mean/loss_contribution/musical_auxiliary",
+    "validation_harmonic_relation_loss_contribution": "model/validation/mean/loss_contribution/harmonic_relation",
+    "validation_harmonic_plan_reconstruction_loss_contribution": (
+        "model/validation/mean/loss_contribution/harmonic_plan_reconstruction"
+    ),
+    "validation_harmonic_plan_contrastive_loss_contribution": (
+        "model/validation/mean/loss_contribution/harmonic_plan_contrastive"
+    ),
+    "validation_validity_penalty_loss_contribution": "model/validation/mean/loss_contribution/validity_penalty",
     "validation_token_accuracy": "model/validation/rate/token_accuracy",
     "validation_token_kind_accuracy": "model/validation/rate/token_kind_accuracy",
     "validation_event_kind_loss": "model/validation/mean/event_kind_loss",
@@ -486,7 +517,11 @@ _EPOCH_METRIC_NAME_MAP: Final[dict[str, str]] = {
     "validation_harmonic_relation_loss": "model/validation/mean/harmonic_relation_loss",
     "validation_harmonic_relation_accuracy": "model/validation/rate/harmonic_relation_accuracy",
     "validation_harmonic_relation_macro_f1": "model/validation/rate/harmonic_relation_macro_f1",
+    "validation_harmonic_relation_target_count": "model/validation/count/harmonic_relation_targets",
     "validation_harmonic_plan_reconstruction_loss": "model/validation/mean/harmonic_plan_reconstruction_loss",
+    "validation_harmonic_plan_reconstruction_target_count": (
+        "model/validation/count/harmonic_plan_reconstruction_targets"
+    ),
     "validation_harmonic_plan_reconstruction_harmonic_function_accuracy": (
         "model/validation/rate/harmonic_plan_reconstruction_harmonic_function_accuracy"
     ),
@@ -504,6 +539,7 @@ _EPOCH_METRIC_NAME_MAP: Final[dict[str, str]] = {
     ),
     "validation_harmonic_plan_contrastive_loss": "model/validation/mean/harmonic_plan_contrastive_loss",
     "validation_harmonic_plan_contrastive_accuracy": "model/validation/rate/harmonic_plan_contrastive_accuracy",
+    "validation_harmonic_plan_contrastive_target_count": ("model/validation/count/harmonic_plan_contrastive_targets"),
     "validation_harmonic_plan_contrastive_positive_similarity": (
         "model/validation/mean/harmonic_plan_contrastive_positive_similarity"
     ),

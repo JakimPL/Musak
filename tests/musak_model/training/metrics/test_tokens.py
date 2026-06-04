@@ -21,10 +21,14 @@ def test_batch_metrics_calculates_token_and_kind_accuracy(token_vocabulary: Toke
         target_token_ids=target_token_ids,
         token_padding_mask=torch.tensor([[False, False, False, False]]),
         loss=torch.tensor(1.0),
+        event_loss=torch.tensor(0.75),
         token_kind_ids=build_token_kind_ids(token_vocabulary),
         token_attribute_lookup=build_token_attribute_lookup(token_vocabulary),
     )
 
+    assert metrics.loss == 1.0
+    assert metrics.event_loss == 0.75
+    assert metrics.event_loss_contribution == 0.75
     assert metrics.token_count == 4
     assert metrics.exact_match_count == 2
     assert metrics.token_kind_match_count == 3

@@ -9,6 +9,14 @@ class EpochMetrics(BaseModel):
     epoch: int
     train_loss: float
     train_perplexity: float
+    train_event_loss: float | None = None
+    train_event_perplexity: float | None = None
+    train_event_loss_contribution: float | None = None
+    train_musical_auxiliary_loss_contribution: float | None = None
+    train_harmonic_relation_loss_contribution: float | None = None
+    train_harmonic_plan_reconstruction_loss_contribution: float | None = None
+    train_harmonic_plan_contrastive_loss_contribution: float | None = None
+    train_validity_penalty_loss_contribution: float | None = None
     train_token_accuracy: float
     train_token_kind_accuracy: float | None = None
     train_event_kind_loss: float | None = None
@@ -50,9 +58,11 @@ class EpochMetrics(BaseModel):
     train_harmonic_relation_loss: float | None = None
     train_harmonic_relation_accuracy: float | None = None
     train_harmonic_relation_macro_f1: float | None = None
+    train_harmonic_relation_target_count: int | None = None
     train_harmonic_relation_target_distribution: tuple[float, ...] | None = None
     train_harmonic_relation_prediction_distribution: tuple[float, ...] | None = None
     train_harmonic_plan_reconstruction_loss: float | None = None
+    train_harmonic_plan_reconstruction_target_count: int | None = None
     train_harmonic_plan_reconstruction_harmonic_function_accuracy: float | None = None
     train_harmonic_plan_reconstruction_root_degree_accuracy: float | None = None
     train_harmonic_plan_reconstruction_quality_accuracy: float | None = None
@@ -60,6 +70,7 @@ class EpochMetrics(BaseModel):
     train_harmonic_plan_reconstruction_cadence_strength_accuracy: float | None = None
     train_harmonic_plan_contrastive_loss: float | None = None
     train_harmonic_plan_contrastive_accuracy: float | None = None
+    train_harmonic_plan_contrastive_target_count: int | None = None
     train_harmonic_plan_contrastive_positive_similarity: float | None = None
     train_harmonic_plan_contrastive_negative_similarity: float | None = None
     train_harmony_gate_mean: float | None = None
@@ -71,6 +82,14 @@ class EpochMetrics(BaseModel):
     train_transformer_gradient_norm: float | None = None
     validation_loss: float | None
     validation_perplexity: float | None = None
+    validation_event_loss: float | None = None
+    validation_event_perplexity: float | None = None
+    validation_event_loss_contribution: float | None = None
+    validation_musical_auxiliary_loss_contribution: float | None = None
+    validation_harmonic_relation_loss_contribution: float | None = None
+    validation_harmonic_plan_reconstruction_loss_contribution: float | None = None
+    validation_harmonic_plan_contrastive_loss_contribution: float | None = None
+    validation_validity_penalty_loss_contribution: float | None = None
     validation_token_accuracy: float | None = None
     validation_token_kind_accuracy: float | None = None
     validation_event_kind_loss: float | None = None
@@ -112,9 +131,11 @@ class EpochMetrics(BaseModel):
     validation_harmonic_relation_loss: float | None = None
     validation_harmonic_relation_accuracy: float | None = None
     validation_harmonic_relation_macro_f1: float | None = None
+    validation_harmonic_relation_target_count: int | None = None
     validation_harmonic_relation_target_distribution: tuple[float, ...] | None = None
     validation_harmonic_relation_prediction_distribution: tuple[float, ...] | None = None
     validation_harmonic_plan_reconstruction_loss: float | None = None
+    validation_harmonic_plan_reconstruction_target_count: int | None = None
     validation_harmonic_plan_reconstruction_harmonic_function_accuracy: float | None = None
     validation_harmonic_plan_reconstruction_root_degree_accuracy: float | None = None
     validation_harmonic_plan_reconstruction_quality_accuracy: float | None = None
@@ -122,6 +143,7 @@ class EpochMetrics(BaseModel):
     validation_harmonic_plan_reconstruction_cadence_strength_accuracy: float | None = None
     validation_harmonic_plan_contrastive_loss: float | None = None
     validation_harmonic_plan_contrastive_accuracy: float | None = None
+    validation_harmonic_plan_contrastive_target_count: int | None = None
     validation_harmonic_plan_contrastive_positive_similarity: float | None = None
     validation_harmonic_plan_contrastive_negative_similarity: float | None = None
     validation_harmony_gate_mean: float | None = None
@@ -135,6 +157,14 @@ class EpochSplitMetrics(BaseModel):
 
     loss: float
     perplexity: float
+    event_loss: float | None = None
+    event_perplexity: float | None = None
+    event_loss_contribution: float | None = None
+    musical_auxiliary_loss_contribution: float | None = None
+    harmonic_relation_loss_contribution: float | None = None
+    harmonic_plan_reconstruction_loss_contribution: float | None = None
+    harmonic_plan_contrastive_loss_contribution: float | None = None
+    validity_penalty_loss_contribution: float | None = None
     token_accuracy: float
     token_kind_accuracy: float | None = None
     event_kind_loss: float | None = None
@@ -176,9 +206,11 @@ class EpochSplitMetrics(BaseModel):
     harmonic_relation_loss: float | None = None
     harmonic_relation_accuracy: float | None = None
     harmonic_relation_macro_f1: float | None = None
+    harmonic_relation_target_count: int | None = None
     harmonic_relation_target_distribution: tuple[float, ...] | None = None
     harmonic_relation_prediction_distribution: tuple[float, ...] | None = None
     harmonic_plan_reconstruction_loss: float | None = None
+    harmonic_plan_reconstruction_target_count: int | None = None
     harmonic_plan_reconstruction_harmonic_function_accuracy: float | None = None
     harmonic_plan_reconstruction_root_degree_accuracy: float | None = None
     harmonic_plan_reconstruction_quality_accuracy: float | None = None
@@ -186,6 +218,7 @@ class EpochSplitMetrics(BaseModel):
     harmonic_plan_reconstruction_cadence_strength_accuracy: float | None = None
     harmonic_plan_contrastive_loss: float | None = None
     harmonic_plan_contrastive_accuracy: float | None = None
+    harmonic_plan_contrastive_target_count: int | None = None
     harmonic_plan_contrastive_positive_similarity: float | None = None
     harmonic_plan_contrastive_negative_similarity: float | None = None
     harmony_gate_mean: float | None = None
@@ -201,6 +234,13 @@ class BatchMetrics(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     loss: float
+    event_loss: float | None = None
+    event_loss_contribution: float | None = None
+    musical_auxiliary_loss_contribution: float | None = None
+    harmonic_relation_loss_contribution: float | None = None
+    harmonic_plan_reconstruction_loss_contribution: float | None = None
+    harmonic_plan_contrastive_loss_contribution: float | None = None
+    validity_penalty_loss_contribution: float | None = None
     token_count: int = Field(ge=1)
     exact_match_count: int = Field(ge=0)
     token_kind_match_count: int | None = None

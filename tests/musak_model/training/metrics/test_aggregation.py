@@ -1,3 +1,5 @@
+from math import exp
+
 from pytest import approx
 
 from musak_model.conditioning.harmony.relations import HARMONIC_RELATION_CLASS_COUNT
@@ -10,6 +12,13 @@ def test_metrics_accumulator_averages_loss_accuracy_and_gradient_norms() -> None
     accumulator.add(
         BatchMetrics(
             loss=1.0,
+            event_loss=0.6,
+            event_loss_contribution=0.6,
+            musical_auxiliary_loss_contribution=0.1,
+            harmonic_relation_loss_contribution=0.027,
+            harmonic_plan_reconstruction_loss_contribution=0.02,
+            harmonic_plan_contrastive_loss_contribution=0.004,
+            validity_penalty_loss_contribution=0.02,
             token_count=2,
             exact_match_count=1,
             token_kind_match_count=2,
@@ -102,6 +111,13 @@ def test_metrics_accumulator_averages_loss_accuracy_and_gradient_norms() -> None
     accumulator.add(
         BatchMetrics(
             loss=2.0,
+            event_loss=1.2,
+            event_loss_contribution=1.2,
+            musical_auxiliary_loss_contribution=0.2,
+            harmonic_relation_loss_contribution=0.045,
+            harmonic_plan_reconstruction_loss_contribution=0.04,
+            harmonic_plan_contrastive_loss_contribution=0.008,
+            validity_penalty_loss_contribution=0.06,
             token_count=6,
             exact_match_count=3,
             token_kind_match_count=4,
@@ -195,6 +211,14 @@ def test_metrics_accumulator_averages_loss_accuracy_and_gradient_norms() -> None
     metrics = accumulator.to_epoch_split_metrics()
 
     assert metrics.loss == 1.75
+    assert metrics.event_loss == approx(1.05)
+    assert metrics.event_perplexity == approx(exp(1.05))
+    assert metrics.event_loss_contribution == approx(1.05)
+    assert metrics.musical_auxiliary_loss_contribution == approx(0.175)
+    assert metrics.harmonic_relation_loss_contribution == approx(0.0405)
+    assert metrics.harmonic_plan_reconstruction_loss_contribution == approx(0.035)
+    assert metrics.harmonic_plan_contrastive_loss_contribution == approx(0.007)
+    assert metrics.validity_penalty_loss_contribution == approx(0.05)
     assert metrics.token_accuracy == 0.5
     assert metrics.token_kind_accuracy == 0.75
     assert metrics.event_kind_loss == approx(0.875)
@@ -232,10 +256,12 @@ def test_metrics_accumulator_averages_loss_accuracy_and_gradient_norms() -> None
     assert metrics.harmonic_relation_loss == approx(1.3)
     assert metrics.harmonic_relation_accuracy == approx(4 / 6)
     assert metrics.harmonic_relation_macro_f1 == approx(2 / 3)
+    assert metrics.harmonic_relation_target_count == 6
     assert metrics.harmonic_relation_target_distribution == approx((2 / 6, 1 / 6, 3 / 6, 0, 0, 0, 0))
     assert metrics.harmonic_relation_prediction_distribution == approx((1 / 6, 2 / 6, 3 / 6, 0, 0, 0, 0))
     assert len(metrics.harmonic_relation_target_distribution or ()) == HARMONIC_RELATION_CLASS_COUNT
     assert metrics.harmonic_plan_reconstruction_loss == approx(5 / 3)
+    assert metrics.harmonic_plan_reconstruction_target_count == 30
     assert metrics.harmonic_plan_reconstruction_harmonic_function_accuracy == approx(4 / 6)
     assert metrics.harmonic_plan_reconstruction_root_degree_accuracy == approx(4 / 6)
     assert metrics.harmonic_plan_reconstruction_quality_accuracy == approx(4 / 6)
@@ -243,6 +269,7 @@ def test_metrics_accumulator_averages_loss_accuracy_and_gradient_norms() -> None
     assert metrics.harmonic_plan_reconstruction_cadence_strength_accuracy == approx(4 / 6)
     assert metrics.harmonic_plan_contrastive_loss == approx(2 / 3)
     assert metrics.harmonic_plan_contrastive_accuracy == approx(4 / 6)
+    assert metrics.harmonic_plan_contrastive_target_count == 6
     assert metrics.harmonic_plan_contrastive_positive_similarity == approx(2.2 / 6)
     assert metrics.harmonic_plan_contrastive_negative_similarity == approx(3.4 / 6)
     assert metrics.harmony_gate_mean == approx(0.625)

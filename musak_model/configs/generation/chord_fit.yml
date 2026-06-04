@@ -1,9 +1,3 @@
-# Smoothing for the empirical chord transition model.
-# prior_count: Dirichlet pseudo-count blending each empirical row toward the functional prior
-#   (small -> trust the data; large -> trust the prior). functional_strength / self_transition_bias
-#   shape that functional prior (see functional_transition_model).
-# figure_by_chord_limit: keep the top-K most frequent figures per (scale_type, hand, n, chord) when
-#   fitting p(figure | C); the unobserved tail backs off to the table floor at generation.
 prior_count: 1.0
 functional_strength: 0.7
 self_transition_bias: 0.25

@@ -577,6 +577,14 @@ Current metric families:
 - Model training metrics:
   - `model/train/mean/loss`
   - `model/train/mean/perplexity`
+  - `model/train/mean/event_loss`
+  - `model/train/mean/event_perplexity`
+  - `model/train/mean/loss_contribution/event`
+  - `model/train/mean/loss_contribution/musical_auxiliary`
+  - `model/train/mean/loss_contribution/harmonic_relation`
+  - `model/train/mean/loss_contribution/harmonic_plan_reconstruction`
+  - `model/train/mean/loss_contribution/harmonic_plan_contrastive`
+  - `model/train/mean/loss_contribution/validity_penalty`
   - `model/train/rate/token_accuracy`
   - `model/train/rate/token_kind_accuracy`
   - `model/train/rate/duration_accuracy`
@@ -587,8 +595,17 @@ Current metric families:
   - `model/train/mean/validity_penalty_loss`
   - `model/train/mean/invalid_probability_mass`
   - `model/train/rate/invalid_target`
+  - `model/train/count/harmonic_relation_targets`
+  - `model/train/count/harmonic_plan_reconstruction_targets`
+  - `model/train/count/harmonic_plan_contrastive_targets`
   - `model/train/mean/<module>_gradient_norm`
   - corresponding `model/validation/...` metrics where validation is available.
+
+  `model/*/mean/loss` and `model/*/mean/perplexity` refer to the optimized total objective after auxiliary,
+  harmonic, and validity terms are applied. Use `model/*/mean/event_loss` and `model/*/mean/event_perplexity`
+  when comparing the next-token modeling objective across runs. The `loss_contribution/*` metrics expose each
+  weighted term on the same aggregation basis as the optimized loss, and the harmonic target counts make disabled or
+  missing harmonic supervision visible in MLflow.
 - Generation evaluation metrics:
   - `generation/<soft|hard>/count/samples`
   - `generation/<soft|hard>/rate/end`
