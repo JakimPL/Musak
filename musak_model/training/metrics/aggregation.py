@@ -79,6 +79,23 @@ class MetricsAccumulator:
     harmonic_relation_macro_f1_sum: float | None = None
     harmonic_relation_target_counts: list[int] | None = None
     harmonic_relation_prediction_counts: list[int] | None = None
+    harmonic_plan_reconstruction_loss_sum: float | None = None
+    harmonic_plan_reconstruction_target_count: int | None = None
+    harmonic_plan_reconstruction_harmonic_function_match_count: int | None = None
+    harmonic_plan_reconstruction_harmonic_function_target_count: int | None = None
+    harmonic_plan_reconstruction_root_degree_match_count: int | None = None
+    harmonic_plan_reconstruction_root_degree_target_count: int | None = None
+    harmonic_plan_reconstruction_quality_match_count: int | None = None
+    harmonic_plan_reconstruction_quality_target_count: int | None = None
+    harmonic_plan_reconstruction_extension_match_count: int | None = None
+    harmonic_plan_reconstruction_extension_target_count: int | None = None
+    harmonic_plan_reconstruction_cadence_strength_match_count: int | None = None
+    harmonic_plan_reconstruction_cadence_strength_target_count: int | None = None
+    harmonic_plan_contrastive_loss_sum: float | None = None
+    harmonic_plan_contrastive_match_count: int | None = None
+    harmonic_plan_contrastive_target_count: int | None = None
+    harmonic_plan_contrastive_positive_similarity_sum: float | None = None
+    harmonic_plan_contrastive_negative_similarity_sum: float | None = None
     harmony_gate_mean_sum: float | None = None
     harmony_gate_token_count: int | None = None
     validity_penalty_loss_sum: float | None = None
@@ -330,6 +347,7 @@ class MetricsAccumulator:
             counts=batch_metrics.harmonic_relation_prediction_counts,
             class_count=HARMONIC_RELATION_CLASS_COUNT,
         )
+        self._add_harmonic_plan_metrics(batch_metrics)
         self.harmony_gate_mean_sum, self.harmony_gate_token_count = _add_optional_weighted_loss(
             self.harmony_gate_mean_sum,
             self.harmony_gate_token_count,
@@ -351,6 +369,86 @@ class MetricsAccumulator:
                 batch_metrics.invalid_probability_mass or 0.0
             ) * batch_metrics.validity_penalty_token_count
             self.invalid_target_count = (self.invalid_target_count or 0) + (batch_metrics.invalid_target_count or 0)
+        self._add_gradient_norm_metrics(batch_metrics)
+
+    def _add_harmonic_plan_metrics(self, batch_metrics: BatchMetrics) -> None:
+        self.harmonic_plan_reconstruction_loss_sum, self.harmonic_plan_reconstruction_target_count = (
+            _add_optional_weighted_loss(
+                self.harmonic_plan_reconstruction_loss_sum,
+                self.harmonic_plan_reconstruction_target_count,
+                value=batch_metrics.harmonic_plan_reconstruction_loss,
+                target_count=batch_metrics.harmonic_plan_reconstruction_target_count,
+            )
+        )
+        (
+            self.harmonic_plan_reconstruction_harmonic_function_match_count,
+            self.harmonic_plan_reconstruction_harmonic_function_target_count,
+        ) = _add_optional_count_pair(
+            self.harmonic_plan_reconstruction_harmonic_function_match_count,
+            self.harmonic_plan_reconstruction_harmonic_function_target_count,
+            match_count=batch_metrics.harmonic_plan_reconstruction_harmonic_function_match_count,
+            target_count=batch_metrics.harmonic_plan_reconstruction_harmonic_function_target_count,
+        )
+        (
+            self.harmonic_plan_reconstruction_root_degree_match_count,
+            self.harmonic_plan_reconstruction_root_degree_target_count,
+        ) = _add_optional_count_pair(
+            self.harmonic_plan_reconstruction_root_degree_match_count,
+            self.harmonic_plan_reconstruction_root_degree_target_count,
+            match_count=batch_metrics.harmonic_plan_reconstruction_root_degree_match_count,
+            target_count=batch_metrics.harmonic_plan_reconstruction_root_degree_target_count,
+        )
+        (
+            self.harmonic_plan_reconstruction_quality_match_count,
+            self.harmonic_plan_reconstruction_quality_target_count,
+        ) = _add_optional_count_pair(
+            self.harmonic_plan_reconstruction_quality_match_count,
+            self.harmonic_plan_reconstruction_quality_target_count,
+            match_count=batch_metrics.harmonic_plan_reconstruction_quality_match_count,
+            target_count=batch_metrics.harmonic_plan_reconstruction_quality_target_count,
+        )
+        (
+            self.harmonic_plan_reconstruction_extension_match_count,
+            self.harmonic_plan_reconstruction_extension_target_count,
+        ) = _add_optional_count_pair(
+            self.harmonic_plan_reconstruction_extension_match_count,
+            self.harmonic_plan_reconstruction_extension_target_count,
+            match_count=batch_metrics.harmonic_plan_reconstruction_extension_match_count,
+            target_count=batch_metrics.harmonic_plan_reconstruction_extension_target_count,
+        )
+        (
+            self.harmonic_plan_reconstruction_cadence_strength_match_count,
+            self.harmonic_plan_reconstruction_cadence_strength_target_count,
+        ) = _add_optional_count_pair(
+            self.harmonic_plan_reconstruction_cadence_strength_match_count,
+            self.harmonic_plan_reconstruction_cadence_strength_target_count,
+            match_count=batch_metrics.harmonic_plan_reconstruction_cadence_strength_match_count,
+            target_count=batch_metrics.harmonic_plan_reconstruction_cadence_strength_target_count,
+        )
+        (
+            self.harmonic_plan_contrastive_loss_sum,
+            self.harmonic_plan_contrastive_match_count,
+            self.harmonic_plan_contrastive_target_count,
+        ) = _add_optional_auxiliary_metric(
+            self.harmonic_plan_contrastive_loss_sum,
+            self.harmonic_plan_contrastive_match_count,
+            self.harmonic_plan_contrastive_target_count,
+            value=batch_metrics.harmonic_plan_contrastive_loss,
+            match_count=batch_metrics.harmonic_plan_contrastive_match_count,
+            target_count=batch_metrics.harmonic_plan_contrastive_target_count,
+        )
+        self.harmonic_plan_contrastive_positive_similarity_sum = _add_optional_weighted_metric(
+            self.harmonic_plan_contrastive_positive_similarity_sum,
+            value=batch_metrics.harmonic_plan_contrastive_positive_similarity,
+            weight=batch_metrics.harmonic_plan_contrastive_target_count or 0,
+        )
+        self.harmonic_plan_contrastive_negative_similarity_sum = _add_optional_weighted_metric(
+            self.harmonic_plan_contrastive_negative_similarity_sum,
+            value=batch_metrics.harmonic_plan_contrastive_negative_similarity,
+            weight=batch_metrics.harmonic_plan_contrastive_target_count or 0,
+        )
+
+    def _add_gradient_norm_metrics(self, batch_metrics: BatchMetrics) -> None:
         self.cnn_gradient_norm_sum = _add_optional_weighted_metric(
             self.cnn_gradient_norm_sum,
             value=batch_metrics.cnn_gradient_norm,
@@ -513,6 +611,46 @@ class MetricsAccumulator:
             ),
             harmonic_relation_target_distribution=_optional_distribution(self.harmonic_relation_target_counts),
             harmonic_relation_prediction_distribution=_optional_distribution(self.harmonic_relation_prediction_counts),
+            harmonic_plan_reconstruction_loss=_weighted_optional_average(
+                self.harmonic_plan_reconstruction_loss_sum,
+                weight=self.harmonic_plan_reconstruction_target_count,
+            ),
+            harmonic_plan_reconstruction_harmonic_function_accuracy=_optional_rate(
+                self.harmonic_plan_reconstruction_harmonic_function_match_count,
+                target_count=self.harmonic_plan_reconstruction_harmonic_function_target_count,
+            ),
+            harmonic_plan_reconstruction_root_degree_accuracy=_optional_rate(
+                self.harmonic_plan_reconstruction_root_degree_match_count,
+                target_count=self.harmonic_plan_reconstruction_root_degree_target_count,
+            ),
+            harmonic_plan_reconstruction_quality_accuracy=_optional_rate(
+                self.harmonic_plan_reconstruction_quality_match_count,
+                target_count=self.harmonic_plan_reconstruction_quality_target_count,
+            ),
+            harmonic_plan_reconstruction_extension_accuracy=_optional_rate(
+                self.harmonic_plan_reconstruction_extension_match_count,
+                target_count=self.harmonic_plan_reconstruction_extension_target_count,
+            ),
+            harmonic_plan_reconstruction_cadence_strength_accuracy=_optional_rate(
+                self.harmonic_plan_reconstruction_cadence_strength_match_count,
+                target_count=self.harmonic_plan_reconstruction_cadence_strength_target_count,
+            ),
+            harmonic_plan_contrastive_loss=_weighted_optional_average(
+                self.harmonic_plan_contrastive_loss_sum,
+                weight=self.harmonic_plan_contrastive_target_count,
+            ),
+            harmonic_plan_contrastive_accuracy=_optional_rate(
+                self.harmonic_plan_contrastive_match_count,
+                target_count=self.harmonic_plan_contrastive_target_count,
+            ),
+            harmonic_plan_contrastive_positive_similarity=_weighted_optional_average(
+                self.harmonic_plan_contrastive_positive_similarity_sum,
+                weight=self.harmonic_plan_contrastive_target_count,
+            ),
+            harmonic_plan_contrastive_negative_similarity=_weighted_optional_average(
+                self.harmonic_plan_contrastive_negative_similarity_sum,
+                weight=self.harmonic_plan_contrastive_target_count,
+            ),
             harmony_gate_mean=_weighted_optional_average(
                 self.harmony_gate_mean_sum,
                 weight=self.harmony_gate_token_count,

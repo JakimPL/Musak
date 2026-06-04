@@ -71,6 +71,23 @@ def test_metrics_accumulator_averages_loss_accuracy_and_gradient_norms() -> None
             harmonic_relation_macro_f1=0.5,
             harmonic_relation_target_counts=(1, 1, 0, 0, 0, 0, 0),
             harmonic_relation_prediction_counts=(1, 0, 1, 0, 0, 0, 0),
+            harmonic_plan_reconstruction_loss=1.0,
+            harmonic_plan_reconstruction_target_count=10,
+            harmonic_plan_reconstruction_harmonic_function_match_count=1,
+            harmonic_plan_reconstruction_harmonic_function_target_count=2,
+            harmonic_plan_reconstruction_root_degree_match_count=1,
+            harmonic_plan_reconstruction_root_degree_target_count=2,
+            harmonic_plan_reconstruction_quality_match_count=1,
+            harmonic_plan_reconstruction_quality_target_count=2,
+            harmonic_plan_reconstruction_extension_match_count=1,
+            harmonic_plan_reconstruction_extension_target_count=2,
+            harmonic_plan_reconstruction_cadence_strength_match_count=1,
+            harmonic_plan_reconstruction_cadence_strength_target_count=2,
+            harmonic_plan_contrastive_loss=0.4,
+            harmonic_plan_contrastive_match_count=1,
+            harmonic_plan_contrastive_target_count=2,
+            harmonic_plan_contrastive_positive_similarity=0.1,
+            harmonic_plan_contrastive_negative_similarity=0.3,
             harmony_gate_mean=0.25,
             harmony_gate_token_count=2,
             validity_penalty_loss=0.2,
@@ -146,6 +163,23 @@ def test_metrics_accumulator_averages_loss_accuracy_and_gradient_norms() -> None
             harmonic_relation_macro_f1=0.75,
             harmonic_relation_target_counts=(1, 0, 3, 0, 0, 0, 0),
             harmonic_relation_prediction_counts=(0, 2, 2, 0, 0, 0, 0),
+            harmonic_plan_reconstruction_loss=2.0,
+            harmonic_plan_reconstruction_target_count=20,
+            harmonic_plan_reconstruction_harmonic_function_match_count=3,
+            harmonic_plan_reconstruction_harmonic_function_target_count=4,
+            harmonic_plan_reconstruction_root_degree_match_count=3,
+            harmonic_plan_reconstruction_root_degree_target_count=4,
+            harmonic_plan_reconstruction_quality_match_count=3,
+            harmonic_plan_reconstruction_quality_target_count=4,
+            harmonic_plan_reconstruction_extension_match_count=3,
+            harmonic_plan_reconstruction_extension_target_count=4,
+            harmonic_plan_reconstruction_cadence_strength_match_count=3,
+            harmonic_plan_reconstruction_cadence_strength_target_count=4,
+            harmonic_plan_contrastive_loss=0.8,
+            harmonic_plan_contrastive_match_count=3,
+            harmonic_plan_contrastive_target_count=4,
+            harmonic_plan_contrastive_positive_similarity=0.5,
+            harmonic_plan_contrastive_negative_similarity=0.7,
             harmony_gate_mean=0.75,
             harmony_gate_token_count=6,
             validity_penalty_loss=0.6,
@@ -201,6 +235,16 @@ def test_metrics_accumulator_averages_loss_accuracy_and_gradient_norms() -> None
     assert metrics.harmonic_relation_target_distribution == approx((2 / 6, 1 / 6, 3 / 6, 0, 0, 0, 0))
     assert metrics.harmonic_relation_prediction_distribution == approx((1 / 6, 2 / 6, 3 / 6, 0, 0, 0, 0))
     assert len(metrics.harmonic_relation_target_distribution or ()) == HARMONIC_RELATION_CLASS_COUNT
+    assert metrics.harmonic_plan_reconstruction_loss == approx(5 / 3)
+    assert metrics.harmonic_plan_reconstruction_harmonic_function_accuracy == approx(4 / 6)
+    assert metrics.harmonic_plan_reconstruction_root_degree_accuracy == approx(4 / 6)
+    assert metrics.harmonic_plan_reconstruction_quality_accuracy == approx(4 / 6)
+    assert metrics.harmonic_plan_reconstruction_extension_accuracy == approx(4 / 6)
+    assert metrics.harmonic_plan_reconstruction_cadence_strength_accuracy == approx(4 / 6)
+    assert metrics.harmonic_plan_contrastive_loss == approx(2 / 3)
+    assert metrics.harmonic_plan_contrastive_accuracy == approx(4 / 6)
+    assert metrics.harmonic_plan_contrastive_positive_similarity == approx(2.2 / 6)
+    assert metrics.harmonic_plan_contrastive_negative_similarity == approx(3.4 / 6)
     assert metrics.harmony_gate_mean == approx(0.625)
     assert metrics.validity_penalty_loss == approx(0.5)
     assert metrics.invalid_probability_mass == approx(0.7)

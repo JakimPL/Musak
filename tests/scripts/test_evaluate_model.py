@@ -34,6 +34,8 @@ def _generation_config() -> GenerationEvaluationConfig:
         maximum_onset_span_semitones=12,
         maximum_pitch_gap_semitones=12,
         maximum_static_hand_span_degrees=5,
+        harmonic_logit_bias_enabled=False,
+        harmonic_logit_bias_alpha=0.20,
     )
 
 

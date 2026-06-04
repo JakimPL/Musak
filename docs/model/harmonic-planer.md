@@ -889,6 +889,9 @@ Implementation notes:
 
 ### Phase 6: Reconstruction And Contrastive Objectives
 
+Status: reconstruction implemented and enabled at low weight; contrastive compatibility implemented but disabled by
+default.
+
 - Add plan reconstruction after relation loss is stable.
 - Add contrastive compatibility only if needed.
 - Use corrupted-plan batches for both.
@@ -898,7 +901,22 @@ Acceptance:
 - Corrupted plans produce measurable compatibility differences.
 - Manual samples show stronger harmonic intent.
 
+Implementation notes:
+
+- The model now exposes per-step reconstruction heads for harmonic function, root degree, quality, extension, and
+  cadence strength when harmony conditioning is enabled.
+- Reconstruction groups teacher-forced decoder states by aligned `remaining_harmonic_slot_ids` plus plan-field IDs,
+  pools token states inside each group, and applies weighted cross-entropy per field. This avoids treating repeated
+  events in one slot as independent reconstruction targets.
+- The default training configs enable reconstruction at `weight: 0.02` with field weights matching this plan.
+- The contrastive objective projects pooled realized-music states and pooled plan embeddings, then uses InfoNCE-style
+  in-batch negatives. It is wired and logged, but defaults to `enabled: false` and `weight: 0.0`.
+- Explicit corrupted-plan batches remain deferred. In-batch negatives are the first lower-risk compatibility signal;
+  corruption taxonomy should be added only if contrastive evaluation shows value.
+
 ### Phase 7: Optional Soft Harmonic Logit Bias
+
+Status: implemented behind generation-evaluation config and disabled by default.
 
 - Use the learned relation or compatibility head for soft token bias.
 - Keep disabled by default until evaluated.
@@ -906,6 +924,14 @@ Acceptance:
 Acceptance:
 
 - Bias improves adherence without triggering anti-overconstraint warnings.
+
+Implementation notes:
+
+- Generation config now exposes `harmonic_logit_bias_enabled` and `harmonic_logit_bias_alpha`.
+- When enabled, generation calls `training_logits`, reads the current relation-head probabilities, classifies every
+  candidate note token against the active planned chord, and adds a centered relation-probability bias to token logits.
+- The bias is applied before hard legality masking and top-k sampling. Non-note tokens are not biased.
+- The default alpha is `0.20`, but the flag remains off so ordinary evaluation runs stay comparable.
 
 ## Experiment Ladder
 

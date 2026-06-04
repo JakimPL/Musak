@@ -8,6 +8,7 @@ from torch import Tensor
 
 from musak_model.conditioning.harmony.schema import HarmonicPlanInputTensors
 from musak_model.evaluation.generation.schema import GenerationEvaluationResult
+from musak_model.model.output import ModelTrainingLogits
 from musak_model.tokens.schema import ScaleType
 
 
@@ -31,6 +32,8 @@ class GenerationEvaluationOptions(Protocol):
     maximum_onset_span_semitones: int | None
     maximum_pitch_gap_semitones: int | None
     maximum_static_hand_span_degrees: int | None
+    harmonic_logit_bias_enabled: bool
+    harmonic_logit_bias_alpha: float
 
 
 class GenerationConditioningOptions(Protocol):
@@ -63,6 +66,24 @@ class GenerationModel(Protocol):
         harmonic_plan: HarmonicPlanInputTensors | None = None,
         token_padding_mask: Tensor | None = None,
     ) -> Tensor: ...
+
+    def training_logits(
+        self,
+        token_ids: Tensor,
+        *,
+        bar_positions: Tensor,
+        bar_relative_ticks: Tensor,
+        bar_duration_ticks: Tensor,
+        active_hand_ids: Tensor,
+        target_bar_positions: Tensor,
+        bar_counts: Tensor,
+        difficulty_ids: Tensor | None = None,
+        scale_type_ids: Tensor | None = None,
+        time_signature_ids: Tensor | None = None,
+        structural_control_ids: Tensor | None = None,
+        harmonic_plan: HarmonicPlanInputTensors | None = None,
+        token_padding_mask: Tensor | None = None,
+    ) -> ModelTrainingLogits: ...
 
 
 class GenerationEvaluator(Protocol):

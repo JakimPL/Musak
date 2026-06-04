@@ -12,6 +12,7 @@ from musak_model.auxiliary.schema import (
     MusicalBarAuxiliaryTargetTensors,
 )
 from musak_model.conditioning.harmony.fields import HARMONIC_PLAN_TENSOR_FIELDS
+from musak_model.conditioning.harmony.reconstruction import HARMONIC_PLAN_RECONSTRUCTION_FIELDS
 from musak_model.conditioning.harmony.relations import (
     HARMONIC_RELATION_CLASS_COUNT,
     HARMONIC_RELATION_IGNORE_ID,
@@ -21,7 +22,11 @@ from musak_model.conditioning.harmony.relations import (
 from musak_model.conditioning.harmony.schema import HarmonicPlanInputTensors, HarmonicSlotRole
 from musak_model.conditioning.harmony.vocabulary import plan_confidence_to_id, slot_role_to_id
 from musak_model.model.config import ModelOutputMode
-from musak_model.model.output import FactorizedTokenLogits
+from musak_model.model.output import (
+    FactorizedTokenLogits,
+    HarmonicPlanContrastiveEmbeddings,
+    HarmonicPlanReconstructionLogits,
+)
 from musak_model.tokens.factorized import (
     ABSENT_ATTRIBUTE_ID,
     ACCIDENTAL_ATTRIBUTE_COUNT,
@@ -34,11 +39,19 @@ from musak_model.tokens.factorized import (
 from musak_model.tokens.schema import Hand
 from musak_model.training.config import (
     EventObjectiveConfig,
+    HarmonicPlanContrastiveObjectiveConfig,
+    HarmonicPlanReconstructionObjectiveConfig,
     HarmonicRelationObjectiveConfig,
     MusicalAuxiliaryObjectiveConfig,
 )
 from musak_model.training.dataset.factorized import TokenAttributeTargetTensors
-from musak_model.training.losses import factorized_event_loss, harmonic_relation_loss, musical_auxiliary_loss
+from musak_model.training.losses import (
+    factorized_event_loss,
+    harmonic_plan_contrastive_loss,
+    harmonic_plan_reconstruction_loss,
+    harmonic_relation_loss,
+    musical_auxiliary_loss,
+)
 
 DURATION_ATTRIBUTE_COUNT: Final[int] = 4
 
@@ -84,6 +97,27 @@ def _harmonic_relation_objective_config() -> HarmonicRelationObjectiveConfig:
         cadence_weight=3.0,
         use_plan_confidence_weight=True,
         minimum_plan_confidence_weight=0.5,
+    )
+
+
+def _harmonic_plan_reconstruction_objective_config() -> HarmonicPlanReconstructionObjectiveConfig:
+    return HarmonicPlanReconstructionObjectiveConfig(
+        enabled=True,
+        weight=0.02,
+        harmonic_function_weight=1.0,
+        root_degree_weight=1.0,
+        quality_weight=0.5,
+        extension_weight=0.25,
+        cadence_strength_weight=0.5,
+    )
+
+
+def _harmonic_plan_contrastive_objective_config() -> HarmonicPlanContrastiveObjectiveConfig:
+    return HarmonicPlanContrastiveObjectiveConfig(
+        enabled=True,
+        weight=0.01,
+        negative_count=1,
+        temperature=0.20,
     )
 
 
@@ -250,3 +284,63 @@ def test_harmonic_relation_loss_weights_active_note_targets() -> None:
     assert loss.target_counts == (1, 1, 1, 0, 0, 0, 0)
     assert loss.prediction_counts == (1, 0, 2, 0, 0, 0, 0)
     assert len(loss.target_counts) == HARMONIC_RELATION_CLASS_COUNT
+
+
+def test_harmonic_plan_reconstruction_loss_pools_by_known_harmonic_slot() -> None:
+    target_ids = torch.tensor([[1, 1, 1, 1]], dtype=torch.long)
+    values = {field.name: target_ids.clone() for field in HARMONIC_PLAN_TENSOR_FIELDS}
+    values["remaining_harmonic_slot_ids"] = torch.tensor([[2, 2, 1, 0]], dtype=torch.long)
+    harmonic_plan = HarmonicPlanInputTensors(**values)
+    logits_by_field = {
+        field.name: torch.zeros(1, 4, field.vocabulary_size) for field in HARMONIC_PLAN_RECONSTRUCTION_FIELDS
+    }
+    for field_logits in logits_by_field.values():
+        field_logits[0, 0, 1] = 4.0
+        field_logits[0, 1, 1] = 2.0
+        field_logits[0, 2, 1] = 4.0
+        field_logits[0, 3, 0] = 4.0
+
+    loss = harmonic_plan_reconstruction_loss(
+        HarmonicPlanReconstructionLogits(logits_by_field=logits_by_field),
+        harmonic_plan=harmonic_plan,
+        token_padding_mask=torch.zeros(1, 4, dtype=torch.bool),
+        config=_harmonic_plan_reconstruction_objective_config(),
+    )
+
+    assert loss.loss.item() > 0.0
+    for field in HARMONIC_PLAN_RECONSTRUCTION_FIELDS:
+        assert loss.field_match_counts[field.name] == 2
+        assert loss.field_target_counts[field.name] == 2
+
+
+def test_harmonic_plan_contrastive_loss_uses_in_batch_negatives() -> None:
+    embeddings = HarmonicPlanContrastiveEmbeddings(
+        music_embeddings=torch.eye(3),
+        plan_embeddings=torch.eye(3),
+    )
+
+    loss = harmonic_plan_contrastive_loss(
+        embeddings,
+        config=_harmonic_plan_contrastive_objective_config(),
+    )
+
+    assert loss.target_count == 3
+    assert loss.match_count == 3
+    assert loss.positive_similarity == approx(1.0)
+    assert loss.negative_similarity == approx(0.0)
+    assert loss.loss.item() < 0.01
+
+
+def test_harmonic_plan_contrastive_loss_ignores_single_sample_batch() -> None:
+    embeddings = HarmonicPlanContrastiveEmbeddings(
+        music_embeddings=torch.ones(1, 3),
+        plan_embeddings=torch.ones(1, 3),
+    )
+
+    loss = harmonic_plan_contrastive_loss(
+        embeddings,
+        config=_harmonic_plan_contrastive_objective_config(),
+    )
+
+    assert loss.loss.item() == 0.0
+    assert loss.target_count == 0

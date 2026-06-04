@@ -18,6 +18,7 @@ from musak_model.conditioning.harmony.vocabulary import HARMONIC_PLAN_UNKNOWN_ID
 @dataclass(frozen=True)
 class HarmonicPlanConditioningOutput:
     embedding_delta: Tensor
+    plan_embeddings: Tensor | None = None
     gate_values: Tensor | None = None
 
 
@@ -66,7 +67,10 @@ class HarmonicPlanConditioning(nn.Module):
         plan_embeddings = self._field_dropout(plan_embeddings)
         match self._config.fusion:
             case HarmonicFusionMode.ADDITIVE:
-                return HarmonicPlanConditioningOutput(embedding_delta=plan_embeddings)
+                return HarmonicPlanConditioningOutput(
+                    embedding_delta=plan_embeddings,
+                    plan_embeddings=plan_embeddings,
+                )
             case HarmonicFusionMode.GATED_RESIDUAL:
                 return self._gated_residual_output(
                     plan_embeddings,
@@ -91,6 +95,7 @@ class HarmonicPlanConditioning(nn.Module):
         gate_values = torch.sigmoid(self._gate(torch.cat((token_embeddings, plan_embeddings), dim=-1)))
         return HarmonicPlanConditioningOutput(
             embedding_delta=self._config.harmony_adherence_alpha * gate_values * plan_context,
+            plan_embeddings=plan_embeddings,
             gate_values=gate_values,
         )
 

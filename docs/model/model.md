@@ -211,6 +211,14 @@ and optional plan-confidence buckets, then added with `harmonic_relation_objecti
 loss, accuracy, macro F1, target/prediction relation distributions, and mean harmony-gate activation for both train
 and validation splits.
 
+The harmony-conditioned model also exposes optional Phase 6 plan-compatibility objectives. The default training
+configs enable low-weight harmonic-plan reconstruction and keep contrastive plan compatibility disabled. Reconstruction
+pools decoder states by aligned harmonic slot and predicts harmonic function, root degree, quality, extension, and
+cadence strength back from the realized music. Contrastive compatibility uses in-batch plan negatives over pooled music
+and plan summaries; it is implemented for ablation but starts at zero weight because it should be enabled only after
+relation and reconstruction metrics show useful signal. Training logs reconstruction loss and per-field accuracy plus
+contrastive loss, accuracy, and positive/negative similarities.
+
 Generation supplies a harmonic plan when both `TrainingConditioningConfig.use_harmony_conditioning` and
 `conditioning.harmony.enabled` are true. The current provider builds a finite-horizon harmonic plan over the full
 requested `GenerationConstraints` span before note sampling starts. It uses `harmonic_planner.yml` for harmonic
@@ -223,6 +231,13 @@ batched `HarmonicPlanInputTensors` into the model call. Generation uses strict i
 window does not cover a requested score position, generation raises instead of silently substituting unknown harmony.
 If harmony conditioning is disabled, generation passes no harmonic plan. Empirical chord-transition artifacts remain
 deferred.
+
+Generation can optionally apply a soft harmonic logit bias after the model forward pass and before hard legality
+masking or top-k sampling. When `harmonic_logit_bias_enabled` is true, generation calls `training_logits`, reads the
+current relation-head distribution, classifies each candidate note token against the active planned chord, and adds
+`harmonic_logit_bias_alpha * (p(relation) - uniform_relation_probability)` to compatible token logits. Non-note tokens
+are left unchanged, and the bias is disabled by default. This is a sampling-control knob, not a legality rule; it should
+be evaluated with anti-overconstraint metrics before use in a main run.
 
 Generation evaluation keeps the sampled harmonic plan on each `GenerationSample`, writes it to the sample artifact
 manifest, and logs plan-aware metrics under `generation/<soft|hard>/harmony/*`. The metrics compare the sampled plan

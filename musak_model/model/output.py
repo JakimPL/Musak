@@ -6,6 +6,7 @@ import torch
 from torch import Tensor
 
 from musak_model.auxiliary.schema import MusicalAuxiliaryLogits
+from musak_model.conditioning.harmony.reconstruction import HarmonicPlanReconstructionFieldName
 from musak_model.tokens.factorized import ABSENT_ATTRIBUTE_ID, TokenAttributes
 
 
@@ -20,11 +21,24 @@ class FactorizedTokenLogits:
 
 
 @dataclass(frozen=True)
+class HarmonicPlanReconstructionLogits:
+    logits_by_field: dict[HarmonicPlanReconstructionFieldName, Tensor]
+
+
+@dataclass(frozen=True)
+class HarmonicPlanContrastiveEmbeddings:
+    music_embeddings: Tensor
+    plan_embeddings: Tensor
+
+
+@dataclass(frozen=True)
 class ModelTrainingLogits:
     flat_logits: Tensor
     musical_auxiliary_logits: MusicalAuxiliaryLogits
     factorized_logits: FactorizedTokenLogits | None = None
     harmonic_relation_logits: Tensor | None = None
+    harmonic_plan_reconstruction_logits: HarmonicPlanReconstructionLogits | None = None
+    harmonic_plan_contrastive_embeddings: HarmonicPlanContrastiveEmbeddings | None = None
     harmony_gate_values: Tensor | None = None
 
 

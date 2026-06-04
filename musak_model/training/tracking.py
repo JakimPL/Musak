@@ -412,6 +412,30 @@ _EPOCH_METRIC_NAME_MAP: Final[dict[str, str]] = {
     "train_harmonic_relation_loss": "model/train/mean/harmonic_relation_loss",
     "train_harmonic_relation_accuracy": "model/train/rate/harmonic_relation_accuracy",
     "train_harmonic_relation_macro_f1": "model/train/rate/harmonic_relation_macro_f1",
+    "train_harmonic_plan_reconstruction_loss": "model/train/mean/harmonic_plan_reconstruction_loss",
+    "train_harmonic_plan_reconstruction_harmonic_function_accuracy": (
+        "model/train/rate/harmonic_plan_reconstruction_harmonic_function_accuracy"
+    ),
+    "train_harmonic_plan_reconstruction_root_degree_accuracy": (
+        "model/train/rate/harmonic_plan_reconstruction_root_degree_accuracy"
+    ),
+    "train_harmonic_plan_reconstruction_quality_accuracy": (
+        "model/train/rate/harmonic_plan_reconstruction_quality_accuracy"
+    ),
+    "train_harmonic_plan_reconstruction_extension_accuracy": (
+        "model/train/rate/harmonic_plan_reconstruction_extension_accuracy"
+    ),
+    "train_harmonic_plan_reconstruction_cadence_strength_accuracy": (
+        "model/train/rate/harmonic_plan_reconstruction_cadence_strength_accuracy"
+    ),
+    "train_harmonic_plan_contrastive_loss": "model/train/mean/harmonic_plan_contrastive_loss",
+    "train_harmonic_plan_contrastive_accuracy": "model/train/rate/harmonic_plan_contrastive_accuracy",
+    "train_harmonic_plan_contrastive_positive_similarity": (
+        "model/train/mean/harmonic_plan_contrastive_positive_similarity"
+    ),
+    "train_harmonic_plan_contrastive_negative_similarity": (
+        "model/train/mean/harmonic_plan_contrastive_negative_similarity"
+    ),
     "train_harmony_gate_mean": "model/train/mean/harmony_gate",
     "train_validity_penalty_loss": "model/train/mean/validity_penalty_loss",
     "train_invalid_probability_mass": "model/train/mean/invalid_probability_mass",
@@ -462,6 +486,30 @@ _EPOCH_METRIC_NAME_MAP: Final[dict[str, str]] = {
     "validation_harmonic_relation_loss": "model/validation/mean/harmonic_relation_loss",
     "validation_harmonic_relation_accuracy": "model/validation/rate/harmonic_relation_accuracy",
     "validation_harmonic_relation_macro_f1": "model/validation/rate/harmonic_relation_macro_f1",
+    "validation_harmonic_plan_reconstruction_loss": "model/validation/mean/harmonic_plan_reconstruction_loss",
+    "validation_harmonic_plan_reconstruction_harmonic_function_accuracy": (
+        "model/validation/rate/harmonic_plan_reconstruction_harmonic_function_accuracy"
+    ),
+    "validation_harmonic_plan_reconstruction_root_degree_accuracy": (
+        "model/validation/rate/harmonic_plan_reconstruction_root_degree_accuracy"
+    ),
+    "validation_harmonic_plan_reconstruction_quality_accuracy": (
+        "model/validation/rate/harmonic_plan_reconstruction_quality_accuracy"
+    ),
+    "validation_harmonic_plan_reconstruction_extension_accuracy": (
+        "model/validation/rate/harmonic_plan_reconstruction_extension_accuracy"
+    ),
+    "validation_harmonic_plan_reconstruction_cadence_strength_accuracy": (
+        "model/validation/rate/harmonic_plan_reconstruction_cadence_strength_accuracy"
+    ),
+    "validation_harmonic_plan_contrastive_loss": "model/validation/mean/harmonic_plan_contrastive_loss",
+    "validation_harmonic_plan_contrastive_accuracy": "model/validation/rate/harmonic_plan_contrastive_accuracy",
+    "validation_harmonic_plan_contrastive_positive_similarity": (
+        "model/validation/mean/harmonic_plan_contrastive_positive_similarity"
+    ),
+    "validation_harmonic_plan_contrastive_negative_similarity": (
+        "model/validation/mean/harmonic_plan_contrastive_negative_similarity"
+    ),
     "validation_harmony_gate_mean": "model/validation/mean/harmony_gate",
     "validation_validity_penalty_loss": "model/validation/mean/validity_penalty_loss",
     "validation_invalid_probability_mass": "model/validation/mean/invalid_probability_mass",

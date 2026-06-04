@@ -9,9 +9,17 @@ from typing import Final
 import torch
 from torch import Tensor
 
-from musak_model.conditioning.harmony.alignment import harmonic_plan_tensors_from_decoder_coordinates
+from musak_model.conditioning.harmony.alignment import (
+    harmonic_plan_tensors_from_decoder_coordinates,
+    harmonic_plan_windows_from_decoder_coordinates,
+)
 from musak_model.conditioning.harmony.generation import FiniteHorizonHarmonicPlanProvider, HarmonicPlanProvider
 from musak_model.conditioning.harmony.planner import HarmonicPlan
+from musak_model.conditioning.harmony.relations import (
+    HARMONIC_RELATION_CLASS_COUNT,
+    HARMONIC_RELATION_IGNORE_ID,
+    harmonic_relation_id_for_token,
+)
 from musak_model.conditioning.harmony.schema import HarmonicPlanInputTensors, HarmonicPlanWindow
 from musak_model.conditioning.structural.schema import StructuralControlFeatures
 from musak_model.conditioning.structural.vocabulary import StructuralControlVocabulary
@@ -52,7 +60,9 @@ from musak_model.generation.constraints import (
     mask_disallowed_logits,
 )
 from musak_model.generation.coordinates import DecoderInputCoordinates, decoder_input_coordinates_from_token_ids
+from musak_model.harmony.vocabulary import ChordVocabularyConfig
 from musak_model.model.config import ModelConfig
+from musak_model.model.output import ModelTrainingLogits
 from musak_model.n_grams.config import NGramAnalysisConfig
 from musak_model.n_grams.profile.loading import FigureProfileArtifacts
 from musak_model.tokens.duration import DurationVocabulary, duration_tick_denominator
@@ -119,6 +129,7 @@ class GenerationSuiteEvaluator:
             conditioning=conditioning,
             model_config=model_config,
         )
+        self._chord_vocabulary = ChordVocabularyConfig.load()
 
     def evaluate(
         self,
@@ -394,21 +405,84 @@ class GenerationSuiteEvaluator:
             coordinates=coordinates,
             device=device,
         )
-        return model(
-            torch.tensor([model_input_ids], dtype=torch.long, device=device),
-            bar_positions=torch.tensor(
-                [bar_positions(token_ids, token_vocabulary=self._token_vocabulary)],
-                dtype=torch.long,
-                device=device,
-            ),
-            bar_relative_ticks=torch.tensor([coordinates.bar_relative_ticks], dtype=torch.long, device=device),
-            bar_duration_ticks=torch.tensor([coordinates.bar_duration_ticks], dtype=torch.long, device=device),
-            active_hand_ids=torch.tensor([coordinates.active_hand_ids], dtype=torch.long, device=device),
+        token_id_tensor = torch.tensor([model_input_ids], dtype=torch.long, device=device)
+        bar_position_tensor = torch.tensor(
+            [bar_positions(token_ids, token_vocabulary=self._token_vocabulary)],
+            dtype=torch.long,
+            device=device,
+        )
+        coordinate_tensors = {
+            "bar_relative_ticks": torch.tensor([coordinates.bar_relative_ticks], dtype=torch.long, device=device),
+            "bar_duration_ticks": torch.tensor([coordinates.bar_duration_ticks], dtype=torch.long, device=device),
+            "active_hand_ids": torch.tensor([coordinates.active_hand_ids], dtype=torch.long, device=device),
+        }
+        if not self._config.harmonic_logit_bias_enabled:
+            return model(
+                token_id_tensor,
+                bar_positions=bar_position_tensor,
+                **coordinate_tensors,
+                scale_type_ids=self._scale_type_tensor(device=device),
+                time_signature_ids=self._time_signature_tensor(device=device),
+                structural_control_ids=self._structural_control_tensor(device=device),
+                harmonic_plan=harmonic_plan,
+            )[0, -1]
+
+        model_logits = model.training_logits(
+            token_id_tensor,
+            bar_positions=bar_position_tensor,
+            **coordinate_tensors,
+            target_bar_positions=bar_position_tensor,
+            bar_counts=torch.tensor([constraints.bar_count], dtype=torch.long, device=device),
             scale_type_ids=self._scale_type_tensor(device=device),
             time_signature_ids=self._time_signature_tensor(device=device),
             structural_control_ids=self._structural_control_tensor(device=device),
             harmonic_plan=harmonic_plan,
-        )[0, -1]
+        )
+        return self._biased_next_token_logits(
+            model_logits,
+            constraints=constraints,
+            coordinates=coordinates,
+            harmonic_plan_windows=harmonic_plan_windows,
+        )
+
+    def _biased_next_token_logits(
+        self,
+        model_logits: ModelTrainingLogits,
+        *,
+        constraints: GenerationConstraints,
+        coordinates: DecoderInputCoordinates,
+        harmonic_plan_windows: tuple[HarmonicPlanWindow, ...] | None,
+    ) -> Tensor:
+        logits = model_logits.flat_logits[0, -1]
+        relation_logits = model_logits.harmonic_relation_logits
+        if relation_logits is None or harmonic_plan_windows is None:
+            return logits
+
+        active_window = _active_harmonic_plan_window(
+            harmonic_plan_windows,
+            constraints=constraints,
+            coordinates=coordinates,
+            duration_denominator_ticks=self._duration_tick_denominator,
+        )
+        if active_window is None:
+            return logits
+
+        relation_probabilities = torch.softmax(relation_logits[0, -1], dim=-1)
+        compatibility_scores = torch.zeros_like(logits)
+        uniform_probability = 1.0 / HARMONIC_RELATION_CLASS_COUNT
+        for token_id in range(self._token_vocabulary.vocabulary_size):
+            relation_id = harmonic_relation_id_for_token(
+                self._token_vocabulary.id_to_token(token_id),
+                window=active_window,
+                scale_type=self._config.scale_type,
+                chord_vocabulary=self._chord_vocabulary,
+            )
+            if relation_id == HARMONIC_RELATION_IGNORE_ID:
+                continue
+
+            compatibility_scores[token_id] = relation_probabilities[relation_id] - uniform_probability
+
+        return logits + self._config.harmonic_logit_bias_alpha * compatibility_scores
 
     def _harmonic_plan(
         self,
@@ -555,6 +629,26 @@ def _harmonic_plan_provider(
         return None
 
     return FiniteHorizonHarmonicPlanProvider.load()
+
+
+def _active_harmonic_plan_window(
+    harmonic_plan_windows: tuple[HarmonicPlanWindow, ...],
+    *,
+    constraints: GenerationConstraints,
+    coordinates: DecoderInputCoordinates,
+    duration_denominator_ticks: int,
+) -> HarmonicPlanWindow | None:
+    aligned_windows = harmonic_plan_windows_from_decoder_coordinates(
+        harmonic_plan_windows,
+        constraints=constraints,
+        coordinates=coordinates,
+        duration_tick_denominator=duration_denominator_ticks,
+        strict_in_span=True,
+    )
+    if not aligned_windows:
+        return None
+
+    return aligned_windows[-1]
 
 
 def _batch_harmonic_plan_input_tensors(

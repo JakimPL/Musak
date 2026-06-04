@@ -14,6 +14,8 @@ from musak_model.training.config import (
     FinetuningCheckpointConfig,
     FinetuningTrainingConfig,
     GenerationEvaluationConfig,
+    HarmonicPlanContrastiveObjectiveConfig,
+    HarmonicPlanReconstructionObjectiveConfig,
     HarmonicRelationObjectiveConfig,
     MlflowConfig,
     MusicalAuxiliaryObjectiveConfig,
@@ -68,6 +70,8 @@ def _training_config(checkpoint_directory: Path, *, epochs: int = 25) -> Trainin
         musical_auxiliary_targets=_musical_auxiliary_target_config(),
         musical_auxiliary_objective=_musical_auxiliary_objective_config(),
         harmonic_relation_objective=_harmonic_relation_objective_config(),
+        harmonic_plan_reconstruction_objective=_harmonic_plan_reconstruction_objective_config(),
+        harmonic_plan_contrastive_objective=_harmonic_plan_contrastive_objective_config(),
         early_stopping=_early_stopping_config(),
         runtime=RuntimeConfig(num_workers=2, device="cuda"),
         checkpoints=CheckpointConfig(checkpoint_directory=checkpoint_directory),
@@ -89,6 +93,8 @@ def _finetuning_config(
         musical_auxiliary_targets=_musical_auxiliary_target_config(),
         musical_auxiliary_objective=_musical_auxiliary_objective_config(),
         harmonic_relation_objective=_harmonic_relation_objective_config(),
+        harmonic_plan_reconstruction_objective=_harmonic_plan_reconstruction_objective_config(),
+        harmonic_plan_contrastive_objective=_harmonic_plan_contrastive_objective_config(),
         early_stopping=_early_stopping_config(),
         runtime=RuntimeConfig(num_workers=4, device="cuda"),
         checkpoints=FinetuningCheckpointConfig(
@@ -161,6 +167,27 @@ def _harmonic_relation_objective_config() -> HarmonicRelationObjectiveConfig:
     )
 
 
+def _harmonic_plan_reconstruction_objective_config() -> HarmonicPlanReconstructionObjectiveConfig:
+    return HarmonicPlanReconstructionObjectiveConfig(
+        enabled=True,
+        weight=0.02,
+        harmonic_function_weight=1.0,
+        root_degree_weight=1.0,
+        quality_weight=0.5,
+        extension_weight=0.25,
+        cadence_strength_weight=0.5,
+    )
+
+
+def _harmonic_plan_contrastive_objective_config() -> HarmonicPlanContrastiveObjectiveConfig:
+    return HarmonicPlanContrastiveObjectiveConfig(
+        enabled=False,
+        weight=0.0,
+        negative_count=3,
+        temperature=0.2,
+    )
+
+
 def _musical_auxiliary_target_config() -> MusicalAuxiliaryTargetConfig:
     return MusicalAuxiliaryTargetConfig(
         note_density_bucket_boundaries=(0.25, 0.5, 0.75, 1.0, 1.5, 2.0),
@@ -194,6 +221,8 @@ def _generation_evaluation_config() -> GenerationEvaluationConfig:
         maximum_onset_span_semitones=12,
         maximum_pitch_gap_semitones=12,
         maximum_static_hand_span_degrees=5,
+        harmonic_logit_bias_enabled=False,
+        harmonic_logit_bias_alpha=0.2,
     )
 
 

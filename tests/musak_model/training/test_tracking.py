@@ -32,6 +32,8 @@ from musak_model.training.config import (
     EarlyStoppingConfig,
     EventObjectiveConfig,
     GenerationEvaluationConfig,
+    HarmonicPlanContrastiveObjectiveConfig,
+    HarmonicPlanReconstructionObjectiveConfig,
     HarmonicRelationObjectiveConfig,
     MlflowConfig,
     MusicalAuxiliaryObjectiveConfig,
@@ -118,6 +120,8 @@ def _training_config(
         musical_auxiliary_targets=_musical_auxiliary_target_config(),
         musical_auxiliary_objective=_musical_auxiliary_objective_config(),
         harmonic_relation_objective=_harmonic_relation_objective_config(),
+        harmonic_plan_reconstruction_objective=_harmonic_plan_reconstruction_objective_config(),
+        harmonic_plan_contrastive_objective=_harmonic_plan_contrastive_objective_config(),
         early_stopping=EarlyStoppingConfig(enabled=False, patience_epochs=10, min_delta=0.0),
         runtime=RuntimeConfig(num_workers=1, device="cpu"),
         conditioning=TrainingConditioningConfig(
@@ -155,6 +159,8 @@ def _training_config(
             maximum_onset_span_semitones=12,
             maximum_pitch_gap_semitones=12,
             maximum_static_hand_span_degrees=5,
+            harmonic_logit_bias_enabled=False,
+            harmonic_logit_bias_alpha=0.20,
         ),
     )
 
@@ -251,6 +257,27 @@ def _harmonic_relation_objective_config() -> HarmonicRelationObjectiveConfig:
         cadence_weight=1.5,
         use_plan_confidence_weight=True,
         minimum_plan_confidence_weight=0.5,
+    )
+
+
+def _harmonic_plan_reconstruction_objective_config() -> HarmonicPlanReconstructionObjectiveConfig:
+    return HarmonicPlanReconstructionObjectiveConfig(
+        enabled=True,
+        weight=0.02,
+        harmonic_function_weight=1.0,
+        root_degree_weight=1.0,
+        quality_weight=0.5,
+        extension_weight=0.25,
+        cadence_strength_weight=0.5,
+    )
+
+
+def _harmonic_plan_contrastive_objective_config() -> HarmonicPlanContrastiveObjectiveConfig:
+    return HarmonicPlanContrastiveObjectiveConfig(
+        enabled=False,
+        weight=0.0,
+        negative_count=3,
+        temperature=0.20,
     )
 
 

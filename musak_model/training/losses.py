@@ -11,6 +11,11 @@ from musak_model.auxiliary.schema import (
     MusicalAuxiliaryLogits,
     MusicalAuxiliaryTargetTensors,
 )
+from musak_model.conditioning.harmony.reconstruction import (
+    HARMONIC_PLAN_RECONSTRUCTION_FIELDS,
+    HarmonicPlanReconstructionFieldName,
+    harmonic_plan_reconstruction_target_tensor,
+)
 from musak_model.conditioning.harmony.relations import (
     HARMONIC_RELATION_CLASS_COUNT,
     HARMONIC_RELATION_IGNORE_ID,
@@ -22,11 +27,17 @@ from musak_model.conditioning.harmony.vocabulary import (
     PLAN_CONFIDENCE_VOCABULARY_SIZE,
     slot_role_to_id,
 )
-from musak_model.model.output import FactorizedTokenLogits
+from musak_model.model.output import (
+    FactorizedTokenLogits,
+    HarmonicPlanContrastiveEmbeddings,
+    HarmonicPlanReconstructionLogits,
+)
 from musak_model.tokens.factorized import ABSENT_ATTRIBUTE_ID, hand_to_attribute_id
 from musak_model.tokens.schema import Hand
 from musak_model.training.config import (
     EventObjectiveConfig,
+    HarmonicPlanContrastiveObjectiveConfig,
+    HarmonicPlanReconstructionObjectiveConfig,
     HarmonicRelationObjectiveConfig,
     MusicalAuxiliaryObjectiveConfig,
 )
@@ -99,6 +110,30 @@ class HarmonicRelationLoss:
     macro_f1: float
     target_counts: tuple[int, ...]
     prediction_counts: tuple[int, ...]
+
+
+@dataclass(frozen=True)
+class HarmonicPlanReconstructionLoss:
+    loss: Tensor
+    field_losses: dict[HarmonicPlanReconstructionFieldName, Tensor]
+    field_match_counts: dict[HarmonicPlanReconstructionFieldName, int]
+    field_target_counts: dict[HarmonicPlanReconstructionFieldName, int]
+
+
+@dataclass(frozen=True)
+class HarmonicPlanContrastiveLoss:
+    loss: Tensor
+    match_count: int
+    target_count: int
+    positive_similarity: float
+    negative_similarity: float
+
+
+@dataclass(frozen=True)
+class _PlanReconstructionGroup:
+    batch_index: int
+    token_indices: tuple[int, ...]
+    targets_by_field: dict[HarmonicPlanReconstructionFieldName, int]
 
 
 def factorized_event_loss(
@@ -321,6 +356,207 @@ def harmonic_relation_loss(
         target_counts=_class_counts(active_targets, class_count=HARMONIC_RELATION_CLASS_COUNT),
         prediction_counts=_class_counts(predictions, class_count=HARMONIC_RELATION_CLASS_COUNT),
     )
+
+
+def harmonic_plan_reconstruction_loss(
+    logits: HarmonicPlanReconstructionLogits,
+    *,
+    harmonic_plan: HarmonicPlanInputTensors,
+    token_padding_mask: Tensor,
+    config: HarmonicPlanReconstructionObjectiveConfig,
+) -> HarmonicPlanReconstructionLoss:
+    groups = _plan_reconstruction_groups(harmonic_plan, token_padding_mask=token_padding_mask)
+    field_losses: dict[HarmonicPlanReconstructionFieldName, Tensor] = {}
+    field_match_counts: dict[HarmonicPlanReconstructionFieldName, int] = {}
+    field_target_counts: dict[HarmonicPlanReconstructionFieldName, int] = {}
+    weighted_loss = _zero_reconstruction_loss(logits)
+
+    for field in HARMONIC_PLAN_RECONSTRUCTION_FIELDS:
+        field_logits = logits.logits_by_field[field.name]
+        field_loss, match_count, target_count = _pooled_plan_field_cross_entropy(
+            field_logits,
+            groups=groups,
+            field_name=field.name,
+        )
+        field_losses[field.name] = field_loss
+        field_match_counts[field.name] = match_count
+        field_target_counts[field.name] = target_count
+        weighted_loss = weighted_loss + _plan_reconstruction_field_weight(field.name, config=config) * field_loss
+
+    return HarmonicPlanReconstructionLoss(
+        loss=weighted_loss,
+        field_losses=field_losses,
+        field_match_counts=field_match_counts,
+        field_target_counts=field_target_counts,
+    )
+
+
+def harmonic_plan_contrastive_loss(
+    embeddings: HarmonicPlanContrastiveEmbeddings,
+    *,
+    config: HarmonicPlanContrastiveObjectiveConfig,
+) -> HarmonicPlanContrastiveLoss:
+    batch_size = embeddings.music_embeddings.size(0)
+    candidate_indices = _contrastive_candidate_indices(
+        batch_size,
+        negative_count=config.negative_count,
+        device=embeddings.music_embeddings.device,
+    )
+    if candidate_indices is None:
+        zero = (embeddings.music_embeddings.sum() + embeddings.plan_embeddings.sum()) * 0.0
+        return HarmonicPlanContrastiveLoss(
+            loss=zero,
+            match_count=0,
+            target_count=0,
+            positive_similarity=0.0,
+            negative_similarity=0.0,
+        )
+
+    music_embeddings = nn.functional.normalize(embeddings.music_embeddings, dim=-1)
+    plan_embeddings = nn.functional.normalize(embeddings.plan_embeddings, dim=-1)
+    candidate_plan_embeddings = plan_embeddings.index_select(dim=0, index=candidate_indices.reshape(-1))
+    candidate_plan_embeddings = candidate_plan_embeddings.view(
+        batch_size,
+        candidate_indices.size(1),
+        plan_embeddings.size(-1),
+    )
+    similarities = torch.einsum("bd,bkd->bk", music_embeddings, candidate_plan_embeddings)
+    logits = similarities / config.temperature
+    targets = torch.zeros(batch_size, dtype=torch.long, device=logits.device)
+    predictions = logits.argmax(dim=-1)
+    negative_similarities = similarities[:, 1:]
+    return HarmonicPlanContrastiveLoss(
+        loss=nn.functional.cross_entropy(logits, targets, reduction="mean"),
+        match_count=int((predictions == targets).sum().item()),
+        target_count=batch_size,
+        positive_similarity=float(similarities[:, 0].mean().detach().item()),
+        negative_similarity=float(negative_similarities.mean().detach().item()),
+    )
+
+
+def _plan_reconstruction_groups(
+    harmonic_plan: HarmonicPlanInputTensors,
+    *,
+    token_padding_mask: Tensor,
+) -> tuple[_PlanReconstructionGroup, ...]:
+    if token_padding_mask.shape != harmonic_plan.shape:
+        raise ValueError("harmonic-plan reconstruction mask shape must match harmonic-plan shape")
+
+    groups_by_key: dict[tuple[int, tuple[int, ...]], list[int]] = {}
+    target_tensors = tuple(
+        harmonic_plan_reconstruction_target_tensor(harmonic_plan, field.name)
+        for field in HARMONIC_PLAN_RECONSTRUCTION_FIELDS
+    )
+    batch_size, sequence_length = harmonic_plan.shape
+    for batch_index in range(batch_size):
+        for token_index in range(sequence_length):
+            if bool(token_padding_mask[batch_index, token_index].item()):
+                continue
+
+            remaining_slot_id = int(harmonic_plan.remaining_harmonic_slot_ids[batch_index, token_index].item())
+            if remaining_slot_id == HARMONIC_PLAN_UNKNOWN_ID:
+                continue
+
+            field_target_ids = tuple(int(target[batch_index, token_index].item()) for target in target_tensors)
+            if all(target_id == HARMONIC_PLAN_UNKNOWN_ID for target_id in field_target_ids):
+                continue
+
+            groups_by_key.setdefault((batch_index, (remaining_slot_id, *field_target_ids)), []).append(token_index)
+
+    groups: list[_PlanReconstructionGroup] = []
+    for (batch_index, key), token_indices in groups_by_key.items():
+        field_target_ids = key[1:]
+        groups.append(
+            _PlanReconstructionGroup(
+                batch_index=batch_index,
+                token_indices=tuple(token_indices),
+                targets_by_field={
+                    field.name: target_id
+                    for field, target_id in zip(HARMONIC_PLAN_RECONSTRUCTION_FIELDS, field_target_ids, strict=True)
+                },
+            )
+        )
+
+    return tuple(groups)
+
+
+def _pooled_plan_field_cross_entropy(
+    logits: Tensor,
+    *,
+    groups: tuple[_PlanReconstructionGroup, ...],
+    field_name: HarmonicPlanReconstructionFieldName,
+) -> tuple[Tensor, int, int]:
+    pooled_logits: list[Tensor] = []
+    targets: list[int] = []
+    for group in groups:
+        target_id = group.targets_by_field[field_name]
+        if target_id == HARMONIC_PLAN_UNKNOWN_ID:
+            continue
+
+        token_indices = torch.tensor(group.token_indices, dtype=torch.long, device=logits.device)
+        pooled_logits.append(logits[group.batch_index, token_indices].mean(dim=0))
+        targets.append(target_id)
+
+    if not pooled_logits:
+        return logits.sum() * 0.0, 0, 0
+
+    pooled_logits_tensor = torch.stack(pooled_logits)
+    target_tensor = torch.tensor(targets, dtype=torch.long, device=logits.device)
+    if torch.any(target_tensor >= logits.size(-1)):
+        raise ValueError(f"harmonic plan reconstruction targets for {field_name.value} are outside the head range")
+
+    predictions = pooled_logits_tensor.argmax(dim=-1)
+    match_count = int((predictions == target_tensor).sum().item())
+    return nn.functional.cross_entropy(pooled_logits_tensor, target_tensor, reduction="mean"), match_count, len(targets)
+
+
+def _zero_reconstruction_loss(logits: HarmonicPlanReconstructionLogits) -> Tensor:
+    values = tuple(logits.logits_by_field.values())
+    if not values:
+        raise ValueError("harmonic plan reconstruction logits cannot be empty")
+
+    zero = values[0].sum() * 0.0
+    for value in values[1:]:
+        zero = zero + value.sum() * 0.0
+
+    return zero
+
+
+def _plan_reconstruction_field_weight(
+    field_name: HarmonicPlanReconstructionFieldName,
+    *,
+    config: HarmonicPlanReconstructionObjectiveConfig,
+) -> float:
+    match field_name:
+        case HarmonicPlanReconstructionFieldName.HARMONIC_FUNCTION:
+            return config.harmonic_function_weight
+        case HarmonicPlanReconstructionFieldName.ROOT_DEGREE:
+            return config.root_degree_weight
+        case HarmonicPlanReconstructionFieldName.QUALITY:
+            return config.quality_weight
+        case HarmonicPlanReconstructionFieldName.EXTENSION:
+            return config.extension_weight
+        case HarmonicPlanReconstructionFieldName.CADENCE_STRENGTH:
+            return config.cadence_strength_weight
+
+
+def _contrastive_candidate_indices(
+    batch_size: int,
+    *,
+    negative_count: int,
+    device: torch.device,
+) -> Tensor | None:
+    if batch_size <= 1:
+        return None
+
+    actual_negative_count = min(negative_count, batch_size - 1)
+    indices: list[list[int]] = []
+    for batch_index in range(batch_size):
+        row = [batch_index]
+        row.extend((batch_index + offset) % batch_size for offset in range(1, actual_negative_count + 1))
+        indices.append(row)
+
+    return torch.tensor(indices, dtype=torch.long, device=device)
 
 
 def _masked_cross_entropy(logits: Tensor, targets: Tensor) -> tuple[Tensor, int]:

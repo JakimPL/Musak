@@ -14,6 +14,7 @@ from musak_model.conditioning.config import (
     HarmonicFusionMode,
 )
 from musak_model.conditioning.harmony.fields import HARMONIC_PLAN_TENSOR_FIELDS
+from musak_model.conditioning.harmony.reconstruction import HARMONIC_PLAN_RECONSTRUCTION_FIELDS
 from musak_model.conditioning.harmony.relations import HARMONIC_RELATION_CLASS_COUNT
 from musak_model.conditioning.harmony.schema import HarmonicPlanInputTensors
 from musak_model.conditioning.time_signature import TimeSignatureVocabularyConfig
@@ -283,6 +284,17 @@ class TestForwardOutputShape:
         assert logits.shape == (2, 8, VOCAB)
         assert training_logits.harmonic_relation_logits is not None
         assert training_logits.harmonic_relation_logits.shape == (2, 8, HARMONIC_RELATION_CLASS_COUNT)
+        assert training_logits.harmonic_plan_reconstruction_logits is not None
+        for field in HARMONIC_PLAN_RECONSTRUCTION_FIELDS:
+            assert training_logits.harmonic_plan_reconstruction_logits.logits_by_field[field.name].shape == (
+                2,
+                8,
+                field.vocabulary_size,
+            )
+
+        assert training_logits.harmonic_plan_contrastive_embeddings is not None
+        assert training_logits.harmonic_plan_contrastive_embeddings.music_embeddings.shape == (2, H)
+        assert training_logits.harmonic_plan_contrastive_embeddings.plan_embeddings.shape == (2, H)
         assert training_logits.harmony_gate_values is not None
         assert training_logits.harmony_gate_values.shape == (2, 8, H)
 
@@ -495,11 +507,20 @@ class TestForwardBehaviour:
         )
 
         assert logits.harmonic_relation_logits is not None
+        assert logits.harmonic_plan_reconstruction_logits is not None
+        assert logits.harmonic_plan_contrastive_embeddings is not None
         assert logits.harmony_gate_values is not None
+        reconstruction_field_logits = tuple(logits.harmonic_plan_reconstruction_logits.logits_by_field.values())
+        reconstruction_logits_sum = reconstruction_field_logits[0].sum()
+        for field_logits in reconstruction_field_logits[1:]:
+            reconstruction_logits_sum = reconstruction_logits_sum + field_logits.sum()
         _backward(
             logits.flat_logits.sum()
             + _musical_auxiliary_logits_sum(logits.musical_auxiliary_logits)
             + logits.harmonic_relation_logits.sum()
+            + reconstruction_logits_sum
+            + logits.harmonic_plan_contrastive_embeddings.music_embeddings.sum()
+            + logits.harmonic_plan_contrastive_embeddings.plan_embeddings.sum()
             + logits.harmony_gate_values.sum()
         )
 
@@ -510,6 +531,10 @@ class TestForwardBehaviour:
         assert "_harmonic_plan_conditioning._gate.weight" in gradient_names
         assert "_harmonic_plan_conditioning._plan_encoder.layers.0.self_attn.in_proj_weight" in gradient_names
         assert "_harmonic_relation_head.weight" in gradient_names
+        assert "_harmonic_contrastive_music_projection.weight" in gradient_names
+        assert "_harmonic_contrastive_plan_projection.weight" in gradient_names
+        for field in HARMONIC_PLAN_RECONSTRUCTION_FIELDS:
+            assert f"_harmonic_plan_reconstruction_heads.{field.name.value}.weight" in gradient_names
 
     def test_future_tokens_do_not_change_earlier_logits(self) -> None:
         torch.manual_seed(0)

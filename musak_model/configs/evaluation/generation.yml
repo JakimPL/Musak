@@ -17,3 +17,5 @@ max_notes_per_hand: 5
 maximum_onset_span_semitones: 12
 maximum_pitch_gap_semitones: 12
 maximum_static_hand_span_degrees: 5
+harmonic_logit_bias_enabled: false
+harmonic_logit_bias_alpha: 0.20

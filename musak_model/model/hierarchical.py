@@ -7,6 +7,7 @@ from torch import Tensor
 from torch.nn.utils.rnn import pad_sequence
 
 from musak_model.auxiliary.schema import MusicalAuxiliaryLogits, MusicalBarAuxiliaryLogits
+from musak_model.conditioning.harmony.reconstruction import HARMONIC_PLAN_RECONSTRUCTION_FIELDS
 from musak_model.conditioning.harmony.relations import HARMONIC_RELATION_CLASS_COUNT
 from musak_model.conditioning.harmony.schema import HarmonicPlanInputTensors
 from musak_model.model.cnn import LocalConvEncoder
@@ -17,6 +18,8 @@ from musak_model.model.input import TokenInputEmbeddings
 from musak_model.model.output import (
     FactorizedTokenLogits,
     FlatTokenAttributeBuffers,
+    HarmonicPlanContrastiveEmbeddings,
+    HarmonicPlanReconstructionLogits,
     ModelTrainingLogits,
     flat_token_log_scores,
 )
@@ -34,6 +37,7 @@ from musak_model.tokens.factorized import (
 @dataclass(frozen=True)
 class _DecodedModelState:
     embeddings: Tensor
+    harmonic_plan_embeddings: Tensor | None
     harmony_gate_values: Tensor | None
 
 
@@ -77,11 +81,12 @@ class HierarchicalAutoregressiveModel(nn.Module):
                 self._hand_head = nn.Linear(config.transformer.hidden_size, HAND_ATTRIBUTE_COUNT)
                 self._register_flat_attribute_buffers(config)
 
-        self._harmonic_relation_head = (
-            nn.Linear(config.transformer.hidden_size, HARMONIC_RELATION_CLASS_COUNT)
-            if config.conditioning.harmony.enabled
-            else None
-        )
+        (
+            self._harmonic_relation_head,
+            self._harmonic_plan_reconstruction_heads,
+            self._harmonic_contrastive_music_projection,
+            self._harmonic_contrastive_plan_projection,
+        ) = self._build_harmony_training_heads(config)
 
         self._difficulty_embedding = nn.Embedding(
             config.conditioning.num_difficulty_levels, config.transformer.hidden_size
@@ -137,6 +142,26 @@ class HierarchicalAutoregressiveModel(nn.Module):
         self._bar_hand_span_head = nn.Linear(
             config.transformer.hidden_size,
             auxiliary_targets.hand_span_class_count,
+        )
+
+    @staticmethod
+    def _build_harmony_training_heads(
+        config: ModelConfig,
+    ) -> tuple[nn.Linear | None, nn.ModuleDict | None, nn.Linear | None, nn.Linear | None]:
+        if not config.conditioning.harmony.enabled:
+            return None, None, None, None
+
+        reconstruction_heads = nn.ModuleDict(
+            {
+                field.name.value: nn.Linear(config.transformer.hidden_size, field.vocabulary_size)
+                for field in HARMONIC_PLAN_RECONSTRUCTION_FIELDS
+            }
+        )
+        return (
+            nn.Linear(config.transformer.hidden_size, HARMONIC_RELATION_CLASS_COUNT),
+            reconstruction_heads,
+            nn.Linear(config.transformer.hidden_size, config.transformer.hidden_size),
+            nn.Linear(config.transformer.hidden_size, config.transformer.hidden_size),
         )
 
     def forward(
@@ -265,6 +290,13 @@ class HierarchicalAutoregressiveModel(nn.Module):
                     flat_logits=cast(Tensor, self._lm_head(decoded_state.embeddings)),
                     musical_auxiliary_logits=musical_auxiliary_logits,
                     harmonic_relation_logits=self._harmonic_relation_logits_from_embeddings(decoded_state.embeddings),
+                    harmonic_plan_reconstruction_logits=self._harmonic_plan_reconstruction_logits_from_embeddings(
+                        decoded_state.embeddings
+                    ),
+                    harmonic_plan_contrastive_embeddings=self._harmonic_plan_contrastive_embeddings_from_state(
+                        decoded_state,
+                        token_padding_mask=token_padding_mask,
+                    ),
                     harmony_gate_values=decoded_state.harmony_gate_values,
                 )
             case ModelOutputMode.FACTORIZED:
@@ -274,6 +306,13 @@ class HierarchicalAutoregressiveModel(nn.Module):
                     factorized_logits=factorized_logits,
                     musical_auxiliary_logits=musical_auxiliary_logits,
                     harmonic_relation_logits=self._harmonic_relation_logits_from_embeddings(decoded_state.embeddings),
+                    harmonic_plan_reconstruction_logits=self._harmonic_plan_reconstruction_logits_from_embeddings(
+                        decoded_state.embeddings
+                    ),
+                    harmonic_plan_contrastive_embeddings=self._harmonic_plan_contrastive_embeddings_from_state(
+                        decoded_state,
+                        token_padding_mask=token_padding_mask,
+                    ),
                     harmony_gate_values=decoded_state.harmony_gate_values,
                 )
 
@@ -339,6 +378,7 @@ class HierarchicalAutoregressiveModel(nn.Module):
         )
         return _DecodedModelState(
             embeddings=cast(Tensor, decoded_embeddings),
+            harmonic_plan_embeddings=harmonic_conditioning.plan_embeddings,
             harmony_gate_values=harmonic_conditioning.gate_values,
         )
 
@@ -408,6 +448,46 @@ class HierarchicalAutoregressiveModel(nn.Module):
 
         return cast(Tensor, self._harmonic_relation_head(decoded_embeddings))
 
+    def _harmonic_plan_reconstruction_logits_from_embeddings(
+        self,
+        decoded_embeddings: Tensor,
+    ) -> HarmonicPlanReconstructionLogits | None:
+        if self._harmonic_plan_reconstruction_heads is None:
+            return None
+
+        return HarmonicPlanReconstructionLogits(
+            logits_by_field={
+                field.name: cast(
+                    Tensor,
+                    self._harmonic_plan_reconstruction_heads[field.name.value](decoded_embeddings),
+                )
+                for field in HARMONIC_PLAN_RECONSTRUCTION_FIELDS
+            }
+        )
+
+    def _harmonic_plan_contrastive_embeddings_from_state(
+        self,
+        decoded_state: _DecodedModelState,
+        *,
+        token_padding_mask: Tensor | None,
+    ) -> HarmonicPlanContrastiveEmbeddings | None:
+        if (
+            self._harmonic_contrastive_music_projection is None
+            or self._harmonic_contrastive_plan_projection is None
+            or decoded_state.harmonic_plan_embeddings is None
+        ):
+            return None
+
+        padding_mask = self._default_padding_mask(decoded_state.embeddings, token_padding_mask=token_padding_mask)
+        music_summary = self._mean_pool_decoder_embeddings(decoded_state.embeddings, padding_mask=padding_mask)
+        plan_summary = self._mean_pool_decoder_embeddings(
+            decoded_state.harmonic_plan_embeddings, padding_mask=padding_mask
+        )
+        return HarmonicPlanContrastiveEmbeddings(
+            music_embeddings=cast(Tensor, self._harmonic_contrastive_music_projection(music_summary)),
+            plan_embeddings=cast(Tensor, self._harmonic_contrastive_plan_projection(plan_summary)),
+        )
+
     def _musical_auxiliary_logits_from_embeddings(
         self,
         decoded_embeddings: Tensor,
@@ -449,6 +529,13 @@ class HierarchicalAutoregressiveModel(nn.Module):
         active_mask = (~padding_mask).to(device=decoded_embeddings.device, dtype=decoded_embeddings.dtype)
         token_counts = active_mask.sum(dim=1).clamp_min(1).unsqueeze(-1)
         return (decoded_embeddings * active_mask.unsqueeze(-1)).sum(dim=1) / token_counts
+
+    @staticmethod
+    def _default_padding_mask(decoded_embeddings: Tensor, *, token_padding_mask: Tensor | None) -> Tensor:
+        if token_padding_mask is not None:
+            return token_padding_mask
+
+        return torch.zeros(decoded_embeddings.shape[:2], dtype=torch.bool, device=decoded_embeddings.device)
 
     @staticmethod
     def _bar_pool_decoder_embeddings(

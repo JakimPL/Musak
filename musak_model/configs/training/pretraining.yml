@@ -40,6 +40,19 @@ harmonic_relation_objective:
   cadence_weight: 1.5
   use_plan_confidence_weight: true
   minimum_plan_confidence_weight: 0.5
+harmonic_plan_reconstruction_objective:
+  enabled: true
+  weight: 0.02
+  harmonic_function_weight: 1.0
+  root_degree_weight: 1.0
+  quality_weight: 0.5
+  extension_weight: 0.25
+  cadence_strength_weight: 0.5
+harmonic_plan_contrastive_objective:
+  enabled: false
+  weight: 0.0
+  negative_count: 3
+  temperature: 0.20
 early_stopping:
   enabled: false
   patience_epochs: 10
@@ -84,3 +97,5 @@ generation_evaluation:
   maximum_onset_span_semitones: 12
   maximum_pitch_gap_semitones: 12
   maximum_static_hand_span_degrees: 5
+  harmonic_logit_bias_enabled: false
+  harmonic_logit_bias_alpha: 0.20

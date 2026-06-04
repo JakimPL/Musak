@@ -11,6 +11,7 @@ from torch import Tensor
 from torch.optim import AdamW
 from torch.utils.data import DataLoader
 
+from musak_model.conditioning.harmony.reconstruction import HarmonicPlanReconstructionFieldName
 from musak_model.conditioning.structural.vocabulary import StructuralControlVocabulary
 from musak_model.conditioning.time_signature import TimeSignatureVocabulary
 from musak_model.data.config import SegmentationConfig
@@ -33,9 +34,13 @@ from musak_model.training.ingestion.schema import IngestionErrorRecord
 from musak_model.training.ingestion.split import build_split
 from musak_model.training.losses import (
     FactorizedEventLoss,
+    HarmonicPlanContrastiveLoss,
+    HarmonicPlanReconstructionLoss,
     HarmonicRelationLoss,
     MusicalAuxiliaryLoss,
     factorized_event_loss,
+    harmonic_plan_contrastive_loss,
+    harmonic_plan_reconstruction_loss,
     harmonic_relation_loss,
     musical_auxiliary_loss,
 )
@@ -247,6 +252,30 @@ class PretrainingTrainer:
             train_harmonic_relation_macro_f1=train_metrics.harmonic_relation_macro_f1,
             train_harmonic_relation_target_distribution=train_metrics.harmonic_relation_target_distribution,
             train_harmonic_relation_prediction_distribution=train_metrics.harmonic_relation_prediction_distribution,
+            train_harmonic_plan_reconstruction_loss=train_metrics.harmonic_plan_reconstruction_loss,
+            train_harmonic_plan_reconstruction_harmonic_function_accuracy=(
+                train_metrics.harmonic_plan_reconstruction_harmonic_function_accuracy
+            ),
+            train_harmonic_plan_reconstruction_root_degree_accuracy=(
+                train_metrics.harmonic_plan_reconstruction_root_degree_accuracy
+            ),
+            train_harmonic_plan_reconstruction_quality_accuracy=(
+                train_metrics.harmonic_plan_reconstruction_quality_accuracy
+            ),
+            train_harmonic_plan_reconstruction_extension_accuracy=(
+                train_metrics.harmonic_plan_reconstruction_extension_accuracy
+            ),
+            train_harmonic_plan_reconstruction_cadence_strength_accuracy=(
+                train_metrics.harmonic_plan_reconstruction_cadence_strength_accuracy
+            ),
+            train_harmonic_plan_contrastive_loss=train_metrics.harmonic_plan_contrastive_loss,
+            train_harmonic_plan_contrastive_accuracy=train_metrics.harmonic_plan_contrastive_accuracy,
+            train_harmonic_plan_contrastive_positive_similarity=(
+                train_metrics.harmonic_plan_contrastive_positive_similarity
+            ),
+            train_harmonic_plan_contrastive_negative_similarity=(
+                train_metrics.harmonic_plan_contrastive_negative_similarity
+            ),
             train_harmony_gate_mean=train_metrics.harmony_gate_mean,
             train_validity_penalty_loss=train_metrics.validity_penalty_loss,
             train_invalid_probability_mass=train_metrics.invalid_probability_mass,
@@ -366,6 +395,50 @@ class PretrainingTrainer:
             ),
             validation_harmonic_relation_prediction_distribution=(
                 validation_metrics.harmonic_relation_prediction_distribution if validation_metrics is not None else None
+            ),
+            validation_harmonic_plan_reconstruction_loss=(
+                validation_metrics.harmonic_plan_reconstruction_loss if validation_metrics is not None else None
+            ),
+            validation_harmonic_plan_reconstruction_harmonic_function_accuracy=(
+                validation_metrics.harmonic_plan_reconstruction_harmonic_function_accuracy
+                if validation_metrics is not None
+                else None
+            ),
+            validation_harmonic_plan_reconstruction_root_degree_accuracy=(
+                validation_metrics.harmonic_plan_reconstruction_root_degree_accuracy
+                if validation_metrics is not None
+                else None
+            ),
+            validation_harmonic_plan_reconstruction_quality_accuracy=(
+                validation_metrics.harmonic_plan_reconstruction_quality_accuracy
+                if validation_metrics is not None
+                else None
+            ),
+            validation_harmonic_plan_reconstruction_extension_accuracy=(
+                validation_metrics.harmonic_plan_reconstruction_extension_accuracy
+                if validation_metrics is not None
+                else None
+            ),
+            validation_harmonic_plan_reconstruction_cadence_strength_accuracy=(
+                validation_metrics.harmonic_plan_reconstruction_cadence_strength_accuracy
+                if validation_metrics is not None
+                else None
+            ),
+            validation_harmonic_plan_contrastive_loss=(
+                validation_metrics.harmonic_plan_contrastive_loss if validation_metrics is not None else None
+            ),
+            validation_harmonic_plan_contrastive_accuracy=(
+                validation_metrics.harmonic_plan_contrastive_accuracy if validation_metrics is not None else None
+            ),
+            validation_harmonic_plan_contrastive_positive_similarity=(
+                validation_metrics.harmonic_plan_contrastive_positive_similarity
+                if validation_metrics is not None
+                else None
+            ),
+            validation_harmonic_plan_contrastive_negative_similarity=(
+                validation_metrics.harmonic_plan_contrastive_negative_similarity
+                if validation_metrics is not None
+                else None
             ),
             validation_harmony_gate_mean=(
                 validation_metrics.harmony_gate_mean if validation_metrics is not None else None
@@ -627,6 +700,14 @@ class PretrainingTrainer:
         if relation_loss is not None:
             loss = loss + self._config.harmonic_relation_objective.weight * relation_loss.loss
 
+        reconstruction_loss = self._harmonic_plan_reconstruction_loss(model_logits, batch=batch)
+        if reconstruction_loss is not None:
+            loss = loss + self._config.harmonic_plan_reconstruction_objective.weight * reconstruction_loss.loss
+
+        contrastive_loss = self._harmonic_plan_contrastive_loss(model_logits)
+        if contrastive_loss is not None:
+            loss = loss + self._config.harmonic_plan_contrastive_objective.weight * contrastive_loss.loss
+
         log_probabilities = nn.functional.log_softmax(logits, dim=-1)
         batch_metrics = batch_metrics_from_logits(
             logits,
@@ -639,6 +720,14 @@ class PretrainingTrainer:
         batch_metrics = self._add_factorized_loss_metrics(batch_metrics, factorized_loss=factorized_loss)
         batch_metrics = self._add_musical_auxiliary_loss_metrics(batch_metrics, auxiliary_loss=auxiliary_loss)
         batch_metrics = self._add_harmonic_relation_loss_metrics(batch_metrics, relation_loss=relation_loss)
+        batch_metrics = self._add_harmonic_plan_reconstruction_loss_metrics(
+            batch_metrics,
+            reconstruction_loss=reconstruction_loss,
+        )
+        batch_metrics = self._add_harmonic_plan_contrastive_loss_metrics(
+            batch_metrics,
+            contrastive_loss=contrastive_loss,
+        )
         batch_metrics = self._add_harmony_gate_metrics(batch_metrics, model_logits=model_logits, batch=batch)
         if self._config.conditioning.use_validity_penalty:
             validity_metrics = self._validity_penalty_metrics(
@@ -767,6 +856,46 @@ class PretrainingTrainer:
             config=self._config.harmonic_relation_objective,
         )
 
+    def _harmonic_plan_reconstruction_loss(
+        self,
+        model_logits: ModelTrainingLogits,
+        *,
+        batch: TrainingBatch,
+    ) -> HarmonicPlanReconstructionLoss | None:
+        if not self._config.harmonic_plan_reconstruction_objective.enabled:
+            return None
+
+        if not self._config.conditioning.use_harmony_conditioning:
+            return None
+
+        if model_logits.harmonic_plan_reconstruction_logits is None or batch.harmonic_plan is None:
+            return None
+
+        return harmonic_plan_reconstruction_loss(
+            model_logits.harmonic_plan_reconstruction_logits,
+            harmonic_plan=batch.harmonic_plan,
+            token_padding_mask=batch.token_padding_mask,
+            config=self._config.harmonic_plan_reconstruction_objective,
+        )
+
+    def _harmonic_plan_contrastive_loss(
+        self,
+        model_logits: ModelTrainingLogits,
+    ) -> HarmonicPlanContrastiveLoss | None:
+        if not self._config.harmonic_plan_contrastive_objective.enabled:
+            return None
+
+        if not self._config.conditioning.use_harmony_conditioning:
+            return None
+
+        if model_logits.harmonic_plan_contrastive_embeddings is None:
+            return None
+
+        return harmonic_plan_contrastive_loss(
+            model_logits.harmonic_plan_contrastive_embeddings,
+            config=self._config.harmonic_plan_contrastive_objective,
+        )
+
     def _add_factorized_loss_metrics(
         self,
         batch_metrics: BatchMetrics,
@@ -876,6 +1005,71 @@ class PretrainingTrainer:
                 "harmonic_relation_macro_f1": relation_loss.macro_f1,
                 "harmonic_relation_target_counts": relation_loss.target_counts,
                 "harmonic_relation_prediction_counts": relation_loss.prediction_counts,
+            }
+        )
+
+    def _add_harmonic_plan_reconstruction_loss_metrics(
+        self,
+        batch_metrics: BatchMetrics,
+        *,
+        reconstruction_loss: HarmonicPlanReconstructionLoss | None,
+    ) -> BatchMetrics:
+        if reconstruction_loss is None:
+            return batch_metrics
+
+        return batch_metrics.model_copy(
+            update={
+                "harmonic_plan_reconstruction_loss": float(reconstruction_loss.loss.detach().item()),
+                "harmonic_plan_reconstruction_target_count": sum(reconstruction_loss.field_target_counts.values()),
+                "harmonic_plan_reconstruction_harmonic_function_match_count": reconstruction_loss.field_match_counts[
+                    HarmonicPlanReconstructionFieldName.HARMONIC_FUNCTION
+                ],
+                "harmonic_plan_reconstruction_harmonic_function_target_count": reconstruction_loss.field_target_counts[
+                    HarmonicPlanReconstructionFieldName.HARMONIC_FUNCTION
+                ],
+                "harmonic_plan_reconstruction_root_degree_match_count": reconstruction_loss.field_match_counts[
+                    HarmonicPlanReconstructionFieldName.ROOT_DEGREE
+                ],
+                "harmonic_plan_reconstruction_root_degree_target_count": reconstruction_loss.field_target_counts[
+                    HarmonicPlanReconstructionFieldName.ROOT_DEGREE
+                ],
+                "harmonic_plan_reconstruction_quality_match_count": reconstruction_loss.field_match_counts[
+                    HarmonicPlanReconstructionFieldName.QUALITY
+                ],
+                "harmonic_plan_reconstruction_quality_target_count": reconstruction_loss.field_target_counts[
+                    HarmonicPlanReconstructionFieldName.QUALITY
+                ],
+                "harmonic_plan_reconstruction_extension_match_count": reconstruction_loss.field_match_counts[
+                    HarmonicPlanReconstructionFieldName.EXTENSION
+                ],
+                "harmonic_plan_reconstruction_extension_target_count": reconstruction_loss.field_target_counts[
+                    HarmonicPlanReconstructionFieldName.EXTENSION
+                ],
+                "harmonic_plan_reconstruction_cadence_strength_match_count": reconstruction_loss.field_match_counts[
+                    HarmonicPlanReconstructionFieldName.CADENCE_STRENGTH
+                ],
+                "harmonic_plan_reconstruction_cadence_strength_target_count": reconstruction_loss.field_target_counts[
+                    HarmonicPlanReconstructionFieldName.CADENCE_STRENGTH
+                ],
+            }
+        )
+
+    def _add_harmonic_plan_contrastive_loss_metrics(
+        self,
+        batch_metrics: BatchMetrics,
+        *,
+        contrastive_loss: HarmonicPlanContrastiveLoss | None,
+    ) -> BatchMetrics:
+        if contrastive_loss is None:
+            return batch_metrics
+
+        return batch_metrics.model_copy(
+            update={
+                "harmonic_plan_contrastive_loss": float(contrastive_loss.loss.detach().item()),
+                "harmonic_plan_contrastive_match_count": contrastive_loss.match_count,
+                "harmonic_plan_contrastive_target_count": contrastive_loss.target_count,
+                "harmonic_plan_contrastive_positive_similarity": contrastive_loss.positive_similarity,
+                "harmonic_plan_contrastive_negative_similarity": contrastive_loss.negative_similarity,
             }
         )
 

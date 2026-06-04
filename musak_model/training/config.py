@@ -72,6 +72,27 @@ class HarmonicRelationObjectiveConfig(BaseModel):
     minimum_plan_confidence_weight: float = Field(ge=0.0, le=1.0)
 
 
+class HarmonicPlanReconstructionObjectiveConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    enabled: bool
+    weight: float = Field(ge=0.0)
+    harmonic_function_weight: float = Field(ge=0.0)
+    root_degree_weight: float = Field(ge=0.0)
+    quality_weight: float = Field(ge=0.0)
+    extension_weight: float = Field(ge=0.0)
+    cadence_strength_weight: float = Field(ge=0.0)
+
+
+class HarmonicPlanContrastiveObjectiveConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    enabled: bool
+    weight: float = Field(ge=0.0)
+    negative_count: int = Field(ge=1)
+    temperature: float = Field(gt=0.0)
+
+
 class EarlyStoppingConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -146,6 +167,8 @@ class GenerationEvaluationConfig(BaseModel):
     maximum_onset_span_semitones: int | None = Field(ge=0)
     maximum_pitch_gap_semitones: int | None = Field(ge=0)
     maximum_static_hand_span_degrees: int | None = Field(ge=1)
+    harmonic_logit_bias_enabled: bool
+    harmonic_logit_bias_alpha: float = Field(ge=0.0)
 
     @field_validator("minimum_duration_denominator")
     @classmethod
@@ -174,6 +197,8 @@ class TrainingConfig(BaseModel):
     musical_auxiliary_targets: MusicalAuxiliaryTargetConfig
     musical_auxiliary_objective: MusicalAuxiliaryObjectiveConfig
     harmonic_relation_objective: HarmonicRelationObjectiveConfig
+    harmonic_plan_reconstruction_objective: HarmonicPlanReconstructionObjectiveConfig
+    harmonic_plan_contrastive_objective: HarmonicPlanContrastiveObjectiveConfig
     early_stopping: EarlyStoppingConfig
     runtime: RuntimeConfig
     conditioning: TrainingConditioningConfig

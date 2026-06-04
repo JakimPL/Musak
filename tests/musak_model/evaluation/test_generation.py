@@ -7,12 +7,14 @@ import torch
 from torch import Tensor
 
 from musak_model.auxiliary.config import MusicalAuxiliaryTargetConfig
+from musak_model.auxiliary.schema import MusicalAuxiliaryLogits, MusicalBarAuxiliaryLogits
 from musak_model.conditioning.config import (
     ConditioningConfig,
     DifficultyConfig,
     HarmonicConditioningConfig,
     HarmonicFusionMode,
 )
+from musak_model.conditioning.harmony.relations import HARMONIC_RELATION_CLASS_COUNT, HarmonicRelationId
 from musak_model.conditioning.harmony.schema import HarmonicPlanInputTensors
 from musak_model.conditioning.time_signature import TimeSignatureVocabularyConfig
 from musak_model.evaluation.generation import GenerationSuiteEvaluator
@@ -26,6 +28,7 @@ from musak_model.model.config import (
     TokenInputEmbeddingMode,
     TransformerConfig,
 )
+from musak_model.model.output import ModelTrainingLogits
 from musak_model.n_grams.figure.schema import FigureNGram
 from musak_model.n_grams.profile.artifacts import figure_artifact_paths
 from musak_model.n_grams.profile.builder import build_figure_profile, build_figure_sample_counts
@@ -65,6 +68,8 @@ def _generation_config(**overrides: object) -> GenerationEvaluationConfig:
         "maximum_onset_span_semitones": 12,
         "maximum_pitch_gap_semitones": 12,
         "maximum_static_hand_span_degrees": 5,
+        "harmonic_logit_bias_enabled": False,
+        "harmonic_logit_bias_alpha": 0.20,
     }
     values.update(overrides)
     return GenerationEvaluationConfig.model_validate(values)
@@ -91,10 +96,64 @@ def _musical_auxiliary_target_config() -> MusicalAuxiliaryTargetConfig:
     )
 
 
+def _dummy_musical_auxiliary_logits(
+    *,
+    batch_size: int,
+    bar_count: int,
+    device: torch.device,
+) -> MusicalAuxiliaryLogits:
+    target_config = _musical_auxiliary_target_config()
+    return MusicalAuxiliaryLogits(
+        note_density=torch.zeros(batch_size, target_config.note_density_class_count, device=device),
+        rhythmic_diversity=torch.zeros(batch_size, target_config.rhythmic_diversity_class_count, device=device),
+        voice_independence=torch.zeros(batch_size, target_config.voice_independence_class_count, device=device),
+        uses_accidentals=torch.zeros(batch_size, target_config.uses_accidentals_class_count, device=device),
+        dotted_duration=torch.zeros(batch_size, target_config.dotted_duration_class_count, device=device),
+        hand_span=torch.zeros(batch_size, target_config.hand_span_class_count, device=device),
+        bar=MusicalBarAuxiliaryLogits(
+            note_density=torch.zeros(batch_size, bar_count, target_config.note_density_class_count, device=device),
+            rhythmic_diversity=torch.zeros(
+                batch_size,
+                bar_count,
+                target_config.rhythmic_diversity_class_count,
+                device=device,
+            ),
+            voice_independence=torch.zeros(
+                batch_size,
+                bar_count,
+                target_config.voice_independence_class_count,
+                device=device,
+            ),
+            uses_accidentals=torch.zeros(
+                batch_size,
+                bar_count,
+                target_config.uses_accidentals_class_count,
+                device=device,
+            ),
+            dotted_duration=torch.zeros(
+                batch_size,
+                bar_count,
+                target_config.dotted_duration_class_count,
+                device=device,
+            ),
+            hand_span=torch.zeros(batch_size, bar_count, target_config.hand_span_class_count, device=device),
+        ),
+    )
+
+
 class ScriptedModel:
-    def __init__(self, token_ids: list[int], *, vocabulary_size: int) -> None:
+    def __init__(
+        self,
+        token_ids: list[int],
+        *,
+        vocabulary_size: int,
+        flat_logits: Tensor | None = None,
+        relation_logits: Tensor | None = None,
+    ) -> None:
         self._token_ids = token_ids
         self._vocabulary_size = vocabulary_size
+        self._flat_logits = flat_logits
+        self._relation_logits = relation_logits
         self._step = 0
         self.training = True
         self.harmonic_plans: list[HarmonicPlanInputTensors | None] = []
@@ -123,10 +182,58 @@ class ScriptedModel:
         token_padding_mask: Tensor | None = None,
     ) -> Tensor:
         self.harmonic_plans.append(harmonic_plan)
+        return self._next_logits(token_ids)
+
+    def training_logits(
+        self,
+        token_ids: Tensor,
+        *,
+        bar_positions: Tensor,
+        bar_relative_ticks: Tensor,
+        bar_duration_ticks: Tensor,
+        active_hand_ids: Tensor,
+        target_bar_positions: Tensor,
+        bar_counts: Tensor,
+        difficulty_ids: Tensor | None = None,
+        scale_type_ids: Tensor | None = None,
+        time_signature_ids: Tensor | None = None,
+        structural_control_ids: Tensor | None = None,
+        harmonic_plan: HarmonicPlanInputTensors | None = None,
+        token_padding_mask: Tensor | None = None,
+    ) -> ModelTrainingLogits:
+        self.harmonic_plans.append(harmonic_plan)
+        return ModelTrainingLogits(
+            flat_logits=self._next_logits(token_ids),
+            musical_auxiliary_logits=_dummy_musical_auxiliary_logits(
+                batch_size=token_ids.size(0),
+                bar_count=int(bar_counts.max().item()),
+                device=token_ids.device,
+            ),
+            harmonic_relation_logits=self._expanded_relation_logits(token_ids),
+        )
+
+    def _next_logits(self, token_ids: Tensor) -> Tensor:
         logits = torch.full((1, token_ids.size(1), self._vocabulary_size), -1000.0)
-        scripted_id = self._token_ids[min(self._step, len(self._token_ids) - 1)]
-        logits[0, -1, scripted_id] = 1000.0
+        if self._flat_logits is None:
+            scripted_id = self._token_ids[min(self._step, len(self._token_ids) - 1)]
+            logits[0, -1, scripted_id] = 1000.0
+        else:
+            logits[0, -1] = self._flat_logits.to(device=token_ids.device)
+
         self._step += 1
+        return logits
+
+    def _expanded_relation_logits(self, token_ids: Tensor) -> Tensor | None:
+        if self._relation_logits is None:
+            return None
+
+        logits = torch.zeros(
+            token_ids.size(0),
+            token_ids.size(1),
+            HARMONIC_RELATION_CLASS_COUNT,
+            device=token_ids.device,
+        )
+        logits[:, -1] = self._relation_logits.to(device=token_ids.device)
         return logits
 
 
@@ -206,6 +313,46 @@ def test_generation_suite_passes_harmonic_plan_when_enabled() -> None:
     assert result.sample_suites[0].samples[0].harmonic_plan_windows is not None
     assert result.metrics["generation/soft/harmony/count/planned_samples"] == 1.0
     assert result.metrics["generation/soft/harmony/count/decoded_samples"] == 1.0
+
+
+def test_generation_suite_can_apply_soft_harmonic_relation_bias() -> None:
+    duration_vocabulary = DurationVocabulary(TokenizationConfig(shortest_duration=16, allowed_tuplets=(3,), max_dots=1))
+    token_vocabulary = TokenVocabulary(duration_vocabulary)
+    quarter_id = duration_vocabulary.fraction_to_id(Fraction(1, 4))
+    root_token = NoteToken(degree=1, accidental=0, octave_offset=0, duration_id=quarter_id)
+    non_chord_token = NoteToken(degree=2, accidental=0, octave_offset=0, duration_id=quarter_id)
+    root_id, non_chord_id = token_vocabulary.encode([root_token, non_chord_token])
+    flat_logits = torch.full((token_vocabulary.vocabulary_size,), -1000.0)
+    flat_logits[root_id] = 0.0
+    flat_logits[non_chord_id] = 0.0
+    relation_logits = torch.zeros(HARMONIC_RELATION_CLASS_COUNT)
+    relation_logits[HarmonicRelationId.CHORD_ROOT] = 6.0
+    model = ScriptedModel(
+        [],
+        vocabulary_size=token_vocabulary.vocabulary_size,
+        flat_logits=flat_logits,
+        relation_logits=relation_logits,
+    )
+    evaluator = GenerationSuiteEvaluator(
+        config=_generation_config(
+            soft_sample_count=1,
+            hard_sample_count=0,
+            max_new_tokens=1,
+            harmonic_logit_bias_enabled=True,
+            harmonic_logit_bias_alpha=1.0,
+        ),
+        conditioning=_conditioning_config(use_harmony_conditioning=True),
+        model_config=_model_config(token_vocabulary.vocabulary_size, harmony_enabled=True),
+        token_vocabulary=token_vocabulary,
+        duration_vocabulary=duration_vocabulary,
+        include_bar_count_control=False,
+        figure_profile_artifacts=None,
+        show_progress=False,
+    )
+
+    result = evaluator.evaluate_result(model, device=torch.device("cpu"))
+
+    assert result.sample_suites[0].samples[0].tokens == [root_token]
 
 
 def test_generation_suite_rejects_harmony_conditioning_mismatch() -> None:
