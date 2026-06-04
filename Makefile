@@ -42,7 +42,7 @@ NOTEBOOK_NAMES := $(subst _,-,$(basename $(notdir $(NOTEBOOK_FILES))))
 NOTEBOOK_TARGETS := $(addprefix notebook-,$(NOTEBOOK_NAMES))
 NOTEBOOK_MODE ?= edit
 
-.PHONY: help install test app parse tokenize process diagnose analyze-n-grams fit-generator train pretrain finetune mlflow FORCE
+.PHONY: help install test app parse tokenize process diagnose analyze-n-grams fit-generator train pretrain finetune evaluate-pretrain evaluate-finetune mlflow FORCE
 
 PRETRAIN_DATA_DIR ?= $(DATA_DIR)
 PRETRAIN_EPOCHS ?= $(EPOCHS)
@@ -53,6 +53,7 @@ PRETRAIN_CHECKPOINT_DIR ?=
 PRETRAIN_RESUME_CHECKPOINT ?= $(if $(PRETRAIN_CHECKPOINT_DIR),$(PRETRAIN_CHECKPOINT_DIR)/latest.pt,$(ARTIFACTS_DIR)/checkpoints/pretraining/latest.pt)
 PRETRAIN_DIFFICULTY_LABELS ?=
 PRETRAIN_WHOLE_FILE_SEGMENTS ?=
+PRETRAIN_CHECKPOINT ?= $(ARTIFACTS_DIR)/checkpoints/pretraining/best.pt
 
 FINETUNE_DATA_DIR ?= $(PRETRAIN_DATA_DIR)
 FINETUNE_EPOCHS ?= $(EPOCHS)
@@ -62,7 +63,17 @@ FINETUNE_CHECKPOINT_DIR ?=
 FINETUNE_RESUME_CHECKPOINT ?= $(if $(FINETUNE_CHECKPOINT_DIR),$(FINETUNE_CHECKPOINT_DIR)/latest.pt,$(ARTIFACTS_DIR)/checkpoints/finetuning/latest.pt)
 FINETUNE_DIFFICULTY_LABELS ?=
 FINETUNE_WHOLE_FILE_SEGMENTS ?= 1
-PRETRAIN_CHECKPOINT ?= $(ARTIFACTS_DIR)/checkpoints/pretraining/best.pt
+FINETUNE_CHECKPOINT ?= $(ARTIFACTS_DIR)/checkpoints/finetuning/best.pt
+
+EVALUATE_DEVICE ?= $(DEVICE)
+EVALUATE_SEED ?=
+EVALUATE_TEMPERATURE ?=
+EVALUATE_TRAINING_CONFIG ?=
+EVALUATE_GENERATION_CONFIG ?=
+EVALUATE_MLFLOW_EXPERIMENT ?=
+EVALUATE_MLFLOW_RUN_NAME ?=
+EVALUATE_MLFLOW_RUN_ID ?=
+EVALUATE_DISABLE_MLFLOW ?=
 
 help:
 	@printf '%s\n' 'Musak development commands'
@@ -79,6 +90,8 @@ help:
 	@printf '%s\n' '  make fit-generator    Fit register/accent generator overrides from corpus figure statistics.'
 	@printf '%s\n' '  make pretrain         Train the broad token-distribution pretrain model.'
 	@printf '%s\n' '  make finetune         Fine-tune from a pretrain checkpoint with conditioning controls.'
+	@printf '%s\n' '  make evaluate-pretrain Run generation evaluation for a pretrain checkpoint.'
+	@printf '%s\n' '  make evaluate-finetune Run generation evaluation for a finetune checkpoint.'
 	@printf '%s\n' '  make train            Run pretrain, then finetune.'
 	@printf '%s\n' '  make mlflow           Start the local MLflow dashboard.'
 	@$(if $(NOTEBOOK_TARGETS),printf '%s\n' '  make notebook-<name>  Start a discovered Marimo notebook.';)
@@ -94,6 +107,8 @@ help:
 	@printf '%s\n' '  DATA_DIR=data/pretraining-dataset FIT_GRID_DENOMINATOR=4 make fit-generator'
 	@printf '%s\n' '  DATA_DIR=data/finetuning-dataset PROCESS_WHOLE_FILE_SEGMENTS=1 PROCESS_DIFFICULTY_LABELS=data/finetuning-difficulty.json PROCESS_OVERWRITE=1 make process'
 	@printf '%s\n' '  PRETRAIN_DATA_DIR=data/pretraining-dataset PRETRAIN_EPOCHS=25 PRETRAIN_DEVICE=cuda make pretrain'
+	@printf '%s\n' '  DATA_DIR=PDMX make evaluate-pretrain'
+	@printf '%s\n' '  DATA_DIR=exercises make evaluate-finetune'
 	@printf '%s\n' '  FINETUNE_DATA_DIR=data/finetuning-dataset FINETUNE_DIFFICULTY_LABELS=data/finetuning-difficulty.json FINETUNE_EPOCHS=8 make finetune'
 	@printf '%s\n' '  PRETRAIN_DATA_DIR=data/pretraining-dataset FINETUNE_DATA_DIR=data/finetuning-dataset FINETUNE_DIFFICULTY_LABELS=data/finetuning-difficulty.json EPOCHS=25 DEVICE=cuda make train'
 	@printf '%s\n' '  MLFLOW_DB=artifacts/mlflow/mlflow.db MLFLOW_PORT=5000 make mlflow'
@@ -141,6 +156,9 @@ help:
 	@printf '%s\n' '  FINETUNE_DIFFICULTY_LABELS Required difficulty-label JSON/YAML path for exercise finetuning.'
 	@printf '%s\n' '  FINETUNE_WHOLE_FILE_SEGMENTS=1 passes --whole-file-segments to finetune. Default: 1'
 	@printf '%s\n' '  PRETRAIN_CHECKPOINT   Checkpoint used by finetune. Default: $(PRETRAIN_CHECKPOINT)'
+	@printf '%s\n' '  FINETUNE_CHECKPOINT   Checkpoint evaluated by evaluate-finetune. Default: $(FINETUNE_CHECKPOINT)'
+	@printf '%s\n' '  EVALUATE_GENERATION_CONFIG Optional generation-evaluation YAML override.'
+	@printf '%s\n' '  EVALUATE_SEED, EVALUATE_TEMPERATURE optional generation convenience overrides.'
 	@printf '%s\n' '  EPOCHS, DEVICE, NUM_WORKERS provide shared defaults.'
 	@printf '%s\n' '  OVERWRITE=1 passes --overwrite to process and pretrain checkpoint safety checks.'
 	@printf '%s\n' '  RESUME=1 resumes from each stage latest checkpoint and takes precedence over OVERWRITE.'
@@ -220,6 +238,14 @@ finetune:
 		$(call optional_flag,FINETUNE_WHOLE_FILE_SEGMENTS,--whole-file-segments) \
 		$(call optional_resume_checkpoint,FINETUNE_RESUME_CHECKPOINT)
 
+evaluate-pretrain:
+	$(call require_var,DATA_DIR)
+	$(call evaluate_model_command,pretrain,$(PRETRAIN_CHECKPOINT))
+
+evaluate-finetune:
+	$(call require_var,DATA_DIR)
+	$(call evaluate_model_command,finetune,$(FINETUNE_CHECKPOINT))
+
 mlflow:
 	@mkdir -p "$(dir $(MLFLOW_DB))"
 	uv run mlflow ui \
@@ -259,6 +285,22 @@ endef
 
 define optional_resume_checkpoint
 	$(if $(RESUME),--resume-checkpoint "$($(1))",)
+endef
+
+define evaluate_model_command
+	uv run python scripts/evaluate_model.py "$(1)" \
+		--data-dir "$(DATA_DIR)" \
+		--checkpoint "$(2)" \
+		--mlflow-db "$(MLFLOW_DB)" \
+		$(call optional_arg,EVALUATE_TRAINING_CONFIG,--training-config) \
+		$(call optional_arg,EVALUATE_GENERATION_CONFIG,--generation-evaluation-config) \
+		$(call optional_arg,EVALUATE_DEVICE,--device) \
+		$(call optional_arg,EVALUATE_SEED,--seed) \
+		$(call optional_arg,EVALUATE_TEMPERATURE,--temperature) \
+		$(call optional_arg,EVALUATE_MLFLOW_EXPERIMENT,--mlflow-experiment-name) \
+		$(call optional_arg,EVALUATE_MLFLOW_RUN_NAME,--mlflow-run-name) \
+		$(call optional_arg,EVALUATE_MLFLOW_RUN_ID,--mlflow-run-id) \
+		$(call optional_flag,EVALUATE_DISABLE_MLFLOW,--disable-mlflow)
 endef
 
 define analyze_n_grams_command

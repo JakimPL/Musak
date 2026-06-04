@@ -15,6 +15,7 @@ REGISTER_CURVE_CONFIG_PATH: Final[Path] = CONFIGS_DIRECTORY / "generation" / "re
 ACCENT_FIELD_CONFIG_PATH: Final[Path] = CONFIGS_DIRECTORY / "generation" / "accent_field.yml"
 HAND_COUPLING_CONFIG_PATH: Final[Path] = CONFIGS_DIRECTORY / "generation" / "hand_coupling.yml"
 CALIBRATION_CONFIG_PATH: Final[Path] = CONFIGS_DIRECTORY / "generation" / "calibration.yml"
+GENERATION_EVALUATION_CONFIG_PATH: Final[Path] = CONFIGS_DIRECTORY / "evaluation" / "generation.yml"
 INGESTION_CONFIG_PATH: Final[Path] = CONFIGS_DIRECTORY / "training" / "ingestion.yml"
 PROCESSING_CONFIG_PATH: Final[Path] = CONFIGS_DIRECTORY / "data" / "processing.yml"
 SEGMENTATION_CONFIG_PATH: Final[Path] = CONFIGS_DIRECTORY / "data" / "segmentation.yml"

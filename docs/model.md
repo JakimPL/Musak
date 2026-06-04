@@ -23,6 +23,21 @@ PRETRAIN_DATA_DIR=data/pretraining-dataset FINETUNE_DATA_DIR=data/finetuning-dat
 Training targets take dataset roots and look for matching artifacts under `artifacts/processed/<dataset-name>`. See
 `docs/pipeline.md` for the operational command guide.
 
+Generation evaluation can also be run for an existing checkpoint without starting a training stage:
+
+```bash
+DATA_DIR=PDMX make evaluate-pretrain
+DATA_DIR=exercises make evaluate-finetune
+```
+
+These targets dispatch to `scripts/evaluate_model.py <pretrain|finetune>`. They evaluate the corresponding `best.pt`
+checkpoint by default, run the soft/hard generation suite defined in
+`musak_model/configs/evaluation/generation.yml`, log a separate MLflow run, and write generated sample artifacts under
+`generation/evaluation/`. The checkpoint path, generation-evaluation config path, and model config are logged as
+parameters; the checkpoint file itself is not copied into the evaluation run. CLI overrides are limited to setup
+options plus the convenience sampling overrides `--seed` and `--temperature`; bar count, max new tokens, top-k, and
+sample counts belong to the YAML config.
+
 ## Current Encoded Dataset
 
 Processed datasets are stored under:

@@ -6,7 +6,12 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from musak_model.auxiliary.config import MusicalAuxiliaryTargetConfig
 from musak_model.model.config import ModelOutputMode
-from musak_model.paths import DEFAULT_PRETRAINING_CHECKPOINT_DIRECTORY, FINETUNING_CONFIG_PATH, PRETRAINING_CONFIG_PATH
+from musak_model.paths import (
+    DEFAULT_PRETRAINING_CHECKPOINT_DIRECTORY,
+    FINETUNING_CONFIG_PATH,
+    GENERATION_EVALUATION_CONFIG_PATH,
+    PRETRAINING_CONFIG_PATH,
+)
 from musak_model.tokens.schema import ScaleType
 from musak_shared.files import load_yaml_config
 from musak_shared.time_signature import validate_time_denominator
@@ -137,6 +142,10 @@ class GenerationEvaluationConfig(BaseModel):
     def check_time_denominator(cls, value: int) -> int:
         validate_time_denominator(value)
         return value
+
+    @classmethod
+    def load(cls, path: Path = GENERATION_EVALUATION_CONFIG_PATH) -> GenerationEvaluationConfig:
+        return cls.model_validate(load_yaml_config(path))
 
 
 class TrainingConfig(BaseModel):

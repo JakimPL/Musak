@@ -178,6 +178,44 @@ def test_make_finetune_requires_difficulty_labels() -> None:
         )
 
 
+def test_make_evaluate_pretrain_dispatches_shared_evaluator() -> None:
+    output = _make_dry_run(
+        "evaluate-pretrain",
+        "DATA_DIR=PDMX",
+        "PRETRAIN_CHECKPOINT=artifacts/checkpoints/pretraining/best.pt",
+        "EVALUATE_GENERATION_CONFIG=musak_model/configs/evaluation/generation.yml",
+        "EVALUATE_SEED=123",
+        "EVALUATE_TEMPERATURE=0.8",
+    )
+
+    assert "scripts/evaluate_model.py" in output
+    assert '"pretrain"' in output
+    assert '--data-dir "PDMX"' in output
+    assert '--checkpoint "artifacts/checkpoints/pretraining/best.pt"' in output
+    assert '--generation-evaluation-config "musak_model/configs/evaluation/generation.yml"' in output
+    assert '--seed "123"' in output
+    assert '--temperature "0.8"' in output
+    assert "--bar-count" not in output
+    assert "--max-new-tokens" not in output
+    assert "--top-k" not in output
+
+
+def test_make_evaluate_finetune_dispatches_shared_evaluator() -> None:
+    output = _make_dry_run(
+        "evaluate-finetune",
+        "DATA_DIR=exercises",
+        "FINETUNE_CHECKPOINT=artifacts/checkpoints/finetuning/best.pt",
+    )
+
+    assert "scripts/evaluate_model.py" in output
+    assert '"finetune"' in output
+    assert '--data-dir "exercises"' in output
+    assert '--checkpoint "artifacts/checkpoints/finetuning/best.pt"' in output
+    assert "--bar-count" not in output
+    assert "--max-new-tokens" not in output
+    assert "--top-k" not in output
+
+
 def test_make_mlflow_starts_dashboard_with_configurable_address() -> None:
     output = _make_dry_run(
         "mlflow",
