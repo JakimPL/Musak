@@ -53,7 +53,12 @@ def test_figure_by_chord_round_trip(tmp_path: Path) -> None:
 
 
 def test_chord_metadata_round_trip(tmp_path: Path) -> None:
-    metadata = ChordProfileMetadata(resolution=1, self_transition_bias=0.25, non_chord_penalty=1.0, sample_count=42)
+    metadata = ChordProfileMetadata(
+        resolution=1,
+        self_transition_bias=0.25,
+        non_chord_penalty=1.0,
+        sample_count=42,
+    )
     path = tmp_path / "metadata.json"
 
     write_chord_metadata(metadata, path)

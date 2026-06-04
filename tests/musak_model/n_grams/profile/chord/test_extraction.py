@@ -15,7 +15,15 @@ from musak_model.n_grams.profile.chord.schema import (
     chord_to_key,
 )
 from musak_model.tokens.duration import DurationVocabulary
-from musak_model.tokens.schema import BarToken, Hand, HandToken, JoinWithPreviousToken, NoteToken, ScaleType, Token
+from musak_model.tokens.schema import (
+    BarToken,
+    Hand,
+    HandToken,
+    JoinWithPreviousToken,
+    NoteToken,
+    ScaleType,
+    Token,
+)
 
 _TONIC = chord_to_key(Chord(root_degree=1, root_accidental=0, quality=ChordQuality.MAJOR))
 _SUBDOMINANT = chord_to_key(Chord(root_degree=4, root_accidental=0, quality=ChordQuality.MAJOR))
@@ -91,7 +99,11 @@ def _melodic_segment(duration_vocabulary: DurationVocabulary) -> Segment:
 
 def _decode_spec() -> ChordDecodeSpec:
     return ChordDecodeSpec(
-        decoder_config=ChordDecoderConfig(resolution=1, self_transition_bias=0.25, non_chord_penalty=1.0),
+        decoder_config=ChordDecoderConfig(
+            resolution=1,
+            self_transition_bias=0.25,
+            non_chord_penalty=1.0,
+        ),
         vocabulary=ChordVocabularyConfig.load(),
     )
 

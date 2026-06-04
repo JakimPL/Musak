@@ -73,6 +73,10 @@ def test_coherence_profile_metrics_use_suite_namespace(duration_vocabulary: Dura
 
     assert metrics["generation/soft/coherence/count/samples"] == 1.0
     assert metrics["generation/soft/coherence/count/note_events"] == 2.0
+    assert metrics["generation/soft/coherence/count/whole_bar_note_events"] == 2.0
+    assert metrics["generation/soft/coherence/count/whole_note_or_longer_events"] == 2.0
+    assert metrics["generation/soft/coherence/rate/samples_with_whole_bar_note"] == 1.0
+    assert metrics["generation/soft/coherence/rate/samples_with_whole_note_or_longer"] == 1.0
     assert metrics["generation/soft/coherence/rate/final_both_hands_active"] == 1.0
 
 

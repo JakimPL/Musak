@@ -14,6 +14,7 @@ from musak_shared.elements import PITCHES_PER_OCTAVE
 
 _METRIC_PREFIX: Final[str] = "coherence"
 _LONG_NOTE_BAR_FRACTION: Final[Fraction] = Fraction(1, 2)
+_WHOLE_NOTE_DURATION: Final[Fraction] = Fraction(1)
 _STEPWISE_MAX_SEMITONES: Final[int] = 2
 _LARGE_LEAP_MIN_SEMITONES: Final[int] = 7
 _LEAP_RECOVERY_MAX_SEMITONES: Final[int] = 5
@@ -58,10 +59,18 @@ def coherence_metrics(
     note_events = 0
     long_note_events = 0
     whole_bar_note_events = 0
+    whole_note_or_longer_events = 0
+    samples_with_long_note = 0
+    samples_with_whole_bar_note = 0
+    samples_with_whole_note_or_longer = 0
     left_note_events = 0
     left_long_note_events = 0
+    left_whole_bar_note_events = 0
+    left_whole_note_or_longer_events = 0
     right_note_events = 0
     right_long_note_events = 0
+    right_whole_bar_note_events = 0
+    right_whole_note_or_longer_events = 0
     long_left_under_right_motion = 0
 
     melodic_counts = _MelodicCounts(0, 0, 0, 0, 0, 0, 0, 0)
@@ -74,10 +83,18 @@ def coherence_metrics(
         long_counts = _long_duration_counts(segment, events)
         long_note_events += long_counts.long_note_events
         whole_bar_note_events += long_counts.whole_bar_note_events
+        whole_note_or_longer_events += long_counts.whole_note_or_longer_events
+        samples_with_long_note += long_counts.samples_with_long_note
+        samples_with_whole_bar_note += long_counts.samples_with_whole_bar_note
+        samples_with_whole_note_or_longer += long_counts.samples_with_whole_note_or_longer
         left_note_events += long_counts.left_note_events
         left_long_note_events += long_counts.left_long_note_events
+        left_whole_bar_note_events += long_counts.left_whole_bar_note_events
+        left_whole_note_or_longer_events += long_counts.left_whole_note_or_longer_events
         right_note_events += long_counts.right_note_events
         right_long_note_events += long_counts.right_long_note_events
+        right_whole_bar_note_events += long_counts.right_whole_bar_note_events
+        right_whole_note_or_longer_events += long_counts.right_whole_note_or_longer_events
         long_left_under_right_motion += long_counts.long_left_under_right_motion
 
         melodic_counts = _add_melodic_counts(melodic_counts, _melodic_counts(events))
@@ -96,13 +113,22 @@ def coherence_metrics(
     metrics.update(
         _long_duration_metrics(
             metric_prefix,
+            samples=len(segments),
             note_events=note_events,
             long_note_events=long_note_events,
             whole_bar_note_events=whole_bar_note_events,
+            whole_note_or_longer_events=whole_note_or_longer_events,
+            samples_with_long_note=samples_with_long_note,
+            samples_with_whole_bar_note=samples_with_whole_bar_note,
+            samples_with_whole_note_or_longer=samples_with_whole_note_or_longer,
             left_note_events=left_note_events,
             left_long_note_events=left_long_note_events,
+            left_whole_bar_note_events=left_whole_bar_note_events,
+            left_whole_note_or_longer_events=left_whole_note_or_longer_events,
             right_note_events=right_note_events,
             right_long_note_events=right_long_note_events,
+            right_whole_bar_note_events=right_whole_bar_note_events,
+            right_whole_note_or_longer_events=right_whole_note_or_longer_events,
             long_left_under_right_motion=long_left_under_right_motion,
         )
     )
@@ -116,46 +142,75 @@ def coherence_metrics(
 class _LongDurationCounts:
     long_note_events: int
     whole_bar_note_events: int
+    whole_note_or_longer_events: int
+    samples_with_long_note: int
+    samples_with_whole_bar_note: int
+    samples_with_whole_note_or_longer: int
     left_note_events: int
     left_long_note_events: int
+    left_whole_bar_note_events: int
+    left_whole_note_or_longer_events: int
     right_note_events: int
     right_long_note_events: int
+    right_whole_bar_note_events: int
+    right_whole_note_or_longer_events: int
     long_left_under_right_motion: int
 
 
 def _long_duration_counts(segment: Segment, events: tuple[PianoRollEvent, ...]) -> _LongDurationCounts:
     long_note_events = 0
     whole_bar_note_events = 0
+    whole_note_or_longer_events = 0
     left_note_events = 0
     left_long_note_events = 0
+    left_whole_bar_note_events = 0
+    left_whole_note_or_longer_events = 0
     right_note_events = 0
     right_long_note_events = 0
+    right_whole_bar_note_events = 0
+    right_whole_note_or_longer_events = 0
     long_left_under_right_motion = 0
 
     for event in events:
         bar_duration = _bar_duration_at_position(segment, event.start)
         is_long = event.duration >= bar_duration * _LONG_NOTE_BAR_FRACTION
+        is_whole_bar = event.duration >= bar_duration
+        is_whole_note_or_longer = event.duration >= _WHOLE_NOTE_DURATION
         if is_long:
             long_note_events += 1
-        if event.duration >= bar_duration:
+        if is_whole_bar:
             whole_bar_note_events += 1
+        if is_whole_note_or_longer:
+            whole_note_or_longer_events += 1
 
         if event.hand == Hand.LEFT:
             left_note_events += 1
             left_long_note_events += int(is_long)
+            left_whole_bar_note_events += int(is_whole_bar)
+            left_whole_note_or_longer_events += int(is_whole_note_or_longer)
             if is_long and _right_hand_moves_under_left_event(event, events):
                 long_left_under_right_motion += 1
         elif event.hand == Hand.RIGHT:
             right_note_events += 1
             right_long_note_events += int(is_long)
+            right_whole_bar_note_events += int(is_whole_bar)
+            right_whole_note_or_longer_events += int(is_whole_note_or_longer)
 
     return _LongDurationCounts(
         long_note_events=long_note_events,
         whole_bar_note_events=whole_bar_note_events,
+        whole_note_or_longer_events=whole_note_or_longer_events,
+        samples_with_long_note=int(long_note_events > 0),
+        samples_with_whole_bar_note=int(whole_bar_note_events > 0),
+        samples_with_whole_note_or_longer=int(whole_note_or_longer_events > 0),
         left_note_events=left_note_events,
         left_long_note_events=left_long_note_events,
+        left_whole_bar_note_events=left_whole_bar_note_events,
+        left_whole_note_or_longer_events=left_whole_note_or_longer_events,
         right_note_events=right_note_events,
         right_long_note_events=right_long_note_events,
+        right_whole_bar_note_events=right_whole_bar_note_events,
+        right_whole_note_or_longer_events=right_whole_note_or_longer_events,
         long_left_under_right_motion=long_left_under_right_motion,
     )
 
@@ -345,23 +400,49 @@ def _default_bar_duration(segment: Segment) -> Fraction:
 def _long_duration_metrics(
     metric_prefix: str,
     *,
+    samples: int,
     note_events: int,
     long_note_events: int,
     whole_bar_note_events: int,
+    whole_note_or_longer_events: int,
+    samples_with_long_note: int,
+    samples_with_whole_bar_note: int,
+    samples_with_whole_note_or_longer: int,
     left_note_events: int,
     left_long_note_events: int,
+    left_whole_bar_note_events: int,
+    left_whole_note_or_longer_events: int,
     right_note_events: int,
     right_long_note_events: int,
+    right_whole_bar_note_events: int,
+    right_whole_note_or_longer_events: int,
     long_left_under_right_motion: int,
 ) -> dict[str, float]:
-    metrics: dict[str, float] = {}
+    metrics: dict[str, float] = {
+        f"{metric_prefix}/count/long_note_events": float(long_note_events),
+        f"{metric_prefix}/count/whole_bar_note_events": float(whole_bar_note_events),
+        f"{metric_prefix}/count/whole_note_or_longer_events": float(whole_note_or_longer_events),
+    }
+    if samples > 0:
+        metrics[f"{metric_prefix}/rate/samples_with_long_note"] = samples_with_long_note / samples
+        metrics[f"{metric_prefix}/rate/samples_with_whole_bar_note"] = samples_with_whole_bar_note / samples
+        metrics[f"{metric_prefix}/rate/samples_with_whole_note_or_longer"] = samples_with_whole_note_or_longer / samples
     if note_events > 0:
         metrics[f"{metric_prefix}/rate/long_note_events"] = long_note_events / note_events
         metrics[f"{metric_prefix}/rate/whole_bar_note_events"] = whole_bar_note_events / note_events
+        metrics[f"{metric_prefix}/rate/whole_note_or_longer_events"] = whole_note_or_longer_events / note_events
     if left_note_events > 0:
         metrics[f"{metric_prefix}/rate/left_long_note_events"] = left_long_note_events / left_note_events
+        metrics[f"{metric_prefix}/rate/left_whole_bar_note_events"] = left_whole_bar_note_events / left_note_events
+        metrics[f"{metric_prefix}/rate/left_whole_note_or_longer_events"] = (
+            left_whole_note_or_longer_events / left_note_events
+        )
     if right_note_events > 0:
         metrics[f"{metric_prefix}/rate/right_long_note_events"] = right_long_note_events / right_note_events
+        metrics[f"{metric_prefix}/rate/right_whole_bar_note_events"] = right_whole_bar_note_events / right_note_events
+        metrics[f"{metric_prefix}/rate/right_whole_note_or_longer_events"] = (
+            right_whole_note_or_longer_events / right_note_events
+        )
     if left_long_note_events > 0:
         metrics[f"{metric_prefix}/rate/static_long_left_under_right_motion"] = (
             long_left_under_right_motion / left_long_note_events

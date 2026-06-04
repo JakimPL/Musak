@@ -15,7 +15,11 @@ def viterbi_decode(
 ) -> tuple[Chord, ...]:
     emissions = [
         [
-            _emission_score(window.pitch_class_weights, candidate.pitch_classes, non_chord_penalty=non_chord_penalty)
+            _emission_score(
+                window.pitch_class_weights,
+                candidate.pitch_classes,
+                non_chord_penalty=non_chord_penalty,
+            )
             for candidate in candidates
         ]
         for window in windows

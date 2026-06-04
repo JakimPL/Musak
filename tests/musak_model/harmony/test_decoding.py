@@ -38,7 +38,11 @@ _QUARTER_NOTE_RESOLUTION = 4
 
 def _decoder(resolution: int) -> ViterbiChordDecoder:
     return ViterbiChordDecoder(
-        config=ChordDecoderConfig(resolution=resolution, self_transition_bias=0.25, non_chord_penalty=1.0)
+        config=ChordDecoderConfig(
+            resolution=resolution,
+            self_transition_bias=0.25,
+            non_chord_penalty=1.0,
+        )
     )
 
 

@@ -35,6 +35,8 @@ Status: in progress. Core generation diagnostics are implemented under
 Implementation tasks:
 
 - Add generation diagnostics for whole-bar and long-duration stasis by hand.
+  Explicit whole-note-or-longer metrics are tracked separately from whole-bar metrics, because short bars and non-4/4
+  meters make those concepts diverge.
 - Add melodic-contour diagnostics: stepwise motion, large leaps, leap recovery, repeated notes, and direction changes.
 - Add hand-dialogue diagnostics: synchronized onsets, delayed answer onsets, contrary motion, and static long-bass
   support under upper-hand motion.

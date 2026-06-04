@@ -1,14 +1,21 @@
 from fractions import Fraction
 from pathlib import Path
 
-from musak_model.conditioning.harmony.extraction import harmonic_plan_windows_from_segment
+from musak_model.conditioning.harmony.extraction import (
+    harmonic_plan_windows_from_segment,
+)
 from musak_model.data.schema import Segment, SegmentMetadata
 from musak_model.data.tokenization_context import tokenization_context_from_scale
 from musak_model.harmony.decoding import ChordDecoderConfig, ViterbiChordDecoder
 from musak_model.harmony.schema import ChordQuality
 from musak_model.harmony.vocabulary import ChordVocabularyConfig
 from musak_model.tokens.duration import DurationVocabulary
-from musak_model.tokens.schema import BarToken, JoinWithPreviousToken, NoteToken, ScaleType
+from musak_model.tokens.schema import (
+    BarToken,
+    JoinWithPreviousToken,
+    NoteToken,
+    ScaleType,
+)
 
 
 def test_harmonic_plan_windows_from_segment_reuses_viterbi_decoder(
@@ -40,7 +47,11 @@ def test_harmonic_plan_windows_from_segment_reuses_viterbi_decoder(
     windows = harmonic_plan_windows_from_segment(
         segment,
         decoder=ViterbiChordDecoder(
-            config=ChordDecoderConfig(resolution=1, self_transition_bias=0.25, non_chord_penalty=1.0)
+            config=ChordDecoderConfig(
+                resolution=1,
+                self_transition_bias=0.25,
+                non_chord_penalty=1.0,
+            )
         ),
         duration_vocabulary=duration_vocabulary,
         vocabulary=ChordVocabularyConfig.load(),
