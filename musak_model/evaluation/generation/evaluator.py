@@ -57,6 +57,7 @@ from musak_model.n_grams.profile.loading import FigureProfileArtifacts
 from musak_model.tokens.duration import DurationVocabulary, duration_tick_denominator
 from musak_model.tokens.schema import BarToken, EndToken, Token
 from musak_model.tokens.vocabulary import TokenVocabulary
+from musak_model.training.progress import progress
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -101,6 +102,7 @@ class GenerationSuiteEvaluator:
         duration_vocabulary: DurationVocabulary,
         include_bar_count_control: bool,
         figure_profile_artifacts: FigureProfileArtifacts | None,
+        show_progress: bool,
     ) -> None:
         self._config = config
         self._conditioning = conditioning
@@ -110,6 +112,7 @@ class GenerationSuiteEvaluator:
         self._duration_tick_denominator = duration_tick_denominator(duration_vocabulary)
         self._include_bar_count_control = include_bar_count_control
         self._figure_profile_artifacts = figure_profile_artifacts
+        self._show_progress = show_progress
         self._harmonic_plan_provider = _harmonic_plan_provider(
             conditioning=conditioning,
             model_config=model_config,
@@ -262,15 +265,24 @@ class GenerationSuiteEvaluator:
         hard_constraints: bool,
         seed_offset: int,
     ) -> list[GenerationSample]:
-        return [
-            self._sample(
-                model,
-                device=device,
-                hard_constraints=hard_constraints,
-                seed=self._config.seed + seed_offset + sample_index,
+        description = "Generating hard samples" if hard_constraints else "Generating soft samples"
+        samples: list[GenerationSample] = []
+        for sample_index in progress(
+            range(sample_count),
+            description=description,
+            unit="sample",
+            enabled=self._show_progress,
+            total=sample_count,
+        ):
+            samples.append(
+                self._sample(
+                    model,
+                    device=device,
+                    hard_constraints=hard_constraints,
+                    seed=self._config.seed + seed_offset + sample_index,
+                )
             )
-            for sample_index in range(sample_count)
-        ]
+        return samples
 
     def _sample(
         self,

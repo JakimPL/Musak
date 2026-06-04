@@ -36,7 +36,8 @@ checkpoint by default, run the soft/hard generation suite defined in
 `generation/evaluation/`. The checkpoint path, generation-evaluation config path, and model config are logged as
 parameters; the checkpoint file itself is not copied into the evaluation run. CLI overrides are limited to setup
 options plus the convenience sampling overrides `--seed` and `--temperature`; bar count, max new tokens, top-k, and
-sample counts belong to the YAML config.
+sample counts belong to the YAML config. Standalone evaluation shows tqdm progress bars while sampling soft and hard
+suites; `scripts/evaluate_model.py` accepts `--no-progress` for non-interactive runs.
 
 ## Current Encoded Dataset
 

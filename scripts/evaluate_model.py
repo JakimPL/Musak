@@ -90,6 +90,7 @@ def evaluate_model(args: argparse.Namespace) -> None:
         duration_vocabulary=token_vocabulary.duration_vocabulary,
         include_bar_count_control=False,
         figure_profile_artifacts=figure_profile_artifacts,
+        show_progress=not args.no_progress,
     )
     run_name = args.mlflow_run_name or default_run_name(
         stage=stage,
@@ -326,6 +327,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--device", choices=("auto", "cpu", "cuda", "mps"), default="auto", help="Evaluation device.")
     parser.add_argument("--seed", type=int, default=None, help="Override generation seed.")
     parser.add_argument("--temperature", type=float, default=None, help="Override sampling temperature.")
+    parser.add_argument("--no-progress", action="store_true", help="Disable tqdm progress bars.")
     parser.add_argument("--mlflow-db", type=Path, default=DEFAULT_MLFLOW_DB_PATH, help="Local MLflow SQLite database.")
     parser.add_argument("--mlflow-experiment-name", default=None, help="MLflow experiment name.")
     parser.add_argument("--mlflow-run-name", default=None, help="Optional MLflow run name.")

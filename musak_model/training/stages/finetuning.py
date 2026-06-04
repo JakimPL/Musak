@@ -150,6 +150,7 @@ def finetune(
                 duration_vocabulary=duration_vocabulary,
                 include_bar_count_control=True,
                 figure_profile_artifacts=figure_profile_artifacts,
+                show_progress=show_progress,
             ),
         )
 

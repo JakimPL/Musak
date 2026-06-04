@@ -936,6 +936,7 @@ def pretrain(
                 duration_vocabulary=vocabulary.duration_vocabulary,
                 include_bar_count_control=False,
                 figure_profile_artifacts=figure_profile_artifacts,
+                show_progress=show_progress,
             ),
         )
         return trainer.train(invalid_files=split.invalid_files)

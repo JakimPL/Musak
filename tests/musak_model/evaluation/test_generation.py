@@ -147,6 +147,7 @@ def test_generation_suite_logs_soft_and_hard_constraint_metrics() -> None:
         duration_vocabulary=duration_vocabulary,
         include_bar_count_control=False,
         figure_profile_artifacts=None,
+        show_progress=False,
     )
 
     result = evaluator.evaluate_result(
@@ -188,6 +189,7 @@ def test_generation_suite_passes_harmonic_plan_when_enabled() -> None:
         duration_vocabulary=duration_vocabulary,
         include_bar_count_control=False,
         figure_profile_artifacts=None,
+        show_progress=False,
     )
 
     result = evaluator.evaluate_result(model, device=torch.device("cpu"))
@@ -214,6 +216,7 @@ def test_generation_suite_rejects_harmony_conditioning_mismatch() -> None:
             duration_vocabulary=duration_vocabulary,
             include_bar_count_control=False,
             figure_profile_artifacts=None,
+            show_progress=False,
         )
 
 
@@ -228,6 +231,7 @@ def test_generation_suite_includes_loaded_figure_profile_context_metrics(tmp_pat
         duration_vocabulary=duration_vocabulary,
         include_bar_count_control=False,
         figure_profile_artifacts=_figure_profile_artifacts(tmp_path),
+        show_progress=False,
     )
 
     metrics = evaluator.evaluate(
@@ -259,6 +263,7 @@ def test_generation_suite_compares_generated_figures_to_loaded_profile(tmp_path:
         duration_vocabulary=duration_vocabulary,
         include_bar_count_control=False,
         figure_profile_artifacts=_figure_profile_artifacts(tmp_path),
+        show_progress=False,
     )
 
     metrics = evaluator.evaluate(
@@ -295,6 +300,7 @@ def test_generation_suite_identity_distribution_distance_detects_different_figur
         duration_vocabulary=duration_vocabulary,
         include_bar_count_control=False,
         figure_profile_artifacts=_figure_profile_artifacts(tmp_path),
+        show_progress=False,
     )
 
     metrics = evaluator.evaluate(
@@ -324,6 +330,7 @@ def test_generation_suite_compares_generated_rhythm_to_loaded_profile(tmp_path: 
         duration_vocabulary=duration_vocabulary,
         include_bar_count_control=False,
         figure_profile_artifacts=_figure_profile_artifacts(tmp_path, include_rhythm=True),
+        show_progress=False,
     )
 
     metrics = evaluator.evaluate(
