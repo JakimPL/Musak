@@ -23,6 +23,17 @@ PRETRAIN_DATA_DIR=data/pretraining-dataset FINETUNE_DATA_DIR=data/finetuning-dat
 Training targets take dataset roots and look for matching artifacts under `artifacts/processed/<dataset-name>`. See
 `docs/pipeline.md` for the operational command guide.
 
+The isolated rhythm-grid refiner is trained separately from the autoregressive token model:
+
+```bash
+DATA_DIR=data/pretraining-dataset make train-refiner
+```
+
+This target dispatches to `scripts/train_refiner.py`, loads the same processed/encoded artifacts when available,
+converts each segment to a masked rhythm grid, and trains a small classifier over per-hand `rest`/`onset`/`sustain`
+activity plus coactivity. It writes checkpoints under `artifacts/checkpoints/rhythm-refiner` by default and logs
+metrics to the `musak-rhythm-refiner` MLflow experiment unless MLflow is disabled.
+
 Generation evaluation can also be run for an existing checkpoint without starting a training stage:
 
 ```bash

@@ -80,10 +80,10 @@ mlflow:
 generation_evaluation:
   enabled: true
   every_epochs: 5
-  soft_sample_count: 4
-  hard_sample_count: 4
-  max_new_tokens: 256
-  seed: 1729
+  soft_sample_count: 8
+  hard_sample_count: 8
+  max_new_tokens: 512
+  seed: 137
   temperature: 1.0
   top_k: 32
   scale_root: 0

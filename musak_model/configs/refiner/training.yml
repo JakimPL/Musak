@@ -1,0 +1,39 @@
+grid:
+  grid_denominator: 16
+data:
+  max_cells: 256
+masking:
+  mask_probability: 0.30
+  seed: 1729
+model:
+  hidden_size: 128
+  transformer_layers: 2
+  attention_heads: 4
+  feedforward_size: 256
+  dropout: 0.10
+  max_bar_count: 32
+  max_cells_per_bar: 64
+  max_distance_cells: 256
+  max_time_numerator: 16
+  max_time_denominator: 32
+loss:
+  activity_weight: 1.0
+  coactivity_weight: 0.5
+optimization:
+  epochs: 10
+  batch_size: 64
+  learning_rate: 3e-4
+  weight_decay: 0.01
+runtime:
+  num_workers: 0
+  device: auto
+checkpoints:
+  checkpoint_directory: artifacts/checkpoints/rhythm-refiner
+  resume_checkpoint: null
+  save_all_epochs: false
+mlflow:
+  enable_mlflow: true
+  mlflow_experiment_name: musak-rhythm-refiner
+  mlflow_run_name: null
+  mlflow_run_id: null
+  mlflow_tracking_uri: null

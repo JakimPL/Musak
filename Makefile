@@ -42,7 +42,7 @@ NOTEBOOK_NAMES := $(subst _,-,$(basename $(notdir $(NOTEBOOK_FILES))))
 NOTEBOOK_TARGETS := $(addprefix notebook-,$(NOTEBOOK_NAMES))
 NOTEBOOK_MODE ?= edit
 
-.PHONY: help install test app parse tokenize process diagnose analyze-n-grams fit-generator train pretrain finetune evaluate-pretrain evaluate-finetune mlflow FORCE
+.PHONY: help install test app parse tokenize process diagnose analyze-n-grams fit-generator train pretrain finetune train-refiner evaluate-pretrain evaluate-finetune mlflow FORCE
 
 PRETRAIN_DATA_DIR ?= $(DATA_DIR)
 PRETRAIN_EPOCHS ?= $(EPOCHS)
@@ -75,6 +75,22 @@ EVALUATE_MLFLOW_RUN_NAME ?=
 EVALUATE_MLFLOW_RUN_ID ?=
 EVALUATE_DISABLE_MLFLOW ?=
 
+REFINER_DATA_DIR ?= $(DATA_DIR)
+REFINER_CONFIG ?=
+REFINER_EPOCHS ?= $(EPOCHS)
+REFINER_DEVICE ?= $(DEVICE)
+REFINER_NUM_WORKERS ?= $(NUM_WORKERS)
+REFINER_BATCH_SIZE ?= $(BATCH_SIZE)
+REFINER_CHECKPOINT_DIR ?=
+REFINER_RESUME_CHECKPOINT ?= $(if $(REFINER_CHECKPOINT_DIR),$(REFINER_CHECKPOINT_DIR)/latest.pt,$(ARTIFACTS_DIR)/checkpoints/rhythm-refiner/latest.pt)
+REFINER_OVERWRITE ?= $(OVERWRITE)
+REFINER_DIFFICULTY_LABELS ?=
+REFINER_WHOLE_FILE_SEGMENTS ?=
+REFINER_MLFLOW_EXPERIMENT ?=
+REFINER_MLFLOW_RUN_NAME ?=
+REFINER_MLFLOW_RUN_ID ?=
+REFINER_DISABLE_MLFLOW ?=
+
 help:
 	@printf '%s\n' 'Musak development commands'
 	@printf '%s\n' ''
@@ -90,6 +106,7 @@ help:
 	@printf '%s\n' '  make fit-generator    Fit register/accent generator overrides from corpus figure statistics.'
 	@printf '%s\n' '  make pretrain         Train the broad token-distribution pretrain model.'
 	@printf '%s\n' '  make finetune         Fine-tune from a pretrain checkpoint with conditioning controls.'
+	@printf '%s\n' '  make train-refiner    Train the isolated masked rhythm-grid refiner.'
 	@printf '%s\n' '  make evaluate-pretrain Run generation evaluation for a pretrain checkpoint.'
 	@printf '%s\n' '  make evaluate-finetune Run generation evaluation for a finetune checkpoint.'
 	@printf '%s\n' '  make train            Run pretrain, then finetune.'
@@ -110,6 +127,7 @@ help:
 	@printf '%s\n' '  DATA_DIR=PDMX make evaluate-pretrain'
 	@printf '%s\n' '  DATA_DIR=exercises make evaluate-finetune'
 	@printf '%s\n' '  FINETUNE_DATA_DIR=data/finetuning-dataset FINETUNE_DIFFICULTY_LABELS=data/finetuning-difficulty.json FINETUNE_EPOCHS=8 make finetune'
+	@printf '%s\n' '  DATA_DIR=data/pretraining-dataset REFINER_DEVICE=cuda make train-refiner'
 	@printf '%s\n' '  PRETRAIN_DATA_DIR=data/pretraining-dataset FINETUNE_DATA_DIR=data/finetuning-dataset FINETUNE_DIFFICULTY_LABELS=data/finetuning-difficulty.json EPOCHS=25 DEVICE=cuda make train'
 	@printf '%s\n' '  MLFLOW_DB=artifacts/mlflow/mlflow.db MLFLOW_PORT=5000 make mlflow'
 	@printf '%s\n' ''
@@ -157,6 +175,9 @@ help:
 	@printf '%s\n' '  FINETUNE_WHOLE_FILE_SEGMENTS=1 passes --whole-file-segments to finetune. Default: 1'
 	@printf '%s\n' '  PRETRAIN_CHECKPOINT   Checkpoint used by finetune. Default: $(PRETRAIN_CHECKPOINT)'
 	@printf '%s\n' '  FINETUNE_CHECKPOINT   Checkpoint evaluated by evaluate-finetune. Default: $(FINETUNE_CHECKPOINT)'
+	@printf '%s\n' '  REFINER_DATA_DIR      Rhythm-refiner dataset root. Defaults to DATA_DIR.'
+	@printf '%s\n' '  REFINER_CONFIG        Optional rhythm-refiner training YAML override.'
+	@printf '%s\n' '  REFINER_CHECKPOINT_DIR Optional checkpoint output directory for train-refiner.'
 	@printf '%s\n' '  EVALUATE_GENERATION_CONFIG Optional generation-evaluation YAML override.'
 	@printf '%s\n' '  EVALUATE_SEED, EVALUATE_TEMPERATURE optional generation convenience overrides.'
 	@printf '%s\n' '  EPOCHS, DEVICE, NUM_WORKERS provide shared defaults.'
@@ -237,6 +258,25 @@ finetune:
 		$(call optional_arg,FINETUNE_MLFLOW_RUN_ID,--mlflow-run-id) \
 		$(call optional_flag,FINETUNE_WHOLE_FILE_SEGMENTS,--whole-file-segments) \
 		$(call optional_resume_checkpoint,FINETUNE_RESUME_CHECKPOINT)
+
+train-refiner:
+	$(call require_var,REFINER_DATA_DIR)
+	uv run python scripts/train_refiner.py \
+		--data-dir "$(REFINER_DATA_DIR)" \
+		$(call optional_arg,REFINER_CONFIG,--training-config) \
+		$(call optional_arg,REFINER_CHECKPOINT_DIR,--checkpoint-dir) \
+		$(call optional_arg,REFINER_EPOCHS,--epochs) \
+		$(call optional_arg,REFINER_DEVICE,--device) \
+		$(call optional_arg,REFINER_NUM_WORKERS,--num-workers) \
+		$(call optional_arg,REFINER_BATCH_SIZE,--batch-size) \
+		$(call optional_arg,REFINER_DIFFICULTY_LABELS,--difficulty-labels) \
+		$(call optional_arg,REFINER_MLFLOW_EXPERIMENT,--mlflow-experiment-name) \
+		$(call optional_arg,REFINER_MLFLOW_RUN_NAME,--mlflow-run-name) \
+		$(call optional_arg,REFINER_MLFLOW_RUN_ID,--mlflow-run-id) \
+		$(call optional_flag,REFINER_WHOLE_FILE_SEGMENTS,--whole-file-segments) \
+		$(call optional_flag,REFINER_DISABLE_MLFLOW,--disable-mlflow) \
+		$(call optional_resume_checkpoint,REFINER_RESUME_CHECKPOINT) \
+		$(call optional_non_resume_flag,REFINER_OVERWRITE,--overwrite)
 
 evaluate-pretrain:
 	$(call require_var,DATA_DIR)

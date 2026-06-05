@@ -54,8 +54,8 @@ harmonic_plan_contrastive_objective:
   negative_count: 3
   temperature: 0.20
 early_stopping:
-  enabled: false
-  patience_epochs: 10
+  enabled: true
+  patience_epochs: 5
   min_delta: 0.0
 runtime:
   num_workers: 6
@@ -79,10 +79,10 @@ mlflow:
   mlflow_tracking_uri: null
 generation_evaluation:
   enabled: true
-  every_epochs: 5
-  soft_sample_count: 4
-  hard_sample_count: 4
-  max_new_tokens: 256
+  every_epochs: 3
+  soft_sample_count: 16
+  hard_sample_count: 16
+  max_new_tokens: 512
   seed: 1729
   temperature: 1.0
   top_k: 32
@@ -90,7 +90,7 @@ generation_evaluation:
   scale_type: major
   time_numerator: 4
   time_denominator: 4
-  bar_count: 2
+  bar_count: 4
   minimum_duration_denominator: 16
   allow_dotted_durations: true
   max_notes_per_hand: 5

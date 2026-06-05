@@ -48,6 +48,12 @@ artifacts are available, and the model output explorer shows generated-output fi
 - Strong-beat onset fraction.
 - Syncopation index.
 - Rhythmic n-gram distribution.
+- Whole-bar note and whole-note-or-longer event rates.
+- Long sustain without opposite-hand answer rate.
+- Per-hand activity labels over a planning grid: rest, onset, sustain.
+- Coactivity-mode distribution: silent, right-only, left-only, synchronized, answering, interleaved, both-sustain.
+- Learned-salience onset alignment and syncopation salience.
+- Onset-template and duration-profile distribution distance against reference slices.
 
 ### Playability
 
@@ -87,6 +93,13 @@ artifacts are available, and the model output explorer shows generated-output fi
 - Self-similarity between bars or phrase windows.
 - Opening and closing register contrast.
 - Cadential simplicity proxies.
+- Exact-repeat, varied-repeat, answer, contrast, and cadence-fill relation rates.
+- Bar-pair and phrase-pair rhythm similarity matrices.
+- Recurrence without stasis rate.
+- Plan-following metrics when rhythm or figure plans are supplied: onset precision, onset recall, hand-activity
+  accuracy, duration-profile agreement, and plan escape rate.
+
+See [rhythm-figure-plan.md](rhythm-figure-plan.md) for the planned rhythm/texture/figure metric definitions and rollout.
 
 ## Rollout
 
@@ -142,6 +155,9 @@ V3 should be implemented only after V0-V2 distributions are understood and manua
 - Motif recurrence.
 - Bar-level density curves.
 - Self-similarity across bars or phrase windows.
+- Cross-hand answer rate and best lagged phrase similarity.
+- Recurrence without stasis.
+- Rhythm and figure relation-label distributions.
 - Opening and closing contrast.
 - Climax position.
 - Cadential simplicity proxies.

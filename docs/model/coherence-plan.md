@@ -23,6 +23,7 @@ training.
 4. Treat chord pair transitions as one score term inside a finite-horizon planner, not as the planner itself.
 5. Tell the model where it is in the phrase and how close it is to the ending.
 6. Validate figure and texture abstractions as diagnostics and reranking features before making them core model inputs.
+   The concrete rhythm/texture/figure path is tracked in [rhythm-figure-plan.md](rhythm-figure-plan.md).
 7. Prefer reranking and supervised auxiliary targets before reinforcement learning or scalar musicality rewards.
 
 ## Phase 0: Musical Coherence Diagnostics
@@ -133,6 +134,8 @@ Acceptance criteria:
 ## Phase 5: Inspectable Figure And Texture Plan
 
 Goal: validate a non-neural abstraction for melody and texture before committing to architectural changes.
+
+Detailed plan: [rhythm-figure-plan.md](rhythm-figure-plan.md).
 
 Implementation tasks:
 
